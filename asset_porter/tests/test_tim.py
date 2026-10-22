@@ -125,5 +125,27 @@ class AllTimTests(unittest.TestCase):
         self.assertEqual(RUNTIME_SLOTS["partner"]["image"], {"x": 320, "y": 384})
 
 
+class StackedTimTests(unittest.TestCase):
+    def test_loader_step_equals_size_for_packed_tim(self):
+        from dwporter.families.stacked_tim import loader_step
+
+        tim = timfmt.parse(make_tim(4, 4, 2, bytes(4), [[0] * 16, [0] * 16]))
+        self.assertEqual(loader_step(tim), tim.size)
+
+    def test_convert(self):
+        import tempfile
+        from pathlib import Path
+
+        from dwporter.families import etctim, stdtim
+
+        for module, count in ((etctim, 9), (stdtim, 6)):
+            if not (DEFAULT_INPUT / module.SOURCE_PATH).exists():
+                self.skipTest("dumped game files not available")
+            with tempfile.TemporaryDirectory() as tmp:
+                out = module.convert(DEFAULT_INPUT, Path(tmp))
+                self.assertTrue(out.ok, [c.name for c in out.checks if not c.passed])
+                self.assertEqual(len(out.assets), count)
+
+
 if __name__ == "__main__":
     unittest.main()

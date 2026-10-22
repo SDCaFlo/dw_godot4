@@ -24,9 +24,9 @@ Last updated: 2026-10-21
 |---|---|---|---|---|---|---|
 | `card_all` | `CARD/CARD.ALL` | done | 66 | 465/465 | `specs/card_all.md` | 66 card images, 0x7000-byte slots |
 | `alltim` | `CHDAT/ALLTIM.TIM` | done | 180 | 1083/1083 | `specs/alltim.md` | One texture per digimon type, 0x4800-byte slots; palettes are per polygon; types 62/114 have no model |
-| | `ETCDAT/ETCTIM.BIN` | todo | | | | 9 TIMs (scan) |
-| | `STDDAT/STDTIM.BIN` | todo | | | | 6 TIMs (scan) |
-| | `*.TIM` (ETCDAT, ETCHI, ETCNA, STDDAT, GRADE) | todo | | | | Standalone TIMs; need a family per use or a generic one |
+| `etctim` | `ETCDAT/ETCTIM.BIN` | done | 9 | 41/41 | `specs/stacked_tim.md` | Packed TIMs at their header VRAM positions; 3/9 users found in code; entry 6 = `ITEM.TIM` |
+| `stdtim` | `STDDAT/STDTIM.BIN` | done | 6 | 28/28 | `specs/stacked_tim.md` | Tournament graphics; 4/6 users found in code |
+| | `*.TIM` (ETCDAT, ETCHI, ETCNA, STDDAT, GRADE) | todo | | | | Standalone TIMs; need a family per use or a generic one. `ITEM.TIM` duplicates `etctim` entry 6 |
 | | `DOOR/*.TMD`, other `*.TMD` | todo | | | | Needs TMD format |
 | | `CHDAT/**/*.MMD` | todo | | | | 178 models; needs MMD format |
 | | `MAP/**/*.MAP`, `*.TFS` | todo | | | | 242 maps |
@@ -54,10 +54,11 @@ Last updated: 2026-10-21
 | CLI (`list`, `convert`, `scan`) | done | |
 | Identity sidecars + `manifest.json` | done | `dwporter/assets.py` |
 | Verification checks (fail = non-zero exit) | done | |
-| Unit tests | done | `tests/test_tim.py`, 11 tests |
+| Unit tests | done | `tests/test_tim.py`, 13 tests |
 | Godot import of `output/` | todo | Decide `.gdignore` for `output/scan/`, and how Godot loads sidecars |
 
 ## Log
 
 - 2026-10-21 — Core created (TIM, PNG, CLI, sidecars, scan). `card_all` done: 66 assets, 465/465 checks.
 - 2026-10-21 — `alltim` done: 180 Digimon textures, 1083/1083 checks. Added `dwporter/data/digimon.py` (type → file name, display name, model path). Found the game overrides the TIM's VRAM position at load time.
+- 2026-10-21 — `etctim` (9 assets, 41/41) and `stdtim` (6 assets, 28/28) done with shared `stacked_tim.py`. Unlike ALLTIM, these load at their header VRAM positions; users matched via `GetTPage`/`GetClut` constants (7 of 15 so far).

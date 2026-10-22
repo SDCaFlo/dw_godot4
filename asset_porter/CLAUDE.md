@@ -25,8 +25,8 @@ Defaults: input `../../external-resources/game_dumped_files/`, output `output/` 
 | `dwporter/paths.py` | Default paths, sector size |
 | `dwporter/source.py` | `SourceFile` / `SourceSpan`: byte ranges that carry their identity (path, offset, size, sha1) |
 | `dwporter/assets.py` | `AssetWriter`: writes outputs + sidecar JSON + `manifest.json`, records checks |
-| `dwporter/formats/` | Format parsers (`tim.py`, `tmd.py`, `mmd.py` incl. the animation simulator, `map.py` incl. the camera projection, `scn.py` event-script disassembler), PSX helpers (`psx.py`: colours, `GetTPage`, `GetClut`) and `vram.py` (VRAM copy that builds textures like the GPU) |
-| `dwporter/exporters/` | Writers for open formats (`png.py`, `gltf.py`; stdlib only) |
+| `dwporter/formats/` | Format parsers (`tim.py`, `tmd.py`, `mmd.py` incl. the animation simulator, `map.py` incl. the camera projection, `scn.py` event-script disassembler, `vab.py` sound banks + PSX ADPCM, `seq.py` music → MIDI), PSX helpers (`psx.py`: colours, `GetTPage`, `GetClut`) and `vram.py` (VRAM copy that builds textures like the GPU) |
+| `dwporter/exporters/` | Writers for open formats (`png.py`, `gltf.py`, `wav.py`, `sf2.py`; stdlib only) |
 | `dwporter/models.py` | TMD → glTF conversion used by `AssetWriter.write_tmd` |
 | `dwporter/families/` | One converter per asset family, registered in `families/__init__.py` |
 | `dwporter/data/` | Tables generated from the decomp, shared by families (`digimon.py`: type id → file name, display name, model path; `skeletons.py`: bones, bone counts, radius/height) |
@@ -83,7 +83,7 @@ Formats are only known by extension until a spec confirms them. Standard PSX for
 
 ## Specs
 
-Location: `specs/<family>.md`, one per format or asset family. Existing: `specs/tim.md` (TIM format), `specs/card_all.md` (`CARD/CARD.ALL`), `specs/alltim.md` (`CHDAT/ALLTIM.TIM`), `specs/stacked_tim.md` (`ETCDAT/ETCTIM.BIN`, `STDDAT/STDTIM.BIN`), `specs/tim_files.md` (51 standalone `*.TIM`), `specs/tmd.md` (TMD format, glTF export, `tmd_files`), `specs/mmd.md` (Digimon models, skeletons, animations), `specs/map.md` (field maps: backgrounds, camera, collision, objects, entities, doors), `specs/atr.md` (arena collision), `specs/scn.md` (event scripts: opcodes, text, map → script).
+Location: `specs/<family>.md`, one per format or asset family. Existing: `specs/tim.md` (TIM format), `specs/card_all.md` (`CARD/CARD.ALL`), `specs/alltim.md` (`CHDAT/ALLTIM.TIM`), `specs/stacked_tim.md` (`ETCDAT/ETCTIM.BIN`, `STDDAT/STDTIM.BIN`), `specs/tim_files.md` (51 standalone `*.TIM`), `specs/tmd.md` (TMD format, glTF export, `tmd_files`), `specs/mmd.md` (Digimon models, skeletons, animations), `specs/map.md` (field maps: backgrounds, camera, collision, objects, entities, doors), `specs/atr.md` (arena collision), `specs/scn.md` (event scripts: opcodes, text, map → script), `specs/sound.md` (VHB/VAB sound banks, SEQ music, `MMM.DAT`).
 
 Each spec must contain:
 

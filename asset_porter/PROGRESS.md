@@ -18,7 +18,9 @@ Last updated: 2026-10-22
 | SCN (event scripts) | done | `dwporter/formats/scn.py` | `specs/scn.md` | Offset table + per-script sections; full disassembler (all opcodes of `script.h`, IF conditions, selections, DATA), Shift-JIS text with control codes; lossless round trip |
 | ATR (arena collision) | done | — (raw grid) | `specs/atr.md` | 100 × 100 cells, same layout as map collision |
 | EFE | todo | | | Game-specific (effects) |
-| VHB (sound banks) | todo | | | Game-specific |
+| VHB / VAB (sound banks) | done | `dwporter/formats/vab.py` | `specs/sound.md` | VHB offset table + libsnd VAB (programs, tones, samples); PSX ADPCM → WAV with loop points |
+| SEQ (music) | done | `dwporter/formats/seq.py` | `specs/sound.md` | Sony pQES → Standard MIDI; loop markers |
+| WAV / SF2 (export) | done | `dwporter/exporters/wav.py`, `sf2.py` | `specs/sound.md` | WAV with `smpl` loops; SF2 preview banks (no ADSR) |
 | STR (FMV) | blocked | | | Dump is missing data; re-dump in raw mode first |
 
 ## Families (disc files)
@@ -36,8 +38,8 @@ Last updated: 2026-10-22
 | | `ETCHI/EFEDAT.EFE` | todo | | | | Effects |
 | `atr_files` | `STDDAT/B_TOGI.ATR`, `E_TOGI.ATR` | done | 2 | 7/7 | `specs/atr.md` | Arena collision; walkable disc (B) / diamond (E) checked against the arena models; T_TOGI arena reuses B_TOGI.ATR |
 | `scripts` | `SCN/MAPHEAD.SCN`, `SCN/DG.SCN` | done | 223 | 1571/1571 | `specs/scn.md` | 222 DG scripts + MAPHEAD (map setup); 39,797 instructions, 4,844 texts; map → script links; JSON + readable listings |
-| | `SOUND/VHB/*.VHB` | todo | | | | |
-| | `MMM.DAT` | todo | | | | 27 MB, unknown |
+| `sound` | 7 `SOUND/VHB/*.VHB` | done | 145 | 1396/1396 | `specs/sound.md` | 145 VABs (SS, SL, SB, 22 ESALL map sets, 16 VLALL partner sets, 71 VBALL Digimon sets, 33 FAALL music fonts), 834 samples, 74 music tracks (.seq + .mid), usage per bank |
+| `mmm_dat` | `MMM.DAT` | done | 0 | 2/2 | `specs/sound.md` | All zeros, never opened by the code: disc filler, nothing to convert |
 | | `MOVIE/*.STR` | blocked | | | | See STR above |
 | | `*_REL.BIN`, `SLUS_010.32` | — | | | | Code; data tables come from the decomp, not converted here |
 
@@ -58,7 +60,7 @@ Last updated: 2026-10-22
 | CLI (`list`, `convert`, `scan`) | done | |
 | Identity sidecars + `manifest.json` | done | `dwporter/assets.py` |
 | Verification checks (fail = non-zero exit) | done | |
-| Unit tests | done | `tests/test_tim.py`, 32 tests |
+| Unit tests | done | `tests/test_tim.py`, 35 tests |
 | Human verification guide | done | `VERIFY.md` |
 | Godot import of `output/` | done | `asset_porter/.gdignore`: the editor never imports it; the game loads it at runtime (`scripts/porter/porter_assets.gd`) |
 
@@ -74,3 +76,4 @@ Last updated: 2026-10-22
 - 2026-10-22 — `maps` done: 241 field maps (MAP_ENTRIES/DOOR_MAPDATA/TOILET_DATA read from the executable). Camera projection derived from GsSetRefView2 and verified by projecting collision onto backgrounds. Doors textured per map. Added VERIFY.md (human checks).
 - 2026-10-22 — First consumer in Godot: `scenes/field/field.tscn` loads maps + the tamer from `output/` at runtime (`asset_porter/.gdignore` keeps the editor from importing it). Camera projection matches `map.json` to <0.001 px; root motion, collision and warps (110–119) work on real maps.
 - 2026-10-22 — `atr_files` (2 assets, 7/7) and `scripts` (223 assets, 1571/1571) done. SCN = the event script bytecode: every opcode decoded from `script.h` + the interpreter, all 223 scripts rebuild byte for byte, all jumps/sections land on instructions. Found: DG script 0 = copy of MAPHEAD; sector padding is build-tool leftovers (incl. source names `\SCN\MAPnnn.SCN`); US text is full-width Shift-JIS with 。/「/− drawn as . ' -.
+- 2026-10-22 — `sound` (145 assets, 1396/1396) and `mmm_dat` (2/2) done. VHB = offset table + VAB; bundles are fixed sector chunks picked by tables read from the executable (Digimon → VLALL/VBALL set, map → ESALL set, music font → FAALL). ADPCM decode checked against wrong variants (no-filter is 10x rougher, swapped nibbles clip); SEQ tracks padded with 00 + CD fill. MMM.DAT is 27 MB of zeros (disc filler).

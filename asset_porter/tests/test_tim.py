@@ -438,6 +438,49 @@ class ScnTests(unittest.TestCase):
         self.assertEqual((insn["size"], insn["args"]["values"]), (6, [3, 4, 0x11]))
 
 
+class SoundFormatTests(unittest.TestCase):
+    def test_adpcm_low_nibble_first_and_loop_flags(self):
+        from dwporter.formats import vab
+
+        # shift 12, filter 0: each nibble decodes to its signed value; low nibble first
+        block1 = bytes([0x0C, 0x04]) + bytes([0x21, 0xF3]) + bytes(12)   # loop start here
+        block2 = bytes([0x0C, 0x03]) + bytes(14)                         # end + repeat
+        r = vab.decode_adpcm(block1 + block2 + bytes(16))
+        self.assertEqual(r["samples"][:4], [1, 2, 3, -1])
+        self.assertEqual((r["loop_start"], r["loop_end"], r["end_block"]), (0, 56, 1))
+        self.assertEqual(len(r["samples"]), 56)  # decoding stops at the end flag
+
+    def test_seq_to_midi(self):
+        from dwporter.formats import seq
+
+        body = bytes([0x00, 0xC0, 5, 0x00, 0x90, 60, 100, 0x83, 0x60, 60, 0])  # running status note off (vel 0)
+        body += bytes([0x00, 0xFF, 0x51, 0x07, 0xA1, 0x20, 0x00, 0xFF, 0x2F])
+        data = b"pQES" + struct.pack(">IH", 1, 480) + (500000).to_bytes(3, "big") + bytes([1, 4]) + body
+        s = seq.parse(data)
+        self.assertEqual((s["size"], s["ticks"], s["notes"], s["channels"]), (len(data), 480, 1, [0]))
+        midi = seq.to_midi(s)
+        self.assertEqual(midi[:4], b"MThd")
+        self.assertEqual(struct.unpack_from(">H", midi, 12)[0], 480)
+        self.assertTrue(midi.endswith(b"\xFF\x2F\x00"))
+        self.assertIn(b"\xFF\x51\x03\x07\xA1\x20", midi)  # SEQ tempo meta gets its length byte
+
+
+@unittest.skipUnless((DEFAULT_INPUT / "SOUND" / "VHB" / "SS.VHB").exists(), "dumped game files not available")
+class SoundFamilyTests(unittest.TestCase):
+    def test_convert(self):
+        import tempfile
+        from pathlib import Path
+
+        from dwporter.families import mmm_dat, sound
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = sound.convert(DEFAULT_INPUT, Path(tmp))
+            self.assertTrue(out.ok, [(c.name, c.detail) for c in out.checks if not c.passed][:5])
+            self.assertEqual(len(out.assets), 145)
+            out = mmm_dat.convert(DEFAULT_INPUT, Path(tmp))
+            self.assertTrue(out.ok, [(c.name, c.detail) for c in out.checks if not c.passed])
+
+
 @unittest.skipUnless((DEFAULT_INPUT / "SCN" / "DG.SCN").exists(), "dumped game files not available")
 class ScriptsFamilyTests(unittest.TestCase):
     def test_convert(self):

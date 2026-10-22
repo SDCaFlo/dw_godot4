@@ -62,6 +62,22 @@ Wrong if: garbled text, Digimon names that don't fit the map, instructions after
 
 Arena collision: open `output/atr_files/STDDAT/B_TOGI/preview.png` (a disc) and `E_TOGI/preview.png` (a diamond). In Blender, import `tmd_files/STDDAT/E_TOGI.gltf` together with `atr_files/STDDAT/E_TOGI/collision_cells.gltf`: the cells cover the square fighting floor; for `B_TOGI.gltf` the disc lies inside the wooden ring.
 
+## 4c. Sound — 10 minutes
+
+Sound effects and instruments are plain WAV files (any player; Godot/Windows play them directly):
+
+- `output/sound/SS/vag_*.wav` (menu/system sounds), `SB/` (battle), `ESALL/set_00/` (Native Forest area sounds), `VBALL/set_03/` (Agumon's cries), `VLALL/set_01/` (partner voices).
+- Expected: clean sounds at the right pitch, no hiss or crackle. Looped instruments loop smoothly in players that read loop points (Godot, Audacity, foobar2000).
+- `bank.json` → `usage` says who uses the bank (Digimon types, maps, font).
+
+Music is MIDI + the font's instruments:
+
+- `output/sound/FAALL/font_NN/track_T.mid` + `bank.sf2` of the same folder. Play them together in a SoundFont-capable player, e.g. VLC (Tools → Preferences → Show all → Input/Codecs → Audio codecs → FluidSynth → SoundFont file = that `bank.sf2`, then open the `.mid`) or Polyphone/foobar2000 + MIDI plugin.
+- Font 1 = Native Forest (`SET_BGM bgm=1` in the MAPHEAD listing), font 33 = battle (4 tracks). Tracks 0/1 are usually day/night versions.
+- The preview SF2 ignores the game's envelopes and reverb: notes may be a bit dry/abrupt, but melody, instruments and tempo must match the game.
+
+Wrong if: noise instead of instruments, wrong key (everything sharp/flat), wrong tempo, instruments swapped between parts.
+
 ## 5. In Godot — field scene, 5 minutes
 
 Run the project (F5; main scene `scenes/field/field.tscn`, see the project README). It starts in Native Forest:

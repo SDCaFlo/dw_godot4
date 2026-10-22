@@ -94,5 +94,36 @@ class CardAllTests(unittest.TestCase):
             self.assertEqual(len(out.assets), card_all.EXPECTED_CARDS)
 
 
+class DigimonTableTests(unittest.TestCase):
+    def test_table(self):
+        from dwporter.data.digimon import DIGIMON_TYPES, mmd_path
+
+        self.assertEqual(len(DIGIMON_TYPES), 180)
+        self.assertEqual(DIGIMON_TYPES[3][::2], ("AGUM", "Agumon"))
+        self.assertEqual(mmd_path(3), "CHDAT/MMD0/AGUM.MMD")
+        self.assertEqual(mmd_path(179), "CHDAT/MMD5/CEMG.MMD")
+
+
+@unittest.skipUnless((DEFAULT_INPUT / "CHDAT" / "ALLTIM.TIM").exists(), "dumped game files not available")
+class AllTimTests(unittest.TestCase):
+    def test_convert(self):
+        import tempfile
+        from pathlib import Path
+
+        from dwporter.families import alltim
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = alltim.convert(DEFAULT_INPUT, Path(tmp))
+            self.assertTrue(out.ok, [c.name for c in out.checks if not c.passed])
+            self.assertEqual(len(out.assets), alltim.TYPE_COUNT)
+
+    def test_runtime_slots_match_code(self):
+        from dwporter.families.alltim import RUNTIME_SLOTS
+
+        # model.c: tamer pixelPage 0x15 / clutPage 0x7A00, partner pixelOffsetY 0x80, via uploadModelTexture.
+        self.assertEqual(RUNTIME_SLOTS["tamer"], {"image": {"x": 320, "y": 256}, "clut": {"x": 0, "y": 488}})
+        self.assertEqual(RUNTIME_SLOTS["partner"]["image"], {"x": 320, "y": 384})
+
+
 if __name__ == "__main__":
     unittest.main()

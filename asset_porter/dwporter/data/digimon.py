@@ -1,0 +1,195 @@
+"""Digimon types (index = digimon type id used by the game code).
+
+Generated from the decomp; do not edit by hand:
+    file names:    dw_decomp/src/main/model.c PTR_DIGIMON_FILE_NAMES[180]
+    display names: dw_decomp/text/main/main.yaml DIGIMON_NAMES (en_us), order of DIGIMON_PARA in src/main/main.c
+"""
+
+# (file name, string id, en_us display name)
+DIGIMON_TYPES = (
+    ('BOYS', 'STR_DIGIMON_NAME_TAMER', 'main character'),  # 0
+    ('BOTA', 'STR_DIGIMON_NAME_BOTAMON', 'Botamon'),  # 1
+    ('KORO', 'STR_DIGIMON_NAME_KOROMON', 'Koromon'),  # 2
+    ('AGUM', 'STR_DIGIMON_NAME_AGUMON', 'Agumon'),  # 3
+    ('BETA', 'STR_DIGIMON_NAME_BETAMON', 'Betamon'),  # 4
+    ('GREY', 'STR_DIGIMON_NAME_GREYMON', 'Greymon'),  # 5
+    ('DEVI', 'STR_DIGIMON_NAME_DEVIMON', 'Devimon'),  # 6
+    ('AIRD', 'STR_DIGIMON_NAME_AIRDRAMON', 'Airdramon'),  # 7
+    ('TYRA', 'STR_DIGIMON_NAME_TYRANNOMON', 'Tyrannomon'),  # 8
+    ('MERA', 'STR_DIGIMON_NAME_MERAMON', 'Meramon'),  # 9
+    ('SEAD', 'STR_DIGIMON_NAME_SEADRAMON', 'Seadramon'),  # 10
+    ('NUME', 'STR_DIGIMON_NAME_NUMEMON', 'Numemon'),  # 11
+    ('MTGR', 'STR_DIGIMON_NAME_METALGREYMON', 'MetalGreymon'),  # 12
+    ('MAME', 'STR_DIGIMON_NAME_MAMEMON', 'Mamemon'),  # 13
+    ('MONZ', 'STR_DIGIMON_NAME_MONZAEMON', 'Monzaemon'),  # 14
+    ('PUNI', 'STR_DIGIMON_NAME_PUNIMON', 'Punimon'),  # 15
+    ('TUNO', 'STR_DIGIMON_NAME_TSUNOMON', 'Tsunomon'),  # 16
+    ('GABU', 'STR_DIGIMON_NAME_GABUMON', 'Gabumon'),  # 17
+    ('ELEC', 'STR_DIGIMON_NAME_ELECMON', 'Elecmon'),  # 18
+    ('KABU', 'STR_DIGIMON_NAME_KABUTERIMON', 'Kabuterimon'),  # 19
+    ('ANGE', 'STR_DIGIMON_NAME_ANGEMON', 'Angemon'),  # 20
+    ('BIRD', 'STR_DIGIMON_NAME_BIRDRAMON', 'Birdramon'),  # 21
+    ('GARU', 'STR_DIGIMON_NAME_GARURUMON', 'Garurumon'),  # 22
+    ('YUKI', 'STR_DIGIMON_NAME_FRIGIMON', 'Frigimon'),  # 23
+    ('HOEE', 'STR_DIGIMON_NAME_WHAMON', 'Whamon'),  # 24
+    ('VEGI', 'STR_DIGIMON_NAME_VEGIEMON', 'Vegiemon'),  # 25
+    ('SKUL', 'STR_DIGIMON_NAME_SKULLGREYMON', 'SkullGreymon'),  # 26
+    ('MTMA', 'STR_DIGIMON_NAME_METALMAMEMON', 'MetalMamemon'),  # 27
+    ('VEDA', 'STR_DIGIMON_NAME_VADEMON', 'Vademon'),  # 28
+    ('POYO', 'STR_DIGIMON_NAME_POYOMON', 'Poyomon'),  # 29
+    ('TOKO', 'STR_DIGIMON_NAME_TOKOMON', 'Tokomon'),  # 30
+    ('PATA', 'STR_DIGIMON_NAME_PATAMON', 'Patamon'),  # 31
+    ('KUNE', 'STR_DIGIMON_NAME_KUNEMON', 'Kunemon'),  # 32
+    ('UNIM', 'STR_DIGIMON_NAME_UNIMON', 'Unimon'),  # 33
+    ('OGRE', 'STR_DIGIMON_NAME_OGREMON', 'Ogremon'),  # 34
+    ('SHEL', 'STR_DIGIMON_NAME_SHELLMON', 'Shellmon'),  # 35
+    ('CENT', 'STR_DIGIMON_NAME_CENTARUMON', 'Centarumon'),  # 36
+    ('BAKE', 'STR_DIGIMON_NAME_BAKEMON', 'Bakemon'),  # 37
+    ('DORI', 'STR_DIGIMON_NAME_DRIMOGEMON', 'Drimogemon'),  # 38
+    ('SCUM', 'STR_DIGIMON_NAME_SUKAMON', 'Sukamon'),  # 39
+    ('ANDR', 'STR_DIGIMON_NAME_ANDROMON', 'Andromon'),  # 40
+    ('GIRO', 'STR_DIGIMON_NAME_GIROMON', 'Giromon'),  # 41
+    ('ETEM', 'STR_DIGIMON_NAME_ETEMON', 'Etemon'),  # 42
+    ('YURA', 'STR_DIGIMON_NAME_YURAMON', 'Yuramon'),  # 43
+    ('TANE', 'STR_DIGIMON_NAME_TANEMON', 'Tanemon'),  # 44
+    ('PIYO', 'STR_DIGIMON_NAME_BIYOMON', 'Biyomon'),  # 45
+    ('PALM', 'STR_DIGIMON_NAME_PALMON', 'Palmon'),  # 46
+    ('MONO', 'STR_DIGIMON_NAME_MONOCHROMON', 'Monochromon'),  # 47
+    ('LEOM', 'STR_DIGIMON_NAME_LEOMON', 'Leomon'),  # 48
+    ('SIRA', 'STR_DIGIMON_NAME_COELAMON', 'Coelamon'),  # 49
+    ('COCA', 'STR_DIGIMON_NAME_KOKATORIMON', 'Kokatorimon'),  # 50
+    ('KUWA', 'STR_DIGIMON_NAME_KUWAGAMON', 'Kuwagamon'),  # 51
+    ('MOJA', 'STR_DIGIMON_NAME_MOJYAMON', 'Mojyamon'),  # 52
+    ('NANI', 'STR_DIGIMON_NAME_NANIMON', 'Nanimon'),  # 53
+    ('MGDR', 'STR_DIGIMON_NAME_MEGADRAMON', 'Megadramon'),  # 54
+    ('PICC', 'STR_DIGIMON_NAME_PIXIMON', 'Piximon'),  # 55
+    ('DIGI', 'STR_DIGIMON_NAME_DIGITAMAMON', 'Digitamamon'),  # 56
+    ('PENM', 'STR_DIGIMON_NAME_PENGUINMON', 'Penguinmon'),  # 57
+    ('IGAM', 'STR_DIGIMON_NAME_NINJAMON', 'Ninjamon'),  # 58
+    ('HOUO', 'STR_DIGIMON_NAME_PHOENIXMON', 'Phoenixmon'),  # 59
+    ('HKAB', 'STR_DIGIMON_NAME_HERCULESKABUTERIMON', 'H-Kabuterimon'),  # 60
+    ('MGSD', 'STR_DIGIMON_NAME_MEGASEADRAMON', 'MegaSeadramon'),  # 61
+    ('wEAG', 'STR_DIGIMON_NAME_WEREGARURUMON', 'WereGarurumon'),  # 62
+    ('PANJ', 'STR_DIGIMON_NAME_PANJYAMON', 'Panjyamon'),  # 63
+    ('GGDR', 'STR_DIGIMON_NAME_GIGADRAMON', 'Gigadramon'),  # 64
+    ('MTET', 'STR_DIGIMON_NAME_METALETEMON', 'MetalEtemon'),  # 65
+    ('VAND', 'STR_DIGIMON_NAME_MYOTISMON', 'Myotismon'),  # 66
+    ('YANM', 'STR_DIGIMON_NAME_YANMAMON', 'Yanmamon'),  # 67
+    ('GOTU', 'STR_DIGIMON_NAME_GOTSUMON', 'Gotsumon'),  # 68
+    ('FLAR', 'STR_DIGIMON_NAME_FLAREIZAMON', 'Flarerizamon'),  # 69
+    ('WARU', 'STR_DIGIMON_NAME_WARUMONZAEMON', 'WaruMonzaemon'),  # 70
+    ('YKAG', 'STR_DIGIMON_NAME_SNOWAGUMON', 'SnowAgumon'),  # 71
+    ('HYOG', 'STR_DIGIMON_NAME_HYOGAMON', 'Hyogamon'),  # 72
+    ('PCSC', 'STR_DIGIMON_NAME_PLATINUMSUKAMON', 'PlatinumSukamon'),  # 73
+    ('DOKU', 'STR_DIGIMON_NAME_DOKUNEMON', 'Dokunemon'),  # 74
+    ('SIMA', 'STR_DIGIMON_NAME_SHIMAUNIMON', 'ShimaUnimon'),  # 75
+    ('TANK', 'STR_DIGIMON_NAME_TANKMON', 'Tankmon'),  # 76
+    ('REDV', 'STR_DIGIMON_NAME_REDVEGIMON', 'RedVegiemon'),  # 77
+    ('JMOJ', 'STR_DIGIMON_NAME_JMOJYAMON', 'J-Mojyamon'),  # 78
+    ('NISE', 'STR_DIGIMON_NAME_NISEDRIMOGEMON', 'NiseDrimogemon'),  # 79
+    ('GOBR', 'STR_DIGIMON_NAME_GOBURIMON', 'Goburimon'),  # 80
+    ('TUTI', 'STR_DIGIMON_NAME_MUDFRIGIMON', 'MudFrigimon'),  # 81
+    ('PSYC', 'STR_DIGIMON_NAME_PSYCHEMON', 'Psychemon'),  # 82
+    ('MODO', 'STR_DIGIMON_NAME_MODOKIBETAMON', 'ModokiBetamon'),  # 83
+    ('TOYA', 'STR_DIGIMON_NAME_TOYAGUMON', 'ToyAgumon'),  # 84
+    ('PIDD', 'STR_DIGIMON_NAME_PIDDOMON', 'Piddomon'),  # 85
+    ('ARUR', 'STR_DIGIMON_NAME_ARURAUMON', 'Aruraumon'),  # 86
+    ('GERE', 'STR_DIGIMON_NAME_GEREMON', 'Geremon'),  # 87
+    ('VARM', 'STR_DIGIMON_NAME_VERMILIMON', 'Vermilimon'),  # 88
+    ('FUGA', 'STR_DIGIMON_NAME_FUGAMON', 'Fugamon'),  # 89
+    ('TKKA', 'STR_DIGIMON_NAME_TEKKAMON', 'Tekkamon'),  # 90
+    ('MRIS', 'STR_DIGIMON_NAME_MORISHELLMON', 'MoriShellmon'),  # 91
+    ('GARD', 'STR_DIGIMON_NAME_GUARDROMON', 'Guardromon'),  # 92
+    ('MCHO', 'STR_DIGIMON_NAME_MUCHOMON', 'Muchomon'),  # 93
+    ('ICEM', 'STR_DIGIMON_NAME_ICEMON', 'Icemon'),  # 94
+    ('AKAT', 'STR_DIGIMON_NAME_AKATORIMON', 'Akatorimon'),  # 95
+    ('TUKA', 'STR_DIGIMON_NAME_TSUKAIMON', 'Tsukaimon'),  # 96
+    ('SHAM', 'STR_DIGIMON_NAME_SHARMAMON', 'Sharmamon'),  # 97
+    ('CLEA', 'STR_DIGIMON_NAME_CLEARAGUMON', 'ClearAgumon'),  # 98
+    ('ZASS', 'STR_DIGIMON_NAME_WEEDMON', 'Weedmon'),  # 99
+    ('ICDV', 'STR_DIGIMON_NAME_ICEDEVIMON', 'IceDevimon'),  # 100
+    ('DKRZ', 'STR_DIGIMON_NAME_DARKRIZAMON', 'Darkrizamon'),  # 101
+    ('SNDY', 'STR_DIGIMON_NAME_SANDYANMAMON', 'SandYanmamon'),  # 102
+    ('SNGB', 'STR_DIGIMON_NAME_SNOWGOBURIMON', 'SnowGoburimon'),  # 103
+    ('BLMR', 'STR_DIGIMON_NAME_BLUEMERAMON', 'BlueMeramon'),  # 104
+    ('GRUR', 'STR_DIGIMON_NAME_GURURUMON', 'Gururumon'),  # 105
+    ('SABD', 'STR_DIGIMON_NAME_SABERDRAMON', 'Saberdramon'),  # 106
+    ('SOUL', 'STR_DIGIMON_NAME_SOULMON', 'Soulmon'),  # 107
+    ('GOLE', 'STR_DIGIMON_NAME_ROCKMON', 'Rockmon'),  # 108
+    ('OTAM', 'STR_DIGIMON_NAME_OTAMAMON', 'Otamamon'),  # 109
+    ('GECO', 'STR_DIGIMON_NAME_GEKOMON', 'Gekomon'),  # 110
+    ('TENT', 'STR_DIGIMON_NAME_TENTOMON', 'Tentomon'),  # 111
+    ('WRSE', 'STR_DIGIMON_NAME_WARUSEADRAMON', 'WaruSeadramon'),  # 112
+    ('INSE', 'STR_DIGIMON_NAME_METEORMON', 'Meteormon'),  # 113
+    ('tAKA', 'STR_DIGIMON_NAME_UNKNOWN', ''),  # 114
+    ('MUGE', 'STR_DIGIMON_NAME_MACHINEDRAMON', 'Machinedramon'),  # 115
+    ('ANLG', 'STR_DIGIMON_NAME_ANALOGMAN', 'Analogman'),  # 116
+    ('JIJI', 'STR_DIGIMON_NAME_JIJIMON', 'Jijimon'),  # 117
+    ('TENS', 'STR_DIGIMON_NAME_MARKET_MANAGER', 'Market Manager'),  # 118
+    ('TONO', 'STR_DIGIMON_NAME_SHOGUNGEKOMON', 'ShogunGekomon'),  # 119
+    ('SCUD', 'STR_DIGIMON_NAME_KING_SUKAMON', 'King of Sukamon'),  # 120
+    ('JURE', 'STR_DIGIMON_NAME_CHERRYMON', 'Cherrymon'),  # 121
+    ('HAGU', 'STR_DIGIMON_NAME_HAGURUMON', 'Hagurumon'),  # 122
+    ('BRIK', 'STR_DIGIMON_NAME_TINMON', 'Tinmon'),  # 123
+    ('TIRS', 'STR_DIGIMON_NAME_MASTER_TYRANNOMON', 'Master Tyrannomon'),  # 124
+    ('EGOB', 'STR_DIGIMON_NAME_NPC_GOBIROMON', 'Goburimon'),  # 125
+    ('BRAK', 'STR_DIGIMON_NAME_BRACHIOMON', 'Brachiomon'),  # 126
+    ('PUTI', 'STR_DIGIMON_NAME_DEMIMERAMON', 'DemiMeramon'),  # 127
+    ('EBET', 'STR_DIGIMON_NAME_NPC_BETAMON', 'Betamon'),  # 128
+    ('EGRE', 'STR_DIGIMON_NAME_NPC_GREYMON', 'Greymon'),  # 129
+    ('EDEV', 'STR_DIGIMON_NAME_NPC_DEVIMON', 'Devimon'),  # 130
+    ('EAIR', 'STR_DIGIMON_NAME_NPC_AIRDRAMON', 'Airdramon'),  # 131
+    ('ETYR', 'STR_DIGIMON_NAME_NPC_TYRANNOMON', 'Tyrannomon'),  # 132
+    ('EMER', 'STR_DIGIMON_NAME_NPC_MERAMON', 'Meramon'),  # 133
+    ('ESEA', 'STR_DIGIMON_NAME_NPC_SEADRAMON', 'Seadramon'),  # 134
+    ('ENUM', 'STR_DIGIMON_NAME_NPC_NUMEMON', 'Numemon'),  # 135
+    ('EMTG', 'STR_DIGIMON_NAME_NPC_METALGREYMON', 'MetalGreymon'),  # 136
+    ('EMAM', 'STR_DIGIMON_NAME_NPC_MAMEMON', 'Mamemon'),  # 137
+    ('EMON', 'STR_DIGIMON_NAME_NPC_MONZAEMON', 'Monzaemon'),  # 138
+    ('EGAB', 'STR_DIGIMON_NAME_NPC_GABUMON', 'Gabumon'),  # 139
+    ('EELE', 'STR_DIGIMON_NAME_NPC_ELECMON', 'Elecmon'),  # 140
+    ('EKAB', 'STR_DIGIMON_NAME_NPC_KABUTERIMON', 'Kabuterimon'),  # 141
+    ('EANG', 'STR_DIGIMON_NAME_NPC_ANGEMON', 'Angemon'),  # 142
+    ('EBIR', 'STR_DIGIMON_NAME_NPC_BIRDRAMON', 'Birdramon'),  # 143
+    ('EGAR', 'STR_DIGIMON_NAME_NPC_GARURUMON', 'Garurumon'),  # 144
+    ('EYUK', 'STR_DIGIMON_NAME_NPC_FRIGIMON', 'Frigimon'),  # 145
+    ('EHOE', 'STR_DIGIMON_NAME_NPC_WHAMON', 'Whamon'),  # 146
+    ('EVEG', 'STR_DIGIMON_NAME_NPC_VEGIMON', 'Vegiemon'),  # 147
+    ('ESKU', 'STR_DIGIMON_NAME_NPC_SKULLGREYMON', 'SkullGreymon'),  # 148
+    ('EMTM', 'STR_DIGIMON_NAME_NPC_METALMAMEMON', 'MetalGreymon'),  # 149
+    ('EVED', 'STR_DIGIMON_NAME_NPC_VADEMON', 'Vademon'),  # 150
+    ('EPAT', 'STR_DIGIMON_NAME_NPC_PATAMON', 'Patamon'),  # 151
+    ('EKUN', 'STR_DIGIMON_NAME_NPC_KUNEMON', 'Kunemon'),  # 152
+    ('EUNI', 'STR_DIGIMON_NAME_NPC_UNIMON', 'Unimon'),  # 153
+    ('EOGR', 'STR_DIGIMON_NAME_NPC_OGREMON', 'Ogremon'),  # 154
+    ('ESHE', 'STR_DIGIMON_NAME_NPC_SHELLMON', 'Shellmon'),  # 155
+    ('ECEN', 'STR_DIGIMON_NAME_NPC_CENTARUMON', 'Centarumon'),  # 156
+    ('EBAK', 'STR_DIGIMON_NAME_NPC_BAKEMON', 'Bakemon'),  # 157
+    ('EDOR', 'STR_DIGIMON_NAME_NPC_DRIMOGEMON', 'Drimogemon'),  # 158
+    ('ESCU', 'STR_DIGIMON_NAME_NPC_SUKAMON', 'Sukamon'),  # 159
+    ('EAND', 'STR_DIGIMON_NAME_NPC_ANDROMON', 'Andromon'),  # 160
+    ('EGIR', 'STR_DIGIMON_NAME_NPC_GIROMON', 'Giromon'),  # 161
+    ('EETE', 'STR_DIGIMON_NAME_NPC_ETEMON', 'Etemon'),  # 162
+    ('EPIY', 'STR_DIGIMON_NAME_NPC_BIYOMON', 'Biyomon'),  # 163
+    ('EPAL', 'STR_DIGIMON_NAME_NPC_PALMON', 'Palmon'),  # 164
+    ('EMNO', 'STR_DIGIMON_NAME_NPC_MONOCHROMON', 'Monochromon'),  # 165
+    ('ELEO', 'STR_DIGIMON_NAME_NPC_LEOMON', 'Leomon'),  # 166
+    ('ESIR', 'STR_DIGIMON_NAME_NPC_COELAMON', 'Coelamon'),  # 167
+    ('ECOC', 'STR_DIGIMON_NAME_NPC_KOKATORIMON', 'Kokatorimon'),  # 168
+    ('EKUW', 'STR_DIGIMON_NAME_NPC_KUWAGAMON', 'Kuwagamon'),  # 169
+    ('EMOJ', 'STR_DIGIMON_NAME_NPC_MOJYAMON', 'Mojyamon'),  # 170
+    ('ENAN', 'STR_DIGIMON_NAME_NPC_NANIMON', 'Nanimon'),  # 171
+    ('EMGD', 'STR_DIGIMON_NAME_NPC_MEGADRAMON', 'Megadramon'),  # 172
+    ('EPIC', 'STR_DIGIMON_NAME_NPC_PIXIMON', 'Piximon'),  # 173
+    ('EDIG', 'STR_DIGIMON_NAME_NPC_DIGITAMAMON', 'Digitamamon'),  # 174
+    ('EIGA', 'STR_DIGIMON_NAME_NPC_NINJAMON', 'Ninjamon'),  # 175
+    ('EPEN', 'STR_DIGIMON_NAME_NPC_PENGUINMON', 'Penguinmon'),  # 176
+    ('EVAN', 'STR_DIGIMON_NAME_NPC_MYOTISMON', 'Myotismon'),  # 177
+    ('CEGR', 'STR_DIGIMON_NAME_NPC2_GREYMON', 'Greymon'),  # 178
+    ('CEMG', 'STR_DIGIMON_NAME_NPC2_METALGREYMON', 'MetalGreymon'),  # 179
+)
+
+
+def mmd_path(type_id: int) -> str:
+    """Disc path of the model, built like loadMMDAsync: "CHDAT/MMD<type // 30>/<NAME>.MMD"."""
+    return f"CHDAT/MMD{type_id // 30}/{DIGIMON_TYPES[type_id][0]}.MMD"

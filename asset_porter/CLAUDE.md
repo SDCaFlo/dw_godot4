@@ -28,6 +28,7 @@ Defaults: input `../../external-resources/game_dumped_files/`, output `output/` 
 | `dwporter/formats/` | Format parsers (`tim.py`) and PSX helpers (`psx.py`: colours, `GetTPage`, `GetClut`) |
 | `dwporter/exporters/` | Writers for open formats (`png.py`, stdlib only) |
 | `dwporter/families/` | One converter per asset family, registered in `families/__init__.py` |
+| `dwporter/data/` | Tables generated from the decomp, shared by families (`digimon.py`: type id → file name, display name, model path) |
 | `dwporter/scan.py` | Generic TIM scan of any file |
 | `specs/` | One spec per format/family |
 | `tests/` | `unittest` tests |
@@ -79,7 +80,7 @@ Formats are only known by extension until a spec confirms them. Standard PSX for
 
 ## Specs
 
-Location: `specs/<family>.md`, one per format or asset family. Existing: `specs/tim.md` (TIM format), `specs/card_all.md` (`CARD/CARD.ALL`).
+Location: `specs/<family>.md`, one per format or asset family. Existing: `specs/tim.md` (TIM format), `specs/card_all.md` (`CARD/CARD.ALL`), `specs/alltim.md` (`CHDAT/ALLTIM.TIM`).
 
 Each spec must contain:
 

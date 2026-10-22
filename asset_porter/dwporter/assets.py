@@ -98,7 +98,7 @@ class AssetWriter:
                             "outputs": [o["path"] for o in outputs]})
         return record
 
-    def finish(self, sources: list) -> dict:
+    def finish(self, sources: list, extra: dict = None) -> dict:
         manifest = {
             "family": self.family,
             "porter_version": __version__,
@@ -108,6 +108,8 @@ class AssetWriter:
             "checks": [c.to_dict() for c in self.checks],
             "assets": sorted(self.assets, key=lambda a: a["asset_id"]),
         }
+        if extra:
+            manifest.update(extra)
         _dump(self.dir / "manifest.json", manifest)
         return manifest
 

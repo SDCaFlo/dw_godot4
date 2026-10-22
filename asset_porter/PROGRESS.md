@@ -12,7 +12,7 @@ Last updated: 2026-10-21
 | PNG (export) | done | `dwporter/exporters/png.py` | — | Indexed, RGBA, grey; stdlib only |
 | TMD (model) | todo | | | Reference: PSXPrev `TMDParser.cs`, `TMDHelper.cs` |
 | glTF (export) | todo | | | Reference: PSXPrev `glTF2Exporter.cs` |
-| MMD (Digimon models) | todo | | | Game-specific; compare with DW1ModelConverter |
+| MMD (Digimon models) | todo | | | Game-specific; compare with DW1ModelConverter. Textures come from `alltim`; polygons pick CLUT rows, patched by `updateTMDTextureData` |
 | MAP / TFS (maps) | todo | | | Game-specific |
 | EFE, ATR, SCN | todo | | | Game-specific |
 | VHB (sound banks) | todo | | | Game-specific |
@@ -23,7 +23,7 @@ Last updated: 2026-10-21
 | Family | Source | Status | Assets | Checks | Spec | Notes |
 |---|---|---|---|---|---|---|
 | `card_all` | `CARD/CARD.ALL` | done | 66 | 465/465 | `specs/card_all.md` | 66 card images, 0x7000-byte slots |
-| | `CHDAT/ALLTIM.TIM` | todo | | | | 180 stacked TIMs (scan) |
+| `alltim` | `CHDAT/ALLTIM.TIM` | done | 180 | 1083/1083 | `specs/alltim.md` | One texture per digimon type, 0x4800-byte slots; palettes are per polygon; types 62/114 have no model |
 | | `ETCDAT/ETCTIM.BIN` | todo | | | | 9 TIMs (scan) |
 | | `STDDAT/STDTIM.BIN` | todo | | | | 6 TIMs (scan) |
 | | `*.TIM` (ETCDAT, ETCHI, ETCNA, STDDAT, GRADE) | todo | | | | Standalone TIMs; need a family per use or a generic one |
@@ -43,6 +43,7 @@ Last updated: 2026-10-21
 | Data | Source | Status | Notes |
 |---|---|---|---|
 | Text / strings | `dw_decomp/text/**/*.yaml` | todo | `en_us` |
+| Digimon type table (file + display names) | `PTR_DIGIMON_FILE_NAMES`, `DIGIMON_NAMES` | done | `dwporter/data/digimon.py`, generated from the decomp |
 | Digimon raise data | `RAISE_DATA` (`include/dw/partner.h`) | todo | |
 | Items, moves, evolution tables | `dw_decomp/src/main/*.c` | todo | |
 
@@ -53,9 +54,10 @@ Last updated: 2026-10-21
 | CLI (`list`, `convert`, `scan`) | done | |
 | Identity sidecars + `manifest.json` | done | `dwporter/assets.py` |
 | Verification checks (fail = non-zero exit) | done | |
-| Unit tests | done | `tests/test_tim.py`, 8 tests |
+| Unit tests | done | `tests/test_tim.py`, 11 tests |
 | Godot import of `output/` | todo | Decide `.gdignore` for `output/scan/`, and how Godot loads sidecars |
 
 ## Log
 
 - 2026-10-21 — Core created (TIM, PNG, CLI, sidecars, scan). `card_all` done: 66 assets, 465/465 checks.
+- 2026-10-21 — `alltim` done: 180 Digimon textures, 1083/1083 checks. Added `dwporter/data/digimon.py` (type → file name, display name, model path). Found the game overrides the TIM's VRAM position at load time.

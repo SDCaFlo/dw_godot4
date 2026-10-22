@@ -17,7 +17,7 @@ Last updated: 2026-10-22
 | MAP / TFS (maps) | done | `dwporter/formats/map.py` | `specs/map.md` | Pre-rendered backgrounds + 3D camera (projection verified), collision, objects, entities, doors |
 | SCN (event scripts) | done | `dwporter/formats/scn.py` | `specs/scn.md` | Offset table + per-script sections; full disassembler (all opcodes of `script.h`, IF conditions, selections, DATA), Shift-JIS text with control codes; lossless round trip |
 | ATR (arena collision) | done | — (raw grid) | `specs/atr.md` | 100 × 100 cells, same layout as map collision |
-| EFE | todo | | | Game-specific (effects) |
+| EFE (battle effects) | done | `dwporter/formats/efe.py` | `specs/efe.md` | 0x5000-byte slots; header, effect-script VM disassembler (18 opcodes, 97 built-ins, control-flow tracing), UV anims, TMD + TIM |
 | VHB / VAB (sound banks) | done | `dwporter/formats/vab.py` | `specs/sound.md` | VHB offset table + libsnd VAB (programs, tones, samples); PSX ADPCM → WAV with loop points |
 | SEQ (music) | done | `dwporter/formats/seq.py` | `specs/sound.md` | Sony pQES → Standard MIDI; loop markers |
 | WAV / SF2 (export) | done | `dwporter/exporters/wav.py`, `sf2.py` | `specs/sound.md` | WAV with `smpl` loops; SF2 preview banks (no ADSR) |
@@ -35,7 +35,7 @@ Last updated: 2026-10-22
 | `tmd_files` | 66 `*.TMD` (DOOR, ETCDAT, ETCHI, ETCNA, STDDAT) | done | 66 | 221/221 | `specs/tmd.md` | glTF + texture pages; 22 field/effect/arena/result models textured, 1 untextured, 43 use map textures (bound when maps are done) |
 | `mmd_files` | 178 `CHDAT/MMD*/*.MMD` | done | 178 | 1071/1071 | `specs/mmd.md` | Rigid bone hierarchy, 4,843 animations (loops, sounds, texture moves as events), textures from the ALLTIM slot; matches DW1ModelConverter within 1 unit / <1° |
 | `maps` | 241 `MAP/MAP*/*.MAP` + `.TFS` | done | 241 | 1252/1252 | `specs/map.md` | Backgrounds per time of day, sprites, textured doors, `overview.png` for human checks; GIAS06B/ICSA05 sprites need VRAM loaded by events |
-| | `ETCHI/EFEDAT.EFE` | todo | | | | Effects |
+| `efe` | `ETCHI/EFEDAT.EFE` | done | 331 | 1029/1029 | `specs/efe.md` | 120 technique effects (slot = technique id, named), 89 textured models, 121 textures, scripts as JSON + listings; slot 110 stale copy of 344, slot 121 fill |
 | `atr_files` | `STDDAT/B_TOGI.ATR`, `E_TOGI.ATR` | done | 2 | 7/7 | `specs/atr.md` | Arena collision; walkable disc (B) / diamond (E) checked against the arena models; T_TOGI arena reuses B_TOGI.ATR |
 | `scripts` | `SCN/MAPHEAD.SCN`, `SCN/DG.SCN` | done | 223 | 1571/1571 | `specs/scn.md` | 222 DG scripts + MAPHEAD (map setup); 39,797 instructions, 4,844 texts; map → script links; JSON + readable listings |
 | `sound` | 7 `SOUND/VHB/*.VHB` | done | 145 | 1396/1396 | `specs/sound.md` | 145 VABs (SS, SL, SB, 22 ESALL map sets, 16 VLALL partner sets, 71 VBALL Digimon sets, 33 FAALL music fonts), 834 samples, 74 music tracks (.seq + .mid), usage per bank |
@@ -51,7 +51,8 @@ Last updated: 2026-10-22
 | Digimon type table (file + display names) | `PTR_DIGIMON_FILE_NAMES`, `DIGIMON_NAMES` | done | `dwporter/data/digimon.py`, generated from the decomp |
 | Skeletons, bone counts, radius/height | `DIGIMON_SKELETONS`, `DIGIMON_DATA` | done | `dwporter/data/skeletons.py`, generated from the decomp, verified against `SLUS_010.32` |
 | Digimon raise data | `RAISE_DATA` (`include/dw/partner.h`) | todo | |
-| Items, moves, evolution tables | `dw_decomp/src/main/*.c` | todo | |
+| Technique names | `MOVE_NAMES` | done | `dwporter/data/moves.py`, generated from `text/main/item.yaml` |
+| Items, moves (stats), evolution tables | `dw_decomp/src/main/*.c` | todo | |
 
 ## Infrastructure
 
@@ -60,7 +61,7 @@ Last updated: 2026-10-22
 | CLI (`list`, `convert`, `scan`) | done | |
 | Identity sidecars + `manifest.json` | done | `dwporter/assets.py` |
 | Verification checks (fail = non-zero exit) | done | |
-| Unit tests | done | `tests/test_tim.py`, 35 tests |
+| Unit tests | done | `tests/test_tim.py`, 38 tests |
 | Human verification guide | done | `VERIFY.md` |
 | Godot import of `output/` | done | `asset_porter/.gdignore`: the editor never imports it; the game loads it at runtime (`scripts/porter/porter_assets.gd`) |
 
@@ -77,3 +78,4 @@ Last updated: 2026-10-22
 - 2026-10-22 — First consumer in Godot: `scenes/field/field.tscn` loads maps + the tamer from `output/` at runtime (`asset_porter/.gdignore` keeps the editor from importing it). Camera projection matches `map.json` to <0.001 px; root motion, collision and warps (110–119) work on real maps.
 - 2026-10-22 — `atr_files` (2 assets, 7/7) and `scripts` (223 assets, 1571/1571) done. SCN = the event script bytecode: every opcode decoded from `script.h` + the interpreter, all 223 scripts rebuild byte for byte, all jumps/sections land on instructions. Found: DG script 0 = copy of MAPHEAD; sector padding is build-tool leftovers (incl. source names `\SCN\MAPnnn.SCN`); US text is full-width Shift-JIS with 。/「/− drawn as . ' -.
 - 2026-10-22 — `sound` (145 assets, 1396/1396) and `mmm_dat` (2/2) done. VHB = offset table + VAB; bundles are fixed sector chunks picked by tables read from the executable (Digimon → VLALL/VBALL set, map → ESALL set, music font → FAALL). ADPCM decode checked against wrong variants (no-filter is 10x rougher, swapped nibbles clip); SEQ tracks padded with 00 + CD fill. MMM.DAT is 27 MB of zeros (disc filler).
+- 2026-10-22 — `efe` done (331 assets, 1029/1029): EFEDAT = 122 slots, slot N = technique N (effect id = technique + 0x100). Effect scripts disassembled by tracing the VM's control flow (99% of script bytes reached, rest kept raw); models textured via effect texture slot 0 (`updateTMDTextureData` moved to `formats/tmd.py`, shared with MMD). Renders checked: Fire Tower pillar, Magma Bomb rock, lightning bolts, Hurricane tornado.

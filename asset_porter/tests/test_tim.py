@@ -465,6 +465,58 @@ class SoundFormatTests(unittest.TestCase):
         self.assertIn(b"\xFF\x51\x03\x07\xA1\x20", midi)  # SEQ tempo meta gets its length byte
 
 
+class EfeTests(unittest.TestCase):
+    def test_disassemble_follows_flow(self):
+        from dwporter.formats import efe
+
+        def w(*values):
+            return struct.pack(f"<{len(values)}h", *values)
+
+        code = bytearray()
+        code += w(12, 0x20, 1)              # 0x00 PUSH_ADDRESS data+0x20 (sub-effect inst)
+        code += w(12, 0x22, 1)              # 0x06 PUSH_ADDRESS data+0x22
+        code += w(14 | (2 << 8))            # 0x0C BUILTIN 2 initializeSubEffectInstructions
+        code += w(0, 5, 0)                  # 0x0E LOAD_IMMEDIATE 5
+        code += w(7 | (0x4 << 8) | (0 << 12), 0, 0, 0x1E, 0)  # 0x14 BRANCH_IF inst+0 == reg (int32) else 0x1E
+        code += w(15)                       # 0x1E RETURN  (branch target)
+        code += w(0)                        # 0x20 pad word (gap)
+        code += w(15)                       # 0x22 RETURN (second pushed entry)
+        code = bytes(code[:0x1E]) + w(15) + w(15) + w(15)
+        r = efe.disassemble(code, [0], len(code))
+        self.assertEqual(r["errors"], [])
+        self.assertIn(0x22, r["entries"])
+        names = {p: i["name"] for p, i in r["instructions"].items()}
+        self.assertEqual(names[0x0C], "BUILTIN")
+        self.assertEqual(r["instructions"][0x0C]["operands"]["builtin_name"], "initializeSubEffectInstructions")
+        self.assertEqual(r["instructions"][0x14]["operands"]["compare"], "==")
+        self.assertEqual(r["instructions"][0x14]["operands"]["size"], "int32")
+        self.assertEqual(sorted(names), [0x00, 0x06, 0x0C, 0x0E, 0x14, 0x1E, 0x20, 0x22])
+
+    def test_tmd_texture_patch_stops_at_untextured(self):
+        from dwporter.formats import tmd as tmdfmt
+
+        # textured flat triangle (as in TmdTests), patched to page 0x19 with UV offset (0, 32)
+        packet = bytes([1, 2, 0x03, 0x7F, 4, 5, 0x0A, 0x00, 6, 7, 0, 0]) + struct.pack("<4H", 0, 0, 1, 2)
+        prim = bytes([7, len(packet) // 4, 0x00, 0x24]) + packet
+        tmd = tmdfmt.parse(make_tmd(prim, 1, [(0, 0, 0), (100, 0, 0), (0, 100, 0)], [(0, 0, -4096)]))
+        p = tmdfmt.update_texture_data(tmd, 0x19, (0, 32), 8).objects[0].primitives[0]
+        self.assertEqual((p.tsb, p.cba), (0x19, 0x7F0B))
+        self.assertEqual(p.uvs, ((1, 34), (4, 37), (6, 39)))
+
+
+@unittest.skipUnless((DEFAULT_INPUT / "ETCHI" / "EFEDAT.EFE").exists(), "dumped game files not available")
+class EfeFamilyTests(unittest.TestCase):
+    def test_convert(self):
+        import tempfile
+        from pathlib import Path
+
+        from dwporter.families import efe
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = efe.convert(DEFAULT_INPUT, Path(tmp))
+            self.assertTrue(out.ok, [(c.name, c.detail) for c in out.checks if not c.passed][:5])
+
+
 @unittest.skipUnless((DEFAULT_INPUT / "SOUND" / "VHB" / "SS.VHB").exists(), "dumped game files not available")
 class SoundFamilyTests(unittest.TestCase):
     def test_convert(self):

@@ -78,6 +78,19 @@ Music is MIDI + the font's instruments:
 
 Wrong if: noise instead of instruments, wrong key (everything sharp/flat), wrong tempo, instruments swapped between parts.
 
+-"battle tracks may chirp in preview renders: missing envelopes, known"
+
+## 4d. Battle effects — 5 minutes
+
+One folder per technique: `output/efe/<slot>_<technique>/` (slot = technique id).
+
+- `texture.png`: the effect's texture strip (fire, sparks, water...) — should match the technique (`000_Fire_Tower` = flames, `010_Electric_Cloud` = lightning).
+- `model.gltf` in Blender (Material Preview): `000_Fire_Tower` = a fire pillar on a scorched ring, `004_Magma_Bomb` = a lava rock, `015_Hurricane` = a tornado. Models are static; the script animates them (UV scrolling, spawning, scaling).
+- `effect.txt`: the effect script. Expect readable flow: `SPAWN_SUB_EFFECT`, `BUILTIN 28 playEFESound`, `BUILTIN 3 drawTMD`, frame counters compared with `BRANCH_IF`, hit checks (`applyRadiusAttackHit`...).
+- Known: slot 110 is an unused older copy of effect 344; slot 121 is empty fill.
+
+Wrong if: textures that look like noise or another technique, models inside-out or untextured where a texture exists.
+
 ## 5. In Godot — field scene, 5 minutes
 
 Run the project (F5; main scene `scenes/field/field.tscn`, see the project README). It starts in Native Forest:

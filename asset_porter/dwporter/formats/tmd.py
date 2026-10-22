@@ -13,6 +13,7 @@ Reference: PSXPrev Common/Parsers/TMDParser.cs, TMDHelper.cs (CreateTMDPacketStr
 The packet layout below is derived from the flag/mode bits and checked against `ilen`.
 """
 
+import dataclasses
 import struct
 from dataclasses import dataclass
 from typing import Optional
@@ -277,3 +278,20 @@ def try_parse(data: bytes, offset: int = 0, strict: bool = True) -> Optional[Tmd
         return parse(data, offset, strict)
     except (TmdError, struct.error):
         return None
+
+
+def update_texture_data(tmd: Tmd, pixel_page: int, offset: tuple, clut_delta: int) -> Tmd:
+    """updateTMDTextureData (graphics.c:156): TSB page bits = pixel_page, CBA += clut_delta,
+    UV += offset; like the game, each object is patched only up to its first untextured primitive."""
+    du, dv = offset
+    objects = []
+    for obj in tmd.objects:
+        prims, patching = [], True
+        for p in obj.primitives:
+            patching = patching and p.textured
+            if patching:
+                p = dataclasses.replace(p, tsb=(p.tsb & 0xFFE0) + pixel_page, cba=p.cba + clut_delta,
+                                        uvs=tuple(((u + du) & 0xFF, (v + dv) & 0xFF) for u, v in p.uvs))
+            prims.append(p)
+        objects.append(dataclasses.replace(obj, primitives=tuple(prims)))
+    return dataclasses.replace(tmd, objects=tuple(objects))

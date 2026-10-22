@@ -14,6 +14,7 @@ from ..data.digimon import DIGIMON_TYPES, mmd_path
 from ..data import skeletons as skel
 from ..formats import mmd as mmdfmt
 from ..formats import tim as timfmt
+from ..formats import tmd as tmdfmt
 from ..formats.vram import Vram
 from ..source import SourceFile
 from . import alltim
@@ -50,23 +51,8 @@ def _exe_tables(exe: bytes, type_id: int) -> tuple:
 
 
 def _patch_for_slot(tmd):
-    """updateTMDTextureData for SLOT: TSB page bits = pixel page, CBA += slot index, UV += offset.
-
-    Like the game, each object is patched only up to its first untextured primitive.
-    """
-    du, dv = SLOT["pixel_offset"]
-    clut_add = SLOT["clut_page"] - 0x7A00
-    objects = []
-    for obj in tmd.objects:
-        prims, patching = [], True
-        for p in obj.primitives:
-            patching = patching and p.textured
-            if patching:
-                p = dataclasses.replace(p, tsb=(p.tsb & 0xFFE0) + SLOT["pixel_page"], cba=p.cba + clut_add,
-                                        uvs=tuple(((u + du) & 0xFF, (v + dv) & 0xFF) for u, v in p.uvs))
-            prims.append(p)
-        objects.append(dataclasses.replace(obj, primitives=tuple(prims)))
-    return dataclasses.replace(tmd, objects=tuple(objects))
+    """updateTMDTextureData for SLOT (shared helper in formats/tmd.py)."""
+    return tmdfmt.update_texture_data(tmd, SLOT["pixel_page"], SLOT["pixel_offset"], SLOT["clut_page"] - 0x7A00)
 
 
 def _slot_texture(input_root, type_id: int):

@@ -24,9 +24,9 @@ Last updated: 2026-10-21
 |---|---|---|---|---|---|---|
 | `card_all` | `CARD/CARD.ALL` | done | 66 | 465/465 | `specs/card_all.md` | 66 card images, 0x7000-byte slots |
 | `alltim` | `CHDAT/ALLTIM.TIM` | done | 180 | 1083/1083 | `specs/alltim.md` | One texture per digimon type, 0x4800-byte slots; palettes are per polygon; types 62/114 have no model |
-| `etctim` | `ETCDAT/ETCTIM.BIN` | done | 9 | 41/41 | `specs/stacked_tim.md` | Packed TIMs at their header VRAM positions; 3/9 users found in code; entry 6 = `ITEM.TIM` |
+| `etctim` | `ETCDAT/ETCTIM.BIN` | done | 9 | 49/49 | `specs/stacked_tim.md` | = 9 ETCDAT `.TIM` files concatenated (entries named after them); 3/9 drawers found in code |
 | `stdtim` | `STDDAT/STDTIM.BIN` | done | 6 | 28/28 | `specs/stacked_tim.md` | Tournament graphics; 4/6 users found in code |
-| | `*.TIM` (ETCDAT, ETCHI, ETCNA, STDDAT, GRADE) | todo | | | | Standalone TIMs; need a family per use or a generic one. `ITEM.TIM` duplicates `etctim` entry 6 |
+| `tim_files` | 51 standalone `*.TIM` (ETCDAT, ETCHI, ETCNA, STDDAT, GRADE) | done | 54 | 271/271 | `specs/tim_files.md` | Loader + code refs per file; T_TOGI has 4 TIMs; 9 ETCDAT files are also inside ETCTIM.BIN; SLOT/TAKA/EX have no loader |
 | | `DOOR/*.TMD`, other `*.TMD` | todo | | | | Needs TMD format |
 | | `CHDAT/**/*.MMD` | todo | | | | 178 models; needs MMD format |
 | | `MAP/**/*.MAP`, `*.TFS` | todo | | | | 242 maps |
@@ -54,7 +54,7 @@ Last updated: 2026-10-21
 | CLI (`list`, `convert`, `scan`) | done | |
 | Identity sidecars + `manifest.json` | done | `dwporter/assets.py` |
 | Verification checks (fail = non-zero exit) | done | |
-| Unit tests | done | `tests/test_tim.py`, 13 tests |
+| Unit tests | done | `tests/test_tim.py`, 14 tests |
 | Godot import of `output/` | todo | Decide `.gdignore` for `output/scan/`, and how Godot loads sidecars |
 
 ## Log
@@ -62,3 +62,4 @@ Last updated: 2026-10-21
 - 2026-10-21 — Core created (TIM, PNG, CLI, sidecars, scan). `card_all` done: 66 assets, 465/465 checks.
 - 2026-10-21 — `alltim` done: 180 Digimon textures, 1083/1083 checks. Added `dwporter/data/digimon.py` (type → file name, display name, model path). Found the game overrides the TIM's VRAM position at load time.
 - 2026-10-21 — `etctim` (9 assets, 41/41) and `stdtim` (6 assets, 28/28) done with shared `stacked_tim.py`. Unlike ALLTIM, these load at their header VRAM positions; users matched via `GetTPage`/`GetClut` constants (7 of 15 so far).
+- 2026-10-21 — `tim_files` done: all 51 standalone TIMs (54 assets, 271/271), loaders and path tables (`STD_GRADES`, arena tables) recorded. Found ETCTIM.BIN = 9 ETCDAT TIMs concatenated; `etctim` entries renamed after them (49/49). All TIM data on the disc outside maps/models is now converted.

@@ -31,19 +31,19 @@ Because the TIM header positions are used as-is, **the `vram` block in each side
 
 `identified_by: code` = a drawing function found by matching its `GetTPage`/`GetClut` constants; `visual` = named from the image only, users not found yet (they may compute the page or come from 3D models).
 
-**ETCTIM.BIN**
+**ETCTIM.BIN** — exactly the 9 files `ETCDAT/{BI_IN, BTLCOMND, DEFEFF, FEEL_EF, FI_INFO, SBOY, ITEM, SPOT256, SYSTEM_W}.TIM` concatenated in this order (checked byte for byte via `duplicate_of`). Entries are named after those files; see `tim_files.md` for the standalone copies.
 
 | # | Name | Image / CLUT VRAM | Identified | Users / notes |
 |---|---|---|---|---|
-| 0 | `ui_system` | (896,384) / (256,480)×16 | visual | Digit fonts, PUSH, star burst |
-| 1 | `status_icons` | (960,448) / (272,496)×16 | visual | Condition / emotion icons |
-| 2 | `smoke` | (768,384) / (192,488)×5 | visual | Smoke / dust strip |
-| 3 | `scene_props` | (960,384) / (272,480)×16 | visual | Computer screens, bubbles, poop |
-| 4 | `clock` | (896,448) / (256,496)×16 | code | `clock.c:228` `initializeClockData`, `clock.c:280` `renderGameClock` |
-| 5 | `digimon_icons` | (512,256) / (112,488)×16 | visual | Portrait icons, medal discs |
-| 6 | `items` | (320,0) / (224,488)×24 | visual | Item icons; **byte-identical to `ETCDAT/ITEM.TIM`** |
-| 7 | `glow` | (832,384) / (0,487)×1, 8bpp | code | `map.c:5524` `tickMeramonShake` |
-| 8 | `ui_menu` | (320,128) / (96,488)×16 | code | `script_textbox.c:1008` `renderUIBox` |
+| 0 | `bi_in` | (896,384) / (256,480)×16 | visual | Digit fonts, PUSH, star burst |
+| 1 | `btlcomnd` | (960,448) / (272,496)×16 | visual | Battle command / condition icons |
+| 2 | `defeff` | (768,384) / (192,488)×5 | visual | Smoke / dust strip |
+| 3 | `feel_ef` | (960,384) / (272,480)×16 | visual | Speech bubbles, poop, computer props |
+| 4 | `fi_info` | (896,448) / (256,496)×16 | code | `clock.c:228` `initializeClockData`, `clock.c:280` `renderGameClock` |
+| 5 | `sboy` | (512,256) / (112,488)×16 | visual | Portrait icons, medal discs; drawers not found (`std_setup.c:451` also loads `SBOY.TIM` alone) |
+| 6 | `item` | (320,0) / (224,488)×24 | visual | Item icons |
+| 7 | `spot256` | (832,384) / (0,487)×1, 8bpp | code | `map.c:5524` `tickMeramonShake` |
+| 8 | `system_w` | (320,128) / (96,488)×16 | code | `script_textbox.c:1008` `renderUIBox` |
 
 **STDTIM.BIN**
 
@@ -58,7 +58,7 @@ Because the TIM header positions are used as-is, **the `vram` block in each side
 
 ## Godot representation
 
-- `output/<family>/<NN>_<name>.png` (+ `.p<N>.png` per extra palette), indexed PNGs, e.g. `output/etctim/04_clock.png`.
+- `output/<family>/<NN>_<name>.png` (+ `.p<N>.png` per extra palette), indexed PNGs, e.g. `output/etctim/04_fi_info.png`.
 - Port mapping: "draw from tpage T / clut C at UV (u, v)" → texture `<name>` at pixel (u, v) − `vram.uv_origin`, palette row = `vram.clut_ids.index(C)`. Several TIMs can share a texture page (`time_up` and `bracket`), so match on the image rect, not only the page.
 
 ## Metadata
@@ -66,7 +66,7 @@ Because the TIM header positions are used as-is, **the `vram` block in each side
 Sidecar: common keys + `tim`, `vram` (real game placement), and
 
 ```json
-"entry": {"index": 4, "name": "clock", "description": "...", "identified_by": "code", "code_refs": ["..."], "duplicate_of": null},
+"entry": {"index": 4, "name": "fi_info", "description": "...", "identified_by": "code", "code_refs": ["..."], "duplicate_of": "ETCDAT/FI_INFO.TIM"},
 "loader": "loadStackedTIMFile(path)"
 ```
 
@@ -78,7 +78,7 @@ Sidecar: common keys + `tim`, `vram` (real game placement), and
 - `duplicate_of` files are byte-identical.
 - No two image/CLUT rects of the same file overlap in VRAM (they are loaded together).
 
-Current result: etctim 9 assets, 41/41 checks; stdtim 6 assets, 28/28 checks.
+Current result: etctim 9 assets, 49/49 checks; stdtim 6 assets, 28/28 checks.
 
 ## Open questions
 

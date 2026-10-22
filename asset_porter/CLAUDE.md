@@ -80,7 +80,7 @@ Formats are only known by extension until a spec confirms them. Standard PSX for
 
 ## Specs
 
-Location: `specs/<family>.md`, one per format or asset family. Existing: `specs/tim.md` (TIM format), `specs/card_all.md` (`CARD/CARD.ALL`), `specs/alltim.md` (`CHDAT/ALLTIM.TIM`), `specs/stacked_tim.md` (`ETCDAT/ETCTIM.BIN`, `STDDAT/STDTIM.BIN`).
+Location: `specs/<family>.md`, one per format or asset family. Existing: `specs/tim.md` (TIM format), `specs/card_all.md` (`CARD/CARD.ALL`), `specs/alltim.md` (`CHDAT/ALLTIM.TIM`), `specs/stacked_tim.md` (`ETCDAT/ETCTIM.BIN`, `STDDAT/STDTIM.BIN`), `specs/tim_files.md` (51 standalone `*.TIM`).
 
 Each spec must contain:
 

@@ -147,5 +147,20 @@ class StackedTimTests(unittest.TestCase):
                 self.assertEqual(len(out.assets), count)
 
 
+@unittest.skipUnless((DEFAULT_INPUT / "ETCDAT" / "ITEM.TIM").exists(), "dumped game files not available")
+class TimFilesTests(unittest.TestCase):
+    def test_convert(self):
+        import tempfile
+        from pathlib import Path
+
+        from dwporter.families import tim_files
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = tim_files.convert(DEFAULT_INPUT, Path(tmp))
+            self.assertTrue(out.ok, [c.name for c in out.checks if not c.passed])
+            self.assertEqual(len(out.assets), sum(f.count for f in tim_files.FILES))
+            self.assertEqual(len(tim_files.FILES), 51)
+
+
 if __name__ == "__main__":
     unittest.main()

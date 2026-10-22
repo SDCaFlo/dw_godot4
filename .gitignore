@@ -2,6 +2,7 @@
 .godot/
 /android/
 
-# Asset porter
+# Asset porter / data porter (generated game content, never committed)
 asset_porter/output/
+data_porter/output/
 __pycache__/

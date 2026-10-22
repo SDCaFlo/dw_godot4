@@ -50,24 +50,29 @@ class Vram:
         entry reads VRAM that nothing was loaded into (those texels are transparent), so callers
         can tell a complete texture from a partial one.
         """
-        out = bytearray(PAGE_SIZE * PAGE_SIZE * 4)
-        loaded = bytearray(PAGE_SIZE * PAGE_SIZE)
+        per_word = {4: 4, 8: 2}.get(bpp, 1)
+        shifts = [i * (16 // per_word) for i in range(per_word)]
+        mask = (1 << (16 // per_word)) - 1
+        transparent = bytes(4)
+        if bpp in (4, 8):
+            palette = []
+            for i in range(1 << (16 // per_word)):
+                color, ok = self.word(clut_x + i, clut_y)
+                palette.append((bytes(psx.color_to_rgba(color)) if ok else transparent, ok))
+        out, loaded = [], bytearray()
         for v in range(PAGE_SIZE):
-            for u in range(PAGE_SIZE):
-                if bpp == 4:
-                    word, ok = self.word(page_x + u // 4, page_y + v)
-                    color, ok2 = self.word(clut_x + ((word >> ((u % 4) * 4)) & 0xF), clut_y)
-                elif bpp == 8:
-                    word, ok = self.word(page_x + u // 2, page_y + v)
-                    color, ok2 = self.word(clut_x + ((word >> ((u % 2) * 8)) & 0xFF), clut_y)
+            for w in range(PAGE_SIZE // per_word):
+                word, ok = self.word(page_x + w, page_y + v)
+                if bpp in (4, 8):
+                    for s in shifts:
+                        rgba, ok2 = palette[(word >> s) & mask]
+                        good = ok and ok2
+                        out.append(rgba if good else transparent)
+                        loaded.append(good)
                 else:
-                    color, ok = self.word(page_x + u, page_y + v)
-                    ok2 = True
-                if ok and ok2:
-                    i = v * PAGE_SIZE + u
-                    out[i * 4:i * 4 + 4] = bytes(psx.color_to_rgba(color))
-                    loaded[i] = 1
-        return bytes(out), bytes(loaded)
+                    out.append(bytes(psx.color_to_rgba(word)) if ok else transparent)
+                    loaded.append(ok)
+        return b"".join(out), bytes(loaded)
 
     def sources_in(self, x: int, y: int, w: int, h: int) -> list:
         """Labels of loaded rects overlapping the given VRAM rect."""

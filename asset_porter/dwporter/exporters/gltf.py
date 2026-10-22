@@ -30,13 +30,16 @@ class GltfBuilder:
             "accessors": [], "bufferViews": [], "buffers": [],
         }
         self._images = {}
+        self._shared = {}
         self._uses_unlit = False
 
     def _view(self, data: bytes, target: int) -> int:
         while len(self.bin) % 4:
             self.bin.append(0)
-        self.doc["bufferViews"].append({"buffer": 0, "byteOffset": len(self.bin), "byteLength": len(data),
-                                        "target": target})
+        view = {"buffer": 0, "byteOffset": len(self.bin), "byteLength": len(data)}
+        if target is not None:
+            view["target"] = target
+        self.doc["bufferViews"].append(view)
         self.bin += data
         return len(self.doc["bufferViews"]) - 1
 
@@ -44,13 +47,22 @@ class GltfBuilder:
         width = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}[kind]
         fmt = "f" if component == FLOAT else "I"
         flat = [c for v in values for c in (v if width > 1 else (v,))]
-        acc = {"bufferView": self._view(struct.pack(f"<{len(flat)}{fmt}", *flat), target),
+        if minmax and width == 1:
+            values = [(v,) for v in values]
+        data = struct.pack(f"<{len(flat)}{fmt}", *flat)
+        key = (data, kind, component, minmax)
+        if target is None and key in self._shared:
+            return self._shared[key]  # identical animation input/output: reuse the accessor
+        acc = {"bufferView": self._view(data, target),
                "componentType": component, "count": len(values), "type": kind}
         if minmax:
             acc["min"] = [min(v[i] for v in values) for i in range(width)]
             acc["max"] = [max(v[i] for v in values) for i in range(width)]
         self.doc["accessors"].append(acc)
-        return len(self.doc["accessors"]) - 1
+        index = len(self.doc["accessors"]) - 1
+        if target is None:
+            self._shared[key] = index
+        return index
 
     def image(self, uri: str) -> int:
         if uri not in self._images:
@@ -92,17 +104,44 @@ class GltfBuilder:
             prim["extras"] = extras
         return prim
 
-    def node(self, name: str, primitives: list, extras: dict = None) -> int:
+    def node(self, name: str, primitives: list, extras: dict = None, parent: int = None,
+             translation=None, rotation=None, scale=None) -> int:
+        """Add a node (with a mesh if `primitives`), under `parent` or at the scene root."""
         node = {"name": name}
         if primitives:
             self.doc["meshes"].append({"name": name, "primitives": primitives})
             node["mesh"] = len(self.doc["meshes"]) - 1
+        for key, value in (("translation", translation), ("rotation", rotation), ("scale", scale)):
+            if value is not None:
+                node[key] = list(value)
         if extras:
             node["extras"] = extras
         self.doc["nodes"].append(node)
         index = len(self.doc["nodes"]) - 1
-        self.doc["scenes"][0]["nodes"].append(index)
+        if parent is None:
+            self.doc["scenes"][0]["nodes"].append(index)
+        else:
+            self.doc["nodes"][parent].setdefault("children", []).append(index)
         return index
+
+    def animation(self, name: str, channels: list, extras: dict = None) -> None:
+        """channels: (node, path, times, values, interpolation); path is translation/rotation/scale."""
+        anim = {"name": name, "channels": [], "samplers": []}
+        kinds = {"translation": "VEC3", "rotation": "VEC4", "scale": "VEC3"}
+        for node, path, times, values, interpolation in channels:
+            sampler = {"input": self._accessor(times, "SCALAR", FLOAT, None, minmax=True),
+                       "output": self._accessor(values, kinds[path], FLOAT, None), "interpolation": interpolation}
+            anim["samplers"].append(sampler)
+            anim["channels"].append({"sampler": len(anim["samplers"]) - 1, "target": {"node": node, "path": path}})
+        if extras:
+            anim["extras"] = extras
+        self.doc.setdefault("animations", []).append(anim)
+
+    def skin(self, name: str, joints: list, skeleton: int) -> None:
+        """Declare `joints` (node indices) as a skeleton. Meshes stay rigidly attached to their
+        nodes (no vertex weights); importers such as Godot then build a Skeleton3D and keep every
+        bone track, including constant ones (a plain node hierarchy loses those on import)."""
+        self.doc.setdefault("skins", []).append({"name": name, "joints": list(joints), "skeleton": skeleton})
 
     def write(self, gltf_path: Path, extras: dict = None) -> list:
         """Write <name>.gltf and <name>.bin; returns the written paths."""
@@ -119,5 +158,5 @@ class GltfBuilder:
             self.doc["extras"] = extras
         gltf_path.parent.mkdir(parents=True, exist_ok=True)
         bin_path.write_bytes(bytes(self.bin))
-        gltf_path.write_text(json.dumps(self.doc, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+        gltf_path.write_text(json.dumps(self.doc, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
         return [gltf_path, bin_path]

@@ -25,8 +25,35 @@ from .source import SourceSpan
 
 
 def _dump(path: Path, obj) -> None:
+    """One top-level key per line (easy to skim), each value as compact JSON."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    lines = [f"  {json.dumps(k)}: {json.dumps(v, sort_keys=True, separators=(',', ':'))}" for k, v in sorted(obj.items())]
+    path.write_text("{\n" + ",\n".join(lines) + "\n}\n", encoding="utf-8")
+
+
+def _tmd_record(tmd) -> dict:
+    """Raw TMD values: the lossless source of a model (vertices/normals as stored i16)."""
+    return {
+        "offset": tmd.offset,
+        "flags": tmd.flags,
+        "size": tmd.size,
+        "objects": [dict(o.header_info(), vertices=[list(v) for v in o.vertices],
+                         normals=[list(n) for n in o.normals],
+                         primitives=[p.to_dict() for p in o.primitives]) for o in tmd.objects],
+    }
+
+
+def _model_outputs(writer, result: dict) -> tuple:
+    outputs = [{"path": writer._rel(result["files"][0]), "kind": "model", "encoding": "gltf2"},
+               {"path": writer._rel(result["files"][1]), "kind": "model_buffer", "encoding": "gltf2_bin"}]
+    textures = []
+    for t in result["textures"]:
+        t = dict(t)
+        if t["path"] is not None:
+            t["path"] = writer._rel(t["path"])
+            outputs.append({"path": t["path"], "kind": "texture_page", "encoding": "rgba8"})
+        textures.append(t)
+    return outputs, textures
 
 
 class Check:
@@ -52,8 +79,14 @@ class AssetWriter:
         if self.dir.exists():
             if self.output_root not in self.dir.resolve().parents:
                 raise RuntimeError(f"refusing to delete {self.dir}: not inside {self.output_root}")
-            shutil.rmtree(self.dir)
-        self.dir.mkdir(parents=True)
+            # Empty the folder rather than removing it: on Windows a folder that is open in a
+            # shell, Explorer or the Godot editor cannot be removed, but its contents can.
+            for child in self.dir.iterdir():
+                if child.is_dir():
+                    shutil.rmtree(child)
+                else:
+                    child.unlink()
+        self.dir.mkdir(parents=True, exist_ok=True)
 
     def check(self, name: str, passed: bool, detail: str = "") -> bool:
         self.checks.append(Check(name, bool(passed), detail))
@@ -104,15 +137,7 @@ class AssetWriter:
 
         base = self.dir / name
         result = models.build(base, span.asset_id, tmd, vram)
-        outputs = [{"path": self._rel(result["files"][0]), "kind": "model", "encoding": "gltf2"},
-                   {"path": self._rel(result["files"][1]), "kind": "model_buffer", "encoding": "gltf2_bin"}]
-        textures = []
-        for t in result["textures"]:
-            t = dict(t)
-            if t["path"] is not None:
-                t["path"] = self._rel(t["path"])
-                outputs.append({"path": t["path"], "kind": "texture_page", "encoding": "rgba8"})
-            textures.append(t)
+        outputs, textures = _model_outputs(self, result)
 
         record = {
             "asset_id": span.asset_id,
@@ -122,14 +147,45 @@ class AssetWriter:
             "psxprev_name": span.psxprev_name,
             "outputs": outputs,
             "textures": textures,
-            "tmd": {
-                "flags": tmd.flags,
-                "size": tmd.size,
-                # Raw values: the lossless source of the model (vertices/normals as stored i16).
-                "objects": [dict(o.header_info(), vertices=[list(v) for v in o.vertices],
-                                 normals=[list(n) for n in o.normals],
-                                 primitives=[p.to_dict() for p in o.primitives]) for o in tmd.objects],
+            "tmd": _tmd_record(tmd),
+        }
+        if extra:
+            record.update(extra)
+        sidecar = base.with_name(f"{base.name}.json")
+        _dump(sidecar, record)
+        self.assets.append({"asset_id": span.asset_id, "sidecar": self._rel(sidecar),
+                            "outputs": [o["path"] for o in outputs]})
+        return record
+
+    def write_mmd(self, name: str, span: SourceSpan, mmd, vram, skeleton: list, rest: list, animations: list,
+                  extra: dict = None) -> dict:
+        """Write a Digimon model as glTF with bone hierarchy and animations + sidecar with all raw data."""
+        from . import models
+
+        base = self.dir / name
+        result = models.build_skeletal(base, span.asset_id, mmd.tmd, vram, skeleton, rest, animations,
+                                       {"digimon": (extra or {}).get("digimon")})
+        outputs, textures = _model_outputs(self, result)
+        record = {
+            "asset_id": span.asset_id,
+            "family": self.family,
+            "format": "MMD",
+            "source": span.identity(),
+            "psxprev_name": span.psxprev_name,
+            "outputs": outputs,
+            "textures": textures,
+            "animation_keys": result["animation_keys"],
+            "mmd": {
+                "tmd_offset": mmd.tmd_offset,
+                "anim_offset": mmd.anim_offset,
+                "anim_table": mmd.table,
+                # Raw animations (header + instructions with file offsets), keyed by table offset.
+                "animations": {str(rel): {"offset": a.offset, "frame_count": a.frame_count,
+                                          "has_scale": a.has_scale, "initial": a.initial,
+                                          "instructions": a.instructions, "end": a.end}
+                               for rel, a in sorted(mmd.animations.items())},
             },
+            "tmd": _tmd_record(mmd.tmd),
         }
         if extra:
             record.update(extra)

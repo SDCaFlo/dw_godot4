@@ -108,11 +108,14 @@ class TmdObject:
     normals: tuple  # (x, y, z) raw i16, 4.12 fixed point
     primitives: tuple
     nonzero_pads: int  # vertex/normal pad words that are not zero (should be 0)
+    n_vert_declared: int = None  # counts in the object table; fewer than len(vertices/normals) when
+    n_normal_declared: int = None  # primitives index past them (lenient parse, see `parse`)
 
     def header_info(self) -> dict:
         return {
-            "index": self.index, "vert_top": self.vert_top, "n_vert": len(self.vertices),
-            "normal_top": self.normal_top, "n_normal": len(self.normals),
+            "index": self.index, "vert_top": self.vert_top, "n_vert": self.n_vert_declared,
+            "normal_top": self.normal_top, "n_normal": self.n_normal_declared,
+            "n_vert_read": len(self.vertices), "n_normal_read": len(self.normals),
             "primitive_top": self.primitive_top, "n_primitive": len(self.primitives), "scale": self.scale,
         }
 
@@ -206,7 +209,13 @@ def _primitive(data: bytes, pos: int) -> Primitive:
     return Primitive(pos, olen, ilen, flag, mode, kind, verts, norms, uvs, f.get("cba"), f.get("tsb"), colors)
 
 
-def parse(data: bytes, offset: int = 0) -> Tmd:
+def parse(data: bytes, offset: int = 0, strict: bool = True) -> Tmd:
+    """Parse a TMD at `offset`.
+
+    strict=False accepts primitives that index vertices/normals past the object's declared
+    counts: the GTE just reads the following 8-byte entries, so those are read from the buffer
+    too (some MMD models rely on this). The declared counts are kept on the object.
+    """
     def u32(pos):
         if pos + 4 > len(data):
             raise TmdError("truncated")
@@ -247,17 +256,24 @@ def parse(data: bytes, offset: int = 0) -> Tmd:
                 raise TmdError("truncated primitive header")
             p = _primitive(data, pos)
             if any(v >= nv for v in p.vertices) or any(n >= nn for n in p.normals):
-                raise TmdError(f"object {i}: primitive at 0x{pos:X} indexes out of range")
+                if strict:
+                    raise TmdError(f"object {i}: primitive at 0x{pos:X} indexes out of range")
+                for block, items, idx in ((vt, verts, max(p.vertices)), (nt, norms, max(p.normals, default=-1))):
+                    while len(items) <= idx:
+                        if block + len(items) * 8 + 8 > len(data):
+                            raise TmdError(f"object {i}: primitive at 0x{pos:X} indexes past the buffer")
+                        x, y, z, pad = struct.unpack_from("<hhhH", data, block + len(items) * 8)
+                        items.append((x, y, z))
             prims.append(p)
             pos += 4 + p.ilen * 4
         end = max(end, vt + nv * 8, nt + nn * 8, pos)
-        objects.append(TmdObject(i, vt, nt, pt, scale, tuple(verts), tuple(norms), tuple(prims), pads))
+        objects.append(TmdObject(i, vt, nt, pt, scale, tuple(verts), tuple(norms), tuple(prims), pads, nv, nn))
 
     return Tmd(offset, flags, tuple(objects), end)
 
 
-def try_parse(data: bytes, offset: int = 0) -> Optional[Tmd]:
+def try_parse(data: bytes, offset: int = 0, strict: bool = True) -> Optional[Tmd]:
     try:
-        return parse(data, offset)
+        return parse(data, offset, strict)
     except (TmdError, struct.error):
         return None

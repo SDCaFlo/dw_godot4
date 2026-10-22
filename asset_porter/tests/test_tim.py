@@ -241,5 +241,92 @@ class TmdFilesTests(unittest.TestCase):
             self.assertEqual(len(out.assets), 66)
 
 
+class MmdTests(unittest.TestCase):
+    def _anim(self, bones, frame_count, initial, words):
+        """Build an MMD-style animation blob: header + initial poses + instruction words."""
+        data = struct.pack("<H", frame_count)
+        for pose in initial:
+            data += struct.pack("<6h", *pose)
+        return data + struct.pack(f"<{len(words)}H", *[w & 0xFFFF for w in words])
+
+    def test_momentum_with_remainder_is_exact(self):
+        from dwporter.formats import mmd as mmdfmt
+
+        # Bone 1 rot_x: value 10 over divisor 4 -> per tick +2, plus +1 on two of every four ticks.
+        # keyframe@1; entry: marker | axis bit for index 3 (rot_x, 0x4000 >> 3) | bone 1; divisor 4; value 10
+        words = [0x0001, 0x8000 | 0x0800 | 1, 4, 10, 0x0000]
+        data = self._anim(2, 9, [[0, 0, 0, 0, 0, 0]], words)
+        anim = mmdfmt.parse_animation(data, 0, 0, 2)
+        self.assertEqual(anim.instructions[0]["entries"][0], {"bone": 1, "divisor": 4, "axes": {"rot_x": 10}})
+        sim = mmdfmt.simulate(data, anim, 2, 0)
+        rot_x = [f[1][3] for f in sim["frames"]]
+        # Tick 1 shows the initial pose; the keyframe takes effect from tick 2; every 4 ticks add 10.
+        self.assertEqual(rot_x[0], 0)
+        self.assertEqual(rot_x[4] - rot_x[0], 10)
+        self.assertEqual(rot_x[8] - rot_x[4], 10)
+        self.assertEqual(len(sim["frames"]), 9)
+
+    def test_endless_loop(self):
+        from dwporter.formats import mmd as mmdfmt
+
+        words = [0x0001, 0x1000, 0x2004, 0x0002, 0x0000]  # keyframe@1 (no entries), loop start (endless), loop end@4 -> 2
+        data = self._anim(1, 10, [], words)
+        anim = mmdfmt.parse_animation(data, 0, 0, 1)
+        sim = mmdfmt.simulate(data, anim, 1, 0)
+        self.assertEqual(sim["loop"]["start_frame"], 2)
+        self.assertEqual(sim["loop"]["end_frame"], 4)
+        self.assertEqual(len(sim["frames"]), 4)
+
+    def test_rotation_matches_rotmatrix(self):
+        """pose_rotation(a, b, c) == F * Rx(a) Ry(b) Rz(c) * F (libgte RotMatrix, axis flip F)."""
+        import math
+
+        from dwporter.models import pose_rotation
+
+        def mat(a, b, c):
+            k = 2 * math.pi / 4096
+            cx, sx, cy, sy, cz, sz = (f(v * k) for v in (a, b, c) for f in (math.cos, math.sin))
+            # Rx * Ry * Rz; the entries checked in asm/us/main/psyq/libgte.s RotMatrix match this.
+            return [[cz * cy, -sz * cy, sy], [sz * cx + cz * sy * sx, cz * cx - sz * sy * sx, -cy * sx],
+                    [sz * sx - cz * sy * cx, cz * sx + sz * sy * cx, cy * cx]]
+
+        for a, b, c in ((300, 0, 0), (0, 700, 0), (0, 0, -900), (123, 456, 789), (-2000, 1500, 100)):
+            m = mat(a, b, c)
+            f = [[m[i][j] * (1 if i == 0 else -1) * (1 if j == 0 else -1) for j in range(3)] for i in range(3)]
+            x, y, z, w = pose_rotation(a, b, c)
+            q = [[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                 [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                 [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]]
+            for i in range(3):
+                for j in range(3):
+                    self.assertAlmostEqual(q[i][j], f[i][j], places=9)
+
+    def test_key_reduction_is_exact(self):
+        from dwporter.models import _keep_keys, _linear_ints, _linear_rotation
+
+        values = [(0,), (2,), (4,), (6,), (7,), (8,), (8,)]
+        self.assertEqual(_keep_keys(values, _linear_ints), [0, 3, 5, 6])
+        # Two axes changing together must not be reduced; long single-axis runs are split before 90 degrees.
+        two_axes = [(i, i, 0) for i in range(5)]
+        self.assertEqual(_keep_keys(two_axes, _linear_rotation), [0, 1, 2, 3, 4])
+        spin = [(0, 0, 300 * i) for i in range(10)]
+        kept = _keep_keys(spin, _linear_rotation)
+        self.assertTrue(all(spin[b][2] - spin[a][2] < 1024 for a, b in zip(kept, kept[1:])))
+
+
+@unittest.skipUnless((DEFAULT_INPUT / "CHDAT" / "MMD0" / "AGUM.MMD").exists(), "dumped game files not available")
+class MmdFilesTests(unittest.TestCase):
+    def test_convert_subset(self):
+        import tempfile
+        from pathlib import Path
+
+        from dwporter.families import mmd_files
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = mmd_files.convert(DEFAULT_INPUT, Path(tmp), types={0, 3, 45, 62})
+            self.assertTrue(out.ok, [c.name for c in out.checks if not c.passed])
+            self.assertEqual(len(out.assets), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

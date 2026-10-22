@@ -11,7 +11,7 @@ Sidecar schema (keys common to all assets):
     source       path / offset / size / sha1 of the bytes, plus size / sha1 of the whole file
     psxprev_name name PSXPrev would give the same data, for cross-checking
     outputs      generated files, relative to the family folder
-    + format-specific keys (e.g. "tim", "vram") and family-specific keys
+    + format-specific keys (e.g. "tim", "vram"; "tmd", "textures") and family-specific keys
 """
 
 import json
@@ -95,6 +95,47 @@ class AssetWriter:
             record.update(extra)
         _dump(base.with_name(f"{base.name}.json"), record)
         self.assets.append({"asset_id": span.asset_id, "sidecar": self._rel(base.with_name(f"{base.name}.json")),
+                            "outputs": [o["path"] for o in outputs]})
+        return record
+
+    def write_tmd(self, name: str, span: SourceSpan, tmd, vram=None, extra: dict = None) -> dict:
+        """Write a TMD as glTF (+ texture pages built from `vram`) + sidecar with the full raw model data."""
+        from . import models
+
+        base = self.dir / name
+        result = models.build(base, span.asset_id, tmd, vram)
+        outputs = [{"path": self._rel(result["files"][0]), "kind": "model", "encoding": "gltf2"},
+                   {"path": self._rel(result["files"][1]), "kind": "model_buffer", "encoding": "gltf2_bin"}]
+        textures = []
+        for t in result["textures"]:
+            t = dict(t)
+            if t["path"] is not None:
+                t["path"] = self._rel(t["path"])
+                outputs.append({"path": t["path"], "kind": "texture_page", "encoding": "rgba8"})
+            textures.append(t)
+
+        record = {
+            "asset_id": span.asset_id,
+            "family": self.family,
+            "format": "TMD",
+            "source": span.identity(),
+            "psxprev_name": span.psxprev_name,
+            "outputs": outputs,
+            "textures": textures,
+            "tmd": {
+                "flags": tmd.flags,
+                "size": tmd.size,
+                # Raw values: the lossless source of the model (vertices/normals as stored i16).
+                "objects": [dict(o.header_info(), vertices=[list(v) for v in o.vertices],
+                                 normals=[list(n) for n in o.normals],
+                                 primitives=[p.to_dict() for p in o.primitives]) for o in tmd.objects],
+            },
+        }
+        if extra:
+            record.update(extra)
+        sidecar = base.with_name(f"{base.name}.json")
+        _dump(sidecar, record)
+        self.assets.append({"asset_id": span.asset_id, "sidecar": self._rel(sidecar),
                             "outputs": [o["path"] for o in outputs]})
         return record
 

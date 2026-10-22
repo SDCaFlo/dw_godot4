@@ -162,5 +162,84 @@ class TimFilesTests(unittest.TestCase):
             self.assertEqual(len(tim_files.FILES), 51)
 
 
+def make_tmd(prims_bytes: bytes, n_prims: int, vertices, normals) -> bytes:
+    """One-object TMD (flags 0: offsets relative to the object table)."""
+    vblock = b"".join(struct.pack("<hhhH", *v, 0) for v in vertices)
+    nblock = b"".join(struct.pack("<hhhH", *n, 0) for n in normals)
+    table_size = 28
+    vert_top = table_size
+    normal_top = vert_top + len(vblock)
+    prim_top = normal_top + len(nblock)
+    table = struct.pack("<6Ii", vert_top, len(vertices), normal_top, len(normals), prim_top, n_prims, 0)
+    return struct.pack("<III", 0x41, 0, 1) + table + vblock + nblock + prims_bytes
+
+
+class TmdTests(unittest.TestCase):
+    def test_textured_lit_flat_triangle(self):
+        from dwporter.formats import tmd as tmdfmt
+
+        # mode 0x24 (polygon, textured, triangle), flag 0 (lit, flat): uv/cba/tsb, normal, 3 vertices
+        packet = bytes([1, 2, 0x03, 0x7F, 4, 5, 0x0A, 0x00, 6, 7, 0, 0]) + struct.pack("<4H", 0, 0, 1, 2)
+        prim = bytes([7, len(packet) // 4, 0x00, 0x24]) + packet
+        data = make_tmd(prim, 1, [(0, 0, 0), (100, 0, 0), (0, 100, 0)], [(0, 0, -4096)])
+        tmd = tmdfmt.parse(data)
+        p = tmd.objects[0].primitives[0]
+        self.assertEqual((p.kind, p.vertices, p.normals, p.uvs), ("triangle", (0, 1, 2), (0,), ((1, 2), (4, 5), (6, 7))))
+        self.assertEqual((p.cba, p.tsb), (0x7F03, 0x0A))
+        self.assertEqual(p.tpage_info()["x"], 640)
+        self.assertEqual(tmd.end, len(data))
+
+    def test_layout_must_match_ilen(self):
+        from dwporter.formats import tmd as tmdfmt
+
+        prim = bytes([7, 3, 0x00, 0x24]) + bytes(12)  # ilen 3 but the layout needs 5 words
+        with self.assertRaises(tmdfmt.TmdError):
+            tmdfmt.parse(make_tmd(prim, 1, [(0, 0, 0)] * 3, [(0, 0, 4096)]))
+
+    def test_gltf_winding_follows_normal(self):
+        """Exported triangles are counter-clockwise around their (converted) normal."""
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from dwporter import models
+        from dwporter.formats import tmd as tmdfmt
+
+        # Untextured lit flat triangle (mode 0x20, flag 0): rgb+mode, normal, 3 vertices, no pad.
+        packet = bytes([255, 0, 0, 0x20]) + struct.pack("<4H", 0, 0, 1, 2)
+        prim = bytes([4, len(packet) // 4, 0x00, 0x20]) + packet
+        # PSX order is clockwise around the stored normal (as found in all game models).
+        # (v1 - v0) x (v2 - v0) = (0, 0, -10000), opposite to the stored normal.
+        verts, normal = [(0, 0, 0), (0, 100, 0), (100, 0, 0)], (0, 0, 4096)
+        tmd = tmdfmt.parse(make_tmd(prim, 1, verts, [normal]))
+        with tempfile.TemporaryDirectory() as tmp:
+            models.build(Path(tmp) / "m", "test@0x0", tmd)
+            doc = json.loads((Path(tmp) / "m.gltf").read_text())
+            buf = (Path(tmp) / "m.bin").read_bytes()
+        prim = doc["meshes"][0]["primitives"][0]
+        pos_view = doc["bufferViews"][doc["accessors"][prim["attributes"]["POSITION"]]["bufferView"]]
+        nrm_view = doc["bufferViews"][doc["accessors"][prim["attributes"]["NORMAL"]]["bufferView"]]
+        p = [struct.unpack_from("<3f", buf, pos_view["byteOffset"] + 12 * i) for i in range(3)]
+        n = struct.unpack_from("<3f", buf, nrm_view["byteOffset"])
+        e1 = [p[1][i] - p[0][i] for i in range(3)]
+        e2 = [p[2][i] - p[0][i] for i in range(3)]
+        cross = (e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0])
+        self.assertGreater(sum(cross[i] * n[i] for i in range(3)), 0)
+
+
+@unittest.skipUnless((DEFAULT_INPUT / "ETCNA" / "TAKA.TMD").exists(), "dumped game files not available")
+class TmdFilesTests(unittest.TestCase):
+    def test_convert(self):
+        import tempfile
+        from pathlib import Path
+
+        from dwporter.families import tmd_files
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = tmd_files.convert(DEFAULT_INPUT, Path(tmp))
+            self.assertTrue(out.ok, [c.name for c in out.checks if not c.passed])
+            self.assertEqual(len(out.assets), 66)
+
+
 if __name__ == "__main__":
     unittest.main()

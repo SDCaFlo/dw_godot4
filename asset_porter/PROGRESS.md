@@ -10,8 +10,9 @@ Last updated: 2026-10-21
 |---|---|---|---|---|
 | TIM (texture) | done | `dwporter/formats/tim.py` | `specs/tim.md` | 4/8/16/24bpp, multi-palette, STP mask |
 | PNG (export) | done | `dwporter/exporters/png.py` | — | Indexed, RGBA, grey; stdlib only |
-| TMD (model) | todo | | | Reference: PSXPrev `TMDParser.cs`, `TMDHelper.cs` |
-| glTF (export) | todo | | | Reference: PSXPrev `glTF2Exporter.cs` |
+| TMD (model) | done | `dwporter/formats/tmd.py` | `specs/tmd.md` | Layout checked against `ilen` for every packet; all 66 files parse |
+| glTF (export) | done | `dwporter/exporters/gltf.py`, `dwporter/models.py` | `specs/tmd.md` | Axis flip, winding, nearest-filtered texture pages, PSX data in `extras` |
+| VRAM simulation | done | `dwporter/formats/vram.py` | `specs/tmd.md` | Builds textures like the GPU (page + CLUT) from the TIMs the game has loaded |
 | MMD (Digimon models) | todo | | | Game-specific; compare with DW1ModelConverter. Textures come from `alltim`; polygons pick CLUT rows, patched by `updateTMDTextureData` |
 | MAP / TFS (maps) | todo | | | Game-specific |
 | EFE, ATR, SCN | todo | | | Game-specific |
@@ -27,7 +28,7 @@ Last updated: 2026-10-21
 | `etctim` | `ETCDAT/ETCTIM.BIN` | done | 9 | 49/49 | `specs/stacked_tim.md` | = 9 ETCDAT `.TIM` files concatenated (entries named after them); 3/9 drawers found in code |
 | `stdtim` | `STDDAT/STDTIM.BIN` | done | 6 | 28/28 | `specs/stacked_tim.md` | Tournament graphics; 4/6 users found in code |
 | `tim_files` | 51 standalone `*.TIM` (ETCDAT, ETCHI, ETCNA, STDDAT, GRADE) | done | 54 | 271/271 | `specs/tim_files.md` | Loader + code refs per file; T_TOGI has 4 TIMs; 9 ETCDAT files are also inside ETCTIM.BIN; SLOT/TAKA/EX have no loader |
-| | `DOOR/*.TMD`, other `*.TMD` | todo | | | | Needs TMD format |
+| `tmd_files` | 66 `*.TMD` (DOOR, ETCDAT, ETCHI, ETCNA, STDDAT) | done | 66 | 221/221 | `specs/tmd.md` | glTF + texture pages; 22 field/effect/arena/result models textured, 1 untextured, 43 use map textures (bound when maps are done) |
 | | `CHDAT/**/*.MMD` | todo | | | | 178 models; needs MMD format |
 | | `MAP/**/*.MAP`, `*.TFS` | todo | | | | 242 maps |
 | | `ETCHI/EFEDAT.EFE` | todo | | | | Effects |
@@ -54,7 +55,7 @@ Last updated: 2026-10-21
 | CLI (`list`, `convert`, `scan`) | done | |
 | Identity sidecars + `manifest.json` | done | `dwporter/assets.py` |
 | Verification checks (fail = non-zero exit) | done | |
-| Unit tests | done | `tests/test_tim.py`, 14 tests |
+| Unit tests | done | `tests/test_tim.py`, 18 tests |
 | Godot import of `output/` | todo | Decide `.gdignore` for `output/scan/`, and how Godot loads sidecars |
 
 ## Log
@@ -63,3 +64,4 @@ Last updated: 2026-10-21
 - 2026-10-21 — `alltim` done: 180 Digimon textures, 1083/1083 checks. Added `dwporter/data/digimon.py` (type → file name, display name, model path). Found the game overrides the TIM's VRAM position at load time.
 - 2026-10-21 — `etctim` (9 assets, 41/41) and `stdtim` (6 assets, 28/28) done with shared `stacked_tim.py`. Unlike ALLTIM, these load at their header VRAM positions; users matched via `GetTPage`/`GetClut` constants (7 of 15 so far).
 - 2026-10-21 — `tim_files` done: all 51 standalone TIMs (54 assets, 271/271), loaders and path tables (`STD_GRADES`, arena tables) recorded. Found ETCTIM.BIN = 9 ETCDAT TIMs concatenated; `etctim` entries renamed after them (49/49). All TIM data on the disc outside maps/models is now converted.
+- 2026-10-22 — TMD parser, glTF exporter and VRAM simulation done. `tmd_files`: all 66 TMDs (221/221). Texture bindings from code + UV coverage; 43 models (doors, map props) wait for map textures. Winding verified against stored normals.

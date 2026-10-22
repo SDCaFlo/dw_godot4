@@ -504,6 +504,48 @@ class EfeTests(unittest.TestCase):
         self.assertEqual(p.uvs, ((1, 34), (4, 37), (6, 39)))
 
 
+class MovieTests(unittest.TestCase):
+    def test_v2_bitstream_and_render(self):
+        from dwporter.formats import strmovie as sm
+
+        # one 16x16 macroblock, version 2: block 0 has DC 5 and one AC (run 0, level +1); the rest DC 0
+        bits = format(5, "010b") + "11" + "0" + "10"
+        bits += ("0" * 10 + "10") * 5
+        bits += "0" * (-len(bits) % 16)
+        words = [int(bits[i:i + 16], 2) for i in range(0, len(bits), 16)]
+        frame = struct.pack("<HHHH", 32, 0x3800, 1, 2) + struct.pack(f"<{len(words)}H", *words)
+        dec = sm.decode_bitstream(frame, 16, 16)
+        self.assertEqual(dec["mdec_codes"], 13)  # 6 DC + 1 AC + 6 end-of-block
+        self.assertEqual(dec["blocks"][0][0], 5 * 2)  # DC * Q[0]
+        self.assertEqual(dec["blocks"][0][1], (1 * 16 * 1 + 4) >> 3)  # zigzag 1 = natural 1, Q = 16
+        rgb = sm.render({"blocks": [[0] * 64 for _ in range(6)]}, 16, 16)
+        self.assertEqual(set(rgb), {128})  # zero coefficients = mid grey
+
+    def test_xa_sound_group(self):
+        from dwporter.formats import strmovie as sm
+
+        group = bytearray(128)
+        group[4:12] = bytes([0x0C] * 8)  # shift 12, filter 0: samples = signed nibbles
+        group[16] = 0x21  # row 0: unit 0 (left) = 1, unit 1 (right) = 2
+        group[17] = 0xF3  # unit 2 (left) = 3, unit 3 (right) = -1
+        left, right = sm.decode_xa(bytes(group) + bytes(2324 - 128), [0, 0, 0, 0])
+        self.assertEqual((len(left), len(right)), (18 * 4 * 28, 18 * 4 * 28))
+        self.assertEqual((left[0], right[0], left[28], right[28]), (1, 2, 3, -1))
+
+
+@unittest.skipUnless((DEFAULT_INPUT / "MOVIE" / "ED2.STR").exists(), "dumped game files not available")
+class MoviesFamilyTests(unittest.TestCase):
+    def test_convert_subset(self):
+        import tempfile
+        from pathlib import Path
+
+        from dwporter.families import movies
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = movies.convert(DEFAULT_INPUT, Path(tmp), names={"ED2"}, max_frames=40)
+            self.assertTrue(out.ok, [(c.name, c.detail) for c in out.checks if not c.passed])
+
+
 @unittest.skipUnless((DEFAULT_INPUT / "ETCHI" / "EFEDAT.EFE").exists(), "dumped game files not available")
 class EfeFamilyTests(unittest.TestCase):
     def test_convert(self):

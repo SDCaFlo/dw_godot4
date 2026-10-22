@@ -21,7 +21,7 @@ Last updated: 2026-10-22
 | VHB / VAB (sound banks) | done | `dwporter/formats/vab.py` | `specs/sound.md` | VHB offset table + libsnd VAB (programs, tones, samples); PSX ADPCM → WAV with loop points |
 | SEQ (music) | done | `dwporter/formats/seq.py` | `specs/sound.md` | Sony pQES → Standard MIDI; loop markers |
 | WAV / SF2 (export) | done | `dwporter/exporters/wav.py`, `sf2.py` | `specs/sound.md` | WAV with `smpl` loops; SF2 preview banks (no ADSR) |
-| STR (FMV) | blocked | | | Dump is missing data; re-dump in raw mode first |
+| STR (FMV) | done | `dwporter/formats/strmovie.py` | `specs/movies.md` | Sector interleave (7 video 2048 B : 1 XA 2324 B), MDEC v2/v3 bitstream decoder (MPEG-1 VLC, IDCT, YCbCr), XA ADPCM; numpy optional for speed |
 
 ## Families (disc files)
 
@@ -40,7 +40,7 @@ Last updated: 2026-10-22
 | `scripts` | `SCN/MAPHEAD.SCN`, `SCN/DG.SCN` | done | 223 | 1571/1571 | `specs/scn.md` | 222 DG scripts + MAPHEAD (map setup); 39,797 instructions, 4,844 texts; map → script links; JSON + readable listings |
 | `sound` | 7 `SOUND/VHB/*.VHB` | done | 145 | 1396/1396 | `specs/sound.md` | 145 VABs (SS, SL, SB, 22 ESALL map sets, 16 VLALL partner sets, 71 VBALL Digimon sets, 33 FAALL music fonts), 834 samples, 74 music tracks (.seq + .mid), usage per bank |
 | `mmm_dat` | `MMM.DAT` | done | 0 | 2/2 | `specs/sound.md` | All zeros, never opened by the code: disc filler, nothing to convert |
-| | `MOVIE/*.STR` | blocked | | | | See STR above |
+| `movies` | 4 `MOVIE/*.STR` | done | 4 | 20/20 | `specs/movies.md` | 13,089 frames (320x176, ~30 fps) all decode with code counts matching their headers; audio WAV (37.8 kHz stereo, length = video); preview PNG every 2 s; `.ogv` for Godot (ffmpeg) |
 | | `*_REL.BIN`, `SLUS_010.32` | — | | | | Code; data tables come from the decomp, not converted here |
 
 ## Game data from the decomp (not disc files)
@@ -61,7 +61,7 @@ Last updated: 2026-10-22
 | CLI (`list`, `convert`, `scan`) | done | |
 | Identity sidecars + `manifest.json` | done | `dwporter/assets.py` |
 | Verification checks (fail = non-zero exit) | done | |
-| Unit tests | done | `tests/test_tim.py`, 38 tests |
+| Unit tests | done | `tests/test_tim.py`, 41 tests |
 | Human verification guide | done | `VERIFY.md` |
 | Godot import of `output/` | done | `asset_porter/.gdignore`: the editor never imports it; the game loads it at runtime (`scripts/porter/porter_assets.gd`) |
 
@@ -79,3 +79,4 @@ Last updated: 2026-10-22
 - 2026-10-22 — `atr_files` (2 assets, 7/7) and `scripts` (223 assets, 1571/1571) done. SCN = the event script bytecode: every opcode decoded from `script.h` + the interpreter, all 223 scripts rebuild byte for byte, all jumps/sections land on instructions. Found: DG script 0 = copy of MAPHEAD; sector padding is build-tool leftovers (incl. source names `\SCN\MAPnnn.SCN`); US text is full-width Shift-JIS with 。/「/− drawn as . ' -.
 - 2026-10-22 — `sound` (145 assets, 1396/1396) and `mmm_dat` (2/2) done. VHB = offset table + VAB; bundles are fixed sector chunks picked by tables read from the executable (Digimon → VLALL/VBALL set, map → ESALL set, music font → FAALL). ADPCM decode checked against wrong variants (no-filter is 10x rougher, swapped nibbles clip); SEQ tracks padded with 00 + CD fill. MMM.DAT is 27 MB of zeros (disc filler).
 - 2026-10-22 — `efe` done (331 assets, 1029/1029): EFEDAT = 122 slots, slot N = technique N (effect id = technique + 0x100). Effect scripts disassembled by tracing the VM's control flow (99% of script bytes reached, rest kept raw); models textured via effect texture slot 0 (`updateTMDTextureData` moved to `formats/tmd.py`, shared with MMD). Renders checked: Fire Tower pillar, Magma Bomb rock, lightning bolts, Hurricane tornado.
+- 2026-10-22 — `movies` done (4 assets, 20/20). The STR dump is complete (earlier "truncated" note was wrong): sectors keep their payload size (2048 video / 2324 audio) while the file table counts 2336. MDEC v3 decoder verified by the per-frame code count in every frame header (13,089/13,089) and by eye (BANDAI logo, Japan map, Digivice, credits). `.ogv` export via ffmpeg (Theora yuv420p + Vorbis, 16–21 MB per movie). All disc files are now converted or explained.

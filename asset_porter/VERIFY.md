@@ -91,6 +91,16 @@ One folder per technique: `output/efe/<slot>_<technique>/` (slot = technique id)
 
 Wrong if: textures that look like noise or another technique, models inside-out or untextured where a texture exists.
 
+## 4e. Movies — 5 minutes
+
+`output/movies/<OP1|OP2|ED2|EDR>/`:
+
+- `preview/frame_*.png` (one every 2 s): clean pictures, right colours (skin tones, sky), no blocky noise or colour swaps. OP1 starts with the BANDAI logo and a map of Japan; EDR ends with the credits.
+- `audio.wav`: the movie's music and voices, 37.8 kHz stereo, normal speed and pitch.
+- `movie.ogv` (only after installing ffmpeg and re-running `convert movies`): plays in VLC / Godot with audio in sync.
+
+Wrong if: green/purple tints (colour planes swapped), smeared blocks, audio too fast/slow or chipmunk-pitched.
+
 ## 5. In Godot — field scene, 5 minutes
 
 Run the project (F5; main scene `scenes/field/field.tscn`, see the project README). It starts in Native Forest:

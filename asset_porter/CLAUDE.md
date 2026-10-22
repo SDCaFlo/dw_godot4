@@ -17,6 +17,8 @@ python -m unittest discover -s tests -t .     # tests (real-data test skipped if
 
 Defaults: input `../../external-resources/game_dumped_files/`, output `output/` (gitignored); override with `--input` / `--output`. `convert` exits non-zero if any verification check fails.
 
+Optional tools: numpy speeds up the movie IDCT (stdlib fallback is slow); ffmpeg (`PATH` or `DW_FFMPEG`) lets `movies` write `.ogv` for Godot; `DW_MOVIE_ALL_FRAMES=1` dumps every movie frame as PNG (~1.3 GB).
+
 ## Code layout
 
 | Path | Role |
@@ -25,7 +27,7 @@ Defaults: input `../../external-resources/game_dumped_files/`, output `output/` 
 | `dwporter/paths.py` | Default paths, sector size |
 | `dwporter/source.py` | `SourceFile` / `SourceSpan`: byte ranges that carry their identity (path, offset, size, sha1) |
 | `dwporter/assets.py` | `AssetWriter`: writes outputs + sidecar JSON + `manifest.json`, records checks |
-| `dwporter/formats/` | Format parsers (`tim.py`, `tmd.py`, `mmd.py` incl. the animation simulator, `map.py` incl. the camera projection, `scn.py` event-script disassembler, `vab.py` sound banks + PSX ADPCM, `seq.py` music → MIDI, `efe.py` battle-effect script VM), PSX helpers (`psx.py`: colours, `GetTPage`, `GetClut`) and `vram.py` (VRAM copy that builds textures like the GPU) |
+| `dwporter/formats/` | Format parsers (`tim.py`, `tmd.py`, `mmd.py` incl. the animation simulator, `map.py` incl. the camera projection, `scn.py` event-script disassembler, `vab.py` sound banks + PSX ADPCM, `seq.py` music → MIDI, `efe.py` battle-effect script VM, `strmovie.py` STR movies: MDEC video + XA audio), PSX helpers (`psx.py`: colours, `GetTPage`, `GetClut`) and `vram.py` (VRAM copy that builds textures like the GPU) |
 | `dwporter/exporters/` | Writers for open formats (`png.py`, `gltf.py`, `wav.py`, `sf2.py`; stdlib only) |
 | `dwporter/models.py` | TMD → glTF conversion used by `AssetWriter.write_tmd` |
 | `dwporter/families/` | One converter per asset family, registered in `families/__init__.py` |
@@ -83,7 +85,7 @@ Formats are only known by extension until a spec confirms them. Standard PSX for
 
 ## Specs
 
-Location: `specs/<family>.md`, one per format or asset family. Existing: `specs/tim.md` (TIM format), `specs/card_all.md` (`CARD/CARD.ALL`), `specs/alltim.md` (`CHDAT/ALLTIM.TIM`), `specs/stacked_tim.md` (`ETCDAT/ETCTIM.BIN`, `STDDAT/STDTIM.BIN`), `specs/tim_files.md` (51 standalone `*.TIM`), `specs/tmd.md` (TMD format, glTF export, `tmd_files`), `specs/mmd.md` (Digimon models, skeletons, animations), `specs/map.md` (field maps: backgrounds, camera, collision, objects, entities, doors), `specs/atr.md` (arena collision), `specs/scn.md` (event scripts: opcodes, text, map → script), `specs/sound.md` (VHB/VAB sound banks, SEQ music, `MMM.DAT`), `specs/efe.md` (battle effects: slots, script VM, models).
+Location: `specs/<family>.md`, one per format or asset family. Existing: `specs/tim.md` (TIM format), `specs/card_all.md` (`CARD/CARD.ALL`), `specs/alltim.md` (`CHDAT/ALLTIM.TIM`), `specs/stacked_tim.md` (`ETCDAT/ETCTIM.BIN`, `STDDAT/STDTIM.BIN`), `specs/tim_files.md` (51 standalone `*.TIM`), `specs/tmd.md` (TMD format, glTF export, `tmd_files`), `specs/mmd.md` (Digimon models, skeletons, animations), `specs/map.md` (field maps: backgrounds, camera, collision, objects, entities, doors), `specs/atr.md` (arena collision), `specs/scn.md` (event scripts: opcodes, text, map → script), `specs/sound.md` (VHB/VAB sound banks, SEQ music, `MMM.DAT`), `specs/efe.md` (battle effects: slots, script VM, models), `specs/movies.md` (STR movies).
 
 Each spec must contain:
 

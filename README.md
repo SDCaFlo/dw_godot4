@@ -2,7 +2,7 @@
 
 A port of the original PlayStation game **Digimon World** to the [Godot](https://godotengine.org/) engine (4.7, Forward Plus renderer), aimed at making future development, modding and maintenance easier.
 
-> **Status:** early work in progress. The asset porter converts every file of the disc (textures, models, Digimon with animations, field maps, event scripts, sound and music, battle effects, movies); a first field scene walks the tamer around the converted maps. The data porter (game data from the decomp: stats, evolution, items, text) is being set up.
+> **Status:** early work in progress. The asset porter converts every file of the disc (textures, models, Digimon with animations, field maps, event scripts, sound and music, battle effects, movies); a first field scene walks the tamer around the converted maps. The data porter (game data from the decomp) converts all in-game text so far, in every language; stats, evolution, moves and items are next.
 
 ## Approach
 
@@ -59,10 +59,10 @@ dw_godot_port/
    python -m dwporter convert all          # writes asset_porter/output/, ~15 min (movies included)
    python -m unittest discover -s tests -t .
    ```
-4. Convert the game data (once the data porter is implemented):
+4. Convert the game data:
    ```
    cd data_porter
-   python -m dwdata convert all            # writes data_porter/output/
+   python -m dwdata convert all            # writes data_porter/output/ (text so far), a few seconds
    python -m unittest discover -s tests -t .
    ```
    Every run ends with `N/N checks passed` per family/group; a failed check makes the command exit non-zero.

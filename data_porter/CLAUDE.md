@@ -4,7 +4,7 @@ Tooling that converts the **game data defined in the decompiled C code** (tables
 
 Sibling of `../asset_porter/` (which converts the **disc files**: textures, models, maps, sound, movies). Both write generated, gitignored output that the game loads at runtime.
 
-Status: **planned** — folder, docs and tracking files exist; no code yet. Progress per table and group is tracked in `PROGRESS.md`; read it first and update it (tables + log line) whenever a table or group changes status.
+Status: package, CLI, writer, decomp index and the **Text** group are implemented (Python 3, standard library only); the other groups and the C table parser are next. Progress per table and group is tracked in `PROGRESS.md`; read it first and update it (tables + log line) whenever a table or group changes status.
 
 ## Why a separate tool
 
@@ -12,25 +12,44 @@ Status: **planned** — folder, docs and tracking files exist; no code yet. Prog
 - The decomp is the trusted source; values are copied from it, not read back from the executable.
 - The output is game content (stats, rules, dialogue) owned by the original rights holders: it is **generated locally and never committed** (`output/` is gitignored), exactly like the asset porter's output.
 
-## Usage (planned)
+## Usage
 
 Run from this folder:
 
 ```
 python -m dwdata list                    # data groups
 python -m dwdata convert text            # or: convert all
-python -m unittest discover -s tests -t .
+python -m unittest discover -s tests -t .   # real-data test skipped if the decomp is missing
 ```
 
 Defaults: input `../../external-resources/dw_decomp/`, output `output/` (gitignored, `.gdignore`: Godot never imports it); override with `--input` / `--output`. `convert` exits non-zero if any verification check fails. Python 3, standard library only.
+
+## Code layout
+
+| Path | Role |
+|---|---|
+| `dwdata/__main__.py` | CLI |
+| `dwdata/paths.py` | Default paths |
+| `dwdata/source.py` | `SourceText`: a decomp file with its identity (path, size, sha1) |
+| `dwdata/output.py` | `GroupWriter`: table JSON in the common shape, group `manifest.json` (checks), `catalog.json` merge, Markdown reports |
+| `dwdata/textyaml.py` | Strict reader for the YAML subset of `text/**/*.yaml` (all scalars stay text, `NULL` = None, line numbers kept) |
+| `dwdata/cpp.py` | `#if` evaluation per release (`VERSION_IS`, `VERSION_REGION_IS`, `VERSION_EQUAL_OR_NEWER/OLDER`, `defined`); `ConditionTracker` follows `#if/#elif/#else/#endif` |
+| `dwdata/decomp.py` | `Decomp`: releases (`version.h`), C file → binary (`config/us/*.yaml`), US symbols (`symbols*.txt`), identifier references in `src/**/*.c` with enclosing function / data / macro and compiling releases |
+| `dwdata/groups/` | One converter per group (`NAME`, `SOURCE_GLOB`, `SPEC`, `PURPOSE`, `convert()` with `out.check(...)` for every assumption), registered in `groups/__init__.py`. Existing: `text.py` |
+| `specs/` | One spec per group (`text.md`) |
+| `tests/` | `unittest` tests |
+
+The decomp has no `INCLUDE_ASM` left, so references are taken from C only; `asm/` is not read.
 
 ## Output
 
 ```
 output/
-  catalog.json            index: every table -> group, file, one-line purpose, spec, C symbol
-  text/<file>.json        string tables from text/**/*.yaml
-  digimon/ evolution/ moves/ items/ systems/ ...   one JSON per table
+  catalog.json                  index: every table -> group, file, one-line purpose, spec, C symbols; per group: check counts
+  text/manifest.json            sources (sha1), checks, counts, control codes found
+  text/report.md                human sheet: every block as a table (id | ja | en_us | en_eu)
+  text/<dir>/<name>.json        one table per text/<dir>/<name>.yaml (e.g. text/main/item.json)
+  digimon/ evolution/ moves/ items/ systems/ ...   one JSON per table (planned)
 ```
 
 Every table file has the same shape:
@@ -41,14 +60,14 @@ Every table file has the same shape:
 | `source` | decomp files and lines the values come from (`src/main/main.c:254 DIGIMON_DATA[180]`), C type / struct (`include/dw/*.h`), plus `sha1` of the source text it was parsed from |
 | `schema` | per field: name, C name, type, unit, meaning, allowed values (enums with names), reference to another table (`"ref": "moves/move_data"`) |
 | `records` | the values; references carry the resolved name next to the id (`{"id": 46, "name": "Spit Fire"}`); index = original array index |
-| `used_by` | C functions that read/write the table (`file:line`) with one line on what each computes |
+| `used_by` | C functions that read/write the table (`file:line`) with one line on what each computes (text: functions / data and the strings they use; what they do is in the spec) |
 | `godot` | how the Godot side accesses it (`GameData.digimon(id)`) |
 
 Nothing from the source may be dropped: unknown or unused fields keep their C name and raw value (`unk_0x12`) instead of being removed.
 
 ## Specs
 
-Location: `specs/<group>.md` (`text.md`, `digimon.md`, `evolution.md`, `moves.md`, `items.md`, `systems.md`, …). Each spec must contain:
+Location: `specs/<group>.md`. Existing: `text.md`. Planned: `digimon.md`, `evolution.md`, `moves.md`, `items.md`, `systems.md`, … Each spec must contain:
 
 1. **Source:** the C symbols, struct definitions and text files, with `file:line`.
 2. **Original usage:** the functions that use the data and what they do with it — formulas, checks, timings — with `file:line`. This is the part that tells how to write the Godot logic; quote the C condition when it is subtle.
@@ -85,6 +104,11 @@ Paths are relative to this folder.
 | Asset porter (disc files) | `../asset_porter/` | Its `dwporter/data/` holds a few tables generated from the decomp for its own use (Digimon types, skeletons, technique names); this tool becomes the general home for such data. |
 | Godot project | `../` | Consumes `output/` at runtime. |
 | Project overview | `../../CLAUDE.md` | |
+
+## Decisions
+
+- **Both porters stay stand-alone.** The asset porter keeps its own `dwporter/data/*.py` tables; this tool doesn't feed them, though cross-checking between the two is fine.
+- **All languages and releases are kept.** `variants` holds every key as written; `text` gives `ja` (jp_rev1), `en_us` (us) and `en_eu` (eu).
 
 ## Rules
 

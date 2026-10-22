@@ -2,7 +2,7 @@
 
 Update this file whenever a format or family changes status. Status values: `todo`, `investigating` (reading the decomp / scanning), `spec` (spec written), `done` (converter + checks + tests), `blocked`.
 
-Last updated: 2026-10-21
+Last updated: 2026-10-22
 
 ## Formats (parsers / exporters)
 
@@ -15,7 +15,9 @@ Last updated: 2026-10-21
 | VRAM simulation | done | `dwporter/formats/vram.py` | `specs/tmd.md` | Builds textures like the GPU (page + CLUT) from the TIMs the game has loaded |
 | MMD (Digimon models + animations) | done | `dwporter/formats/mmd.py`, `dwporter/models.py` | `specs/mmd.md` | TMD + animation table; exact port of the game's momentum animation (20 fps); RotMatrix order decoded from libgte asm |
 | MAP / TFS (maps) | done | `dwporter/formats/map.py` | `specs/map.md` | Pre-rendered backgrounds + 3D camera (projection verified), collision, objects, entities, doors |
-| EFE, ATR, SCN | todo | | | Game-specific |
+| SCN (event scripts) | done | `dwporter/formats/scn.py` | `specs/scn.md` | Offset table + per-script sections; full disassembler (all opcodes of `script.h`, IF conditions, selections, DATA), Shift-JIS text with control codes; lossless round trip |
+| ATR (arena collision) | done | — (raw grid) | `specs/atr.md` | 100 × 100 cells, same layout as map collision |
+| EFE | todo | | | Game-specific (effects) |
 | VHB (sound banks) | todo | | | Game-specific |
 | STR (FMV) | blocked | | | Dump is missing data; re-dump in raw mode first |
 
@@ -32,8 +34,8 @@ Last updated: 2026-10-21
 | `mmd_files` | 178 `CHDAT/MMD*/*.MMD` | done | 178 | 1071/1071 | `specs/mmd.md` | Rigid bone hierarchy, 4,843 animations (loops, sounds, texture moves as events), textures from the ALLTIM slot; matches DW1ModelConverter within 1 unit / <1° |
 | `maps` | 241 `MAP/MAP*/*.MAP` + `.TFS` | done | 241 | 1252/1252 | `specs/map.md` | Backgrounds per time of day, sprites, textured doors, `overview.png` for human checks; GIAS06B/ICSA05 sprites need VRAM loaded by events |
 | | `ETCHI/EFEDAT.EFE` | todo | | | | Effects |
-| | `STDDAT/*.ATR` | todo | | | | |
-| | `SCN/*.SCN` | todo | | | | |
+| `atr_files` | `STDDAT/B_TOGI.ATR`, `E_TOGI.ATR` | done | 2 | 7/7 | `specs/atr.md` | Arena collision; walkable disc (B) / diamond (E) checked against the arena models; T_TOGI arena reuses B_TOGI.ATR |
+| `scripts` | `SCN/MAPHEAD.SCN`, `SCN/DG.SCN` | done | 223 | 1571/1571 | `specs/scn.md` | 222 DG scripts + MAPHEAD (map setup); 39,797 instructions, 4,844 texts; map → script links; JSON + readable listings |
 | | `SOUND/VHB/*.VHB` | todo | | | | |
 | | `MMM.DAT` | todo | | | | 27 MB, unknown |
 | | `MOVIE/*.STR` | blocked | | | | See STR above |
@@ -56,9 +58,9 @@ Last updated: 2026-10-21
 | CLI (`list`, `convert`, `scan`) | done | |
 | Identity sidecars + `manifest.json` | done | `dwporter/assets.py` |
 | Verification checks (fail = non-zero exit) | done | |
-| Unit tests | done | `tests/test_tim.py`, 27 tests |
+| Unit tests | done | `tests/test_tim.py`, 32 tests |
 | Human verification guide | done | `VERIFY.md` |
-| Godot import of `output/` | todo | Decide `.gdignore` for `output/scan/`, and how Godot loads sidecars |
+| Godot import of `output/` | done | `asset_porter/.gdignore`: the editor never imports it; the game loads it at runtime (`scripts/porter/porter_assets.gd`) |
 
 ## Log
 
@@ -71,3 +73,4 @@ Last updated: 2026-10-21
 - 2026-10-22 — MMD glTF now declares a skin (all bones as joints): animations were wrong in Blender as a plain node hierarchy; fixed and confirmed by the user. Verified in Godot 4.4.1 headless: poses match the data, no stale bones when switching animations.
 - 2026-10-22 — `maps` done: 241 field maps (MAP_ENTRIES/DOOR_MAPDATA/TOILET_DATA read from the executable). Camera projection derived from GsSetRefView2 and verified by projecting collision onto backgrounds. Doors textured per map. Added VERIFY.md (human checks).
 - 2026-10-22 — First consumer in Godot: `scenes/field/field.tscn` loads maps + the tamer from `output/` at runtime (`asset_porter/.gdignore` keeps the editor from importing it). Camera projection matches `map.json` to <0.001 px; root motion, collision and warps (110–119) work on real maps.
+- 2026-10-22 — `atr_files` (2 assets, 7/7) and `scripts` (223 assets, 1571/1571) done. SCN = the event script bytecode: every opcode decoded from `script.h` + the interpreter, all 223 scripts rebuild byte for byte, all jumps/sections land on instructions. Found: DG script 0 = copy of MAPHEAD; sector padding is build-tool leftovers (incl. source names `\SCN\MAPnnn.SCN`); US text is full-width Shift-JIS with 。/「/− drawn as . ' -.

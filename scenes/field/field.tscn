@@ -4,43 +4,43 @@
 [ext_resource type="Script" uid="uid://bdkuto3xl7ah" path="res://scripts/field/field_map.gd" id="2_map"]
 [ext_resource type="Script" uid="uid://ckda3uk0ng3f8" path="res://scripts/field/tamer.gd" id="3_tamer"]
 
-[node name="Field" type="Node"]
+[node name="Field" type="Node" unique_id=430948128]
 script = ExtResource("1_field")
 
-[node name="Background" type="CanvasLayer" parent="."]
+[node name="Background" type="CanvasLayer" parent="." unique_id=281227531]
 layer = -1
 
-[node name="Sprite2D" type="Sprite2D" parent="Background"]
+[node name="Sprite2D" type="Sprite2D" parent="Background" unique_id=1291240721]
 texture_filter = 1
 centered = false
 
-[node name="World" type="SubViewportContainer" parent="."]
+[node name="World" type="SubViewportContainer" parent="." unique_id=512706043]
 texture_filter = 1
 offset_right = 320.0
 offset_bottom = 240.0
 stretch = true
 
-[node name="SubViewport" type="SubViewport" parent="World"]
+[node name="SubViewport" type="SubViewport" parent="World" unique_id=197932754]
 transparent_bg = true
 handle_input_locally = false
 size = Vector2i(320, 240)
 render_target_update_mode = 4
 
-[node name="FieldMap" type="Node3D" parent="World/SubViewport" node_paths=PackedStringArray("background")]
+[node name="FieldMap" type="Node3D" parent="World/SubViewport" unique_id=971058557 node_paths=PackedStringArray("background")]
 script = ExtResource("2_map")
 background = NodePath("../../../Background/Sprite2D")
 
-[node name="Camera3D" type="Camera3D" parent="World/SubViewport/FieldMap"]
+[node name="Camera3D" type="Camera3D" parent="World/SubViewport/FieldMap" unique_id=919432300]
 current = true
 
-[node name="Doors" type="Node3D" parent="World/SubViewport/FieldMap"]
+[node name="Doors" type="Node3D" parent="World/SubViewport/FieldMap" unique_id=2098059702]
 
-[node name="Tamer" type="Node3D" parent="World/SubViewport"]
+[node name="Tamer" type="Node3D" parent="World/SubViewport" unique_id=1420352460]
 script = ExtResource("3_tamer")
 
-[node name="Hud" type="CanvasLayer" parent="."]
+[node name="Hud" type="CanvasLayer" parent="." unique_id=872916731]
 
-[node name="Label" type="Label" parent="Hud"]
+[node name="Label" type="Label" parent="Hud" unique_id=2014305814]
 offset_left = 4.0
 offset_top = 2.0
 offset_right = 316.0

@@ -379,5 +379,92 @@ class MapsFamilyTests(unittest.TestCase):
             self.assertEqual(len(out.assets), 2)
 
 
+def sjis(text: str) -> bytes:
+    """ASCII text as the game stores it: full-width Shift-JIS."""
+    return "".join(chr(ord(c) + 0xFEE0) if "!" <= c <= "~" else "　" for c in text).encode("shift_jis")
+
+
+class ScnTests(unittest.TestCase):
+    def make_script(self):
+        from dwporter.formats import scn
+
+        body = bytearray()
+        body += bytes([0x1B, 0xFD])                                        # SET_DIALOG_OWNER tamer
+        body += bytes([0x1A, 0]) + sjis("Hi") + b"\x01\x06" + sjis("X")    # SHOW_TEXTBOX "Hi{color 6}X\n"
+        body += b"\x0d\x00\x00\x00"
+        body += bytes([0x19, 0, 0x09, 0, 7, 3])                            # IF pstat 7 != 3
+        body += bytes([0x18, 0]) + struct.pack("<H", 0)                    #    jump_if_false -> patched
+        body += bytes([0x19, 0])
+        body += bytes([0x28, 0, 5, 2])                                     # GIVE_ITEM 5 x2
+        end = len(body)
+        body += bytes([scn.END_SECTION, 0, scn.END_SCRIPT, 0])
+        header = struct.pack("<HHHH", 8, 1, 8, 0xFFFF)                     # one section (id 1) at 8
+        data = bytearray(header + body)
+        jump = data.index(bytes([0x18, 0])) + 2
+        struct.pack_into("<H", data, jump, 8 + end)                        # -> END_SECTION
+        return bytes(data)
+
+    def test_disassemble_round_trip(self):
+        from dwporter.formats import scn
+
+        data = self.make_script() + b"junk"
+        dis = scn.disassemble(data)
+        names = [i["name"] for i in dis["instructions"]]
+        self.assertEqual(names, ["SET_DIALOG_OWNER", "SHOW_TEXTBOX", "IF", "GIVE_ITEM", "END_SECTION", "END_SCRIPT"])
+        self.assertEqual(dis["instructions"][1]["args"]["text"], "Hi{color 6}X")
+        cond = dis["instructions"][2]["args"]["conditions"]
+        self.assertEqual((cond[0]["kind"], cond[0]["compare"], cond[1]["kind"]), ("pstat", "!=", "jump_if_false"))
+        self.assertEqual(dis["instructions"][3]["args"], {"item": 5, "amount": 2})
+        self.assertEqual(dis["padding"], b"junk")
+        starts = {i["offset"] for i in dis["instructions"]}
+        self.assertTrue(all(t in starts for i in dis["instructions"] for t in scn.jump_targets(i)))
+        rebuilt = data[:8] + b"".join(bytes.fromhex(i["raw"]) for i in dis["instructions"]) + dis["padding"]
+        self.assertEqual(rebuilt, data)
+
+    def test_selection_embeds_its_textbox(self):
+        from dwporter.formats import scn
+
+        sel = bytes([0x10, 2]) + struct.pack("<HH", 0x20, 0x24) + bytes([0x1A, 0]) + sjis("Yes")
+        sel += b"\x0d\x00" + sjis("No") + b"\x0d\x00\x00\x00"
+        insn = scn.decode_instruction(sel + bytes([0xFE, 0]), 0)
+        self.assertEqual(insn["size"], len(sel))
+        self.assertEqual(insn["args"]["targets"], [0x20, 0x24])
+        self.assertEqual(insn["args"]["text"], "Yes\nNo")
+
+    def test_data_block_ends_at_ff(self):
+        from dwporter.formats import scn
+
+        insn = scn.decode_instruction(bytes([0x6B, 0, 3, 4, 0x11, 0xFF, 0x6B]), 0)
+        self.assertEqual((insn["size"], insn["args"]["values"]), (6, [3, 4, 0x11]))
+
+
+@unittest.skipUnless((DEFAULT_INPUT / "SCN" / "DG.SCN").exists(), "dumped game files not available")
+class ScriptsFamilyTests(unittest.TestCase):
+    def test_convert(self):
+        import tempfile
+        from pathlib import Path
+
+        from dwporter.families import scripts
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = scripts.convert(DEFAULT_INPUT, Path(tmp))
+            self.assertTrue(out.ok, [(c.name, c.detail) for c in out.checks if not c.passed][:5])
+            self.assertEqual(len(out.assets), 223)
+
+
+@unittest.skipUnless((DEFAULT_INPUT / "STDDAT" / "B_TOGI.ATR").exists(), "dumped game files not available")
+class AtrFilesTests(unittest.TestCase):
+    def test_convert(self):
+        import tempfile
+        from pathlib import Path
+
+        from dwporter.families import atr_files
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = atr_files.convert(DEFAULT_INPUT, Path(tmp))
+            self.assertTrue(out.ok, [(c.name, c.detail) for c in out.checks if not c.passed])
+            self.assertEqual(len(out.assets), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

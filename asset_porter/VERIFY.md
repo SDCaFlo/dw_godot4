@@ -50,6 +50,18 @@ Also: `background_0/1/2.png` = day / evening / night variants; `doors/door_<id>.
 
 Wrong if: green dots are offset/rotated against the art, markers in the sky or inside walls, sprites in random places.
 
+## 4b. Event scripts and arena collision — 5 minutes
+
+Scripts: open `output/scripts/DG/script_004.txt` (Native Forest, map 3) and `output/scripts/MAPHEAD/script.txt` (section `0x3` = Native Forest setup).
+
+- Dialogue reads as the game's English text (`"There are engraved\nletters here."`); `{color 7}`, `{partner_name}` etc. are the game's text codes.
+- MAPHEAD sections start with `SET_SCRIPT script=<map+1> map=<map>`, then music (`SET_BGM`) and NPCs (`LOAD_DIGIMON` / `SET_DIGIMON` with Digimon names); compare with who you meet on that map in the game.
+- Sections with ids 51–109 are trigger cells on the map (`collision` values in `maps/<NAME>/map.json`); others are NPC talks (section = NPC script id).
+
+Wrong if: garbled text, Digimon names that don't fit the map, instructions after an `END_SECTION` that look like noise.
+
+Arena collision: open `output/atr_files/STDDAT/B_TOGI/preview.png` (a disc) and `E_TOGI/preview.png` (a diamond). In Blender, import `tmd_files/STDDAT/E_TOGI.gltf` together with `atr_files/STDDAT/E_TOGI/collision_cells.gltf`: the cells cover the square fighting floor; for `B_TOGI.gltf` the disc lies inside the wooden ring.
+
 ## 5. In Godot — field scene, 5 minutes
 
 Run the project (F5; main scene `scenes/field/field.tscn`, see the project README). It starts in Native Forest:

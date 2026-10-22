@@ -2,5 +2,6 @@
 .godot/
 /android/
 
-# External Resources
-.external-resources/*
+# Asset porter
+asset_porter/output/
+__pycache__/

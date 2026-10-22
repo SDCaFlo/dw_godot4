@@ -50,9 +50,16 @@ Also: `background_0/1/2.png` = day / evening / night variants; `doors/door_<id>.
 
 Wrong if: green dots are offset/rotated against the art, markers in the sky or inside walls, sprites in random places.
 
-## 5. In Godot (later)
+## 5. In Godot — field scene, 5 minutes
 
-Drop a model folder into the Godot project: Digimon import as a `Skeleton3D` with an `AnimationPlayer` (one animation per id). Root motion can be extracted with an `AnimationTree` (`root_motion_track = Skeleton3D:bone_0`).
+Run the project (F5; main scene `scenes/field/field.tscn`, see the project README). It starts in Native Forest:
+
+- The tamer stands on the ground at the spawn point and is sized like in the game (about a fifth of the screen height on an outdoor map).
+- Arrows walk (Shift runs); the background scrolls with him and stops at its edges, and he stays glued to the ground while it scrolls (no sliding against the picture).
+- He stops at fences, trees and water; walking into an exit loads the next map (Native Forest top exit → MAYO02).
+- `[` / `]` cycles through all maps; `T` switches day / evening / night backgrounds.
+
+Wrong if: the tamer floats or sinks, drifts against the background while walking, walks through walls, or exits lead to the wrong map. The scene uses Digimon as a `Skeleton3D` + `AnimationPlayer` with `root_motion_track = Skeleton3D:bone_0`.
 
 ## Reporting a problem
 

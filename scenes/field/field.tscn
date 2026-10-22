@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://rx2kalvu3swl"]
+
+[ext_resource type="Script" uid="uid://dli5ots2bhx6w" path="res://scripts/field/field.gd" id="1_field"]
+[ext_resource type="Script" uid="uid://bdkuto3xl7ah" path="res://scripts/field/field_map.gd" id="2_map"]
+[ext_resource type="Script" uid="uid://ckda3uk0ng3f8" path="res://scripts/field/tamer.gd" id="3_tamer"]
+
+[node name="Field" type="Node"]
+script = ExtResource("1_field")
+
+[node name="Background" type="CanvasLayer" parent="."]
+layer = -1
+
+[node name="Sprite2D" type="Sprite2D" parent="Background"]
+texture_filter = 1
+centered = false
+
+[node name="World" type="SubViewportContainer" parent="."]
+texture_filter = 1
+offset_right = 320.0
+offset_bottom = 240.0
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="World"]
+transparent_bg = true
+handle_input_locally = false
+size = Vector2i(320, 240)
+render_target_update_mode = 4
+
+[node name="FieldMap" type="Node3D" parent="World/SubViewport" node_paths=PackedStringArray("background")]
+script = ExtResource("2_map")
+background = NodePath("../../../Background/Sprite2D")
+
+[node name="Camera3D" type="Camera3D" parent="World/SubViewport/FieldMap"]
+current = true
+
+[node name="Doors" type="Node3D" parent="World/SubViewport/FieldMap"]
+
+[node name="Tamer" type="Node3D" parent="World/SubViewport"]
+script = ExtResource("3_tamer")
+
+[node name="Hud" type="CanvasLayer" parent="."]
+
+[node name="Label" type="Label" parent="Hud"]
+offset_left = 4.0
+offset_top = 2.0
+offset_right = 316.0
+offset_bottom = 30.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 8

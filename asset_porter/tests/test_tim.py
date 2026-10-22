@@ -328,5 +328,56 @@ class MmdFilesTests(unittest.TestCase):
             self.assertEqual(len(out.assets), 3)
 
 
+class MapTests(unittest.TestCase):
+    def test_tfs(self):
+        from dwporter.formats import map as mapfmt
+
+        tile = bytes(range(256)) * 64
+        data = struct.pack("<HHI", 2, 1, 1) + struct.pack("<256H", *range(256)) + struct.pack("<I", 7) + tile
+        tfs = mapfmt.parse_tfs(data, 1)
+        self.assertEqual((tfs.width, tfs.height, len(tfs.palettes), tfs.end), (2, 1, 1, len(data)))
+        self.assertEqual(tfs.tiles[0][1], 7)
+
+    def test_minimal_map(self):
+        from dwporter.formats import map as mapfmt
+
+        # header: setup, entities, collision (no images -> no objects word); setup: 1x1 layout, tile -1
+        setup =struct.pack("<38i", *([0] * 36 + [1, 1])) + struct.pack("<i", -1)
+        entities = struct.pack("<60h", *range(60)) + struct.pack("<h", 0)
+        entities_off = 12 + len(setup)
+        collision_off = entities_off + len(entities)
+        header = struct.pack("<3I", 12, entities_off, collision_off)
+        data = header + setup + entities + bytes(10000)
+        m = mapfmt.parse_map(data, 0, 0, True)
+        self.assertEqual(m["setup"]["tiles"], [-1])
+        self.assertEqual(m["spawns"][1], {"x": 1, "y": 11, "z": 21, "rotation": 31})
+        self.assertEqual(m["warps"][2], {"map": 42, "spawn": 52})
+        self.assertEqual(m["spans"][-1], (collision_off, len(data)))
+
+    def test_projection_centre(self):
+        from dwporter.formats import map as mapfmt
+
+        cam = mapfmt.camera({"viewpoint": [0, -500, -500], "reference": [0, 0, 0], "projection": 300})
+        # The look-at point projects to the background centre.
+        self.assertEqual(tuple(round(c) for c in mapfmt.project(cam, (0, 0, 0), (640, 480))), (320, 240))
+        # +X world appears to the right; a point above the target (smaller y) appears higher.
+        self.assertGreater(mapfmt.project(cam, (100, 0, 0), (640, 480))[0], 320)
+        self.assertLess(mapfmt.project(cam, (0, -100, 0), (640, 480))[1], 240)
+
+
+@unittest.skipUnless((DEFAULT_INPUT / "MAP" / "MAP1" / "MAYO04A.MAP").exists(), "dumped game files not available")
+class MapsFamilyTests(unittest.TestCase):
+    def test_convert_subset(self):
+        import tempfile
+        from pathlib import Path
+
+        from dwporter.families import maps
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = maps.convert(DEFAULT_INPUT, Path(tmp), map_ids={3, 8})
+            self.assertTrue(out.ok, [(c.name, c.detail) for c in out.checks if not c.passed])
+            self.assertEqual(len(out.assets), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

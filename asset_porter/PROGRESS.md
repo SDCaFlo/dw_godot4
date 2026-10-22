@@ -14,7 +14,7 @@ Last updated: 2026-10-21
 | glTF (export) | done | `dwporter/exporters/gltf.py`, `dwporter/models.py` | `specs/tmd.md` | Axis flip, winding, nearest-filtered texture pages, PSX data in `extras` |
 | VRAM simulation | done | `dwporter/formats/vram.py` | `specs/tmd.md` | Builds textures like the GPU (page + CLUT) from the TIMs the game has loaded |
 | MMD (Digimon models + animations) | done | `dwporter/formats/mmd.py`, `dwporter/models.py` | `specs/mmd.md` | TMD + animation table; exact port of the game's momentum animation (20 fps); RotMatrix order decoded from libgte asm |
-| MAP / TFS (maps) | todo | | | Game-specific |
+| MAP / TFS (maps) | done | `dwporter/formats/map.py` | `specs/map.md` | Pre-rendered backgrounds + 3D camera (projection verified), collision, objects, entities, doors |
 | EFE, ATR, SCN | todo | | | Game-specific |
 | VHB (sound banks) | todo | | | Game-specific |
 | STR (FMV) | blocked | | | Dump is missing data; re-dump in raw mode first |
@@ -30,7 +30,7 @@ Last updated: 2026-10-21
 | `tim_files` | 51 standalone `*.TIM` (ETCDAT, ETCHI, ETCNA, STDDAT, GRADE) | done | 54 | 271/271 | `specs/tim_files.md` | Loader + code refs per file; T_TOGI has 4 TIMs; 9 ETCDAT files are also inside ETCTIM.BIN; SLOT/TAKA/EX have no loader |
 | `tmd_files` | 66 `*.TMD` (DOOR, ETCDAT, ETCHI, ETCNA, STDDAT) | done | 66 | 221/221 | `specs/tmd.md` | glTF + texture pages; 22 field/effect/arena/result models textured, 1 untextured, 43 use map textures (bound when maps are done) |
 | `mmd_files` | 178 `CHDAT/MMD*/*.MMD` | done | 178 | 1071/1071 | `specs/mmd.md` | Rigid bone hierarchy, 4,843 animations (loops, sounds, texture moves as events), textures from the ALLTIM slot; matches DW1ModelConverter within 1 unit / <1° |
-| | `MAP/**/*.MAP`, `*.TFS` | todo | | | | 242 maps |
+| `maps` | 241 `MAP/MAP*/*.MAP` + `.TFS` | done | 241 | 1252/1252 | `specs/map.md` | Backgrounds per time of day, sprites, textured doors, `overview.png` for human checks; GIAS06B/ICSA05 sprites need VRAM loaded by events |
 | | `ETCHI/EFEDAT.EFE` | todo | | | | Effects |
 | | `STDDAT/*.ATR` | todo | | | | |
 | | `SCN/*.SCN` | todo | | | | |
@@ -56,7 +56,8 @@ Last updated: 2026-10-21
 | CLI (`list`, `convert`, `scan`) | done | |
 | Identity sidecars + `manifest.json` | done | `dwporter/assets.py` |
 | Verification checks (fail = non-zero exit) | done | |
-| Unit tests | done | `tests/test_tim.py`, 23 tests |
+| Unit tests | done | `tests/test_tim.py`, 27 tests |
+| Human verification guide | done | `VERIFY.md` |
 | Godot import of `output/` | todo | Decide `.gdignore` for `output/scan/`, and how Godot loads sidecars |
 
 ## Log
@@ -68,3 +69,4 @@ Last updated: 2026-10-21
 - 2026-10-22 — TMD parser, glTF exporter and VRAM simulation done. `tmd_files`: all 66 TMDs (221/221). Texture bindings from code + UV coverage; 43 models (doors, map props) wait for map textures. Winding verified against stored normals.
 - 2026-10-22 — `mmd_files` done: 178 Digimon models with skeletons and 4,843 animations (1071/1071). Animation = exact port of anim.c; RotMatrix = Rx·Ry·Rz confirmed from the libgte assembly; cross-checked against DW1ModelConverter. Output JSON made compact (all families, 477 MB → 163 MB for MMD).
 - 2026-10-22 — MMD glTF now declares a skin (all bones as joints): animations were wrong in Blender as a plain node hierarchy; fixed and confirmed by the user. Verified in Godot 4.4.1 headless: poses match the data, no stale bones when switching animations.
+- 2026-10-22 — `maps` done: 241 field maps (MAP_ENTRIES/DOOR_MAPDATA/TOILET_DATA read from the executable). Camera projection derived from GsSetRefView2 and verified by projecting collision onto backgrounds. Doors textured per map. Added VERIFY.md (human checks).

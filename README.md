@@ -41,7 +41,7 @@ dw_godot_port/
 │   │   ├── data/             # GameData autoload: runtime loading of the data porter output
 │   │   ├── state/            # GameState autoload: the game state and savegames (specs/game_state.md)
 │   │   ├── core/             # GameLoop autoload (the original's 20 Hz game frames), Rng
-│   │   ├── systems/          # Ported game systems: Clock + ClockHud (specs/clock.md)
+│   │   ├── systems/          # Ported game systems: Clock + ClockHud (specs/clock.md), Care (specs/care.md)
 │   │   └── field/            # FieldMap (background, camera, collision, warps), Tamer, field.gd
 │   ├── tests/                # Godot headless tests (test_game_state.gd, test_game_data.gd, test_content.gd, test_data_dock.gd)
 │   └── VERIFY.md             # Human checks of the ported game systems
@@ -96,12 +96,13 @@ The output folders can be moved: `DW_PORTER_OUTPUT` / `dw/porter/output_dir` (as
 - Camera: the game's camera (`GsSetRefView2`) with a shifted projection centre, so the background scrolls with the tamer exactly like the original (`map.c: initializeDrawingOffsets`).
 - Tamer: walk/run animations move him through their root motion (the game's `applyRootMomentum`); directions are snapped to the camera like `tamerTickWalkingState`; collision uses the map's 100×100 grid with the game's edge checks; trigger cells 110–119 warp to the next map.
 - Partner: the partner Digimon (Agumon at a new game) follows the tamer, walking or running by distance, stopping next to him and finding the way around walls like the original (`specs/partner.md`).
+- Care: the partner gets hungry, sleepy, tired, poopy, sick or unhappy as time runs, with the original's timings; he falls asleep with you (`Z` while he is sleepy, standing in for the menu's Sleep) and poops in the wild when you don't find a toilet (`specs/care.md`).
 - Clock: the game's alarm clock in the top-left corner; time runs at one game minute per second, and at 16:00, 20:00 and 06:00 the background fades to evening, night and day like the original (`specs/clock.md`).
-- Keys: arrows move, Shift runs, `[` / `]` previous / next map, `T` one hour later, `L` text language (area name from `GameData`), `H` hides the help line. The start map and spawn are exported on the `Field` node.
+- Keys: arrows move, Shift runs, `[` / `]` previous / next map, `T` one hour later, `Z` sleep, `L` text language (area name from `GameData`), `H` hides the help line. The start map and spawn are exported on the `Field` node.
 
 In the editor the scene previews the map too: select the `Field` node and pick `start_map` (drop-down of the converted maps), `start_spawn` and `time_of_day` in the Inspector; the 2D view shows the background with the 3D drawn over it, the 3D view the tamer and doors. The preview lives only in memory: it is cleared before each save, so `field.tscn` never contains game content (`editor_preview` turns it off).
 
-Not yet: NPC Digimon, the partner's care, map object sprites (water, fire), lighting, depth against the background, events/scripts. The porter output folder can be moved with the `DW_PORTER_OUTPUT` environment variable or the `dw/porter/output_dir` project setting.
+Not yet: NPC Digimon, the care's bubbles / bars / poop piles and the menus around care, map object sprites (water, fire), lighting, depth against the background, events/scripts. The porter output folder can be moved with the `DW_PORTER_OUTPUT` environment variable or the `dw/porter/output_dir` project setting.
 
 ## Roadmap
 

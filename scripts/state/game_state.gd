@@ -226,6 +226,15 @@ func unlearn_move(move: Variant) -> void:
 	changed.emit("partner")
 
 
+## getItemCount(id) != 0 for a passive item (sleepRegen's Rest Pillow, …): the inventory holds an
+## item whose `passive` property is `effect` (items/item_data, specs/care.md §4).
+func has_passive_item(effect: String) -> bool:
+	for slot in state["inventory"]["slots"]:
+		if slot != null and int(slot.get("amount", 0)) > 0 and data.item(slot["item"]).get("passive") == effect:
+			return true
+	return false
+
+
 func has_condition(flag: int) -> bool:
 	return state["partner"]["care"]["condition"] & flag != 0
 

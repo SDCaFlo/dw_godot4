@@ -8,7 +8,7 @@ The partner Digimon following the tamer on the field: model, placement, animatio
 
 | C (`external-resources/dw_decomp/`) | What | Godot |
 |---|---|---|
-| `partnerTick` → `partnerTickOverworld` (`partner.c:189–266`) | per game frame, by `PARTNER_STATE` | `Partner.tick()`; state 1 (normal) only |
+| `partnerTick` → `partnerTickOverworld` (`partner.c:189–266`) | per game frame, by `PARTNER_STATE` | `Partner.tick()`: states 1 (normal), 3 (sleep) and 7 (wild poop); the care states are `specs/care.md` |
 | `partnerTickNormal` (`partner.c:268`) | collision, walking, then care (later) | `Partner.tick()` |
 | `partnerTickCollision` (`map.c:3267`) | waypoints, facing, wall handling | `Partner.tick_collision()` |
 | `partnerTickWalking` (`partner.c:827`) | animation by distance | `Partner.tick_walking()` |
@@ -115,4 +115,5 @@ Animation ids follow the game: 0 idle, 1 tired idle, 2 walk, 3 tired walk, 4 run
 
 - The exact movement / collision split (§3) and entity collisions (`entityCheckEntityCollision`).
 - The partner and tamer states that block a time-of-day fade (`specs/clock.md` §2.5) come with the other partner states.
-- `initializePartner` (`partner_impl.c:450`) resets care values and gives the starters their first technique by literal ids (Agumon 3 → technique 2, Gabumon 0x11 → 0x2B): it is ported with the care step, and needs a property instead of the ids (`specs/content.md` §4).
+- `initializePartner` (`partner_impl.c:450`): ported with the care step (`Care.initialize_partner`, reading `raise_data.first_technique`; `specs/care.md` §2.15).
+- The order in a frame: the partner ticks before the clock (`specs/care.md` §2.1). The field starts it first; `on_screen` is now updated after the state's tick, like `partnerTickOverworld`.

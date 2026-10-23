@@ -36,6 +36,10 @@ var _maps: PackedStringArray
 var _arrival_trigger := 0
 var _clock: Clock
 var _partner: Partner
+var _care: Care
+var _fade: Fade
+var _message := ""
+var _message_frames := 0
 
 @onready var _field: FieldMap = $World/SubViewport/FieldMap
 @onready var _tamer: Tamer = $World/SubViewport/Tamer
@@ -53,8 +57,10 @@ func _ready() -> void:
 	if _maps.is_empty():
 		_label.text = "No maps in %s.\nRun: python -m dwporter convert maps mmd_files" % Content.path("maps")
 		return
-	_start_clock()
+	# The partner ticks before the clock, as in the original's object list (specs/care.md §2.1).
 	_start_partner()
+	_start_clock()
+	_start_care()
 	_enter(start_map if start_map in _maps else _maps[0], start_spawn)
 
 
@@ -74,6 +80,62 @@ func _start_partner() -> void:
 		_partner = null
 		return
 	GameLoop.frame.connect(_partner.tick)
+
+
+## The care rules and the fade they use (specs/care.md §3). A new game's partner gets
+## initializePartner's care values; a loaded game keeps its own.
+func _start_care() -> void:
+	_fade = Fade.new()
+	_fade.name = "Fade"
+	_fade.clock = _clock
+	$Hud.add_child(_fade)
+	GameLoop.frame.connect(_fade.tick)
+	GameLoop.frame.connect(_tick_message)
+	if _partner == null:
+		return
+	_care = Care.new()
+	_care.name = "Care"
+	add_child(_care)
+	_care.game_state = GameState
+	_care.data = GameData
+	_care.clock = _clock
+	_care.field = _field
+	_care.partner = _partner
+	_care.tamer = _tamer
+	_care.fade = _fade
+	_care.message.connect(_show_message)
+	_care.script_requested.connect(_on_script_requested)
+	_partner.care = _care
+	_partner.clock = _clock
+	_partner.fade = _fade
+	if GameState.state["boot_mode"] == GameState.BOOT_NEW_GAME or debug_partner != "":
+		_care.initialize_partner()
+
+
+## Stand-in for script section 0x4DE (the partner collapses or dies; scripts milestone): the values
+## partnerTickDying leaves (partner.c:674-676), then the script is over.
+func _on_script_requested(section: int) -> void:
+	var care: Dictionary = GameState.state["partner"]["care"]
+	care["remaining_lifetime"] = 360
+	care["sickness_timer"] = 0
+	care["injury_timer"] = 0
+	_care.script_running = false
+	_show_message("script 0x%X (partner collapses): not ported yet" % section)
+
+
+## Stand-in for the text box: a message in the help line for a few seconds.
+func _show_message(text: String) -> void:
+	_message = text
+	_message_frames = 100
+	_update_label()
+
+
+func _tick_message() -> void:
+	if _message_frames > 0:
+		_message_frames -= 1
+		if _message_frames == 0:
+			_message = ""
+			_update_label()
 
 
 ## addClock (clock.c:90): the clock and its HUD run while the field is played.
@@ -123,6 +185,9 @@ func _record_map(map_name: String, spawn: int) -> void:
 	_clock.map_has_time_of_day = id < 0 or not GameData.map(id).get("no_time_of_day", false)
 	_clock.active = true
 	_clock.update_time_of_day()
+	if _care != null:
+		var setup: Dictionary = _field.data["setup"]
+		_care.set_area_response(setup.get("liked_regions", []), setup.get("disliked_regions", []))
 
 
 func _process(_delta: float) -> void:
@@ -155,6 +220,19 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_update_label()
 		KEY_H:
 			_label.visible = not _label.visible
+		KEY_Z:
+			_menu_sleep()
+
+
+## The menu's "Sleep" (handleGameMenuSelection case 6, game_menu.c:2178): only while it is enabled
+## (the partner is sleepy) and both are free. Debug key until the menus exist.
+func _menu_sleep() -> void:
+	if _care == null or not _care.sleep_enabled or _partner.state != Partner.STATE_NORMAL \
+			or _tamer.state != Tamer.STATE_FREE:
+		_show_message("Sleep: only while the partner is sleepy")
+		return
+	_partner.set_state(Partner.STATE_SLEEP)
+	_clock.running = true
 
 
 func _update_label() -> void:
@@ -164,7 +242,8 @@ func _update_label() -> void:
 		if _clock.map_has_time_of_day:
 			time = {Clock.TIME_DAY: "day", Clock.TIME_EVENING: "evening", Clock.TIME_NIGHT: "night"}[_clock.current_time_of_day]
 		time = "year %d day %d %02d:%02d (%s)" % [clock["year"], clock["day"], clock["hour"], clock["minute"], time]
-	_label.text = "%s\n%s\narrows move, shift run, [ ] map, T +1 hour, L language, H hide" % [_map_label(), time]
+	var help := _message if _message != "" else "arrows move, shift run, [ ] map, T +1 hour, Z sleep, L language, H hide"
+	_label.text = "%s\n%s\n%s" % [_map_label(), time, help]
 
 
 ## Map name from the data porter (MAP_ENTRIES + map.yaml) in the GameData language; the asset

@@ -34,7 +34,7 @@ Last updated: 2026-10-23
    - [ ] Care ticks: hunger, energy, sleep, poop, sickness, lifetime (`partner.c`, `partner_impl.c`), rules reading properties (`care` component); debug panel.
      - [x] Spec `specs/care.md`.
      - [x] Data porter: the §4 properties (`raise_data.first_technique`, `eats_poop`, `raises_virus_bar`; `item_data.passive`) with checks on the C text.
-     - [ ] `Care` + partner / tamer states 1, 3, 7; partner ticks before the clock; area response from the map setup.
+     - [x] `Care` (`scripts/systems/care.gd`) + partner states 1, 3, 7, tamer state / camera follow / scene animations, `Fade`; partner ticks before the clock; area response from the map setup; `tests/test_care.gd`; debug key `Z` for the menu's Sleep.
      - [ ] Bubbles (`feel_ef`), status bars (`system_w`), poop piles (`UNTI`), fade stand-in.
      - [ ] Debug panel (`C`), `tests/test_care.gd`, VERIFY section.
    - How each system is ported: a short spec (C functions reproduced, state and data read) → GDScript naming each C function → headless tests with values worked out from the C code → VERIFY section → this file.

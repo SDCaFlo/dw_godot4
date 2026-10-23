@@ -3,6 +3,7 @@
 The porters have their own checklists (`asset_porter/VERIFY.md`, `data_porter/VERIFY.md`); this file covers the game systems ported to GDScript. Every system has a headless test that must print `OK` (run from `dw_godot/`, Godot 4.7, after both porters):
 
 ```
+godot --headless --path . -s res://tests/test_care.gd
 godot --headless --path . -s res://tests/test_partner.gd
 godot --headless --path . -s res://tests/test_clock.gd
 godot --headless --path . -s res://tests/test_game_state.gd
@@ -16,6 +17,35 @@ With the Steam build of Godot the executable is `godot.windows.opt.tools.64.exe`
 The tests prove the code does what the spec says. What they can't prove is that the spec matches the game. That is what the checks below are for: compare with what you know of the game.
 
 Sections are added as systems are ported (`PLANS.md`).
+
+## Care (`scripts/systems/care.gd`, `specs/care.md`)
+
+`test_care.gd` prints `OK: Care checks`. The care values aren't shown on screen yet (bubbles, bars and the debug panel come next), so these checks use what you can see: animations, the clock and the help line. Run the project (F5):
+
+1. **Mood:** a new game's Agumon has happiness 50, so when standing still he plays his happy animation now and then.
+2. **Sleepy and the sleep scene:**
+   - Agumon gets sleepy at 19:00 (press `T` until 19:00).
+   - Press `Z` (the menu's "Sleep"). Before 19:00 the help line says it only works while he is sleepy.
+   - At 19:00 or later:
+     - the clock slides away;
+     - the tamer and Agumon face each other, and the tamer plays his animation;
+     - Agumon lies down, falls asleep, and the screen fades to black;
+     - it fades back in at 04:00 of the next day, the clock returns and both walk again.
+   - Wrong if: the scene hangs at a step, the time after it isn't 04:00, or you can't walk after it.
+3. **A missed night:** stay awake past 19:00 without pressing `Z` and keep `T` going to 04:00. Agumon simply wakes up (a care mistake); his sleepy walk ends.
+4. **Pooping in the wild:** Agumon needs the toilet about every 4 game hours (4 real minutes). It then takes 42 game minutes (about 42 seconds at discipline 50) until the accident:
+   - he plays his "need to poop" animation now and then;
+   - then you stop, he runs to you, squats and stands up;
+   - you can walk again.
+   - Try it with Agumon far away too: walk off, or put a wall between you, just before the accident. He runs straight to you, through walls (the original has no wall check in this scene).
+   - Wrong if: you stay frozen, or he keeps running without squatting.
+   
+   The pile isn't drawn yet. It is saved in the game state (`world.poop`).
+5. **Hunger and the rest** (hunger calls at 1, 5, 9, 13, 17 and 21 o'clock, sickness, lifetime) only show through animations until the debug panel exists. The tests cover their timings.
+6. **What isn't there yet:**
+   - bubbles, status bars, poop piles, the debug panel;
+   - feeding, praise / scold, toilets (menus);
+   - the collapse / death script (the help line names it), evolution, the butterfly.
 
 ## Partner (`scripts/field/partner.gd`, `psx_animator.gd`, `specs/partner.md`)
 

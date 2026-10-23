@@ -1,9 +1,10 @@
 class_name Partner
 extends Node3D
-## The partner Digimon on the field (specs/partner.md): partnerTickNormal's collision and walking
-## parts (map.c partnerTickCollision, partner.c partnerTickWalking). Decisions run once per game
-## frame (tick, on GameLoop.frame); the animation and its root-motion movement run every Godot
-## frame like the tamer's. Care (tickConditions ...) is the next step.
+## The partner Digimon on the field (specs/partner.md, specs/care.md): partnerTickOverworld with
+## the normal state (map.c partnerTickCollision, partner.c partnerTickWalking, the care rules) and
+## the sleep and wild-poop scenes. Decisions run once per game frame (tick, on GameLoop.frame,
+## before the clock); the animation and its root-motion movement run every Godot frame like the
+## tamer's.
 
 ## PartnerPara.condition bits read here (params.h:10-16).
 const TIRED_LOOK := 0x1 | 0x2 | 0x20 | 0x40
@@ -25,9 +26,21 @@ const FREE := -1
 const HIT_TAMER := 0
 const HIT_MAP := 10
 
+## PARTNER_STATE values ported so far (partnerTickOverworld, partner.c:218-258).
+const STATE_NORMAL := 1
+const STATE_SLEEP := 3
+const STATE_WILD_POOP := 7
+
 var field: FieldMap
 var tamer: Node3D
 var game_state: Node
+## The care rules (specs/care.md); null: the partner only follows.
+var care: Care
+var clock: Clock
+var fade: Fade
+## PARTNER_STATE / PARTNER_SUB_STATE (partner_impl.c:221), not saved.
+var state := STATE_NORMAL
+var sub_state := 0
 var digimon := ""
 ## DIGIMON_DATA.radius.
 var radius := 100
@@ -112,6 +125,10 @@ func place_for_spawn(spawn: Dictionary) -> void:
 	_set_direction((rotation_vy + 0x800) % 0x1000)
 	start_animation(ANIM_IDLE)
 	initialize_waypoints()
+	# setupPartnerOnWarp: normal state, and the time on the map starts over.
+	set_state(STATE_NORMAL)
+	if game_state != null:
+		game_state.state["partner"]["care"]["area_effect_timer"] = 0
 
 
 func _process(delta: float) -> void:
@@ -122,17 +139,204 @@ func _process(delta: float) -> void:
 	_move(motion)
 
 
-## partnerTickNormal (partner.c:268), the parts ported so far. One game frame.
+## partnerTickOverworld (partner.c:213): one game frame of the partner's state, then the screen
+## test and the care boundaries.
 func tick() -> void:
 	if animator == null or field == null or tamer == null:
 		return
-	on_screen = field.is_on_screen(global_position)
-	tick_collision()
-	tick_walking()
+	match state:
+		STATE_NORMAL:
+			tick_normal()
+		STATE_SLEEP:
+			tick_sleep()
+		STATE_WILD_POOP:
+			tick_wild_poop()
 	step = 0.0
+	on_screen = field.is_on_screen(global_position)
+	if care != null:
+		care.tick_condition_boundaries()
 	if game_state != null:
 		game_state.state["partner"]["position"] = _psx(position)
 		game_state.state["tamer"]["position"] = _psx(tamer.position)
+
+
+## partnerSetState (partner.c:1087).
+func set_state(value: int) -> void:
+	state = value
+	sub_state = 0
+
+
+## partnerTickNormal (partner.c:268).
+func tick_normal() -> void:
+	tick_collision()
+	tick_walking()
+	if care == null:
+		return
+	care.tick_conditions()
+	if care.tick_pooping_mechanic():
+		set_state(STATE_WILD_POOP)
+	# A poop eater found a pile: partnerTickEatShit (state 9) comes with the poop eaters.
+	care.tick_poop_detection()
+	care.handle_condition_bubble()
+
+
+# --- partnerTickSleep (partner.c:278) ----------------------------------------------------------
+
+## The sleep scene, started by the menu's "Sleep" (specs/care.md §2.13). The save prompt after it
+## (sub-state 5) is skipped until the menus exist.
+func tick_sleep() -> void:
+	match sub_state:
+		0:
+			if clock != null:
+				clock.running = false
+			tamer.camera_follow = false
+			if closeness() != 2:
+				start_animation(ANIM_WALK)
+			tamer.state = Tamer.STATE_STILL
+			tick_partner_waypoints()
+			sub_state = 1
+		1:
+			tamer.look_at_psx(int(position.x), int(-position.z))
+			look_at_psx(int(tamer.position.x), int(-tamer.position.z))
+			if closeness() == 2:
+				# playSound(0, 15): later with audio.
+				tamer.play_scene_animation(8)
+				start_animation(ANIM_IDLE)
+				sub_state = 2
+		2:
+			if tamer.scene_animation_done():
+				_play_or_skip(11)
+				sub_state = 3
+		3:
+			if animator.frame >= animator.frame_count:
+				_play_or_skip(9)
+				sub_state = 4
+		4:
+			if animator.frame >= animator.frame_count - 5:
+				if fade != null:
+					fade.fade_to_black(40)
+				sub_state = 5
+		5:
+			if fade == null or fade.out_current > 39:
+				if care != null:
+					care.sleep_regen()
+					care.handle_sleeping()
+				sub_state = 6
+		6:
+			if fade != null:
+				fade.fade_from_black(40)
+			start_animation(ANIM_IDLE)
+			if clock != null:
+				clock.update_time_of_day()
+			sub_state = 7
+		7:
+			if fade == null or fade.in_current > 34:
+				set_state(STATE_NORMAL)
+				tamer.state = Tamer.STATE_FREE
+				tamer.camera_follow = true
+				# handleSpecialEvolutions(2): the evolution step.
+				if clock != null:
+					clock.running = true
+
+
+## startAnimation of a scene animation; one the model lacks counts as played, so the scene goes
+## on (the original would wait on the previous animation forever).
+func _play_or_skip(id: int) -> void:
+	if not animator.play(id):
+		animator.frame = animator.frame_count
+
+
+# --- tickWildPoop (partner.c:593) --------------------------------------------------------------
+
+func tick_wild_poop() -> void:
+	match sub_state:
+		0:
+			start_animation(ANIM_RUN)
+			tamer.state = Tamer.STATE_STILL
+			tamer.look_at_psx(int(position.x), int(-position.z))
+			tamer.camera_follow = false
+			sub_state = 1
+		1:
+			look_at_psx(int(tamer.position.x), int(-tamer.position.z))
+			if closeness() > 0:
+				_play_or_skip(10)
+				sub_state = 2
+		2:
+			if animator.frame >= animator.frame_count:
+				if care != null:
+					care.create_poop_pile(tile(), direction)
+					care.handle_wild_poop()
+				_play_or_skip(12)
+				sub_state = 3
+		3:
+			if animator.frame >= animator.frame_count:
+				tamer.state = Tamer.STATE_FREE
+				set_state(STATE_NORMAL)
+				tamer.camera_follow = true
+				if clock != null:
+					clock.add_tamer_level(1, -1)
+
+
+# --- tickPartnerWaypoints (map.c:3588) ---------------------------------------------------------
+
+## An off-screen partner drops the waypoints up to the newest off-screen one, then jumps to the
+## first off-screen tile on the line from the tamer to it (getClosestTileOffScreen).
+func tick_partner_waypoints() -> void:
+	if on_screen:
+		return
+	var count := waypoint_count
+	var index := 0
+	while count > 0:
+		index = (waypoint_current + count - 1) % WAYPOINTS
+		if field.is_tile_off_screen(_waypoint(index)):
+			break
+		count -= 1
+	if count != 0:
+		while waypoint_current != index:
+			pop_waypoint()
+		pop_waypoint()
+	var to := closest_tile_off_screen(_tile(tamer.position), tile())
+	if to.x != -1:
+		var centre := FieldMap.tile_centre(to)
+		position = Vector3(centre.x, position.y, -centre.y)
+
+
+## getClosestTileOffScreen (map.c:2956): walks the line from `from` towards `to` and returns the
+## first tile off screen, or (-1, -1).
+func closest_tile_off_screen(from: Vector2i, to: Vector2i) -> Vector2i:
+	var dx := to.x - from.x
+	var dy := to.y - from.y
+	var x := from.x
+	var y := from.y
+	var major_x := absi(dx) >= absi(dy)
+	var dist := absi(dx) if major_x else absi(dy)
+	if dist == 0:
+		# Division by zero in the C; the partner is on the tamer's tile.
+		return Vector2i(-1, -1)
+	var minor := dy if major_x else dx
+	var quot := minor / dist
+	var rem := minor % dist
+	var rem_sign := -1 if rem < 0 else 1
+	rem = absi(rem)
+	var acc := dist
+	for _i in dist:
+		var side := 0
+		if rem != 0:
+			acc -= rem
+			if acc <= 0:
+				side = rem_sign
+				acc += dist
+		else:
+			side = quot
+		if major_x:
+			y += side
+			x += 1 if dx > 0 else -1
+		else:
+			x += side
+			y += 1 if dy > 0 else -1
+		if field.is_tile_off_screen(Vector2i(x, y)):
+			return Vector2i(x, y)
+	return Vector2i(-1, -1)
 
 
 # --- partnerTickCollision (map.c:3267) ---------------------------------------------------------
@@ -388,7 +592,9 @@ func start_animation(id: int) -> void:
 
 ## Root motion against the map only: the original's entity checks restore the position and steer
 ## (tick_collision, tick_walking) but never block the momentum, so the partner reaches the close
-## range and stops there.
+## range and stops there. The map blocks only in the normal state: the scenes (sleep, wild poop)
+## never call entityCheckCollision, so the partner walks straight to the tamer, walls or not
+## (specs/care.md §2.10; blocking there left it running into a wall forever).
 func _move(motion: Vector3) -> void:
 	var x := position.x
 	var z := -position.z
@@ -400,7 +606,9 @@ func _move(motion: Vector3) -> void:
 		dx = 0.0
 	if dx == 0.0 and dz == 0.0:
 		return
-	if not _blocked(x + dx, z + dz, dx, dz):
+	if state != STATE_NORMAL:
+		pass
+	elif not _blocked(x + dx, z + dz, dx, dz):
 		pass
 	elif not _blocked(x + dx, z, dx, 0.0):
 		dz = 0.0
@@ -450,6 +658,11 @@ func _set_direction(vy: int) -> void:
 
 func _condition() -> int:
 	return game_state.state["partner"]["care"]["condition"] if game_state != null else 0
+
+
+## getModelTile of the partner.
+func tile() -> Vector2i:
+	return _tile(position)
 
 
 func _waypoint(index: int) -> Vector2i:

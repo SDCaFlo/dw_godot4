@@ -11,14 +11,29 @@ const SIDECAR := "mmd_files/MMD0/BOYS.json"
 const ANIM_IDLE := "anim_00"
 const ANIM_RUN := "anim_02"
 const ANIM_WALK := "anim_03"
+## tamerGetState values ported so far: 0 walks freely, 6 stands still while a scene plays.
+const STATE_FREE := 0
+const STATE_STILL := 6
 
 ## PSX rotation.vy (4096 per turn).
 var direction := 0
 var radius := 100
 var field: FieldMap
+## The tamer's state (TAMER_STATE); input moves him only in STATE_FREE, which also ends a scene
+## animation.
+var state := STATE_FREE:
+	set(value):
+		state = value
+		if value == STATE_FREE:
+			_scene_playing = false
+## setCameraFollowPlayer / unsetCameraFollowPlayer.
+var camera_follow := true
 
 var _player: AnimationPlayer
 var _skeleton: Skeleton3D
+## Scene animations by id (startAnimation on the tamer), e.g. 8 in the sleep scene.
+var _scene: PsxAnimator
+var _scene_playing := false
 
 
 func _ready() -> void:
@@ -41,6 +56,7 @@ func _ready() -> void:
 		_player.root_motion_track = NodePath("%s:bone_0" % anim_root.get_path_to(_skeleton))
 	_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	_player.play(ANIM_IDLE)
+	_scene = PsxAnimator.new(_player, Content.load_json(MODEL))
 
 
 func place(spawn: Dictionary) -> void:
@@ -53,17 +69,40 @@ func place(spawn: Dictionary) -> void:
 func _process(delta: float) -> void:
 	if Engine.is_editor_hint() or _player == null or field == null:
 		return
-	var input := Vector2(Input.get_axis("ui_left", "ui_right"), Input.get_axis("ui_up", "ui_down"))
-	if input != Vector2.ZERO:
-		_play(ANIM_RUN if Input.is_key_pressed(KEY_SHIFT) else ANIM_WALK)
-		_set_direction(_input_direction(input))
+	var motion := Vector3.ZERO
+	if _scene_playing:
+		motion = _scene.advance(delta)
 	else:
-		_play(ANIM_IDLE)
+		var input := Vector2(Input.get_axis("ui_left", "ui_right"), Input.get_axis("ui_up", "ui_down"))
+		if input != Vector2.ZERO and state == STATE_FREE:
+			_play(ANIM_RUN if Input.is_key_pressed(KEY_SHIFT) else ANIM_WALK)
+			_set_direction(_input_direction(input))
+		else:
+			_play(ANIM_IDLE)
+		_player.advance(delta)
+		motion = _player.get_root_motion_position()
+	_move(_skeleton.global_basis * motion)
+	if camera_follow:
+		field.follow(global_position)
 
-	_player.advance(delta)
-	var motion := _skeleton.global_basis * _player.get_root_motion_position()
-	_move(motion)
-	field.follow(global_position)
+
+## startAnimation on the tamer: a scene animation by id; it holds its last frame until the tamer
+## is free again.
+func play_scene_animation(id: int) -> void:
+	_scene_playing = _scene != null and _scene.play(id)
+
+
+## animFrame >= frameCount of the scene animation (also true when the model lacks it).
+func scene_animation_done() -> bool:
+	return not _scene_playing or not _scene.playing
+
+
+## entityLookAtLocation (map.c:3389).
+func look_at_psx(target_x: int, target_z: int) -> void:
+	var dx := target_x - int(position.x)
+	var dz := target_z - int(-position.z)
+	if dx != 0 or dz != 0:
+		_set_direction((0x800 + roundi(atan2(dx, dz) * 0x800 / PI)) & 0xFFF)
 
 
 func _play(anim_name: String) -> void:

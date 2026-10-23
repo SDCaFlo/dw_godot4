@@ -1,6 +1,12 @@
 # Partner care (port spec)
 
-Status: spec 2026-10-23, not implemented yet.
+Status:
+- **Implemented 2026-10-23:**
+  - the care rules: `scripts/systems/care.gd`, class `Care`;
+  - partner states 1 / 3 / 7 (`scripts/field/partner.gd`) and the tamer's state, camera follow and scene animations (`tamer.gd`);
+  - the fade (`scripts/field/fade.gd`);
+  - test `tests/test_care.gd`; human checks in `VERIFY.md`.
+- **Next:** bubbles, status bars, poop piles on the map, the debug panel (§3.2, §3.5).
 
 The partner's needs as time runs on the field:
 - hunger and energy, sleep, tiredness, poop, sickness and injury, unhappiness, lifetime;
@@ -102,7 +108,11 @@ All `file:line` references are in `external-resources/dw_decomp/src/main/` unles
     - `(next − HOUR) * 60 − MINUTE` if `HOUR ≤ next`;
     - else `(24 − HOUR + next) * 60 − MINUTE`.
     
-    **Quirk kept:** `next == HOUR` gives ≤ 0, so the partner is hungry again at once.
+    `next == HOUR` would give ≤ 0 (hungry at once). The dw1 data never gets there:
+    - the Fresh / In-Training steps are always later than `HOUR`;
+    - the list fallbacks pick an hour after `HOUR`, or the first hour of the list when `HOUR` is past all of them, which is earlier with the dw1 lists (3–8 hours each).
+    
+    A pack's one-hour list would hit it at that hour; the port keeps the formula.
 
 ### 2.5 Sleep (`tickSleepMechanics`, `:913`; `setSleepTimes`, `:618`)
 
@@ -156,7 +166,7 @@ All `file:line` references are in `external-resources/dw_decomp/src/main/` unles
   - **Getting sick:** bit 6, `times_being_sick + 1`, `sickness_timer = 1`, happiness −20, `sickness_counter = 0`.
 - **Sick from a disliked map:** `area_effect_timer > 12,000` (10 hours on the map), hourly, area response 2, not sick → sick (no happiness loss), `area_effect_timer = 0`.
 - **While sick, hourly:** happiness −10, discipline −5, tiredness +5.
-- **Quirk kept:** `if (!wasSick && sickness_timer > 0) sickness_timer = 0`. Getting sick in this tick resets the timer to 0, not 1.
+- **`if (!wasSick && sickness_timer > 0) sickness_timer = 0`:** clears a timer left from an earlier sickness. It also resets the 1 set by getting sick in this tick. Both ways of getting sick above happen on hourly frames, though, and the hourly increment below follows, so the timer ends at 1.
 - **Hourly:** sick → `sickness_timer + 1`; injured → `injury_timer + 1`.
 - **Immortal hour:** the rest is skipped.
 - **Injury turns into sickness:** `injury_timer ≥ 12`, not sick, tamer state 0 → sick, injury cleared.
@@ -187,7 +197,7 @@ Not in the immortal hour, with lifetime ≤ 0, partner state not 8, tamer state 
   - `ITEM_SCOLD_FLAG = 1`: a scold right after it counts more (`handlePraiseScold`).
 - **The wild-poop scene (state 7):**
   - **Sub-state 0:** run animation (4); tamer state 6 (stands still) facing the partner; the camera stops following.
-  - **1:** the partner faces the tamer. Once not close any more (`getPartnerTamerCloseness() > 0`), the poop animation (10).
+  - **1:** the partner faces the tamer and runs to him, through walls (no collision call in this state, §6). Once no longer far (`getPartnerTamerCloseness() > 0`: near or close), the poop animation (10).
   - **2:** at its end, `createPoopPile` on the partner's tile, `handleWildPoop`, animation 12.
   - **3:** at its end, tamer state 0, partner state 1, camera follows, `addTamerLevel(1, −1)`.
 - **`handleWildPoop`:**
@@ -362,17 +372,20 @@ Started from the menu's "Sleep" (partner state 3, `game_menu.c:2178–2186`), on
 
 | Original | Stand-in | Real version |
 |---|---|---|
-| menu "Sleep" (enabled while sleepy) | debug key / panel button, enabled under the same condition | menus milestone |
+| menu "Sleep" (enabled while sleepy) | debug key `Z` (later also the panel), refused unless `Care.sleep_enabled` and both are free | menus milestone |
 | save prompt after sleeping (sub-state 5) | skipped | menus |
-| fade to black / in | a simple full-screen fade in the field HUD, 40 frames | kept, reused by warps later |
-| "<name> is sick" text box (tamer state 0x14) | the message in the HUD help line for a few seconds, tamer not stopped | text renderer |
-| script section 0x4DE (collapse / death), `IS_SCRIPT_PAUSED` | the care sets the C values (lives − 1, timer 0, `IS_NATURAL_DEATH`) and emits `script_requested(0x4DE)`; nothing plays | scripts milestone |
+| fade to black / in | `Fade`: `fade.c`'s counters exactly (`out_current`, `in_current`, `progress`, `protection`, stops game time); drawn as black at alpha `progress / 160` instead of the original's colour subtraction | kept, reused by warps later |
+| "<name> is sick" text box (tamer state 0x14) | `Care.message`: the help line shows it for 100 frames; the tamer isn't stopped | text renderer |
+| script section 0x4DE (collapse / death), `IS_SCRIPT_PAUSED` | the care sets the C values (lives − 1, timer 0, `IS_NATURAL_DEATH`), sets `script_running` and emits `script_requested(0x4DE)`. The field applies what `partnerTickDying` leaves at its end (lifetime 360, sickness / injury timers 0, `partner.c:674–676`) and ends the "script"; no rebirth | scripts milestone |
+| scene animations the model lacks | skipped (the scene goes on); the original would wait forever | kept |
+| partner state 9 (eating poop) | `tick_poop_detection()` finds the pile; the state isn't entered | with the poop eaters |
 | evolution target, special evolutions (§2.2 step 7, sleep sub-state 7) | not computed | evolution step |
 | butterfly, cloud effect, sounds | none | effects / audio |
 
 ### 3.4 Functions ported now, used later
 
-`skip_hours` (scripts), `handle_toilet` (toilet scene), `handle_eating_poop` (poop eaters), `handle_praise_scold`, `partner_handle_food_feed`, `partner_will_refuse_item` (menus), `handle_post_battle_tiredness` (battle).
+`skip_hours` (scripts), `handle_toilet` (toilet scene), `handle_eating_poop` (poop eaters), `handle_praise_scold` (menus), `handle_post_battle_tiredness` (battle).
+- **Deferred to the menus:** `partnerHandleFoodFeed` and `partnerWillRefuseItem` test item id ranges (food 0x26–0x46, evolution items, 0x73+). They wait for item properties for those ranges.
 - They are short state changes, tested now against the C.
 - The debug panel calls some of them: praise, scold, toilet.
 - `skipHours` has a JP / US difference (`int16_t` vs `int32_t` hours); the US version is ported.
@@ -397,6 +410,8 @@ The care code names Digimon and items by literal id. The data porter derives the
 | `type != 0x27` raises the virus bar | `createPoopPile`, `:1319` | `raise_data.raises_virus_bar` (false for Sukamon) |
 | `getItemCount(0x22)` boosts sleep | `sleepRegen`, `:1351` | `item_data.passive == "sleep_boost"` (Rest Pillow; the other passive items got theirs too, `data_porter/specs/items.md` §3) |
 | levels 1 / 2 (Fresh / In-Training schedules), level checks of `setFoodTimer`, `setSleepTimes`, `tickSleepMechanics` | §2.4, §2.5 | `digimon.level.id` (already data) |
+
+Also from data instead of ids: `initializePartner`'s finisher slot (`moves[i]` in 0x3A–0x70) reads the technique `category == "finisher"`.
 
 `dw1`-only rules, kept as documented code:
 - the sleep times 3 / 7 hours and the hunger steps 2 / 3 hours for levels 1 / 2;
@@ -449,7 +464,9 @@ The virus-bar evolution to Sukamon (0x27) and the reincarnation stats (types 1, 
 ## 6. Open questions
 
 - **Loading a game** calls `initializePartner` (§2.15). The port keeps the saved care values on load. Where the original restores `PARTNER_PARA` after the reset is to be traced with the save menu.
-- **Wild poop, sub-state 1:** the partner faces the tamer and runs (animation 4) until it is *not* close. Without `partnerTickCollision` in this state it may run past the tamer. To be watched in the port against the game.
+- **Wild poop, sub-state 1 (answered 2026-10-23):**
+  - **Rule:** `getPartnerTamerCloseness() > 0` means near *or close* (0 is far). The partner runs to the tamer until it is within 3.5 radii, then squats.
+  - **No walls in the scenes:** these states never call `entityCheckCollision`, the only caller of `checkMapCollision` (`map.c:3434`), so nothing tests the map. The port first blocked the partner on walls in every state, and a far partner then ran into a wall forever, with the tamer frozen. Now the map blocks only in the normal state (`Partner._move`). The sleep scene's walk to the tamer (sub-state 1) is covered by the same rule.
 - **Partner stats** at a new game are 0 until the intro scripts set them. The unhappy stat loss then clamps them to 1, as the code would. The debug panel can set stats.
 - **`sub_tiredness`** is never increased in the decomp (§2.6): kept as dead code.
 - **`randomLimit(1)`** in `setSleepTimes` is always 0. Possibly meant as 0–1; kept.

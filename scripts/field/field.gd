@@ -38,6 +38,7 @@ var _clock: Clock
 var _partner: Partner
 var _care: Care
 var _fade: Fade
+var _poop: PoopPiles
 var _message := ""
 var _message_frames := 0
 
@@ -88,28 +89,63 @@ func _start_care() -> void:
 	_fade = Fade.new()
 	_fade.name = "Fade"
 	_fade.clock = _clock
+	GameLoop.frame.connect(_tick_message)
+	if _partner != null:
+		_care = Care.new()
+		_care.name = "Care"
+		add_child(_care)
+		_care.game_state = GameState
+		_care.data = GameData
+		_care.clock = _clock
+		_care.field = _field
+		_care.partner = _partner
+		_care.tamer = _tamer
+		_care.fade = _fade
+		_care.message.connect(_show_message)
+		_care.script_requested.connect(_on_script_requested)
+		_partner.care = _care
+		_partner.clock = _clock
+		_partner.fade = _fade
+		if GameState.state["boot_mode"] == GameState.BOOT_NEW_GAME or debug_partner != "":
+			_care.initialize_partner()
+		_start_care_visuals()
+	# Last in the HUD and in the frame: the fade covers everything (a render object in the original).
 	$Hud.add_child(_fade)
 	GameLoop.frame.connect(_fade.tick)
-	GameLoop.frame.connect(_tick_message)
-	if _partner == null:
-		return
-	_care = Care.new()
-	_care.name = "Care"
-	add_child(_care)
-	_care.game_state = GameState
-	_care.data = GameData
-	_care.clock = _clock
-	_care.field = _field
-	_care.partner = _partner
-	_care.tamer = _tamer
-	_care.fade = _fade
-	_care.message.connect(_show_message)
-	_care.script_requested.connect(_on_script_requested)
-	_partner.care = _care
-	_partner.clock = _clock
-	_partner.fade = _fade
-	if GameState.state["boot_mode"] == GameState.BOOT_NEW_GAME or debug_partner != "":
-		_care.initialize_partner()
+
+
+## The care on screen (specs/care.md §3.2): happiness / discipline bars next to the clock, the
+## condition bubbles over the partner, the poop piles on the map.
+func _start_care_visuals() -> void:
+	var bars := StatusBars.new()
+	bars.name = "StatusBars"
+	bars.clock = _clock
+	bars.care = _care
+	bars.set_anchors_preset(Control.PRESET_FULL_RECT)
+	$Hud.add_child(bars)
+	var bubbles := ConditionBubbles.new()
+	bubbles.name = "ConditionBubbles"
+	bubbles.partner = _partner
+	bubbles.camera = _camera
+	bubbles.field = _field
+	bubbles.data = GameData
+	bubbles.set_anchors_preset(Control.PRESET_FULL_RECT)
+	$Hud.add_child(bubbles)
+	_care.bubble_shown.connect(bubbles.show_bubble)
+	_care.butterfly_changed.connect(_on_butterfly_changed.bind(bubbles))
+	_poop = PoopPiles.new()
+	_poop.name = "PoopPiles"
+	_poop.game_state = GameState
+	_poop.partner = _partner
+	$World/SubViewport.add_child(_poop)
+	_care.poop_changed.connect(_poop.refresh)
+
+
+## setButterfly removes the bubble first (handleConditionBubble, partner_impl.c:1590). The
+## butterfly itself (butterfly.c) isn't drawn yet.
+func _on_butterfly_changed(shown: bool, bubbles: ConditionBubbles) -> void:
+	if shown:
+		bubbles.remove_current()
 
 
 ## Stand-in for script section 0x4DE (the partner collapses or dies; scripts milestone): the values
@@ -188,6 +224,8 @@ func _record_map(map_name: String, spawn: int) -> void:
 	if _care != null:
 		var setup: Dictionary = _field.data["setup"]
 		_care.set_area_response(setup.get("liked_regions", []), setup.get("disliked_regions", []))
+	if _poop != null:
+		_poop.refresh()
 
 
 func _process(_delta: float) -> void:

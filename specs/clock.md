@@ -96,7 +96,7 @@ The game clock: time passing on the field, its effects on the partner and the da
 | hour marker | 203, 216, 6, 6 | 497 | off + `HOUR_POINT_X[h]`, `HOUR_POINT_Y[h]` − 88 |
 
 - **Top icon:** "night" is hour < 6 or ≥ 17; frame = (`CURRENT_FRAME` % 16) / 4.
-- **Status bars** (`renderStatusBars`): drawn with the clock; they belong to the care step.
+- **Status bars** (`renderStatusBars`): drawn with the clock; ported with the care (`StatusBars`, `specs/care.md` §2.14).
 
 ## 3. Godot design
 

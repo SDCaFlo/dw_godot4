@@ -5,8 +5,9 @@ Status:
   - the care rules: `scripts/systems/care.gd`, class `Care`;
   - partner states 1 / 3 / 7 (`scripts/field/partner.gd`) and the tamer's state, camera follow and scene animations (`tamer.gd`);
   - the fade (`scripts/field/fade.gd`);
-  - test `tests/test_care.gd`; human checks in `VERIFY.md`.
-- **Next:** bubbles, status bars, poop piles on the map, the debug panel (§3.2, §3.5).
+  - test `tests/test_care.gd`; human checks in `VERIFY.md`;
+  - the visuals: `scripts/systems/condition_bubbles.gd`, `status_bars.gd`, `psx_texture.gd`, `scripts/field/poop_piles.gd`.
+- **Next:** the debug panel (§3.5).
 
 The partner's needs as time runs on the field:
 - hunger and energy, sleep, tiredness, poop, sickness and injury, unhappiness, lifetime;
@@ -360,12 +361,17 @@ Started from the menu's "Sleep" (partner state 3, `game_menu.c:2178–2186`), on
 
 ### 3.2 Visuals
 
-- **`ConditionBubble`:** a sprite node over the partner.
-  - **Content:** bubble + icon from `etctim/03_feel_ef`, with the §2.11 animation (scale, height, bob, burst).
-  - **Size:** pixel sizes in the 320 × 240 HUD space, scaled like the original's `renderSprite` distance factor.
+- **`ConditionBubbles`** (`scripts/systems/condition_bubbles.gd`), a HUD control: `bubble.c`'s three slots, tick and render.
+  - **Its parts:** the sprite table, the icon sequences, `lerp` with its wrap, the burst at frame 50, the top-of-screen clamp, the depth adjustment.
+  - **Who drives it:** `Care.bubble_shown` replaces the current bubble, as `handleConditionBubble` does.
+  - **Placement:** the 3D point is projected with the field camera. The size is `scale × projection / depth` (`renderSprite`), and each sprite is anchored at its (mx, my).
+  - **Approximation:** the bubble's x / z follow the partner's position. The original offsets it from a bone (`CONDITION_FX_OFFSETS[type]`, `translateConditionFXToEntity`, `effect_common.c:307`), which isn't converted yet. The height is the original's: `DIGIMON_DATA.height`.
+  - **Semi-transparency:** `PsxTexture` splits a palette page into opaque texels and texels whose colour has the STP bit (from the sidecar's raw palette). The bubble and the burst (attribute `0x40000000`, mode 0) draw their STP texels at half alpha. The icons (`0x50000000`, mode 1) draw theirs on an additive layer.
   - **Missing:** the butterfly is a later step (`butterfly.c` not ported); unhappy shows no butterfly yet.
-- **`StatusBars`:** drawn in the field HUD next to `ClockHud`, from `etctim/08_system_w`, with the slide of §2.14.
-- **`PoopPiles`:** one `UNTI` model (`tmd_files/ETCNA/UNTI.gltf`) per pile of the current map, rebuilt on map load and when a pile is added.
+- **`StatusBars`** (`scripts/systems/status_bars.gd`): the table of §2.14 from `etctim/08_system_w` (palettes p10 / p12 / p15), drawn opaque (the original's prims have no semi-transparency flag), with the slide and the blinking icon.
+- **`PoopPiles`** (`scripts/field/poop_piles.gd`), under the 3D viewport:
+  - one `UNTI` model (`tmd_files/ETCNA/UNTI.gltf`) per pile of the current map, at the tile centre, scaled `size / 10`, at the partner's height every frame;
+  - rebuilt on map load and on `Care.poop_changed`.
 - **The cloud effect** and the sounds (15 for sleep): later with effects / audio.
 
 ### 3.3 Stand-ins until the systems exist

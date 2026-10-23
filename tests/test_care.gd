@@ -47,6 +47,7 @@ func _run() -> void:
 	_gates()
 	_new_partner()
 	_properties()
+	_visuals()
 
 	care.free()
 	clock.free()
@@ -412,6 +413,53 @@ func _properties() -> void:
 	_eq(gs.has_passive_item("sleep_boost"), true, "Rest Pillow: item_data.passive")
 	care.tamer = null
 	tamer.free()
+
+
+## Bubbles, bars and the STP split (specs/care.md §2.11, §2.14).
+func _visuals() -> void:
+	_eq([ConditionBubbles.lerp_psx(0, -65, 0, 10, 0), ConditionBubbles.lerp_psx(0, -65, 0, 10, -5),
+			ConditionBubbles.lerp_psx(0, 0x6000, 0, 10, 5)], [0, -33, 0x3000], "lerp with its wrap (rise 0 .. -59)")
+	var bubbles := ConditionBubbles.new()
+	bubbles.show_bubble(3)
+	_eq([bubbles.current, bubbles.bubbles[0]["base_height"]], [0, 20], "a sleepy bubble in slot 0, base height -height + 20")
+	for i in 11:
+		bubbles.tick()
+	_eq(bubbles.bubbles[0]["icon"], 1, "sleepy: the Z sequence moves on after 10 frames")
+	for i in 40:
+		bubbles.tick()
+	_eq([bubbles.bubbles[0]["frame"], bubbles.bubbles[0]["height"], bubbles.bubbles[0]["scale"]], [51, 20 - 230, 0xF000],
+			"frame 50: the burst, 230 higher at scale 0xF000")
+	bubbles.tick()
+	_eq(bubbles.bubbles[0], null, "then the bubble is gone")
+	bubbles.show_bubble(0)
+	bubbles.show_bubble(1)
+	_eq([bubbles.current, bubbles.bubbles[0]["icons"], bubbles.bubbles[1]], [0, ConditionBubbles.TYPES[1], null],
+			"a new bubble replaces the previous one (first free slot again)")
+	bubbles.free()
+	if DirAccess.dir_exists_absolute(Content.root()):
+		var texture := PsxTexture.load_palette("etctim/03_feel_ef", 4)
+		var stp := texture.stp.get_image()
+		var base := texture.base.get_image()
+		# The bubble (u 0xA0, v 0x90, 32 x 32) has semi-transparent texels and an opaque outline.
+		var counts := [0, 0]
+		for y in range(0x90 - 128, 0x90 - 128 + 32):
+			for x in range(0xA0, 0xA0 + 32):
+				counts[0] += 1 if stp.get_pixel(x, y).a > 0.0 else 0
+				counts[1] += 1 if base.get_pixel(x, y).a > 0.0 else 0
+		_eq(counts[0] > 0 and counts[1] > 0, true, "feel_ef p4: the bubble has STP texels (%d) and opaque ones (%d)" % counts)
+	var bars := StatusBars.new()
+	bars.clock = clock
+	clock.running = false
+	for i in 3:
+		bars._on_frame()
+	_eq(bars.offset_x, 225, "bars slide out by 50 per frame while time is stopped")
+	bars._on_frame()
+	_eq(bars.offset_x, StatusBars.OFFSET_HIDDEN, "up to 240")
+	clock.running = true
+	for i in 5:
+		bars._on_frame()
+	_eq(bars.offset_x, StatusBars.OFFSET_SHOWN, "and back to 75")
+	bars.free()
 
 
 func _with_level(level: int) -> String:

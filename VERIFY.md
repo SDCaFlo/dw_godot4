@@ -20,9 +20,22 @@ Sections are added as systems are ported (`PLANS.md`).
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 
-`test_care.gd` prints `OK: Care checks`. The care values aren't shown on screen yet (bubbles, bars and the debug panel come next), so these checks use what you can see: animations, the clock and the help line. Run the project (F5):
+`test_care.gd` prints `OK: Care checks`. Run the project (F5):
 
-1. **Mood:** a new game's Agumon has happiness 50, so when standing still he plays his happy animation now and then.
+1. **Mood and bars:**
+   - a new game's Agumon has happiness 50, so when standing still he plays his happy animation now and then;
+   - bottom right, next to the help line, two bars: happiness (smiling face) and discipline;
+   - at 50 / 50 the happiness bar is half full (12 of 25 dots) and the discipline bar shows only its background row;
+   - the bars slide off to the right whenever the clock slides away (the sleep scene) and come back with it.
+2. **Bubbles:** a bubble rises over Agumon's head, bobs, and pops after about 2.5 seconds, then shows again every 3 seconds while the condition lasts:
+   - hungry: a piece of meat;
+   - poopy: a poop;
+   - sleepy: 1–3 Z's;
+   - tired, sick, injured: their own icons.
+   
+   With two conditions the two bubbles take turns. A new game starts with "hungry" counted as already shown, so the very first hungry bubble comes about 3 seconds late (a C quirk, `specs/care.md` §6).
+   - Wrong if: the bubble sits on the ground, is far too big or small, or never pops.
+   - The bubble is translucent: you see the background through it, the icon is solid.
 2. **Sleepy and the sleep scene:**
    - Agumon gets sleepy at 19:00 (press `T` until 19:00).
    - Press `Z` (the menu's "Sleep"). Before 19:00 the help line says it only works while he is sleepy.
@@ -40,10 +53,11 @@ Sections are added as systems are ported (`PLANS.md`).
    - Try it with Agumon far away too: walk off, or put a wall between you, just before the accident. He runs straight to you, through walls (the original has no wall check in this scene).
    - Wrong if: you stay frozen, or he keeps running without squatting.
    
-   The pile isn't drawn yet. It is saved in the game state (`world.poop`).
-5. **Hunger and the rest** (hunger calls at 1, 5, 9, 13, 17 and 21 o'clock, sickness, lifetime) only show through animations until the debug panel exists. The tests cover their timings.
+   A poop pile (a brown swirl with a shadow) stays on the ground in front of where he squatted. It is still there after you leave the map and come back, and there are at most 16 per map.
+5. **Hunger:** a hungry bubble at Agumon's hunger hours (1, 5, 9, 13, 17, 21 o'clock; the first call after 09:00 at the new game's start). It lasts 1.5 game hours if you don't feed him (no feeding yet). Sickness and lifetime need the debug panel to check quickly; the tests cover their timings.
 6. **What isn't there yet:**
-   - bubbles, status bars, poop piles, the debug panel;
+   - the debug panel;
+   - the butterfly over an unhappy partner;
    - feeding, praise / scold, toilets (menus);
    - the collapse / death script (the help line names it), evolution, the butterfly.
 

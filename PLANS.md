@@ -35,7 +35,9 @@ Last updated: 2026-10-23
      - [x] Spec `specs/care.md`.
      - [x] Data porter: the §4 properties (`raise_data.first_technique`, `eats_poop`, `raises_virus_bar`; `item_data.passive`) with checks on the C text.
      - [x] `Care` (`scripts/systems/care.gd`) + partner states 1, 3, 7, tamer state / camera follow / scene animations, `Fade`; partner ticks before the clock; area response from the map setup; `tests/test_care.gd`; debug key `Z` for the menu's Sleep.
-     - [ ] Bubbles (`feel_ef`), status bars (`system_w`), poop piles (`UNTI`), fade stand-in.
+     - [x] Bubbles (`feel_ef`, STP split by `PsxTexture`), status bars (`system_w`), poop piles (`UNTI`), fade.
+     - [ ] Backlog (graphics): a black area around the poop piles (reported 2026-10-23). Probably the pile's shadow polygon, semi-transparent in the TMD, drawn opaque by the glTF import (check the UNTI.TMD primitive flags and the asset porter's material export).
+     - [ ] Later: the bubble's bone offset (`CONDITION_FX_OFFSETS`, effect_common.c:307) into the data / asset porter; the butterfly (`butterfly.c`); `createCloudFX` with the effects.
      - [ ] Debug panel (`C`), `tests/test_care.gd`, VERIFY section.
    - How each system is ported: a short spec (C functions reproduced, state and data read) → GDScript naming each C function → headless tests with values worked out from the C code → VERIFY section → this file.
 4. **Next milestones, in order:** text renderer + event scripts (NPC dialogue, Jijimon intro, new game) → menus (inventory, feeding, items, Digimon status) → battle → evolution and training → tournaments and minigames.

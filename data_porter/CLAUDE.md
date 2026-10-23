@@ -4,7 +4,7 @@ Tooling that converts the **game data defined in the decompiled C code** (tables
 
 Sibling of `../asset_porter/` (which converts the **disc files**: textures, models, maps, sound, movies). Both write generated, gitignored output that the game loads at runtime.
 
-Status: package, CLI, writer, decomp index, C table reader and the **Text**, **Moves** and **Digimon** groups are implemented (Python 3, standard library only); items, evolution and systems are next. Progress per table and group is tracked in `PROGRESS.md`; read it first and update it (tables + log line) whenever a table or group changes status.
+Status: package, CLI, writer, decomp index, C table reader and the **Text**, **Moves**, **Digimon** and **Items** groups are implemented (Python 3, standard library only); evolution and systems are next. Progress per table and group is tracked in `PROGRESS.md`; read it first and update it (tables + log line) whenever a table or group changes status.
 
 ## Why a separate tool
 
@@ -18,7 +18,7 @@ Run from this folder:
 
 ```
 python -m dwdata list                    # data groups
-python -m dwdata convert text moves digimon   # or: convert all
+python -m dwdata convert text moves digimon items   # or: convert all
 python -m unittest discover -s tests -t .   # real-data test skipped if the decomp is missing
 ```
 
@@ -35,10 +35,10 @@ Defaults: input `../../external-resources/dw_decomp/`, output `output/` (gitigno
 | `dwdata/textyaml.py` | Strict reader for the YAML subset of `text/**/*.yaml` (all scalars stay text, `NULL` = None, line numbers kept) |
 | `dwdata/cpp.py` | `#if` evaluation per release (`VERSION_IS`, `VERSION_REGION_IS`, `VERSION_EQUAL_OR_NEWER/OLDER`, `defined`); `ConditionTracker` follows `#if/#elif/#else/#endif` |
 | `dwdata/decomp.py` | `Decomp`: releases (`version.h`), C file → binary (`config/us/*.yaml`), US symbols (`symbols*.txt`), identifier references in `src/**/*.c` with enclosing function / data / macro and compiling releases |
-| `dwdata/cdata.py` | C data reader. `CIndex.table(c_file, name, hooks)` returns a table per release, laid out on its C type: structs / typedefs / enums / `#define`s of `include/dw/*.h` and the file, `#if VERSION_…` applied, brace elision, zero fill, width conversion, `sizeof` with PSX alignment. `hooks` expand macros such as `DIGIMON_PARA_NAME(...)`. Unsupported C raises `CError` |
+| `dwdata/cdata.py` | C data reader. `CIndex.table(c_file, name, hooks)` returns a table per release, laid out on its C type: structs / typedefs / enums / `#define`s of `include/dw/*.h` and the file, `#if VERSION_…` applied, brace elision, zero fill, width conversion, `sizeof` with PSX alignment, function-pointer tables (symbols without casts). `hooks` expand macros such as `DIGIMON_PARA_NAME(...)`. `CIndex.switch_cases(c_file, function, variable, release)` reads the cases of a `switch` as data (constant assignments + other statements as text), for effects written as code. Unsupported C raises `CError` |
 | `dwdata/tables.py` | Helpers for C-table groups: `load` (parse in every release + check), `size_check` (against `symbols.txt`), `diffs` (release differences), `used_by` (references with the fields read), `source`, `enum`, `text_ref` |
-| `dwdata/groups/` | One converter per group (`NAME`, `SOURCE_GLOB`, `SPEC`, `PURPOSE`, `convert()` with `out.check(...)` for every assumption), registered in `groups/__init__.py`. Existing: `text.py`, `moves.py`, `digimon.py`. Groups take names from the text YAML directly (`text.load_file`), so they don't depend on run order |
-| `specs/` | One spec per group (`text.md`, `moves.md`, `digimon.md`) |
+| `dwdata/groups/` | One converter per group (`NAME`, `SOURCE_GLOB`, `SPEC`, `PURPOSE`, `convert()` with `out.check(...)` for every assumption), registered in `groups/__init__.py`. Existing: `text.py`, `moves.py`, `digimon.py`, `items.py`. Groups take names from the text YAML directly (`text.load_file`), so they don't depend on run order |
+| `specs/` | One spec per group (`text.md`, `moves.md`, `digimon.md`, `items.md`) |
 | `tests/` | `unittest` tests; `test_cross_asset_porter.py` compares names, file names and sizes with `../asset_porter/dwporter/data` |
 
 The decomp has no `INCLUDE_ASM` left, so references are taken from C only; `asm/` is not read.
@@ -54,7 +54,9 @@ output/
   moves/move_data.json          MOVE_DATA (122 techniques); type_factors.json, learn_chances.json; report.md, manifest.json
   digimon/digimon_data.json     DIGIMON_DATA (180); raise_data.json, sleep_patterns.json, item_take_distance.json,
                                 file_names.json, sound_ids.json; report.md, manifest.json
-  evolution/ items/ systems/ ...   one JSON per table (planned)
+  items/item_data.json          ITEM_PARA + handler + icon palette (128); item_effects.json, healing_values.json,
+                                inventories.json, sort_orders.json, recyclable_items.json, card_data.json, shops.json
+  evolution/ systems/ ...       one JSON per table (planned)
 ```
 
 Every table file has the same shape:
@@ -72,7 +74,7 @@ Nothing from the source may be dropped: unknown or unused fields keep their C na
 
 ## Specs
 
-Location: `specs/<group>.md`. Existing: `text.md`, `moves.md`, `digimon.md`. Planned: `evolution.md`, `items.md`, `systems.md`, … Each spec must contain:
+Location: `specs/<group>.md`. Existing: `text.md`, `moves.md`, `digimon.md`, `items.md`. Planned: `evolution.md`, `systems.md`, … Each spec must contain:
 
 1. **Source:** the C symbols, struct definitions and text files, with `file:line`.
 2. **Original usage:** the functions that use the data and what they do with it — formulas, checks, timings — with `file:line`. This is the part that tells how to write the Godot logic; quote the C condition when it is subtle.
@@ -114,6 +116,7 @@ Paths are relative to this folder.
 
 - **Both porters stay stand-alone.** The asset porter keeps its own `dwporter/data/*.py` tables; this tool doesn't feed them, though cross-checking between the two is fine.
 - **All languages and releases are kept.** `variants` holds every key as written; `text` gives `ja` (jp_rev1), `en_us` (us) and `en_eu` (eu).
+- **Effects written as code become data when they are constant.** A handler's `switch` cases are read as values (`switch_cases`); any other statement is kept as C text next to them, and the rules around them go in the spec. Parallel C arrays with the same index (`ITEM_PARA`, `ITEM_FUNCTIONS`, `ITEM_CLUT_DATA`) may be merged into one table, with every symbol listed in `source`.
 - **C tables: US values in the records, other releases as differences.** Each table is read for every release; records hold the US values, and `release_values` lists what another release changes (C field names). Each record also keeps its raw C values (`c`), next to readable names, enums as `{id, name}` and derived values (`mp` = mpCost × 3).
 
 ## Rules

@@ -52,6 +52,18 @@ Run `python -m dwdata convert digimon`: it should print `6 tables, 31/31 checks 
 - **Files:** `output/digimon/file_names.json` → `records[3].mmd` is `CHDAT/MMD0/AGUM.MMD`, the file the asset porter converts to Agumon's model.
 - **JSON spot check:** `output/digimon/digimon_data.json` → `records[3].moves[0]` is `{"slot": 0, "anim": 46, "move": {"id": 2, "name": "Spit Fire"}}`; `used_by` has around 170 functions, with the fields each reads.
 
+## Items (`output/items/`)
+
+Run `python -m dwdata convert items`: it should print `8 tables, 38/38 checks passed`. Then open `output/items/report.md` (one row per item with its effect, then the cards).
+
+- **Shop prices:** compare a few prices with a shop you remember: Meat 50, Sm. recovery 100, MP Floppy 300, Off. Disk 500. Selling should pay half.
+- **Where items can be used:** Various (8) and the disks (15–21) are `battle`, Bandage (13) and food are `field`, the recovery items are `both`. In the game, battle-only items can't be used in the field menu.
+- **Food effects:** Meat energy +12 / weight +1; Supercarrot gives a training boost to Off, Brain, MP (`train_boost` in `item_effects.json`); Moldy Meat sicknessChance 100. Compare with what you know of the game.
+- **Passive items** (33–37: Trn. manual, Rest pillow, Enemy repel, Enemy bell, Health shoe) show `passive: …` instead of an effect.
+- **Cards:** card prices 5000 / 1500 / 500 / 100 / 50 by rarity; card 1 (Phoenixmon) is rarity 0 (5000). Compare a card price with the card shop.
+- **Inventories:** `inventories.json` holds the two built-in inventories (boot, default savegame). Both are full of high-end items; if you know what a new game starts with, note whether it matches (`specs/items.md` §6).
+- **JSON spot check:** `item_data.json` → `records[38]` is Meat with its description, `handler` = `handleFood`, `c` = the raw C record; `item_effects.json` lists each item's `case` line in `item.c`.
+
 ## Reporting a problem
 
 Note the table, the record id and what you expected vs. saw. The table's `source` says which decomp file and line the value came from.

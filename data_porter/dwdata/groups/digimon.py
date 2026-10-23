@@ -328,8 +328,9 @@ def convert(input_root, output_root) -> GroupWriter:
                             "meaning": "SLEEP_PATTERN index (Rookie and up use its times; Fresh / In-Training only "
                                        "its hours asleep)"},
             "favored_region": {"c_name": "favoredRegion", "c_type": "uint8_t",
-                               "meaning": "map region the partner likes (compared with the map's region bytes, "
-                                          "map.c:4188)"},
+                               "meaning": "region id matched against the map's liked / disliked region bytes "
+                                          "(map.c:4188); liked: sleep recovery x1.2, disliked: x0.8 "
+                                          "(partner_impl.c:1354)"},
             "training_type": {"c_name": "trainingType", "c_type": "uint8_t",
                               "meaning": "0-4: gain factor per gym stat (×0.8 / 0.9 / 1.0 / 1.1, trn_reward.c:603)"},
             "default_weight": {"c_name": "defaultWeight", "c_type": "uint8_t", "unit": "g (as shown)",

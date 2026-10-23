@@ -455,6 +455,11 @@ class Program:
             for t in st[_match(st, texts.index("{")) + 1:]:
                 if t.kind == "id":
                     self.typedefs[t.text] = Scalar(t.text, 4, True)
+        elif "(" in texts and len(st) > 4 and texts[texts.index("(") + 1] == "*":
+            # function pointer type: `typedef void (*ItemFunction)(int16_t);`
+            name = st[texts.index("(") + 2]
+            if name.kind == "id":
+                self.typedefs[name.text] = Pointer("function")
         elif "(" not in texts and st[-1].kind == "id":
             pointers = texts.count("*")
             base = [t for t in st[:-1] if t.text != "*"]
@@ -629,7 +634,11 @@ class Program:
                              f"{' '.join(t.text for t in tokens)}")
             return v
         except _Unresolved:
-            return CSymbol(_join(tokens))
+            # `(ItemFunction)handleFood` -> handleFood: casts don't change which symbol it is
+            parser = _ExprParser(self, tokens, seen)
+            while parser._is_cast():
+                parser.pos = next(j for j in range(parser.pos, len(tokens)) if tokens[j].text == ")") + 1
+            return CSymbol(_join(tokens[parser.pos:]))
 
     # -- initializers -------------------------------------------------------------------------
 
@@ -785,7 +794,7 @@ class Program:
 
     def _scalar(self, ty, v, ctx, line):
         if isinstance(ty, Pointer):
-            if isinstance(v, int) and v == 0:
+            if (isinstance(v, int) and v == 0) or v == CSymbol("NULL"):
                 return None
             return v.text if isinstance(v, CSymbol) else v
         if isinstance(v, CSymbol):
@@ -989,10 +998,90 @@ class CIndex:
             out[release] = Loaded(release, decl, ty, value, lines, ctx.issues, ctx.wrapped, ctx.implicit, unknown)
         return out
 
+    def switch_cases(self, c_rel: str, function: str, variable: str, release: str) -> list:
+        """The cases of `switch (variable)` in a function, as one release compiles it.
+
+        Returns [{"cases": [values], "line", "assign": {var: value}, "other": [statement text]}]:
+        constant assignments `x = <const>;` are evaluated, any other statement is kept as text.
+        A case ends at `break;` / `return;` or at the next label (fall-through is reported as
+        "falls_through": True). Raises CError if the function or the switch isn't found.
+        """
+        prog = self.program(c_rel, release)
+        tokens = self.unit(c_rel).view(release)
+        body = _function_body(tokens, function)
+        texts = [t.text for t in body]
+        start = next((k for k in range(len(body) - 3) if texts[k] == "switch" and texts[k + 1] == "("
+                      and texts[k + 2] == variable and texts[k + 3] == ")"), None)
+        if start is None:
+            raise CError(f"{c_rel}: no switch ({variable}) in {function}")
+        open_ = start + 4
+        end = _match(body, open_)
+        out, cur, k = [], None, open_ + 1
+        while k < end:
+            t = body[k]
+            if t.text in ("case", "default"):
+                colon = next(j for j in range(k, end) if body[j].text == ":")
+                value = "default" if t.text == "default" else prog.eval_int(body[k + 1:colon])
+                if cur is None or cur["assign"] or cur["other"] or cur.get("closed"):
+                    if cur is not None and not cur.get("closed"):
+                        cur["falls_through"] = True
+                    cur = {"cases": [], "line": t.line, "assign": {}, "other": []}
+                    out.append(cur)
+                cur["cases"].append(value)
+                k = colon + 1
+                continue
+            # one statement (a nested block counts as one)
+            j, depth = k, 0
+            while j < end:
+                if body[j].text in "({":
+                    depth += 1
+                elif body[j].text in ")}":
+                    depth -= 1
+                if depth == 0 and (body[j].text == ";" or (body[j].text == "}" and body[k].text != "(")):
+                    break
+                j += 1
+            stmt = body[k:j + 1]
+            st = [x.text for x in stmt]
+            if cur is None:
+                raise CError(f"{c_rel}:{t.line}: statement before the first case")
+            if st[:1] in (["break"], ["return"]) and st[-1] == ";":
+                cur["closed"] = True
+                if st[0] == "return" and len(st) > 2:
+                    cur["other"].append(_join(stmt))
+            elif len(st) >= 4 and stmt[0].kind == "id" and st[1] == "=" and st[-1] == ";":
+                v = prog.evaluate(stmt[2:-1])
+                if isinstance(v, int):
+                    cur["assign"][st[0]] = v
+                else:
+                    cur["other"].append(_join(stmt))
+            else:
+                cur["other"].append(_join(stmt))
+            k = j + 1
+        for c in out:
+            c.pop("closed", None)
+        return out
+
     def struct_source(self, c_rel: str, release: str, type_name: str):
         """(file, line) of a struct definition."""
         ty = self.program(c_rel, release).structs.get(type_name)
         return (ty.file, ty.line) if ty else (None, None)
+
+
+def _function_body(tokens: list, name: str) -> list:
+    """Tokens of a function definition's body (between its braces); K&R headers are allowed."""
+    for i, t in enumerate(tokens):
+        if t.text != name or i + 1 >= len(tokens) or tokens[i + 1].text != "(":
+            continue
+        close = _match(tokens, i + 1)
+        j = close + 1
+        if j < len(tokens) and tokens[j].text == ";":
+            continue   # prototype or call statement
+        # skip K&R parameter declarations (`int16_t type;`) up to the body
+        while j < len(tokens) and (tokens[j].kind in ("id", "num") or tokens[j].text in ("*", ";", "[", "]")):
+            j += 1
+        if j < len(tokens) and tokens[j].text == "{":
+            return tokens[j + 1:_match(tokens, j)]
+    raise CError(f"function {name} not found")
 
 
 def describe_type(ty) -> list:

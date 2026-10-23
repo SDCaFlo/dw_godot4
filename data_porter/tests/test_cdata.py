@@ -63,6 +63,32 @@ Thing THINGS[2] = {
 static const char GREETING[] = "Hi\\n" "there";
 uint8_t GRID[2][3] = { { 1, 2, 3 }, 4, 5, 6 };
 Holder HOLDER = { .other = { 1 } };
+
+typedef void (*Handler)(int16_t);
+void eat(int16_t id);
+Handler HANDLERS[3] = { (Handler)eat, NULL, eat };
+
+void eat(id)
+	int16_t id;
+{
+	int16_t a, b;
+
+	a = b = 0;
+	switch (id) {
+	case 1:
+	case 2:
+		a = 5;
+		b = -COUNT;
+		break;
+	case 3:
+		if (a) { doThing(a); }
+		return;
+	case 4:
+		a = 1;
+	default:
+		b = 2;
+	}
+}
 """
 
 
@@ -118,6 +144,21 @@ class CDataTests(unittest.TestCase):
         eu = self.index.program("src/main/thing.c", "eu")
         self.assertEqual(sizeof(eu.structs["Thing"]), 12)        # 4 + 2 + 3 + 1, padded to 4
         self.assertEqual(self.table("THINGS", {"NAME": name_hook})["jp"].decl.line, 5)
+
+    def test_function_pointer_table(self):
+        handlers = self.table("HANDLERS")["us"]
+        self.assertEqual(handlers.type.describe(), "function *[3]")
+        self.assertEqual(handlers.value, ["eat", None, "eat"])     # cast stripped, NULL -> None
+
+    def test_switch_cases(self):
+        cases = self.index.switch_cases("src/main/thing.c", "eat", "id", "us")
+        self.assertEqual([c["cases"] for c in cases], [[1, 2], [3], [4], ["default"]])
+        self.assertEqual(cases[0]["assign"], {"a": 5, "b": -3})
+        self.assertEqual(cases[1]["other"], ["if(a){doThing(a);}"])
+        self.assertTrue(cases[2]["falls_through"])
+        self.assertNotIn("falls_through", cases[0])
+        with self.assertRaises(CError):
+            self.index.switch_cases("src/main/thing.c", "eat", "nothing", "us")
 
     def test_generated_macro_prefix_is_skipped_but_unknown_types_raise(self):
         prog = self.index.program("src/main/thing.c", "us")

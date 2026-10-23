@@ -72,7 +72,9 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
 - **`poopSize`**: size of the pile on the map (`partner_impl.c:1287`) and the weight lost per poop, `(randomLimit(4) + poopSize) / 4` (`:1751`).
 - **`favoriteFood`** (item id): eating it gives ×1.4 energy and +2 happiness (`item.c:2904`). When the partner isn't hungry, it may refuse its favourite food: if the roll is below 2, `refusedFavFood` is set (`partner_impl.c:1482–1490`).
 - **`sleepCycle`** (index into `SLEEP_PATTERN`): sleep and wake-up times for level 3+ (`setSleepTimes`). The menu shows an "active time" label for cycles 0–4 and a separate one for 5 (`game_menu.c:2522–2534`).
-- **`favoredRegion`**: compared with the 4 + 4 region bytes of the current map. A match sets `partnerAreaResponse` (`map.c:4183–4196`).
+- **`favoredRegion`**: compared with the 4 + 4 region bytes of the current map (`map.c:4183–4197`).
+  - A match in the first 4 sets `partnerAreaResponse = 1` (a place it likes); in the second 4, `= 2` (a place it dislikes).
+  - The response scales sleep recovery: ×1.2 for 1, ×0.8 for 2 (`partner_impl.c:1354–1357`).
 - **`trainingType`** (0–4): per gym stat, a factor 8–11 (×0.8–×1.1) of the training gain (`trn_reward.c:603–671`). Type 4 always gets ×0.8.
 - **`defaultWeight`**: weight at birth / evolution (`partner_impl.c:488`, `:613`, `evl.c:1411`).
 - **`viewX/Y/Z`**: model position in the Digimon menu's 3D view (`game_menu.c:3989`).
@@ -141,7 +143,7 @@ Tests: `tests/test_digimon.py` (real data when `dw_decomp` is present), `tests/t
 ## 6. Open questions
 
 - **`unk2`** in `RaiseData` (1200 or 0) isn't read anywhere. It may be a default for another timer.
-- **`favoredRegion`**: what `partnerAreaResponse` does with the match isn't traced yet (map / partner mood).
+- **`partnerAreaResponse`** may have other effects besides sleep recovery. Only `partner_impl.c:1354` was traced.
 - **`checkEatDistance`** units: the item-take distance is passed through unchanged. Read that function when the partner is ported.
 - **Ids 114–127** (empty name at 114, NPC characters): their use by scripts is a scripts topic.
 - **`ORIGINAL_DIGIMON_TYPES[180]`** (`effect_common.c:249`), `DIGIMON_SKELETONS` (`model.c:2310`) and `TOURNAMENT_SCHEDULE[180]` (`script_common.c:585`) are also indexed by Digimon id. The first is runtime state set to -1; the skeletons are in the asset porter; the tournament table belongs to Systems.

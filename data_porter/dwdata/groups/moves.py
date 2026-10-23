@@ -57,6 +57,7 @@ TABLE_PURPOSES = {
 
 MOVE_SCHEMA = {
     "id": {"meaning": "technique id = index in MOVE_DATA and MOVE_NAMES; DIGIMON_DATA[].moves hold these ids"},
+    "key": tables.KEY_SCHEMA,
     "name": {"meaning": "MOVE_NAMES[id] (text/main/item.json): string id and text per language; unnamed entries "
                         "repeat an earlier entry (same_as)", "ref": "text/main/item"},
     "category": {"meaning": "from the id ranges the code tests: technique (0x00-0x39, learnable), finisher "
@@ -225,6 +226,7 @@ def convert(input_root, output_root) -> GroupWriter:
         if rd:
             rec["release_values"] = rd
         records.append(rec)
+    tables.keys(out, records, "move", tables.name_base("STR_MOVE_NAME_"))
     for check in ("distance_squared is a perfect square", "range is a known value", "element is a known value",
                   "status is a known value", "status and status_chance are both set or both 0",
                   "flags use only bits 0-1", "unk4 / unk5 are 0", "techniques and finishers have a name"):

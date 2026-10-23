@@ -221,6 +221,7 @@ def convert(input_root, output_root) -> GroupWriter:
         if rd:
             rec["release_values"] = rd
         digimon.append(rec)
+    tables.keys(out, digimon, "digimon", tables.name_base("STR_DIGIMON_NAME_"))
     for check in ("the embedded name is DIGIMON_NAMES[id]", "type is a known value", "level is a known value",
                   "elements are known values", "technique slots hold technique ids or 0xff",
                   "drop item is an item id", "drop chance is a percentage", "padding is 0"):
@@ -236,6 +237,7 @@ def convert(input_root, output_root) -> GroupWriter:
                                                         "names": f"{NAMES_FILE} DIGIMON_NAMES"}),
         "schema": {
             "id": {"meaning": "Digimon id (entity type) = index in DIGIMON_DATA, DIGIMON_NAMES, the model / sound tables"},
+            "key": tables.KEY_SCHEMA,
             "name": {"meaning": "DIGIMON_NAMES[id] (text/main/main.json); embedded in the struct as `name` "
                                 "(char[20]) except in EU, where the struct has no name field", "ref": "text/main/main"},
             "partner": {"meaning": "id < 66 (NUM_PARTNER_DIGIMON): has raise_data, voice bank and can be the partner"},

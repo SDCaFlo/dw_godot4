@@ -33,11 +33,11 @@ Keys come from the C string id of the record's name, which the decomp already ke
 - **name** = the string id without its prefix, lowercased: `STR_DIGIMON_NAME_AGUMON` → `dw1:agumon`, `STR_DIGIMON_NAME_NPC_GREYMON` → `dw1:npc_greymon`, `STR_ITEM_NAME_SM_RECOVERY` → `dw1:sm_recovery`, `STR_TOURNAMENT_NAME_GRADE_A` → `dw1:grade_a`. The prefix is `STR_<KIND>_NAME_` of that table.
 - **Several records sharing one string id** (the decomp points them to one string): each of them gets `_<id>`. Techniques: `dw1:dynamite_kick_44`, `dw1:dynamite_kick_48`, `dw1:horizontal_kick_55` / `_57`, `dw1:bubble_113`, `_118`, `_119`, `_120`.
 - **Records with no name string**: `<kind>_<id>` (technique 121 → `dw1:move_121`).
-- **Maps** use their file name, which is unique: `dw1:mayo01`. The area name is shared by many maps (18 maps are "Native Forest").
+- **Maps** use their file name: `dw1:mayo01`. The area name is shared by many maps (18 maps are "Native Forest"). Two entries use the same file (`YAKA25`, ids 65 and 232: `dw1:yaka25_65`, `dw1:yaka25_232`), and 11 unused entries have no file (`dw1:map_239` …).
 - **Per-Digimon tables** (`raise_data`, `sleep_patterns`, evolution requirements / gains / paths, cards, file names, sounds, item take distance) don't get keys of their own: they are **components** of the Digimon entity (§3) and reference its key.
 - The porter checks that keys are unique per kind. A collision fails `convert`.
 
-Key kinds (separate namespaces, so `dw1:meat` can't clash with a Digimon key): `digimon`, `move`, `item`, `card`, `map`, `tournament`, and more as systems need them.
+Key kinds (separate namespaces, so `dw1:meat` can't clash with a Digimon key): `digimon`, `move`, `item`, `map`, `tournament`, and more as systems need them.
 
 ## 3. Entities and components
 

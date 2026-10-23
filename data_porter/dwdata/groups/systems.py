@@ -281,8 +281,13 @@ def convert(input_root, output_root) -> GroupWriter:
         except CError:
             image_paths.append(None)
             bad["grade images"].append(sym)
+    tournaments = [{"id": k, "name": sref(names_l[k]), "grade": sref(grades_l[k]), "grade_image": image_paths[k],
+                    "opponent_base_stat": base_stats[k] if k < len(base_stats) else None, "days": days_of.get(k, [])}
+                   for k in range(len(names_l))]
+    tables.keys(out, tournaments, "tournament", tables.name_base("STR_TOURNAMENT_NAME_"))
     write("tournaments", ["TOURNAMENT_NAMES", "TOURNAMENT_GRADES", "STD_GRADES", "STD_OPPONENT_BASE_STATS"], {
         "id": {"meaning": "tournament id (TOURNAMENT_NAMES index; PSTAT values in scripts)"},
+        "key": tables.KEY_SCHEMA,
         "name": {"c_name": "TOURNAMENT_NAMES[id]", "ref": "text/main/script_common"},
         "grade": {"c_name": "TOURNAMENT_GRADES[id]", "meaning": "short grade label of the schedule board"},
         "grade_image": {"c_name": "STD_GRADES[id]", "meaning": "TIM drawn by the arena overlay"},
@@ -291,9 +296,7 @@ def convert(input_root, output_root) -> GroupWriter:
                                           "10 b ± 30 %, x1 (Rookie), x2 (Champion), x2.5 (Ultimate), capped "
                                           "(STD_initializeOpponent, std_setup.c:292-345)"},
         "days": {"meaning": "days of the month (0-29) it is held (TOURNAMENT_SCHEDULE)"},
-    }, [{"id": k, "name": sref(names_l[k]), "grade": sref(grades_l[k]), "grade_image": image_paths[k],
-         "opponent_base_stat": base_stats[k] if k < len(base_stats) else None, "days": days_of.get(k, [])}
-        for k in range(len(names_l))],
+    }, tournaments,
         {"access": "GameData.tournament(id)"},
         extra={"unused": {"STD_OPPONENT_BASE_STATS": base_stats[len(names_l):]}})
 
@@ -345,9 +348,12 @@ def convert(input_root, output_root) -> GroupWriter:
                      "arena": k in arena, "c": m})
     for check in ("maps: toiletId is 0 or a TOILET_DATA index + 1", "maps: loadingName is a MAP_NAME_PTR index"):
         out.check(check, not bad[check], "; ".join(bad[check][:10]) or f"{len(maps)} maps")
+    # Maps are keyed by file name: the area name is shared by many maps (specs/content.md §2).
+    tables.keys(out, maps, "map", lambda r: r["file"].lower() if r["file"] else None)
     map_struct = index.program(MAP_C, REFERENCE).structs["MapEntry"]
     write("maps", ["MAP_ENTRIES", "MAP_NAME_PTR", "ARENA_MAPS"], {
         "id": {"meaning": "map id (CURRENT_SCREEN; MAP/MAP<id // 15 + 1>/<file>.MAP, see asset_porter specs/map.md)"},
+        "key": dict(tables.KEY_SCHEMA, meaning="content key dw1:<file name> (specs/content.md §2)"),
         "file": {"c_name": "filename"}, "images_8bpp": {"c_name": "num8bppImages"},
         "images_4bpp": {"c_name": "num4bppImages"},
         "sound_bank": {"c_name": "flags & 0x1f", "meaning": "map sound bank (map.c:4214)"},

@@ -13,7 +13,7 @@ Last updated: 2026-10-23
 
 1. **Content foundations** (`specs/content.md`, "Order of work")
    - [x] Design spec `specs/content.md`.
-   - [ ] Data porter: `key` on every entity record (§2 key rule, uniqueness check) and the `dw1` `pack.json` manifest.
+   - [x] Data porter: `key` on every entity record (§2 key rule, uniqueness check) and the `dw1` `pack.json` manifest.
    - [ ] `GameData` as the pack registry: key lookups next to numeric aliases, entity view (components, §3), record-level merging (add / patch / remove, §5), replacing the whole-file mod folders.
    - [ ] Property flags (§4): added per system when that system is ported; techniques first (`move.kind`, `learnable`).
 2. **Editor visibility** (seeing the game content while working in Godot)

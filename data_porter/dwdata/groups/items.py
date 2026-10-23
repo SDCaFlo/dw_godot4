@@ -196,6 +196,7 @@ def convert(input_root, output_root) -> GroupWriter:
         if rd:
             rec["release_values"] = rd
         items.append(rec)
+    tables.keys(out, items, "item", tables.name_base("STR_ITEM_NAME_"))
     for check in ("the embedded name is ITEM_NAMES[id]", "use (itemColor) is a known value",
                   "droppable is 0 or 1", "sort category is 0-5"):
         out.check(f"ITEM_PARA: {check}", not bad[check], "; ".join(bad[check][:10]) or f"{len(items)} records")
@@ -303,6 +304,7 @@ def convert(input_root, output_root) -> GroupWriter:
 
     write("item_data", para, {
         "id": {"meaning": "item id = index in ITEM_PARA, ITEM_NAMES, ITEM_DESCS, ITEM_FUNCTIONS, ITEM_CLUT_DATA"},
+        "key": tables.KEY_SCHEMA,
         "name": {"meaning": "ITEM_NAMES[id]; embedded as `name` (char[20]) except in EU", "ref": "text/main/item"},
         "description": {"meaning": "ITEM_DESCS[id] (2 lines in EU)", "ref": "text/main/item"},
         "price": {"c_name": "value", "c_type": "int32_t", "unit": "bits", "meaning": "shop price"},

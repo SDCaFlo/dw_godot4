@@ -36,7 +36,7 @@ Defaults: input `../../external-resources/dw_decomp/`, output `output/` (gitigno
 | `dwdata/cpp.py` | `#if` evaluation per release (`VERSION_IS`, `VERSION_REGION_IS`, `VERSION_EQUAL_OR_NEWER/OLDER`, `defined`); `ConditionTracker` follows `#if/#elif/#else/#endif` |
 | `dwdata/decomp.py` | `Decomp`: releases (`version.h`), C file → binary (`config/us/*.yaml`), US symbols (`symbols*.txt`), identifier references in `src/**/*.c` with enclosing function / data / macro and compiling releases |
 | `dwdata/cdata.py` | C data reader. `CIndex.table(c_file, name, hooks)` returns a table per release, laid out on its C type: structs / typedefs / enums / `#define`s of `include/dw/*.h` and the file, `#if VERSION_…` applied, brace elision, zero fill, width conversion, `sizeof` with PSX alignment, function-pointer tables (symbols without casts). `hooks` expand macros such as `DIGIMON_PARA_NAME(...)`. `CIndex.switch_cases(c_file, function, variable, release)` reads the cases of a `switch` as data (constant assignments + other statements as text), for effects written as code. Unsupported C raises `CError` |
-| `dwdata/tables.py` | Helpers for C-table groups: `load` (parse in every release + check), `size_check` (against `symbols.txt`), `diffs` (release differences), `used_by` (references with the fields read), `source`, `enum`, `text_ref` |
+| `dwdata/tables.py` | Helpers for C-table groups: `load` (parse in every release + check), `size_check` (against `symbols.txt`), `diffs` (release differences), `used_by` (references with the fields read), `source`, `enum`, `text_ref`, `keys` / `name_base` (content keys) |
 | `dwdata/groups/` | One converter per group (`NAME`, `SOURCE_GLOB`, `SPEC`, `PURPOSE`, `convert()` with `out.check(...)` for every assumption), registered in `groups/__init__.py`. Existing: `text.py`, `moves.py`, `digimon.py`, `items.py`, `evolution.py`, `systems.py`. Groups take names from the text YAML directly (`text.load_file`), so they don't depend on run order |
 | `specs/` | One spec per group (`text.md`, `moves.md`, `digimon.md`, `items.md`, `evolution.md`, `systems.md`) |
 | `tests/` | `unittest` tests; `test_cross_asset_porter.py` compares names, file names and sizes with `../asset_porter/dwporter/data`, and maps / toilets with the asset porter's reading of the US executable |
@@ -47,7 +47,8 @@ The decomp has no `INCLUDE_ASM` left, so references are taken from C only; `asm/
 
 ```
 output/
-  catalog.json                  index: every table -> group, file, one-line purpose, spec, C symbols; per group: check counts
+  catalog.json                  index: every table -> group, file, one-line purpose, spec, C symbols, keyed; per group: check counts
+  pack.json                     the dw1 content pack manifest (../specs/content.md)
   text/manifest.json            sources (sha1), checks, counts, control codes found
   text/report.md                human sheet: every block as a table (id | ja | en_us | en_eu)
   text/<dir>/<name>.json        one table per text/<dir>/<name>.yaml (e.g. text/main/item.json)
@@ -134,7 +135,7 @@ Paths are relative to this folder.
 - **Effects written as code become data when they are constant.** A handler's `switch` cases are read as values (`switch_cases`); any other statement is kept as C text next to them, and the rules around them go in the spec. Parallel C arrays with the same index (`ITEM_PARA`, `ITEM_FUNCTIONS`, `ITEM_CLUT_DATA`) may be merged into one table, with every symbol listed in `source`.
 - **C tables: US values in the records, other releases as differences.** Each table is read for every release; records hold the US values, and `release_values` lists what another release changes (C field names). Each record also keeps its raw C values (`c`), next to readable names, enums as `{id, name}` and derived values (`mp` = mpCost × 3).
 
-- **Content architecture** (`../specs/content.md`): this output is the `dw1` content pack. Planned additions: a `key` on every entity record (from the name's string id, §2) and property flags that replace the original id-range rules (§4), added per system when it is ported. Both are additions; the lossless fields stay.
+- **Content architecture** (`../specs/content.md`): this output is the `dw1` content pack (`output/pack.json`). Entity records (Digimon, techniques, items, maps, tournaments) carry a `key` right after `id` (`tables.keys`, §2 rule, checked unique; tables marked `"keyed": true` in `catalog.json`). Property flags that replace the original id-range rules (§4) are added per system when it is ported. Both are additions; the lossless fields stay.
 
 ## Rules
 

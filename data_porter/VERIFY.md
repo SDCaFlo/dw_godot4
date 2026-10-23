@@ -27,7 +27,7 @@ Run `python -m dwdata convert text`: it should print `24 tables, 79/79 checks pa
 
 ## Moves (`output/moves/`)
 
-Run `python -m dwdata convert moves`: it should print `3 tables, 24/24 checks passed`. Then open `output/moves/report.md`. It has one row per technique, with MP shown the way the menus show it (mp_cost × 3), plus the element factor grid and the learn chances.
+Run `python -m dwdata convert moves`: it should print `3 tables, 25/25 checks passed`. Then open `output/moves/report.md`. It has one row per technique, with MP shown the way the menus show it (mp_cost × 3), plus the element factor grid and the learn chances.
 
 - **Known techniques:** compare 3–4 techniques with the in-game technique menu (Digimon menu → techniques: power, MP, range icon, status icon):
   - Spit Fire (2): power 66, MP 30, ranged, fire, no status
@@ -42,7 +42,7 @@ Run `python -m dwdata convert moves`: it should print `3 tables, 24/24 checks pa
 
 ## Digimon (`output/digimon/`)
 
-Run `python -m dwdata convert digimon`: it should print `6 tables, 31/31 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
+Run `python -m dwdata convert digimon`: it should print `6 tables, 32/32 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
 
 - **Known Digimon:** Agumon (3) is a Rookie, Vaccine, elements fire and battle. Its first techniques are Spit Fire and Fire Tower; it drops Sm.Recovery (50 %). Compare 2–3 Digimon you know with the game's Digimon menu (level, type icon, techniques).
 - **Type names:** Gabumon (17) shows `data`, Agumon `vaccine`, Betamon (4) `virus`. If the menu icons say otherwise, the type labels are swapped (`specs/digimon.md` §3).
@@ -54,7 +54,7 @@ Run `python -m dwdata convert digimon`: it should print `6 tables, 31/31 checks 
 
 ## Items (`output/items/`)
 
-Run `python -m dwdata convert items`: it should print `8 tables, 38/38 checks passed`. Then open `output/items/report.md` (one row per item with its effect, then the cards).
+Run `python -m dwdata convert items`: it should print `8 tables, 39/39 checks passed`. Then open `output/items/report.md` (one row per item with its effect, then the cards).
 
 - **Shop prices:** compare a few prices with a shop you remember: Meat 50, Sm. recovery 100, MP Floppy 300, Off. Disk 500. Selling should pay half.
 - **Where items can be used:** Various (8) and the disks (15–21) are `battle`, Bandage (13) and food are `field`, the recovery items are `both`. In the game, battle-only items can't be used in the field menu.
@@ -77,7 +77,7 @@ Run `python -m dwdata convert evolution`: it should print `4 tables, 21/21 check
 
 ## Systems (`output/systems/`)
 
-Run `python -m dwdata convert systems`: it should print `18 tables, 57/57 checks passed`. Then open `output/systems/report.md`.
+Run `python -m dwdata convert systems`: it should print `18 tables, 59/59 checks passed`. Then open `output/systems/report.md`.
 
 - **Tournaments:** names and grade letters (Grade D … Beetle Cup) match the arena board; Grade D is held on most days, Grade S on days 6, 13, 20, 27 of the month. If you remember the schedule, compare.
 - **Battle commands:** field battles: 3 commands below brain 100 up to 9 from brain 500; arena: one fewer (no running away). Does that match what you remember of the command menu?
@@ -87,6 +87,13 @@ Run `python -m dwdata convert systems`: it should print `18 tables, 57/57 checks
 - **Training spots:** Green Gym lists one spot per stat.
 - **Fishing:** fish kinds are Digianchovy … Digiseabass; a stuck line gives Sm. recovery most of the time (35 %).
 - **Mojyamon trades:** e.g. Digimushrm → Med. recovery, Supercarrot → Omnipotent.
+
+## Content keys and the `dw1` pack (`../specs/content.md`)
+
+- `output/pack.json` exists with `"id": "dw1"`.
+- Keys read like the names you know: `digimon_data.json` → `records[3].key` is `dw1:agumon`, `records[129]` (the NPC Greymon) `dw1:npc_greymon`; `move_data.json` → `records[2]` `dw1:spit_fire`; `item_data.json` → `records[38]` `dw1:meat`; `maps.json` → `records[0]` `dw1:mayo01`; `tournaments.json` → `records[0]` `dw1:grade_d`.
+- Suffixes only where names are shared: the two Dynamite Kicks are `dw1:dynamite_kick_44` / `_48`; the two YAKA25 map entries `dw1:yaka25_65` / `_232`. The `… keys: unique and well formed` checks in each manifest list all of them.
+- If a key looks wrong or unhelpful, say so now: keys will go into savegames and packs, so they should not change later.
 
 ## Godot `GameData` (`scripts/data/game_data.gd`)
 

@@ -73,14 +73,18 @@ class GroupWriter:
         ordered.update({k: v for k, v in table.items() if k not in TABLE_KEYS})
         path = self.dir / f"{name}.json"
         dump_json(path, ordered)
-        self.tables.append({
+        entry = {
             "table": f"{self.group}/{name}",
             "group": self.group,
             "file": path.relative_to(self.output_root).as_posix(),
             "purpose": table["table"].get("purpose", ""),
             "spec": self.spec,
             "symbols": symbols or [],
-        })
+        }
+        records = table["records"]
+        if records and isinstance(records[0], dict) and "key" in records[0]:
+            entry["keyed"] = True   # entity table: every record has a content key
+        self.tables.append(entry)
         return path
 
     def write_report(self, name: str, markdown: str) -> Path:
@@ -130,4 +134,20 @@ class GroupWriter:
             "tables": sorted(tables, key=lambda t: t["table"]),
         }
         dump_json(catalog_path, catalog)
+        dump_json(self.output_root / "pack.json", PACK_MANIFEST)
         return manifest
+
+
+# This output is the dw1 content pack (../specs/content.md §1). Paths are relative to this folder;
+# the asset folder is the default layout, overridden like PorterAssets (DW_PORTER_OUTPUT).
+PACK_MANIFEST = {
+    "id": "dw1",
+    "name": "Digimon World (original game)",
+    "version": __version__,
+    "depends": [],
+    "generated": True,
+    "data": {"tables": "catalog.json"},
+    "assets": {"tool": "asset_porter", "dir": "../../asset_porter/output",
+               "override": "DW_PORTER_OUTPUT / dw/porter/output_dir"},
+    "spec": "specs/content.md",
+}

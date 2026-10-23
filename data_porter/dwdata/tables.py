@@ -7,13 +7,51 @@
 - source      the `source` block of a table file
 - enum        {"id", "name"} for a value with known names
 - text_ref    {"string_id", "text"} for an entry of a text block (text group's FileModel)
+- keys        the content key of every entity record (../specs/content.md §2)
 """
 
 import re
+from collections import Counter
 
 from .cdata import CError, sizeof
 
 REFERENCE = "us"   # release whose values fill the records; other releases only list differences
+PACK = "dw1"       # content pack of this output (../specs/content.md §1)
+KEY_SCHEMA = {"meaning": "content key <pack>:<name> (specs/content.md §2); the numeric id is the dw1 alias",
+              "type": "string"}
+
+
+def name_base(prefix: str):
+    """Key base from the name's C string id: STR_DIGIMON_NAME_AGUMON -> agumon (None without one)."""
+    def base(record):
+        sid = (record.get("name") or {}).get("string_id")
+        return sid[len(prefix):].lower() if sid and sid.startswith(prefix) else None
+    return base
+
+
+def keys(out, records: list, kind: str, base) -> None:
+    """Inserts "key" after "id" in every record: <pack>:<base>, <base>_<id> when several records share
+    a base, <kind>_<id> without one. Checks the keys are unique and well formed."""
+    bases = [base(r) for r in records]
+    shared = Counter(b for b in bases if b)
+    keyed = []
+    for r, b in zip(records, bases):
+        name = f"{kind}_{r['id']}" if b is None else f"{b}_{r['id']}" if shared[b] > 1 else b
+        items = list(r.items())
+        r.clear()
+        for k, v in items:
+            r[k] = v
+            if k == "id":
+                r["key"] = f"{PACK}:{name}"
+        keyed.append(r["key"])
+    bad = [k for k in keyed if not re.fullmatch(r"[a-z0-9_]+:[a-z0-9_]+", k)]
+    dupes = [k for k, n in Counter(keyed).items() if n > 1]
+    fallback = [k for k, b in zip(keyed, bases) if b is None]
+    split = sorted({b for b in bases if b and shared[b] > 1})
+    out.check(f"{kind} keys: unique and well formed", not bad and not dupes,
+              f"bad {bad[:5]}, duplicates {dupes[:5]}" if bad or dupes else
+              f"{len(keyed)} keys; with id suffix (shared name): {split or 'none'}; "
+              f"without a name: {fallback or 'none'}")
 
 
 def enum(value, names: dict) -> dict:

@@ -33,6 +33,7 @@ const ENTITIES := {
 	"item": "items/item_data",
 	"map": "systems/maps",
 	"tournament": "systems/tournaments",
+	"card": "items/card_data",
 }
 
 var language := "en_us"
@@ -294,8 +295,8 @@ static func _merge(target: Dictionary, patch: Dictionary) -> void:
 # --- Entities (specs/content.md §3) ----------------------------------------------------------
 
 ## One entity with its components, e.g. entity("digimon", "dw1:agumon") ->
-## {"kind", "key", "id", "digimon": record, "files", "sounds", "care", "evolution", "card",
-## "enemy_music"}. Components a Digimon doesn't have are left out. dw1 components come from their
+## {"kind", "key", "id", "digimon": record, "files", "sounds", "care", "evolution",
+## "enemy_music"}. Cards are entities of their own that show a Digimon (cards_of()). Components a Digimon doesn't have are left out. dw1 components come from their
 ## tables by numeric id; a pack-added entity brings its own in its "components" dictionary.
 func entity(kind: String, ref: Variant) -> Dictionary:
 	if not ENTITIES.has(kind):
@@ -327,7 +328,7 @@ func _components_digimon(id: int, _main: Dictionary) -> Dictionary:
 			evolution[part[0]] = part[1]
 	var music := enemy_music(id)
 	return {"files": digimon_file(id), "sounds": digimon_sounds(id), "care": care, "evolution": evolution,
-			"card": find("items/card_data", "digimon", id), "enemy_music": {"track": music} if music >= 0 else {}}
+			"enemy_music": {"track": music} if music >= 0 else {}}
 
 
 func _components_move(id: int, _main: Dictionary) -> Dictionary:
@@ -344,6 +345,10 @@ func _components_map(id: int, main: Dictionary) -> Dictionary:
 
 
 func _components_tournament(_id: int, _main: Dictionary) -> Dictionary:
+	return {}
+
+
+func _components_card(_id: int, _main: Dictionary) -> Dictionary:
 	return {}
 
 
@@ -519,8 +524,14 @@ func shops() -> Dictionary:
 	return record("items/shops", 0)
 
 
-func card(id: int) -> Dictionary:
-	return record("items/card_data", id)
+## A collectible card (its own content kind: rarity, price, merit, the Digimon it shows).
+func card(ref: Variant) -> Dictionary:
+	return record("items/card_data", ref)
+
+
+## Cards showing a Digimon ([] for most: not every Digimon has a card).
+func cards_of(digimon_ref: Variant) -> Array:
+	return find_all("items/card_data", "digimon", _digimon_id(digimon_ref))
 
 
 func _item_id(ref: Variant) -> int:

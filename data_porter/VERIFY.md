@@ -54,7 +54,7 @@ Run `python -m dwdata convert digimon`: it should print `6 tables, 32/32 checks 
 
 ## Items (`output/items/`)
 
-Run `python -m dwdata convert items`: it should print `8 tables, 39/39 checks passed`. Then open `output/items/report.md` (one row per item with its effect, then the cards).
+Run `python -m dwdata convert items`: it should print `8 tables, 40/40 checks passed`. Then open `output/items/report.md` (one row per item with its effect, then the cards).
 
 - **Shop prices:** compare a few prices with a shop you remember: Meat 50, Sm. recovery 100, MP Floppy 300, Off. Disk 500. Selling should pay half.
 - **Where items can be used:** Various (8) and the disks (15–21) are `battle`, Bandage (13) and food are `field`, the recovery items are `both`. In the game, battle-only items can't be used in the field menu.
@@ -91,7 +91,7 @@ Run `python -m dwdata convert systems`: it should print `18 tables, 59/59 checks
 ## Content keys and the `dw1` pack (`../specs/content.md`)
 
 - `output/pack.json` exists with `"id": "dw1"`.
-- Keys read like the names you know: `digimon_data.json` → `records[3].key` is `dw1:agumon`, `records[129]` (the NPC Greymon) `dw1:npc_greymon`; `move_data.json` → `records[2]` `dw1:spit_fire`; `item_data.json` → `records[38]` `dw1:meat`; `maps.json` → `records[0]` `dw1:mayo01`; `tournaments.json` → `records[0]` `dw1:grade_d`.
+- Keys read like the names you know: `digimon_data.json` → `records[3].key` is `dw1:agumon`, `records[129]` (the NPC Greymon) `dw1:npc_greymon`; `move_data.json` → `records[2]` `dw1:spit_fire`; `item_data.json` → `records[38]` `dw1:meat`; `maps.json` → `records[0]` `dw1:mayo01`; `tournaments.json` → `records[0]` `dw1:grade_d`; `card_data.json` → `records[1]` `dw1:phoenixmon` (cards are keyed by the Digimon they show, in their own namespace).
 - Suffixes only where names are shared: the two Dynamite Kicks are `dw1:dynamite_kick_44` / `_48`; the two YAKA25 map entries `dw1:yaka25_65` / `_232`. The `… keys: unique and well formed` checks in each manifest list all of them.
 - If a key looks wrong or unhelpful, say so now: keys will go into savegames and packs, so they should not change later.
 

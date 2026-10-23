@@ -281,6 +281,10 @@ def convert(input_root, output_root) -> GroupWriter:
                           "sell_price": price_list[rarity] >> 1 if rarity < len(price_list) else None,
                           "merit": raw["meritValue"], "line": (cards[REFERENCE].element_lines or [None] * 66)[i],
                           "c": raw})
+    # Cards are collectibles of their own (specs/content.md §2): keyed by the Digimon they show.
+    digimon_base = tables.name_base("STR_DIGIMON_NAME_")
+    tables.keys(out, card_rows, "card", lambda r: digimon_base(
+        {"name": tables.text_ref(digimon_names["items"][r["digimon"]["id"]])}))
     placeholders = [r["id"] for r in card_rows if r["rarity"] == PLACEHOLDER_RARITY]
     out.check("every card has a priced rarity class, except tamer placeholders (class 5, no merit)", not cbad,
               "; ".join(cbad) or f"{len(card_rows)} cards, placeholders {placeholders}")
@@ -402,6 +406,8 @@ def convert(input_root, output_root) -> GroupWriter:
 
     write("card_data", cards, {
         "id": {"meaning": "card id"},
+        "key": dict(tables.KEY_SCHEMA, meaning="content key dw1:<name of the Digimon shown> (card namespace, "
+                                               "specs/content.md §2)"),
         "digimon": {"c_name": "digimonId", "ref": "digimon/digimon_data"},
         "rarity": {"c_name": "spriteId", "c_type": "uint8_t",
                    "meaning": "rarity class: CARD_PRICES index, roll class of rollCard, card sprite; card 0 has 5 "

@@ -66,8 +66,11 @@ func _init() -> void:
 	_eq([agumon["key"], agumon["id"]], ["dw1:agumon", 3], "entity key and id")
 	for component in ["digimon", "files", "sounds", "care", "evolution"]:
 		_eq(agumon.has(component), true, "Agumon has component " + component)
-	_eq(agumon.has("card"), false, "Agumon has no card (not in CARD_DATA)")
-	_eq(int(data.entity("digimon", "dw1:metalgreymon")["card"]["id"]), 6, "MetalGreymon card")
+	_eq(agumon.has("card"), false, "cards are not a Digimon component")
+	_eq(data.cards_of("dw1:agumon"), [], "Agumon has no card")
+	_eq(data.cards_of("dw1:metalgreymon").map(func(c): return c["key"]), ["dw1:metalgreymon"], "MetalGreymon's card")
+	_eq(int(data.card("dw1:phoenixmon")["id"]), 1, "card by key")
+	_eq(data.entity("card", 1)["key"], "dw1:phoenixmon", "card entity")
 	_eq(agumon["care"]["sleep"].is_empty(), false, "Agumon sleep pattern")
 	_eq(data.entity("digimon", 129).has("care"), false, "NPC Greymon has no care")
 	_eq(data.entity("item", "dw1:meat")["effect"]["handler"], "handleFood", "item entity effect")

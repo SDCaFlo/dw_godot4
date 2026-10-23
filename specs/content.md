@@ -34,10 +34,11 @@ Keys come from the C string id of the record's name, which the decomp already ke
 - **Several records sharing one string id** (the decomp points them to one string): each of them gets `_<id>`. Techniques: `dw1:dynamite_kick_44`, `dw1:dynamite_kick_48`, `dw1:horizontal_kick_55` / `_57`, `dw1:bubble_113`, `_118`, `_119`, `_120`.
 - **Records with no name string**: `<kind>_<id>` (technique 121 → `dw1:move_121`).
 - **Maps** use their file name: `dw1:mayo01`. The area name is shared by many maps (18 maps are "Native Forest"). Two entries use the same file (`YAKA25`, ids 65 and 232: `dw1:yaka25_65`, `dw1:yaka25_232`), and 11 unused entries have no file (`dw1:map_239` …).
-- **Per-Digimon tables** (`raise_data`, `sleep_patterns`, evolution requirements / gains / paths, cards, file names, sounds, item take distance) don't get keys of their own: they are **components** of the Digimon entity (§3) and reference its key.
+- **Cards** are collectibles of their own, not part of a Digimon: they are keyed by the Digimon they show, in the card namespace (card 1 → `dw1:phoenixmon`). The two placeholder cards showing the tamer are `dw1:tamer_0` and `dw1:tamer_65`.
+- **Per-Digimon tables** (`raise_data`, `sleep_patterns`, evolution requirements / gains / paths, file names, sounds, item take distance) don't get keys of their own: they are **components** of the Digimon entity (§3) and reference its key.
 - The porter checks that keys are unique per kind. A collision fails `convert`.
 
-Key kinds (separate namespaces, so `dw1:meat` can't clash with a Digimon key): `digimon`, `move`, `item`, `map`, `tournament`, and more as systems need them.
+Key kinds (separate namespaces, so `dw1:meat` can't clash with a Digimon key, and the card `dw1:phoenixmon` with the Digimon `dw1:phoenixmon`): `digimon`, `move`, `item`, `card`, `map`, `tournament`, and more as systems need them.
 
 ## 3. Entities and components
 
@@ -45,12 +46,13 @@ The C code spreads one Digimon over many parallel arrays indexed by the same id.
 
 | Entity | Components (current tables) |
 |---|---|
-| Digimon | `digimon` (`digimon_data`), `files` (`file_names`), `sounds` (`sound_ids`), `care` (`raise_data`, `item_take_distance`, sleep pattern), `evolution` (`requirements`, `paths`, `stat_gains`), `card` (`card_data`), `enemy_music` |
+| Digimon | `digimon` (`digimon_data`), `files` (`file_names`), `sounds` (`sound_ids`), `care` (`raise_data`, `item_take_distance`, sleep pattern), `evolution` (`requirements`, `paths`, `stat_gains`), `enemy_music` |
+| Card | `card` (`card_data`): rarity, price, merit, and a reference to the Digimon it shows. A collectible, not part of the Digimon: most Digimon have none (`GameData.cards_of(digimon)`) |
 | Technique | `move` (`move_data`), `learn` (`learn_chances`) |
 | Item | `item` (`item_data`), `effect` (`item_effects`), `evolution_target` (`item_targets`) |
 | Map | `map` (`maps`, plus the asset porter's `maps/<NAME>/`), `toilet`, `training_spots` |
 
-- In `dw1` the components stay in their tables (the porter output stays a lossless mirror of the decomp). The registry assembles the entity view: `GameData.entity("digimon", "dw1:agumon")` → `{kind, key, id, digimon, files, sounds, care: {raise, sleep, item_take_distance}, evolution: {requirements, paths, gains}, card, enemy_music}`; absent components are left out (Agumon has no card). A pack-added entity gives its components in a `components` dictionary on its main record.
+- In `dw1` the components stay in their tables (the porter output stays a lossless mirror of the decomp). The registry assembles the entity view: `GameData.entity("digimon", "dw1:agumon")` → `{kind, key, id, digimon, files, sounds, care: {raise, sleep, item_take_distance}, evolution: {requirements, paths, gains}, enemy_music}`; absent components are left out (an NPC has no `care`). A pack-added entity gives its components in a `components` dictionary on its main record.
 - A new pack adds a Digimon as one entity record with the components it needs. Components it omits are "absent": a Digimon with no `card` simply has no card, one with no `care` can't be a partner.
 - Tables that aren't per-entity (type factors, flee chances, battle commands, the tournament schedule) stay tables. Packs patch their records (§5).
 

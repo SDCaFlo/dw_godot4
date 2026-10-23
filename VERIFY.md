@@ -3,6 +3,7 @@
 The porters have their own checklists (`asset_porter/VERIFY.md`, `data_porter/VERIFY.md`); this file covers the game systems ported to GDScript. Every system has a headless test that must print `OK` (run from `dw_godot/`, Godot 4.7, after both porters):
 
 ```
+godot --headless --path . -s res://tests/test_partner.gd
 godot --headless --path . -s res://tests/test_clock.gd
 godot --headless --path . -s res://tests/test_game_state.gd
 godot --headless --path . -s res://tests/test_game_data.gd
@@ -15,6 +16,25 @@ With the Steam build of Godot the executable is `godot.windows.opt.tools.64.exe`
 The tests prove the code does what the spec says. What they can't prove is that the spec matches the game. That is what the checks below are for: compare with what you know of the game.
 
 Sections are added as systems are ported (`PLANS.md`).
+
+## Partner (`scripts/field/partner.gd`, `psx_animator.gd`, `specs/partner.md`)
+
+`test_partner.gd` prints `OK: Partner checks`. Then run the project (F5):
+
+1. **Start:** Agumon stands next to the tamer and idles.
+2. **Walk away slowly:**
+   - he follows, walking when the distance is medium (about 2.5–3.5 Agumon widths);
+   - he runs when you get further (hold Shift);
+   - when you stop, he finishes his step, stops next to you and idles.
+3. **Close:** he doesn't walk into the tamer and stops facing him, also at a diagonal. Run, then stop: once he has caught up he stands still (he must not keep turning on the spot).
+4. **Standing still:** after a few seconds he plays another standing animation now and then. Hungry, sleepy, happy and other mood animations need the care step.
+5. **Walls:** walk around a corner or a tree so that the wall is between you. He takes the way you walked instead of pressing into the wall. If you walk far away while he's off screen, he catches up by appearing on your path.
+6. **Map changes:** after a warp he appears 200 units from your spawn point, facing you.
+7. **Other Digimon:** select the `Field` node and type a key in **Debug Partner** in the Inspector (e.g. `dw1:gabumon`, `dw1:greymon`; keys are shown in the DW Data dock), then F5: that model follows instead, with its own size. Clear it afterwards (it's saved in the scene).
+   - Wrong if: he floats, sinks, slides without animating, runs in place, or gets stuck walking next to the tamer.
+8. **What isn't there yet:**
+   - care states (sleep, eating, poop), other entity collisions (NPCs), the Health Shoe;
+   - the tamer can walk through the partner (the tamer's side of the collision comes with NPCs).
 
 ## Clock (`scripts/systems/clock.gd`, `clock_hud.gd`, `specs/clock.md`)
 

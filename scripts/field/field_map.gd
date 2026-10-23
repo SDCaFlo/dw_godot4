@@ -244,6 +244,81 @@ func _blocked_column(edge_x: int, z: int, radius: int) -> bool:
 	return false
 
 
+## getModelTile (map_collision.c:148): the collision tile of a PSX position.
+static func model_tile(psx_x: int, psx_z: int) -> Vector2i:
+	return Vector2i(psx_x / CELL + 50 - (1 if psx_x < 0 else 0), 50 - psx_z / CELL - (1 if psx_z > 0 else 0))
+
+
+## Centre of a tile in PSX units (entityLookAtTile, utils2.c:344).
+static func tile_centre(tile: Vector2i) -> Vector2i:
+	return Vector2i((tile.x - 50) * CELL + 50, (50 - tile.y) * CELL - 50)
+
+
+## isLinearPathBlocked (map.c:3156): walks the grid from one tile to another (end included, start
+## excluded) and reports a blocking cell (value & 0x80).
+func is_linear_path_blocked(from: Vector2i, to: Vector2i) -> bool:
+	var x1 := clampi(from.x, 0, GRID - 1)
+	var y1 := clampi(from.y, 0, GRID - 1)
+	var x2 := clampi(to.x, 0, GRID - 1)
+	var y2 := clampi(to.y, 0, GRID - 1)
+	if x1 == x2 and y1 == y2:
+		return false
+	var dx := x2 - x1
+	var dy := y2 - y1
+	var x := x1
+	var y := y1
+	var major_x := absi(dx) >= absi(dy)
+	var dist := absi(dx) if major_x else absi(dy)
+	var minor := dy if major_x else dx
+	var quot := minor / dist
+	var rem := minor % dist
+	var minor_sign := -1 if rem < 0 else 1
+	rem = absi(rem)
+	var acc := dist
+	for i in dist:
+		var step := 0
+		if rem != 0:
+			acc -= rem
+			if acc <= 0:
+				step = minor_sign
+				acc += dist
+		else:
+			step = quot
+		if major_x:
+			y += step
+			x += 1 if dx > 0 else -1
+		else:
+			x += step
+			y += 1 if dy > 0 else -1
+		if _cell(x, y) & 0x80:
+			return true
+	return false
+
+
+## isFiveTileWidePathBlocked (map.c:3133): 5 parallel lines, +-2 tiles across the main axis; any
+## blocked line counts.
+func is_five_tile_wide_path_blocked(from: Vector2i, to: Vector2i) -> bool:
+	var across := Vector2i(0, 1) if absi(to.x - from.x) >= absi(to.y - from.y) else Vector2i(1, 0)
+	for i in range(-2, 3):
+		if is_linear_path_blocked(from + across * i, to + across * i):
+			return true
+	return false
+
+
+## isTileOffScreen (map.c:3649): the tile centre projected more than 200 / 160 px from the
+## screen centre.
+func is_tile_off_screen(tile: Vector2i) -> bool:
+	var centre := tile_centre(tile)
+	var screen := background_pixel(Content.psx_to_godot([centre.x, 0, centre.y])) - scroll - SCREEN / 2
+	return absf(screen.x) > 200 or absf(screen.y) > 160
+
+
+## A Godot position is on the visible screen (the partner's isOnScreen).
+func is_on_screen(world: Vector3) -> bool:
+	var screen := background_pixel(world) - scroll
+	return screen.x >= 0 and screen.y >= 0 and screen.x < SCREEN.x and screen.y < SCREEN.y
+
+
 func _tile_x(x: int) -> int:
 	return x / CELL + 50 - (1 if x < 0 else 0)
 

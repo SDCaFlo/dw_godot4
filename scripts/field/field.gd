@@ -23,6 +23,8 @@ extends Node
 	set(value):
 		time_of_day = value
 		_refresh_preview()
+## Debug: a Digimon key (e.g. "dw1:greymon") to use as the partner instead of the game state's.
+@export var debug_partner := ""
 ## Editor only: show the map in the editor viewports.
 @export var editor_preview := true:
 	set(value):
@@ -33,6 +35,7 @@ var _maps: PackedStringArray
 ## Triggers are ignored until the tamer leaves the cell it arrived on.
 var _arrival_trigger := 0
 var _clock: Clock
+var _partner: Partner
 
 @onready var _field: FieldMap = $World/SubViewport/FieldMap
 @onready var _tamer: Tamer = $World/SubViewport/Tamer
@@ -51,7 +54,26 @@ func _ready() -> void:
 		_label.text = "No maps in %s.\nRun: python -m dwporter convert maps mmd_files" % Content.path("maps")
 		return
 	_start_clock()
+	_start_partner()
 	_enter(start_map if start_map in _maps else _maps[0], start_spawn)
+
+
+## initializePartner's model part: the partner of the game state follows the tamer
+## (specs/partner.md).
+func _start_partner() -> void:
+	_partner = Partner.new()
+	_partner.name = "Partner"
+	$World/SubViewport.add_child(_partner)
+	_partner.field = _field
+	_partner.tamer = _tamer
+	_partner.game_state = GameState
+	if debug_partner != "":
+		GameState.state["partner"]["digimon"] = debug_partner
+	if not _partner.load_digimon(GameData, GameState.state["partner"]["digimon"]):
+		_partner.queue_free()
+		_partner = null
+		return
+	GameLoop.frame.connect(_partner.tick)
 
 
 ## addClock (clock.c:90): the clock and its HUD run while the field is played.
@@ -77,7 +99,10 @@ func _start_clock() -> void:
 func _enter(map_name: String, spawn: int) -> void:
 	if not _field.load_map(map_name):
 		return
-	_tamer.place(_field.spawn(clampi(spawn, 0, _field.data["spawns"].size() - 1)))
+	var spawn_point := _field.spawn(clampi(spawn, 0, _field.data["spawns"].size() - 1))
+	_tamer.place(spawn_point)
+	if _partner != null:
+		_partner.place_for_spawn(spawn_point)
 	_field.follow(_tamer.global_position)
 	_arrival_trigger = _field.tile_trigger(_tamer.position)
 	if _clock != null:

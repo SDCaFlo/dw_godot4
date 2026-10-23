@@ -28,6 +28,8 @@ Game content (assets, data, text) is generated locally and never committed. Edit
 ## Notes
 
 - Godot on this machine's command line is 4.3 (`godotenv`); the project targets 4.7. Headless checks have been run with 4.3 on a scratch copy of the project (so 4.3 doesn't touch `.godot/`); the user runs 4.7.
+- glTF loaded by a `@tool` script behaves differently in the editor: textures default to "extract" (the editor tries to copy them into the project) and meshes come out as `ImporterMeshInstance3D`, which don't render. `PorterAssets.load_model` handles both; always load models through it.
+- Editor debugging: script `print()` from tool scripts doesn't reach the console of a headless editor; `push_warning()` does.
 - In `godot -s` mode autoload names aren't registered: tests instantiate scripts directly, or run through the main scene.
 
 ## Done

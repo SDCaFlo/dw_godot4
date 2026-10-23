@@ -58,8 +58,25 @@ static func load_model(rel: String) -> Node3D:
 		push_error("PorterAssets: cannot load glTF %s (error %d)" % [path(rel), err])
 		return null
 	var scene := document.generate_scene(state) as Node3D
+	_runtime_meshes(scene)
 	_psx_materials(scene)
 	return scene
+
+
+## In the editor GLTFDocument builds ImporterMeshInstance3D nodes (the import pipeline's form),
+## which don't render: turn them into MeshInstance3D like a running game gets.
+static func _runtime_meshes(node: Node) -> void:
+	for child in node.get_children():
+		_runtime_meshes(child)
+	if node is ImporterMeshInstance3D:
+		var mesh := MeshInstance3D.new()
+		mesh.name = node.name
+		mesh.transform = node.transform
+		mesh.mesh = node.mesh.get_mesh() if node.mesh != null else null
+		mesh.skin = node.skin
+		mesh.skeleton = node.skeleton_path
+		node.replace_by(mesh)
+		node.free()
 
 
 static func _psx_materials(node: Node) -> void:

@@ -10,6 +10,7 @@ import re
 from collections import defaultdict
 
 from .. import textyaml
+from ..cdata import CError, CIndex
 from ..decomp import Decomp
 from ..output import GroupWriter
 from ..source import SourceText
@@ -80,6 +81,9 @@ SCHEMA = {
         "same_as": "unnamed entries: per language, the earlier named entry with the same text (the generator points both to one string)",
         "symbol": "US RAM symbol (config/us/symbols*.txt) when the string is a named symbol",
         "used_by": "code references: file, line, binary, enclosing function / data / macro, releases that compile the line",
+        "c_definitions": "references that are the string's own C definition (`char X[] = \"...\";` under #if VERSION_...)",
+        "c_text": "releases whose text comes from that C definition because the YAML has none: {release: {text, at}}; "
+                  "already included in text / release_text",
     },
 }
 
@@ -308,6 +312,16 @@ class FileModel:
                         yield names[0], release, text
 
 
+def load_file(decomp: Decomp, path: str) -> FileModel:
+    """One text file interpreted on its own (for groups that take names from it, e.g. MOVE_NAMES)."""
+    src = SourceText(decomp.root, path)
+    return FileModel(Context(decomp), src, textyaml.parse(src.text, path))
+
+
+def block_of(model: FileModel, name: str):
+    return next((b for b in model.blocks if b["block"] == name), None)
+
+
 def _owner_c(src_path: str) -> str:
     # text/<dir>/<name>.yaml -> src/<dir>/<name>.c
     return "src/" + src_path[len("text/"):-len(".yaml")] + ".c"
@@ -335,7 +349,7 @@ def _string_out(item: dict, ctx: Context, symbols: dict, refs: list) -> dict:
         out["null_entry"] = True
     out["text"] = item["text"]
     out["variants"] = item["variants"]
-    for key in ("release_text", "lines", "line_ids", "named", "same_as"):
+    for key in ("release_text", "lines", "line_ids", "named", "same_as", "c_text"):
         if item.get(key):
             out[key] = item[key]
     names = item.get("line_ids") or ([item["id"]] if item["id"] else [])
@@ -348,6 +362,23 @@ def _string_out(item: dict, ctx: Context, symbols: dict, refs: list) -> dict:
         # The C file defines this name itself for these releases (text not in the YAML).
         out["c_definitions"] = c_defs
     return out
+
+
+def _apply_c_text(item: dict, binary: str, ctx: Context, c_text: dict) -> None:
+    """Fill releases where the YAML has no text but the C file defines the string itself."""
+    if item.get("null_entry") or not item["id"] or item.get("line_ids"):
+        return
+    found = {}
+    for release, text in item["by_release"].items():
+        hit = c_text.get((binary, release, item["id"]))
+        if hit and text is None:
+            item["by_release"][release] = hit[0]
+            found[release] = {"text": hit[0], "at": f"{hit[1]}:{hit[2]}"}
+    if not found:
+        return
+    item["c_text"] = found
+    item["text"] = {lang: item["by_release"][ctx.main_release[lang]] for lang in ctx.languages}
+    item["release_text"] = {r: t for r, t in item["by_release"].items() if t != item["text"][ctx.language_of[r]]}
 
 
 def _md_cell(text) -> str:
@@ -463,6 +494,30 @@ def convert(input_root, output_root) -> GroupWriter:
     # named like the string.
     c_defined = {(r["binary"], release, name) for name in defined_in for r in refs.get(name, [])
                  if r["kind"] == "data" and r["in"] == name for release in r["releases"]}
+    # Read the text of those C definitions and use it where the YAML has none.
+    index, c_text, c_errors = CIndex(decomp), {}, []
+    for name in sorted(defined_in):
+        for r in refs.get(name, []):
+            if r["kind"] != "data" or r["in"] != name:
+                continue
+            try:
+                loaded = index.table(r["file"], name)
+            except CError as e:
+                c_errors.append(f"{name}: {e}")
+                continue
+            for release in r["releases"]:
+                value = loaded.get(release) and loaded[release].value
+                if isinstance(value, str):
+                    c_text[(r["binary"], release, name)] = (value, r["file"], r["line"])
+                else:
+                    c_errors.append(f"{name} ({release}) at {r['file']}:{r['line']}: not a string")
+    out.check("strings defined in C are read", not c_errors, "; ".join(c_errors[:10]) or
+              ", ".join(sorted({f"{n} ({r})" for (_, r, n) in c_text})))
+    for model in models:
+        for block in model.blocks:
+            for item in block["items"]:
+                _apply_c_text(item, binary_of[model.src.path], ctx, c_text)
+
     missing_text = []
     for name, bins in sorted(defined_in.items()):
         for binary in sorted(bins):

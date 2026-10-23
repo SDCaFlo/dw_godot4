@@ -4,7 +4,7 @@ Tooling that converts the **game data defined in the decompiled C code** (tables
 
 Sibling of `../asset_porter/` (which converts the **disc files**: textures, models, maps, sound, movies). Both write generated, gitignored output that the game loads at runtime.
 
-Status: package, CLI, writer, decomp index and the **Text** group are implemented (Python 3, standard library only); the other groups and the C table parser are next. Progress per table and group is tracked in `PROGRESS.md`; read it first and update it (tables + log line) whenever a table or group changes status.
+Status: package, CLI, writer, decomp index, C table reader and the **Text** and **Moves** groups are implemented (Python 3, standard library only); Digimon, items, evolution and systems are next. Progress per table and group is tracked in `PROGRESS.md`; read it first and update it (tables + log line) whenever a table or group changes status.
 
 ## Why a separate tool
 
@@ -18,7 +18,7 @@ Run from this folder:
 
 ```
 python -m dwdata list                    # data groups
-python -m dwdata convert text            # or: convert all
+python -m dwdata convert text moves      # or: convert all
 python -m unittest discover -s tests -t .   # real-data test skipped if the decomp is missing
 ```
 
@@ -35,8 +35,9 @@ Defaults: input `../../external-resources/dw_decomp/`, output `output/` (gitigno
 | `dwdata/textyaml.py` | Strict reader for the YAML subset of `text/**/*.yaml` (all scalars stay text, `NULL` = None, line numbers kept) |
 | `dwdata/cpp.py` | `#if` evaluation per release (`VERSION_IS`, `VERSION_REGION_IS`, `VERSION_EQUAL_OR_NEWER/OLDER`, `defined`); `ConditionTracker` follows `#if/#elif/#else/#endif` |
 | `dwdata/decomp.py` | `Decomp`: releases (`version.h`), C file → binary (`config/us/*.yaml`), US symbols (`symbols*.txt`), identifier references in `src/**/*.c` with enclosing function / data / macro and compiling releases |
-| `dwdata/groups/` | One converter per group (`NAME`, `SOURCE_GLOB`, `SPEC`, `PURPOSE`, `convert()` with `out.check(...)` for every assumption), registered in `groups/__init__.py`. Existing: `text.py` |
-| `specs/` | One spec per group (`text.md`) |
+| `dwdata/cdata.py` | C data reader. `CIndex.table(c_file, name, hooks)` returns a table per release, laid out on its C type: structs / typedefs / enums / `#define`s of `include/dw/*.h` and the file, `#if VERSION_…` applied, brace elision, zero fill, width conversion, `sizeof` with PSX alignment. `hooks` expand macros such as `DIGIMON_PARA_NAME(...)`. Unsupported C raises `CError` |
+| `dwdata/groups/` | One converter per group (`NAME`, `SOURCE_GLOB`, `SPEC`, `PURPOSE`, `convert()` with `out.check(...)` for every assumption), registered in `groups/__init__.py`. Existing: `text.py`, `moves.py` |
+| `specs/` | One spec per group (`text.md`, `moves.md`) |
 | `tests/` | `unittest` tests |
 
 The decomp has no `INCLUDE_ASM` left, so references are taken from C only; `asm/` is not read.
@@ -49,7 +50,8 @@ output/
   text/manifest.json            sources (sha1), checks, counts, control codes found
   text/report.md                human sheet: every block as a table (id | ja | en_us | en_eu)
   text/<dir>/<name>.json        one table per text/<dir>/<name>.yaml (e.g. text/main/item.json)
-  digimon/ evolution/ moves/ items/ systems/ ...   one JSON per table (planned)
+  moves/move_data.json          MOVE_DATA (122 techniques); type_factors.json, learn_chances.json; report.md, manifest.json
+  digimon/ evolution/ items/ systems/ ...   one JSON per table (planned)
 ```
 
 Every table file has the same shape:
@@ -60,14 +62,14 @@ Every table file has the same shape:
 | `source` | decomp files and lines the values come from (`src/main/main.c:254 DIGIMON_DATA[180]`), C type / struct (`include/dw/*.h`), plus `sha1` of the source text it was parsed from |
 | `schema` | per field: name, C name, type, unit, meaning, allowed values (enums with names), reference to another table (`"ref": "moves/move_data"`) |
 | `records` | the values; references carry the resolved name next to the id (`{"id": 46, "name": "Spit Fire"}`); index = original array index |
-| `used_by` | C functions that read/write the table (`file:line`) with one line on what each computes (text: functions / data and the strings they use; what they do is in the spec) |
+| `used_by` | C functions that read/write the table (`file:line`); text: the strings each uses, C tables: the struct fields each reads. What they compute is in the spec |
 | `godot` | how the Godot side accesses it (`GameData.digimon(id)`) |
 
 Nothing from the source may be dropped: unknown or unused fields keep their C name and raw value (`unk_0x12`) instead of being removed.
 
 ## Specs
 
-Location: `specs/<group>.md`. Existing: `text.md`. Planned: `digimon.md`, `evolution.md`, `moves.md`, `items.md`, `systems.md`, … Each spec must contain:
+Location: `specs/<group>.md`. Existing: `text.md`, `moves.md`. Planned: `digimon.md`, `evolution.md`, `items.md`, `systems.md`, … Each spec must contain:
 
 1. **Source:** the C symbols, struct definitions and text files, with `file:line`.
 2. **Original usage:** the functions that use the data and what they do with it — formulas, checks, timings — with `file:line`. This is the part that tells how to write the Godot logic; quote the C condition when it is subtle.
@@ -109,6 +111,7 @@ Paths are relative to this folder.
 
 - **Both porters stay stand-alone.** The asset porter keeps its own `dwporter/data/*.py` tables; this tool doesn't feed them, though cross-checking between the two is fine.
 - **All languages and releases are kept.** `variants` holds every key as written; `text` gives `ja` (jp_rev1), `en_us` (us) and `en_eu` (eu).
+- **C tables: US values in the records, other releases as differences.** Each table is read for every release; records hold the US values, and `release_values` lists what another release changes (C field names). Each record also keeps its raw C values (`c`), next to readable names, enums as `{id, name}` and derived values (`mp` = mpCost × 3).
 
 ## Rules
 

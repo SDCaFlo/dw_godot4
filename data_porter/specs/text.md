@@ -37,14 +37,15 @@ Scalars are always text (`en_us: 20`, `"Yes"`). Double-quoted strings use YAML e
   - JP / EU: single-byte `C<c>`, `R`, `W`, `0` placed between 2-byte glyphs (`battle_hud.c:405–425`). The YAML writes them bare in `ja` (`C1の命令を聞く…W`) and as `{C1}`, `{R}`, `{W}` in `en_eu`.
   - Found in the output: en_us `#C1` ×6, `#C7` ×7, `#R` ×9, `#W` ×5; en_eu `{C1}`, `{C7}`, `{R}`, `{W}` (`manifest.json` → `control_codes`).
 - **Fixed-width layouts:** many menu strings are space-padded rows drawn as one text (`MENU_LABELS`: `"      Disc.      Life  Vir. HPMPnight"`, map names centred with spaces). The spaces are layout, so keep them.
-- **Release-specific text in C:** a few strings are C literals for some releases instead of YAML text: `MAIN_D_801346B8` is `" is in"` in US and `"）は"` in JP (`main_menu.c:635/638`), and `STR_MONEY_HELD` is `"Ｂｉｔｓ"` in EU (`battle_ui.c:77`). The output records where these are defined (`c_definitions`), but not their text yet (see open questions).
+- **Release-specific text in C:** a few strings are C literals for some releases instead of YAML text: `MAIN_D_801346B8` is `" is in"` in US and `"）は"` in JP (`main_menu.c:635/638`), and `STR_MONEY_HELD` is `"Ｂｉｔｓ"` in EU (`battle_ui.c:77`). The output records where these are defined (`c_definitions`). The C reader (`dwdata/cdata.py`) reads their text, which fills the releases where the YAML has none (`c_text`).
 
 ## 3. Mapping
 
 `output/text/<dir>/<name>.json`, one per YAML file (name = path without `text/` and `.yaml`), in the common table shape (`CLAUDE.md`).
 
 - `records`: one block per YAML key, in file order: `block`, `line`, `kind` (`strings` / `entries` / `text`), `options` (as written), `c` (owning file, binary, macros, `placed_at` lines, `array` + US `symbol` for entries), `used_by` (references to the array), `count`, and `strings` or `entries`.
-- String / entry: `index` (entries), `id` (first name, or null), `line`, `null_entry`, `text`, `variants`, `release_text`, `lines`, `line_ids`, `named`, `same_as`, `symbol`, `used_by`, `c_definitions`.
+- String / entry: `index` (entries), `id` (first name, or null), `line`, `null_entry`, `text`, `variants`, `release_text`, `lines`, `line_ids`, `named`, `same_as`, `symbol`, `used_by`, `c_definitions`, `c_text`.
+- **`c_text`:** `{release: {text, at}}` for releases where the YAML gives no text (`NULL`) and the C file defines the string as a literal. That text is part of `text` / `release_text` (e.g. `MAIN_D_801346B8`: en_us `" is in"` from `main_menu.c:635`, ja `"）は"` from `:638`).
 - **`variants` is lossless:** every language key exactly as written (null = `NULL`, missing key = not written; lists for multi-line entries).
 - **`text`** is the value each language's main release uses, i.e. its newest build: `ja` → jp_rev1, `en_us` → us, `en_eu` → eu.
   - Lookup order for a release: `<lang>@<release>`, then `<lang>`, then (en_eu only) `en_us`.
@@ -78,14 +79,14 @@ The converter checks:
 - the owning C file includes the generated header, and every block's macro (`_TEXT`, `_STRINGS` or the embedding macro) is placed in it;
 - a C name has only one text per binary and release;
 - every unnamed entry repeats an earlier named entry in every language where it exists;
+- every string defined as a C literal is read as a string in each release that compiles the definition;
 - every string referenced by code exists (as YAML text, or as a C definition) in every release that compiles the reference. This check confirms the lookup order of §3, including the en_eu → en_us fallback.
 
-Tests: `tests/test_textyaml.py`, `tests/test_cpp.py`, `tests/test_text.py` (synthetic decomp, plus a real-data test skipped when `dw_decomp` is missing).
+Tests: `tests/test_textyaml.py`, `tests/test_cpp.py`, `tests/test_cdata.py`, `tests/test_text.py` (synthetic decomp, plus a real-data test skipped when `dw_decomp` is missing).
 
 ## 6. Open questions
 
 - **Generator not available:** the fallback (missing `en_eu` → `en_us`) and the "unnamed entry = earlier entry with the same text" rule are inferred from `example.yaml` and confirmed only by the checks above.
-- **C-defined strings** (`MAIN_D_801346B8`, `STR_MONEY_HELD`): their text is not extracted yet. The C table parser should pick up `char X[] = "…";` literals.
 - **`en_eu: "Help#NrFrAlAt"`** (`game_menu.yaml:22`): `#N` isn't one of the codes above; this is a menu row, so it may be drawn by a different routine. Not checked.
 - **Other renderers:** `drawString2` (`script_textbox.c:644`, event dialogue), the kar/fish dialogue drawers and the HUD text of `renderString` may interpret more codes than the battle-end box. Check them when the UI is ported.
 - **`ja` control letters:** bare `C`/`R`/`W` in `ja` text are codes only for renderers that parse them. Ordinary JP text uses full-width letters, so there are no clashes in practice. Not verified string by string.

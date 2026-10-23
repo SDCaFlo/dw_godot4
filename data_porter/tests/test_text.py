@@ -169,6 +169,9 @@ class TextConvertTests(unittest.TestCase):
         self.assertTrue(out.ok, [c.detail for c in out.checks if not c.passed])
         eu_only = table["records"][2]["strings"][1]
         self.assertEqual(eu_only["c_definitions"][0]["releases"], ["jp", "us", "jp_rev1"])
+        # The C literal fills the releases where the YAML says NULL.
+        self.assertEqual(eu_only["text"], {"ja": "bye", "en_us": "bye", "en_eu": "Bye"})
+        self.assertEqual(eu_only["c_text"]["us"], {"text": "bye", "at": "src/main/foo.c:15"})
 
     def test_format_issue_is_reported(self):
         out, _ = self.convert(yaml=YAML.replace("      ja: こんにちは\n", "      jp: こんにちは\n"))

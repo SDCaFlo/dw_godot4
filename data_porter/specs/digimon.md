@@ -126,7 +126,7 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
 The converter checks:
 
 - the decomp exists, and the structs `DigimonPara` (EU without `name`), `RaiseData` and `SleepPattern` have the mapped fields in every release;
-- every table parses in every release with no issues (layout, unknown macros, conversions, zero fill);
+- every table parses in every release with no issues (layout, unknown macros, values that don't fit their field, zero fill);
 - each table's size equals its US symbol size, where `symbols.txt` gives one;
 - there are 180 entries in `DIGIMON_DATA`, `DIGIMON_NAMES`, `PTR_DIGIMON_FILE_NAMES` and `DIGIMON_VBALL_SOUND_ID`, and 66 in `RAISE_DATA`, `ITEM_TAKE_DISTANCE` and `DIGIMON_VLALL_SOUND_ID`;
 - `DIGIMON_DATA`:

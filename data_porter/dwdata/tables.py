@@ -42,12 +42,14 @@ def load(out, index, c_file: str, name: str, hooks: dict = None):
     problems = [f"{r}: {i}" for r, l in loaded.items() if l for i in l.issues]
     problems += [f"{r}: lines {l.unknown_lines} depend on unknown macros" for r, l in loaded.items()
                  if l and l.unknown_lines]
-    problems += [f"{r}: {len(l.wrapped)} values converted to the field type" for r, l in loaded.items()
-                 if l and l.wrapped]
     problems += [f"{r}: {l.implicit} values missing (zero-filled)" for r, l in loaded.items() if l and l.implicit]
+    # Hex literals of signed fields (0xffff in an int16_t = -1) are the decomp's style: the value
+    # is converted like C does and only reported. Values that don't fit the field are issues above.
+    ref = loaded.get(REFERENCE)
+    converted = f", {len(ref.wrapped)} hex values read as signed" if ref and ref.wrapped else ""
     ok = out.check(f"{name}: parsed in every release", not missing and not problems,
                    "; ".join(([f"not defined in {missing}"] if missing else []) + problems[:10])
-                   or f"{loaded[REFERENCE].type.describe()} at {c_file}:{loaded[REFERENCE].decl.line}")
+                   or f"{ref.type.describe()} at {c_file}:{ref.decl.line}{converted}")
     return loaded if ok else None
 
 

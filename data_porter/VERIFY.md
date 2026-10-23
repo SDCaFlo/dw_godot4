@@ -64,6 +64,17 @@ Run `python -m dwdata convert items`: it should print `8 tables, 38/38 checks pa
 - **Inventories:** `inventories.json` holds the two built-in inventories (boot, default savegame). Both are full of high-end items; if you know what a new game starts with, note whether it matches (`specs/items.md` §6).
 - **JSON spot check:** `item_data.json` → `records[38]` is Meat with its description, `handler` = `handleFood`, `c` = the raw C record; `item_effects.json` lists each item's `case` line in `item.c`.
 
+## Evolution (`output/evolution/`)
+
+Run `python -m dwdata convert evolution`: it should print `4 tables, 21/21 checks passed`. Then open `output/evolution/report.md` (requirements, paths, stat gains, evolution items).
+
+- **Requirements you know:** Greymon (5) needs Off / Def / Speed / Brain 100, at most 1 care mistake, weight 30 ± 5, and one of discipline 90 / 35 techniques. Compare 2–3 Digimon with a guide or your memory of the game.
+- **Rookies:** Agumon (3) shows `highest` for HP, MP, Off: a Koromon whose highest stat is one of those becomes Agumon.
+- **Paths:** Agumon → Greymon, Meramon, Birdramon, Centarumon, Monochromon, Tyrannomon; Numemon → Monzaemon; Sukamon → Etemon.
+- **Stat gains:** Numemon shows `scale ×0.8`, Sukamon `scale ×0.5`, Greymon `gain` with HP 2000.
+- **Evolution items:** Grey Claws → Greymon, Fireball → Meramon. Electo ring and Moon mirror show `never works` (confirmed: they were never implemented in the game).
+- **JSON spot check:** `requirements.json` → `records[5].bonus` has `discipline: 90` and `techs: 35`; `paths.json` → `records[58]` (Phoenixmon, id 59) has `ignored_values: [-2, 0]`.
+
 ## Reporting a problem
 
 Note the table, the record id and what you expected vs. saw. The table's `source` says which decomp file and line the value came from.

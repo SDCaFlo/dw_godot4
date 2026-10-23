@@ -113,7 +113,7 @@ The converter checks:
 
 - the decomp exists, and `struct Move` has the 12 fields the spec maps, in every release;
 - the code still tests the id ranges (`(tech >= 0x3a) && (tech < 0x71)`, `tech == 0x2d`, `tech = 0x79`, the learned-together pairs);
-- each table parses in every release with no issues: no unknown macros, no value converted to the field width, no zero-filled values;
+- each table parses in every release with no issues: no unknown macros, no value that doesn't fit its field, no zero-filled values (hex literals of signed fields, such as `0xffff` = -1, are read as C reads them and only counted);
 - `MOVE_DATA` has one record per `MOVE_NAMES` entry, and each table's size equals the US symbol size (`config/us/symbols.txt`);
 - every record has known values: `range` 0–4, element 0–6 or 0xff, `status` 0–4, `distance` a perfect square, `status` and `statusChance` both set or both 0, flags only bits 0–1, `unk4` and `unk5` 0;
 - techniques and finishers have a name;

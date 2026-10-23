@@ -7,7 +7,8 @@
                 symbol and the releases whose build compiles that line (#if VERSION_... blocks)
 
 The scope detection relies on the decomp's style (K&R-ish: a function's `{` and `}` and a
-data initializer's closing `};` sit at column 0); it is a reading aid, not a C parser.
+data initializer's closing `};` sit at column 0; a header split over several lines may end with
+`) {`); it is a reading aid, not a C parser.
 """
 
 import re
@@ -188,6 +189,10 @@ class Decomp:
                     if stripped.endswith("{"):
                         scope = line_scope = ("function", pending)
                         pending = None
+            elif scope is None and pending and stripped.endswith("{") and not stripped.startswith("{"):
+                # last line of a header split over several lines: `    int8_t last) {`
+                scope = line_scope = ("function", pending)
+                pending = None
             seen = set()
             for m in IDENT_RE.finditer(code):
                 if m.group(0) in names and m.group(0) not in seen:

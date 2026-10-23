@@ -4,7 +4,7 @@ Tooling that converts the **game data defined in the decompiled C code** (tables
 
 Sibling of `../asset_porter/` (which converts the **disc files**: textures, models, maps, sound, movies). Both write generated, gitignored output that the game loads at runtime.
 
-Status: package, CLI, writer, decomp index, C table reader and all groups (**Text**, **Moves**, **Digimon**, **Items**, **Evolution**, **Systems**) are implemented (Python 3, standard library only). Next: the Godot `GameData` autoload that loads this output. Progress per table and group is tracked in `PROGRESS.md`; read it first and update it (tables + log line) whenever a table or group changes status.
+Status: package, CLI, writer, decomp index, C table reader and all groups (**Text**, **Moves**, **Digimon**, **Items**, **Evolution**, **Systems**) are implemented (Python 3, standard library only), and the Godot `GameData` autoload loads this output. Progress per table and group is tracked in `PROGRESS.md`; read it first and update it (tables + log line) whenever a table or group changes status.
 
 ## Why a separate tool
 
@@ -89,9 +89,19 @@ Location: `specs/<group>.md`. Existing: `text.md`, `moves.md`, `digimon.md`, `it
 
 Write specs from evidence in the decomp, not from guesses. Update the spec before changing converter behaviour.
 
-## Godot side (planned)
+## Godot side
 
-A `GameData` autoload (`scripts/data/game_data.gd`) loads `output/` at runtime (path override like `PorterAssets`: env `DW_DATA_OUTPUT` / project setting) and offers typed accessors. Mods override individual JSON files from a mod folder. JSON stays the master format; Godot resources (`.tres`) may be generated later for the editor.
+The `GameData` autoload (`../scripts/data/game_data.gd`, registered in `project.godot`) loads `output/` at runtime:
+
+- **Folder:** env `DW_DATA_OUTPUT` or the `dw/data/output_dir` project setting (default `res://data_porter/output`), like `PorterAssets`.
+- **Tables:** `table("digimon/digimon_data")` (whole file), `records(name)`, `record(name, index)`, `find(name, field, value)` / `find_all` (a reference field matches on its id). Loaded on first use, cached; `reload()` drops the cache.
+- **Accessors:** the one each table names in its `godot.access` (`digimon(id)`, `move(id)`, `item(id)`, `map(id)`, `battle_commands(brain, arena)`, …). They return the record (or `{}`), or an int for factor / chance lookups (`-1` = not in the table). A table's `godot.access` must name a function that exists.
+- **Text:** `text(id)`, `text_entry(table, block, index)`, `localize(name_ref)` in `GameData.language` (`dw/data/language`, `set_language()` → `language_changed`).
+- **Mods:** folders in env `DW_DATA_MODS` (`;`-separated) or `dw/data/mod_dirs`; a mod file replaces the whole table file at the same relative path, later folders win.
+- Numbers inside records are floats (Godot's JSON parser); the NUL padding of text `variants` reads as `\0`.
+- **Test:** `../tests/test_game_data.gd` (`godot --headless --path .. -s res://tests/test_game_data.gd`, exits 1 on failure). In `-s` mode the autoload name isn't registered, so the test instantiates the script.
+
+JSON stays the master format; Godot resources (`.tres`) may be generated later for the editor.
 
 Game **logic** (evolution checks, battle maths, care timers) is not data: it is ported to GDScript when each system is built, each function commenting the C function it reproduces. The specs say where that logic lives and what data it reads.
 

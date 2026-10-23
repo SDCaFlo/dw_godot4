@@ -107,7 +107,7 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
 - `sound_ids`: `vball`, and `vlall` (null where the code doesn't read it; the raw array is under `raw`).
 - **Labels:** type names (Data / Vaccine / Virus) are the game's names, not from the decomp: the menu draws them as icons. They fit known Digimon: Gabumon 1, Agumon 2, Betamon 3. Level names come from the menu text (§2). Element names: see `specs/moves.md`.
 
-## 4. Godot usage (planned)
+## 4. Godot usage
 
 - `GameData.digimon(id)`, `GameData.raise_data(id)`, `GameData.sleep_pattern(id)`, `GameData.digimon_file(id)` (links to the asset porter's model names), `GameData.digimon_sounds(id)`.
 - Systems that use them:

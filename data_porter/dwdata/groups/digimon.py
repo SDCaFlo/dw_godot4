@@ -229,7 +229,7 @@ def convert(input_root, output_root) -> GroupWriter:
     refs = decomp.references(["DIGIMON_DATA", "RAISE_DATA", "SLEEP_PATTERN", "ITEM_TAKE_DISTANCE",
                               "PTR_DIGIMON_FILE_NAMES", "DIGIMON_VBALL_SOUND_ID", "DIGIMON_VLALL_SOUND_ID"])
     struct = index.program(MAIN_C, REFERENCE).structs["DigimonPara"]
-    status = "planned (GameData autoload not implemented yet)"
+    status = "implemented (scripts/data/game_data.gd)"
     out.write_table("digimon_data", {
         "table": {"name": "digimon/digimon_data", "purpose": TABLE_PURPOSES["digimon_data"]},
         "source": tables.source(decomp, data, sources, {"struct": f"include/dw/params.h:{struct.line}",

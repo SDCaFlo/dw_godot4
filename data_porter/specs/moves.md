@@ -98,7 +98,7 @@ The first index is the element of the technique (or of the attacker, in `BTL_cal
 - `used_by`: every function that reads the table, its lines, the struct fields used on those lines (a text match of `.field` / `->field`, so fields read through a pointer on another line are missed) and the releases.
 - **Element names are labels, not from the decomp.** The ids are certain: they are the TYPE_FACTORS indices, and the technique blocks of `EVL_applyEvolution` match them. The names Fire, Battle, Air, Earth, Ice, Mech, Filth are the game's names for those blocks (the menus draw them from a texture, not from text). The status and range names describe what the code does.
 
-## 4. Godot usage (planned)
+## 4. Godot usage
 
 - `GameData.move(id)` returns the record; the name comes through `GameData.text_entry("main/item", "MOVE_NAMES", id)` or the record's `name`. `GameData.type_factor(attacker, defender)` and `GameData.learn_chance(id, slot)` cover the other two tables.
 - The battle system ports the formulas of §2: damage, hit chance, MP with the brain and condition modifiers, status, range behaviour, the shared cooldown and the finisher rules by id range. Each GDScript function names the C function it reproduces.

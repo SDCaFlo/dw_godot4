@@ -614,7 +614,7 @@ def convert(input_root, output_root) -> GroupWriter:
             "records": records,
             "used_by": used_by,
             "godot": {
-                "status": "planned (GameData autoload not implemented yet)",
+                "status": "implemented (scripts/data/game_data.gd)",
                 "access": "GameData.text(id, language) for named strings; "
                           "GameData.text_entry(\"" + table_name + "\", block, index) for entries arrays",
                 "languages": {lang: ctx.main_release[lang] for lang in ctx.languages},

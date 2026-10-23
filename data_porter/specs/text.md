@@ -59,13 +59,14 @@ Scalars are always text (`en_us: 20`, `"Yes"`). Double-quoted strings use YAML e
   - `extern` declarations are skipped.
 - `output/text/report.md`: a readable sheet with one table per block (id | ja | en_us | en_eu) and the control codes found.
 
-## 4. Godot usage (planned)
+## 4. Godot usage
 
-- `GameData` (`scripts/data/game_data.gd`, not written yet) loads every `text/**.json` and builds an index id → string record.
-  - `GameData.text(id, language = "en_us")` for named strings.
-  - `GameData.text_entry("main/item", "MOVE_NAMES", move_id)` for arrays.
-  - Tables like Digimon and items will carry their name's string id, resolved through the same index.
-- The language setting picks one of `ja`, `en_us`, `en_eu`. `release_text` matters only to reproduce an older JP build.
+- `GameData` (`scripts/data/game_data.gd`) loads the `text/**.json` tables on first use.
+  - `GameData.text(id, language = "")` for named strings: an index id → text per language over every text table. Ten ids are defined in two blocks, each block for other releases (e.g. `MAIN_D_8013143C`: ja and en_eu in `SAVE_LABELS`, en_us in `SAVE_MESSAGES`); per language the first defined text wins. Missing → `""`.
+  - `GameData.text_entry("main/item", "MOVE_NAMES", move_id)` for arrays (by `index`).
+  - Tables like Digimon and items carry their name as `{string_id, text}`; `GameData.localize(record.name)` picks the current language.
+- The language is `GameData.language` (`dw/data/language` project setting, default `en_us`; `set_language()` emits `language_changed`). `release_text` matters only to reproduce an older JP build.
+- The NUL padding kept in `variants` is read as the two characters `\0` (Godot strings can't hold NUL); `text` never contains it.
 - **Text renderer:** the Godot UI must interpret the control codes (§2) and map button glyphs (`△ × □`, `｛｝` = bits icon) to its own font or icons. US ASCII is drawn full-width by the original; a Godot font may draw it narrow.
 - **Modding:** text can be changed freely. Keep the array length and indices of `entries` blocks (the code indexes them by game id), and keep the row widths of space-padded layout strings unless the UI that draws them is changed too.
 

@@ -88,6 +88,14 @@ Run `python -m dwdata convert systems`: it should print `18 tables, 57/57 checks
 - **Fishing:** fish kinds are Digianchovy … Digiseabass; a stuck line gives Sm. recovery most of the time (35 %).
 - **Mojyamon trades:** e.g. Digimushrm → Med. recovery, Supercarrot → Omnipotent.
 
+## Godot `GameData` (`scripts/data/game_data.gd`)
+
+Run after `convert all`, from `dw_godot/`, with Godot 4.7: `godot --headless --path . -s res://tests/test_game_data.gd`. It should print `OK: GameData checks` (Agumon, Spit Fire, Meat, type factors, battle commands, flee chances, maps, text by id in en_us and ja, a mod override).
+
+- **In the game:** run the project (F5). The help line shows the area name from the data porter, e.g. `Native Forest (MAYO04A, en_us)`. Press `L`: the name switches to `迷わずの森 (…, ja)`, then `en_eu`. Walk through a warp or use `[` / `]`: the name follows the map. If the Japanese name shows as boxes, the font has no kana (the menus will get their own font later).
+- **Mods:** copy e.g. `data_porter/output/items/item_data.json` into a folder, change Meat's price, and set the folder in the `dw/data/mod_dirs` project setting (or `DW_DATA_MODS`). `GameData.item(38).price` returns the new price; the other tables are unchanged.
+- **Missing output:** rename `data_porter/output` and run: the field still works and shows the asset porter's map name, and the test prints `SKIP`. Code that asks for a table anyway gets `{}` and one error per table naming `python -m dwdata convert all`.
+
 ## Reporting a problem
 
 Note the table, the record id and what you expected vs. saw. The table's `source` says which decomp file and line the value came from.

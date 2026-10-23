@@ -179,9 +179,9 @@ The jukebox list. US shows the Mt. Panorama theme at index 45, where the other r
 
 Every table is in the common shape. Ids are resolved to names: Digimon, items, text strings (`{string_id, text, file}`) and maps. Raw C records are kept in `c` where the record isn't the raw value itself. Records hold the US values; release differences are under `release_values`.
 
-## Godot usage (planned)
+## Godot usage
 
-`GameData.system(name)` returns any of these tables, with helpers where an index is computed: `flee_chance(partner_type, enemy_type)`, `battle_commands(brain, arena)`, `tournament(id)`, `tournaments_on_day(day)`, `map(id)`, `toilet(id)`, `training_spots(map)`. The formulas above are ported with the system that uses them (battle, arena, care, fishing, menus).
+`GameData.system(name)` returns the records of any of these tables (one-record tables: `system("fishing")[0]`), with helpers where an index is computed: `flee_chance(partner_type, enemy_type)`, `battle_commands(brain, arena)`, `enemy_music(digimon_id)`, `tournament(id)`, `tournaments_on_day(day)` (day % 30, before `isTournamentEnabled`), `tournament_win_chance(level_a, level_b)`, `map(id)`, `map_id(file)`, `toilet(id)`, `training_spots(map)`. Lookups that find nothing return `-1` or `{}`. The formulas above are ported with the system that uses them (battle, arena, care, fishing, menus).
 
 ## Verification
 

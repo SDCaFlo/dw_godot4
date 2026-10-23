@@ -291,7 +291,7 @@ def convert(input_root, output_root) -> GroupWriter:
                               "HEAL_EFFECT_VARIANT", "INITIAL_INVENTORY_TYPES", "INITIAL_INVENTORY_AMOUNTS",
                               "DEFAULT_INVENTORY_TYPES", "DEFAULT_INVENTORY_AMOUNTS", "ITEM_SORT_ORDER",
                               "RECYCLABLE_ITEMS", "CARD_DATA", "CARD_PRICES", "SHOP_MAPS", "SHOPKEEP_DIGIMON_TYPES"])
-    status = "planned (GameData autoload not implemented yet)"
+    status = "implemented (scripts/data/game_data.gd)"
     item_struct = index.program(ITEM_C, REFERENCE).structs["Item"]
 
     def write(name, loaded_, schema, records, symbols, godot, used=None, extra=None):

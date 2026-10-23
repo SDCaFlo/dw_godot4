@@ -279,7 +279,7 @@ def convert(input_root, output_root) -> GroupWriter:
 
     # -- write --------------------------------------------------------------------------------
     refs = decomp.references(["EVOLUTION_REQS", "EVOLUTION_PATHS", "EVOLUTION_STATS_GAINS", "EVOLUTION_ITEM_TARGET"])
-    status = "planned (GameData autoload not implemented yet)"
+    status = "implemented (scripts/data/game_data.gd)"
     structs = index.program(EVO_C, REFERENCE).structs
 
     def write(name, loaded_, schema, records, symbol, fields, godot, extra=None):

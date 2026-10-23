@@ -244,7 +244,7 @@ def convert(input_root, output_root) -> GroupWriter:
         "schema": schema,
         "records": records,
         "used_by": tables.used_by(decomp, refs["MOVE_DATA"], move_fields, move_data),
-        "godot": {"status": "planned (GameData autoload not implemented yet)",
+        "godot": {"status": "implemented (scripts/data/game_data.gd)",
                   "access": "GameData.move(id) -> record; GameData.text_entry(\"main/item\", \"MOVE_NAMES\", id) for "
                             "the name",
                   "notes": "Battle code uses mp (= mp_cost * 3), distance_squared as the C code does, and the id "
@@ -276,7 +276,7 @@ def convert(input_root, output_root) -> GroupWriter:
         "records": factor_records,
         "release_values": tf_diff,
         "used_by": tables.used_by(decomp, refs["TYPE_FACTORS"], [], type_factors),
-        "godot": {"status": "planned", "access": "GameData.type_factor(attacker_element, defender_element)",
+        "godot": {"status": "implemented (scripts/data/game_data.gd)", "access": "GameData.type_factor(attacker_element, defender_element)",
                   "notes": "Keep 7 x 7: element ids index it directly."},
     }, symbols=["TYPE_FACTORS"])
 
@@ -299,7 +299,7 @@ def convert(input_root, output_root) -> GroupWriter:
         "records": chance_records,
         "release_values": tables.diffs(learn, lambda l: l.value),
         "used_by": tables.used_by(decomp, refs["MOVE_LEARN_CHANCES"], [], learn),
-        "godot": {"status": "planned", "access": "GameData.learn_chance(move_id, element_slot)",
+        "godot": {"status": "implemented (scripts/data/game_data.gd)", "access": "GameData.learn_chance(move_id, element_slot)",
                   "notes": "Only techniques 0x00-0x39 can be learned this way."},
     }, symbols=["MOVE_LEARN_CHANCES"])
 

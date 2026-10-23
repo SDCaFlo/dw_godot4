@@ -1,7 +1,7 @@
 extends Node
 ## Field scene: one map, the tamer walking on it, warps between maps.
 ##
-## Debug keys: [ / ] previous / next map, T time of day, H toggle the help line.
+## Debug keys: [ / ] previous / next map, T time of day, L text language, H toggle the help line.
 
 @export var start_map := "MAYO04A"
 @export var start_spawn := 0
@@ -56,6 +56,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_T:
 			_field.set_time_of_day((_field.time_of_day + 1) % 3)
 			_update_label()
+		KEY_L:
+			var languages := GameData.LANGUAGES
+			GameData.set_language(languages[(languages.find(GameData.language) + 1) % languages.size()])
+			_update_label()
 		KEY_H:
 			_label.visible = not _label.visible
 
@@ -63,4 +67,16 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _update_label() -> void:
 	var times := ["day", "evening", "night"]
 	var time: String = times[_field.time_of_day] if _field.palette_count() > 1 else "no time cycle"
-	_label.text = "%s  %s\narrows move, shift run, [ ] map, T time, H hide" % [_field.display_name(), time]
+	_label.text = "%s  %s\narrows move, shift run, [ ] map, T time, L language, H hide" % [_map_label(), time]
+
+
+## Map name from the data porter (MAP_ENTRIES + map.yaml) in the GameData language; the asset
+## porter's English name if the data output is missing.
+func _map_label() -> String:
+	var id := GameData.map_id(_field.map_name) if GameData.available() else -1
+	if id < 0:
+		return _field.display_name()
+	var area := GameData.localize(GameData.map(id).get("name")).strip_edges()
+	if area == "":
+		return _field.display_name()
+	return "%s (%s, %s)" % [area, _field.map_name, GameData.language]

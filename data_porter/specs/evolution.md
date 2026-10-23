@@ -118,7 +118,7 @@ They run only while the tamer is idle.
 - **`stat_gains`:** `applied_as` is `gain` (`gains {hp … brain}`) or `scale` (`scale` = brains / 10). `unused_gains` holds the gain values of a scaled target that also has them (WereGarurumon 62).
 - **`item_targets`:** `item`, `target`, `from` (table entry or code constant), `needs_level`, `can_work`.
 
-## 4. Godot usage (planned)
+## 4. Godot usage
 
 - `GameData.evolution_requirements(id)`, `evolution_paths(id)`, `evolution_gains(id)` and `evolution_item_target(item)` feed a GDScript port of `evolution.c` and `EVL_applyEvolution`.
 - The selection rules of §2 are code: hour thresholds, fixed Fresh targets, the Numemon fallback, special evolutions, the Sukamon virus bar, the "raised" priority, and the averaging quirk. Port them function by function.

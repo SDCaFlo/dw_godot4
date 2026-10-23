@@ -2,7 +2,7 @@
 
 A port of the original PlayStation game **Digimon World** to the [Godot](https://godotengine.org/) engine (4.7, Forward Plus renderer), aimed at making future development, modding and maintenance easier.
 
-> **Status:** early work in progress. The asset porter converts every file of the disc (textures, models, Digimon with animations, field maps, event scripts, sound and music, battle effects, movies); a first field scene walks the tamer around the converted maps. The data porter (game data from the decomp) converts all in-game text, in every language, the techniques (moves, element factors, learn chances) the Digimon data (size, type, level, elements, drops, technique slots, partner care data) the items (prices, use, effects, cards, shops) evolution (requirements, paths, stat gains, evolution items) and the system tables (battle AI, tournaments, maps, transport, fishing, …); the Godot `GameData` loader is next.
+> **Status:** early work in progress. The asset porter converts every file of the disc (textures, models, Digimon with animations, field maps, event scripts, sound and music, battle effects, movies); a first field scene walks the tamer around the converted maps. The data porter (game data from the decomp) converts all in-game text, in every language, the techniques (moves, element factors, learn chances) the Digimon data (size, type, level, elements, drops, technique slots, partner care data) the items (prices, use, effects, cards, shops) evolution (requirements, paths, stat gains, evolution items) and the system tables (battle AI, tournaments, maps, transport, fishing, …); the Godot `GameData` autoload loads it at runtime (the field shows the area name in the chosen language).
 
 ## Approach
 
@@ -31,9 +31,11 @@ dw_godot_port/
 │   ├── data_porter/          # Python tool: decomp tables/text -> JSON game data (see its CLAUDE.md)
 │   │   └── output/           # Generated data, gitignored, not imported by Godot (.gdignore)
 │   ├── scenes/field/         # Field scene (map + tamer)
-│   └── scripts/
-│       ├── porter/           # PorterAssets: runtime loading of the porter output
-│       └── field/            # FieldMap (background, camera, collision, warps), Tamer, field.gd
+│   ├── scripts/
+│   │   ├── porter/           # PorterAssets: runtime loading of the asset porter output
+│   │   ├── data/             # GameData autoload: runtime loading of the data porter output
+│   │   └── field/            # FieldMap (background, camera, collision, warps), Tamer, field.gd
+│   └── tests/                # Godot headless tests (test_game_data.gd)
 └── external-resources/       # Not tracked; reference material and dumped game files
     ├── dw_decomp/            # Decompiled C code (asm/, config/, include/, src/, text/, ...)
     └── game_dumped_files/    # Files dumped from your own disc
@@ -67,9 +69,13 @@ dw_godot_port/
    ```
    Every run ends with `N/N checks passed` per family/group; a failed check makes the command exit non-zero.
 5. Optional: go through each tool's `VERIFY.md` (human checks: look at textures, open models in Blender, listen to sounds, …).
-6. Open `dw_godot/project.godot` with Godot 4.7 and run the project (F5).
+6. Open `dw_godot/project.godot` with Godot 4.7 and run the project (F5). Optional: `godot --headless --path . -s res://tests/test_game_data.gd` checks the data loader.
 
-The output folders can be moved: `DW_PORTER_OUTPUT` (assets) and, once available, `DW_DATA_OUTPUT` (data).
+The output folders can be moved: `DW_PORTER_OUTPUT` / `dw/porter/output_dir` (assets) and `DW_DATA_OUTPUT` / `dw/data/output_dir` (data).
+
+## Game data in Godot
+
+`GameData` (autoload, `scripts/data/game_data.gd`) reads the data porter's JSON on first use: `GameData.digimon(3)`, `GameData.move(2)`, `GameData.item(38)`, `GameData.map(0)`, `GameData.battle_commands(brain, arena)`, any table with `GameData.table("systems/fishing")`, and text with `GameData.text("STR_DIGIMON_NAME_AGUMON")` or `GameData.localize(record.name)` in `GameData.language` (`ja`, `en_us`, `en_eu`; setting `dw/data/language`). Mods: put changed table files (same relative path, e.g. `items/item_data.json`) in a folder listed in `dw/data/mod_dirs` or `DW_DATA_MODS`. Details: `data_porter/CLAUDE.md` ("Godot side") and each table's spec.
 
 ## Field scene
 
@@ -78,7 +84,7 @@ The output folders can be moved: `DW_PORTER_OUTPUT` (assets) and, once available
 - Background: the map's pre-rendered picture on a canvas layer; the 3D (tamer, doors) is rendered into a transparent 320×240 viewport over it, like the PSX drew polygons over the background tiles.
 - Camera: the game's camera (`GsSetRefView2`) with a shifted projection centre, so the background scrolls with the tamer exactly like the original (`map.c: initializeDrawingOffsets`).
 - Tamer: walk/run animations move him through their root motion (the game's `applyRootMomentum`); directions are snapped to the camera like `tamerTickWalkingState`; collision uses the map's 100×100 grid with the game's edge checks; trigger cells 110–119 warp to the next map.
-- Keys: arrows move, Shift runs, `[` / `]` previous / next map, `T` time of day, `H` hides the help line. The start map and spawn are exported on the `Field` node.
+- Keys: arrows move, Shift runs, `[` / `]` previous / next map, `T` time of day, `L` text language (area name from `GameData`), `H` hides the help line. The start map and spawn are exported on the `Field` node.
 
 Not yet: NPC Digimon, partner, map object sprites (water, fire), lighting, depth against the background, events/scripts. The porter output folder can be moved with the `DW_PORTER_OUTPUT` environment variable or the `dw/porter/output_dir` project setting.
 
@@ -86,7 +92,7 @@ Not yet: NPC Digimon, partner, map object sprites (water, fire), lighting, depth
 
 - [x] Asset extraction and conversion pipeline (every disc file: textures, models, Digimon, maps, scripts, sound, effects, movies)
 - [x] Game data pipeline (data porter: text, moves, Digimon, items, evolution, system tables)
-- [ ] Godot `GameData` loader for the data porter output
+- [x] Godot `GameData` loader for the data porter output
 - [ ] Core game systems (state, save data, scripting/events)
 - [ ] Overworld: maps, camera, player movement (first version: field scene)
 - [ ] Digimon data, stats, evolution and care mechanics

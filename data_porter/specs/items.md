@@ -109,7 +109,7 @@ Items and what they do, the healing values, the built-in inventories, the invent
 - `inventories`: `default_savegame` and `boot`, as non-empty slots `{slot, item, amount}` plus the raw arrays.
 - `shops`: one record with `maps` and `shopkeepers`.
 
-## 4. Godot usage (planned)
+## 4. Godot usage
 
 - `GameData.item(id)`, `item_effect(id)`, `card(id)`, `shops()`, `recyclable_items()`, `sort_order(mode)`, `inventory_preset(name)`.
 - The inventory UI uses `usable`, `droppable` and `sort_category`. Shops use `price`, `sell_price`, `merit`. Feeding and throwing call a GDScript port of each handler, which reads `item_effects`. The handler rules of §2 (caps, favourite food, sickness, boosts, buff caps) are code, not data.

@@ -188,7 +188,7 @@ def convert(input_root, output_root) -> GroupWriter:
 
     us = {n: l[REFERENCE].value for n, l in L.items()}
     refs = decomp.references(list(L) + ["STD_YOUR_CALL_POWER_PRIO", "VS_YOUR_CALL_POWER_PRIO"])
-    status = "planned (GameData autoload not implemented yet)"
+    status = "implemented (scripts/data/game_data.gd)"
     bad = defaultdict(list)
 
     def write(name, symbols, schema, records, godot, extra=None, fields=None):

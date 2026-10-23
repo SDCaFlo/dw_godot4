@@ -28,7 +28,7 @@ var _down: Vector3
 var _forward: Vector3
 var _projection := 1.0
 var _collision: PackedByteArray
-var _backgrounds: Array[ImageTexture] = []
+var _backgrounds: Array[Texture2D] = []
 
 ## Background sprite on a canvas layer behind the 3D view (the 3D is rendered into a
 ## transparent viewport over it, like the PSX drew polygons over the tiles).
@@ -39,7 +39,7 @@ var _backgrounds: Array[ImageTexture] = []
 
 
 func load_map(name: String) -> bool:
-	var json = PorterAssets.load_json("maps/%s/map.json" % name)
+	var json = Content.load_json("maps/%s/map.json" % name)
 	if json == null:
 		return false
 	map_name = name
@@ -62,8 +62,8 @@ func load_map(name: String) -> bool:
 
 	_backgrounds.clear()
 	var palette := 0
-	while PorterAssets.exists("maps/%s/background_%d.png" % [name, palette]):
-		_backgrounds.append(PorterAssets.load_texture("maps/%s/background_%d.png" % [name, palette]))
+	while Content.exists("maps/%s/background_%d.png" % [name, palette]):
+		_backgrounds.append(Content.load_texture("maps/%s/background_%d.png" % [name, palette]))
 		palette += 1
 	set_time_of_day(time_of_day)
 
@@ -104,7 +104,7 @@ func palette_count() -> int:
 ## Spawn point i of the map entities (MapEntities.spawn*): Godot position and PSX rotation.vy.
 func spawn(i: int) -> Dictionary:
 	var s: Dictionary = data["spawns"][i]
-	return {"position": PorterAssets.psx_to_godot([s["x"], s["y"], s["z"]]), "rotation": int(s["rotation"])}
+	return {"position": Content.psx_to_godot([s["x"], s["y"], s["z"]]), "rotation": int(s["rotation"])}
 
 
 ## Warp for a trigger value 110..119 (tamer.c checkMapInteraction): {"map_name", "spawn"} or {}.
@@ -130,11 +130,11 @@ func _load_doors() -> void:
 		child.queue_free()
 	for door in data.get("doors", []):
 		var rel := "maps/%s/doors/door_%02d.gltf" % [map_name, int(door["model"])]
-		if not PorterAssets.exists(rel):
+		if not Content.exists(rel):
 			continue
-		var model := PorterAssets.load_model(rel)
-		model.position = PorterAssets.psx_to_godot(door["position"])
-		model.rotation.y = PorterAssets.psx_yaw(door["rotation"])
+		var model := Content.load_model(rel)
+		model.position = Content.psx_to_godot(door["position"])
+		model.rotation.y = Content.psx_yaw(door["rotation"])
 		_doors.add_child(model)
 
 
@@ -202,12 +202,12 @@ func _tile_z(z: int) -> int:
 # --- Camera ----------------------------------------------------------------------------------
 
 func _setup_camera() -> void:
-	var up := -PorterAssets.psx_to_godot([_down.x, _down.y, _down.z])
-	var back := -PorterAssets.psx_to_godot([_forward.x, _forward.y, _forward.z])
-	var right := PorterAssets.psx_to_godot([_right.x, _right.y, _right.z])
-	camera.transform = Transform3D(Basis(right, up, back), PorterAssets.psx_to_godot([_eye.x, _eye.y, _eye.z]))
+	var up := -Content.psx_to_godot([_down.x, _down.y, _down.z])
+	var back := -Content.psx_to_godot([_forward.x, _forward.y, _forward.z])
+	var right := Content.psx_to_godot([_right.x, _right.y, _right.z])
+	camera.transform = Transform3D(Basis(right, up, back), Content.psx_to_godot([_eye.x, _eye.y, _eye.z]))
 	camera.keep_aspect = Camera3D.KEEP_HEIGHT
-	follow(PorterAssets.psx_to_godot(data["setup"]["reference"]) * 2.0)
+	follow(Content.psx_to_godot(data["setup"]["reference"]) * 2.0)
 
 
 ## Background pixel where a Godot world point is drawn (specs/map.md, "Camera").

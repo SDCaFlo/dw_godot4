@@ -27,6 +27,18 @@ window/size/window_width_override=960
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/dw_tools/plugin.cfg")
+
+[importer_defaults]
+
+texture={
+"compress/mode": 0,
+"detect_3d/compress_to": 0,
+"mipmaps/generate": false
+}
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

@@ -91,15 +91,28 @@ Implemented in `GameData` (`scripts/data/game_data.gd`, "Packs"): pack folders c
 
 ## 6. Assets: one loader, two sources
 
-Content refers to assets by **pack-relative paths** (`dw1` → `mmd_files/MMD0/AGUM.gltf`), resolved by one loader (`Content`, the successor of `PorterAssets`):
+Content refers to assets by **pack-relative paths** (`dw1` → `mmd_files/MMD0/AGUM.gltf`), resolved by one loader (`Content`, `scripts/content/content.gd`):
 
 1. a **Godot-imported** copy under `res://content/<pack>/…` if present (editor and own packs: import settings, thumbnails, drag and drop, animation preview);
-2. otherwise the **raw file** (glTF, PNG, WAV/OGG, JSON) loaded at runtime, as `PorterAssets` does now.
+2. otherwise the **raw file** (glTF, PNG, WAV/OGG, JSON) loaded at runtime.
 
 - **`dw1` in the editor:** a local step mirrors a selection of the asset porter output (models, maps; not movies) into `res://content/dw1/`, which is **gitignored** and has no `.gdignore`, so Godot imports it. Scenes may reference those paths; the files themselves are never committed. Someone without the output gets a missing resource until they run the porters, which they need to do anyway.
 - **`dw1` in an exported game:** Godot's importer doesn't exist there, and the export must not contain game content. The game loads `dw1` raw from the player's generated folders (source 2).
 - **Own packs:** imported in `res://content/<pack>/` and committed, if the content is ours.
 - **Editor rule (unchanged):** a preview never writes content into a tracked file (`PLANS.md`, "Rule").
+
+Implemented (2026-10-23):
+
+- **Mirror:** Project > Tools > "DW: Mirror dw1 assets" (plugin `addons/dw_tools`) runs `Content.mirror_dw1()` and a filesystem scan. It copies `mmd_files/**` (178 models with textures and sidecars), `maps/*/background_*.png`, `overview.png`, `doors/*` and `card_all/*.png`: 2,647 files, about 330 MB. Map object sprite frames (19k files), movies, sound and scripts are not mirrored. It copies only new or changed files (by modification time); delete the folder to rebuild it.
+- **Import settings:** textures import lossless with no 3D VRAM compression and no mipmaps (project `importer_defaults`, for the PSX pixel art). Models get a per-file `.gltf.import` written by the mirror (`Content.MODEL_IMPORT`):
+  - animations baked at 20 fps, the PSX animation tick;
+  - constant tracks kept;
+  - the AnimationPlayer optimizer off (it drops keys within about 3 units);
+  - no LOD or shadow meshes.
+  
+  With Godot's defaults (30 fps, optimizer on) the imported animations drifted from the porter's keys by up to 33 units; with these settings imported and runtime-loaded models agree on every track at every frame (`tests/test_content.gd`). The runtime loader bakes at the same 20 fps and keeps constant tracks (before this it resampled at 30 fps too).
+- **Per instance:** `Content.load_model` gives each instance its own materials (PSX look as overrides) and animation libraries, so game code may change them (loop modes) without touching imported resources.
+- **Export:** an export preset must exclude `content/dw1/*` (not done yet: there is no export preset). Without the mirror, `Content` loads the raw files.
 
 ## 7. Modding (later)
 

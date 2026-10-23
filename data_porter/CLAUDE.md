@@ -94,7 +94,7 @@ Write specs from evidence in the decomp, not from guesses. Update the spec befor
 
 The `GameData` autoload (`../scripts/data/game_data.gd`, registered in `project.godot`) loads `output/` at runtime:
 
-- **Folder:** env `DW_DATA_OUTPUT` or the `dw/data/output_dir` project setting (default `res://data_porter/output`), like `PorterAssets`.
+- **Folder:** env `DW_DATA_OUTPUT` or the `dw/data/output_dir` project setting (default `res://data_porter/output`), like the asset loader `Content` (`DW_PORTER_OUTPUT`).
 - **Tables:** `table("digimon/digimon_data")` (whole file), `records(name)`, `record(name, index)`, `find(name, field, value)` / `find_all` (a reference field matches on its id). Loaded on first use, cached; `reload()` drops the cache.
 - **Accessors:** the one each table names in its `godot.access` (`digimon(id)`, `move(id)`, `item(id)`, `map(id)`, `battle_commands(brain, arena)`, …). They return the record (or `{}`), or an int for factor / chance lookups (`-1` = not in the table). A table's `godot.access` must name a function that exists.
 - **Text:** `text(id)`, `text_entry(table, block, index)`, `localize(name_ref)` in `GameData.language` (`dw/data/language`, `set_language()` → `language_changed`).

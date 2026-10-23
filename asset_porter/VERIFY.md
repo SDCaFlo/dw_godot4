@@ -112,6 +112,16 @@ Run the project (F5; main scene `scenes/field/field.tscn`, see the project READM
 
 Wrong if: the tamer floats or sinks, drifts against the background while walking, walks through walls, or exits lead to the wrong map. The scene uses Digimon as a `Skeleton3D` + `AnimationPlayer` with `root_motion_track = Skeleton3D:bone_0`.
 
+## 6. In Godot — editor mirror, 10 minutes (first import included)
+
+Project > Tools > **DW: Mirror dw1 assets** copies models, map backgrounds / doors and cards into `res://content/dw1/` (`../specs/content.md` §6). The Output panel says how many files were copied; Godot then imports them (progress bar, a few minutes the first time).
+
+- FileSystem dock: `content/dw1/mmd_files/MMD0/` shows a thumbnail for each model, `content/dw1/maps/<NAME>/` the backgrounds, `content/dw1/card_all/` the cards.
+- Double-click `AGUM.gltf` (Advanced Import Settings): Agumon is textured; in the animation list, play `anim_03` (walk) — it moves like in the game. Drag `AGUM.gltf` into a 3D scene: it appears textured.
+- Run `godot --headless --path . -s res://tests/test_content.gd` (from `dw_godot/`): `OK: Content checks` means the imported models play exactly like the runtime-loaded files (every animation track at every 20 fps frame). If it fails with an import-setting difference, Godot 4.7 may name an option differently than 4.3 (see `Content.MODEL_IMPORT`).
+- F5 still works the same (the field now uses the imported tamer and backgrounds).
+- `git status` shows nothing under `content/` (gitignored).
+
 ## Reporting a problem
 
 Note the file, the animation id or map name, and what you expected vs. saw. A screenshot of the game helps. The sidecar `.json` next to each output has the source file and offset to trace it back.

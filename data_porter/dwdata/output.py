@@ -139,7 +139,7 @@ class GroupWriter:
 
 
 # This output is the dw1 content pack (../specs/content.md §1). Paths are relative to this folder;
-# the asset folder is the default layout, overridden like PorterAssets (DW_PORTER_OUTPUT).
+# the asset folder is the default layout, overridden like Content does (DW_PORTER_OUTPUT).
 PACK_MANIFEST = {
     "id": "dw1",
     "name": "Digimon World (original game)",

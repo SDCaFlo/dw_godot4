@@ -87,5 +87,6 @@ Current result: 178 assets, 1071/1071 checks.
 
 - Animation names (idle, walk, attack ids) are not mapped yet; ids follow the game (`startAnimation(entity, id)`).
 - Texture moves are exported as events; a Godot implementation must apply them to the material texture (or bake frames).
+- **Zero scales** are kept as the data gives them: 12 models have animation scale keys of 0 (285 channels; 169 in `DIGI`, then `DORI` 15, `NISE` 8, `ESEA` 5, one each in `BOYS`, `MAME`, `SKUL`, `SHEL`, `MRIS`, `ESKU`, …), and `DIGI` / `EDIG` have 3 bones with a rest scale of 0. Presumably they hide a part for some frames (not traced in the code yet). Godot's scene importer prints `Basis … must be normalized in order to be casted to a Quaternion` for them when it imports the editor mirror; the imported copy still plays like the runtime-loaded file (`tests/test_content.gd`, `BOYS` included). Not changed in the output, which stays lossless.
 - Semi-transparency (`abr`) is approximated as alpha blend (see `tmd.md`).
 - The root starts at identity; in game it starts from the entity's current orientation.

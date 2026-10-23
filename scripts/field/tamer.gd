@@ -22,11 +22,11 @@ var _skeleton: Skeleton3D
 
 
 func _ready() -> void:
-	var model := PorterAssets.load_model(MODEL)
+	var model := Content.load_model(MODEL)
 	if model == null:
 		return
 	add_child(model)
-	var sidecar = PorterAssets.load_json(SIDECAR)
+	var sidecar = Content.load_json(SIDECAR)
 	if sidecar != null:
 		radius = int(sidecar["skeleton"]["radius"])
 
@@ -34,8 +34,11 @@ func _ready() -> void:
 	_skeleton = model.find_children("*", "Skeleton3D", true, false)[0]
 	for anim_name in [ANIM_IDLE, ANIM_RUN, ANIM_WALK]:
 		_player.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
-	var anim_root := _player.get_node(_player.root_node)
-	_player.root_motion_track = NodePath("%s:bone_0" % anim_root.get_path_to(_skeleton))
+	# Root motion only when the game runs: the editor checks NodePath properties relative to the
+	# node itself, not to root_node, and reports this valid track as an invalid path.
+	if not Engine.is_editor_hint():
+		var anim_root := _player.get_node(_player.root_node)
+		_player.root_motion_track = NodePath("%s:bone_0" % anim_root.get_path_to(_skeleton))
 	_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	_player.play(ANIM_IDLE)
 
@@ -87,7 +90,7 @@ func _input_direction(input: Vector2) -> int:
 
 func _set_direction(vy: int) -> void:
 	direction = vy & 0xFFF
-	rotation.y = PorterAssets.psx_yaw(direction)
+	rotation.y = Content.psx_yaw(direction)
 
 
 ## entityCheckCollision: the move is undone when the map blocks it. The game then turns the

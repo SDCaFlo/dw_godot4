@@ -5,4 +5,6 @@
 # Asset porter / data porter (generated game content, never committed)
 asset_porter/output/
 data_porter/output/
+# Editor mirror of the dw1 assets (Project > Tools > DW: Mirror dw1 assets), imported by Godot
+/content/dw1/
 __pycache__/

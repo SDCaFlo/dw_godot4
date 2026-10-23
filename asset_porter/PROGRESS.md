@@ -63,7 +63,7 @@ Last updated: 2026-10-22
 | Verification checks (fail = non-zero exit) | done | |
 | Unit tests | done | `tests/test_tim.py`, 41 tests |
 | Human verification guide | done | `VERIFY.md` |
-| Godot import of `output/` | done | `asset_porter/.gdignore`: the editor never imports it; the game loads it at runtime (`scripts/porter/porter_assets.gd`) |
+| Godot import of `output/` | done | `asset_porter/.gdignore`: the editor never imports it; the game loads it through `scripts/content/content.gd` (`Content`): raw at runtime, or the Godot-imported editor mirror `res://content/dw1/` (models, map backgrounds / doors, cards; gitignored) when present |
 
 ## Log
 

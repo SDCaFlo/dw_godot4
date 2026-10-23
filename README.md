@@ -30,14 +30,16 @@ dw_godot_port/
 │   │   └── output/           # Generated assets, gitignored, not imported by Godot (.gdignore)
 │   ├── data_porter/          # Python tool: decomp tables/text -> JSON game data (see its CLAUDE.md)
 │   │   └── output/           # Generated data, gitignored, not imported by Godot (.gdignore)
+│   ├── addons/dw_tools/      # Editor plugin: Project > Tools > "DW: Mirror dw1 assets"
+│   ├── content/dw1/          # Editor mirror of the dw1 assets, imported by Godot (gitignored, local)
 │   ├── PLANS.md              # To-do list and ideas
 │   ├── specs/content.md      # Content architecture (packs, keys, merging)
 │   ├── scenes/field/         # Field scene (map + tamer)
 │   ├── scripts/
-│   │   ├── porter/           # PorterAssets: runtime loading of the asset porter output
+│   │   ├── content/          # Content: asset loader (editor mirror if imported, else the porter output)
 │   │   ├── data/             # GameData autoload: runtime loading of the data porter output
 │   │   └── field/            # FieldMap (background, camera, collision, warps), Tamer, field.gd
-│   └── tests/                # Godot headless tests (test_game_data.gd)
+│   └── tests/                # Godot headless tests (test_game_data.gd, test_content.gd)
 └── external-resources/       # Not tracked; reference material and dumped game files
     ├── dw_decomp/            # Decompiled C code (asm/, config/, include/, src/, text/, ...)
     └── game_dumped_files/    # Files dumped from your own disc
@@ -71,7 +73,8 @@ dw_godot_port/
    ```
    Every run ends with `N/N checks passed` per family/group; a failed check makes the command exit non-zero.
 5. Optional: go through each tool's `VERIFY.md` (human checks: look at textures, open models in Blender, listen to sounds, …).
-6. Open `dw_godot/project.godot` with Godot 4.7 and run the project (F5). Optional: `godot --headless --path . -s res://tests/test_game_data.gd` checks the data loader.
+6. Open `dw_godot/project.godot` with Godot 4.7 and run the project (F5). Optional: `godot --headless --path . -s res://tests/test_game_data.gd` and `res://tests/test_content.gd` check the data and asset loaders.
+7. Optional, to see the game's models and maps in the editor: Project > Tools > **DW: Mirror dw1 assets**. It copies the models, map backgrounds / doors and cards (about 330 MB) into `res://content/dw1/` (gitignored) and Godot imports them (a few minutes the first time): FileSystem thumbnails, drag a Digimon `.gltf` into a scene, preview its animations. The game then loads these imported copies too. Run it again after re-running the asset porter.
 
 The output folders can be moved: `DW_PORTER_OUTPUT` / `dw/porter/output_dir` (assets) and `DW_DATA_OUTPUT` / `dw/data/output_dir` (data).
 

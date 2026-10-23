@@ -39,13 +39,13 @@ var _arrival_trigger := 0
 
 
 func _ready() -> void:
-	_maps = DirAccess.get_directories_at(PorterAssets.path("maps"))
+	_maps = DirAccess.get_directories_at(Content.path("maps"))
 	_tamer.field = _field
 	if Engine.is_editor_hint():
 		_refresh_preview()
 		return
 	if _maps.is_empty():
-		_label.text = "No maps in %s.\nRun: python -m dwporter convert maps mmd_files" % PorterAssets.path("maps")
+		_label.text = "No maps in %s.\nRun: python -m dwporter convert maps mmd_files" % Content.path("maps")
 		return
 	_field.time_of_day = time_of_day
 	_enter(start_map if start_map in _maps else _maps[0], start_spawn)
@@ -156,6 +156,6 @@ func clear_preview() -> void:
 func _validate_property(property: Dictionary) -> void:
 	if property["name"] == "start_map":
 		if _maps.is_empty():
-			_maps = DirAccess.get_directories_at(PorterAssets.path("maps"))
+			_maps = DirAccess.get_directories_at(Content.path("maps"))
 		property["hint"] = PROPERTY_HINT_ENUM_SUGGESTION
 		property["hint_string"] = ",".join(_maps)

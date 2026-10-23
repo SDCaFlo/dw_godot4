@@ -11,9 +11,13 @@ const SIDECAR := "mmd_files/MMD0/BOYS.json"
 const ANIM_IDLE := "anim_00"
 const ANIM_RUN := "anim_02"
 const ANIM_WALK := "anim_03"
-## tamerGetState values ported so far: 0 walks freely, 6 stands still while a scene plays.
+## tamerGetState values ported so far: 0 walks freely, 6 stands still while a scene plays, 20 shows
+## the award / sickness message box (tamerTickAwardSomething).
 const STATE_FREE := 0
 const STATE_STILL := 6
+const STATE_AWARD := 20
+## The bone getEntityScreenPos reads for the box's start point (tamer.c:1801).
+const SCREEN_BONE := 1
 
 ## PSX rotation.vy (4096 per turn).
 var direction := 0
@@ -28,6 +32,15 @@ var state := STATE_FREE:
 			_scene_playing = false
 ## setCameraFollowPlayer / unsetCameraFollowPlayer.
 var camera_follow := true
+## TAMER_SUB_STATE (reset by tamerSetState = set_state).
+var sub_state := 0
+## For tick(): the field camera (screen positions), the partner and clock it stops, the message box,
+## the pad (the GameLoop autoload).
+var camera: Camera3D
+var partner: Partner
+var clock: Clock
+var message_box: MessageBox
+var pad: Node
 
 var _player: AnimationPlayer
 var _skeleton: Skeleton3D
@@ -84,6 +97,68 @@ func _process(delta: float) -> void:
 	_move(_skeleton.global_basis * motion)
 	if camera_follow:
 		field.follow(global_position)
+
+
+## tamerSetState (tamer.c:1359).
+func set_state(value: int) -> void:
+	state = value
+	sub_state = 0
+
+
+## The tamer's per-frame state code that isn't walking (the walk is in _process).
+func tick() -> void:
+	if state == STATE_AWARD:
+		tick_award_something()
+
+
+## tamerTickAwardSomething (tamer.c:1751): the message box. Its caller has drawn the text into
+## rows 120-155 of the text area. Medals and tamer levels (sub-states 1-3, MEDAL_AWARD_PENDING,
+## TAMER_LEVEL_AWARD_PENDING) come with the systems that award them; until then sub-state 0 goes
+## straight to 4.
+func tick_award_something() -> void:
+	match sub_state:
+		0:
+			# stopGameTime, startAnimation(tamer, 0): the walk code idles him outside STATE_FREE.
+			if clock != null:
+				clock.running = false
+			if partner != null:
+				partner.set_state(Partner.STATE_IDLE)
+			camera_follow = false
+			sub_state = 4
+		4:
+			if message_box != null and message_box.is_available():
+				message_box.open(screen_rect())
+				sub_state = 5
+				# playSound(0, 7): later with audio.
+		5:
+			if pad != null and pad.pad_pressed("ui_accept"):
+				if message_box != null:
+					message_box.close(screen_rect())
+				set_state(STATE_FREE)
+				if partner != null:
+					partner.set_state(Partner.STATE_NORMAL)
+				camera_follow = true
+				if clock != null:
+					clock.running = true
+				# setTextColor(1): the next text starts in the default colour.
+				if message_box != null and message_box.text_area != null:
+					message_box.text_area.set_text_color(1)
+
+
+## getEntityScreenPos(tamer, 1) as the 10 x 10 rect the boxes grow from / shrink to
+## (screenPos - 5, 10, 10), relative to the screen centre.
+func screen_rect() -> Rect2i:
+	var p := screen_position()
+	return Rect2i(p.x - 5, p.y - 5, 10, 10)
+
+
+## getEntityScreenPos (utils.c:176): bone 1 projected, relative to the screen centre.
+func screen_position() -> Vector2i:
+	if camera == null or _skeleton == null or not camera.is_inside_tree():
+		return Vector2i.ZERO
+	var world := _skeleton.global_transform * _skeleton.get_bone_global_pose(mini(SCREEN_BONE, _skeleton.get_bone_count() - 1)).origin
+	var screen := camera.unproject_position(world)
+	return Vector2i(roundi(screen.x) - 160, roundi(screen.y) - 120)
 
 
 ## startAnimation on the tamer: a scene animation by id; it holds its last frame until the tamer

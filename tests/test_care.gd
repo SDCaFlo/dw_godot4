@@ -194,13 +194,22 @@ func _sickness() -> void:
 	_reset("dw1:agumon", 10, 0)
 	gs.set_condition(Care.INJURED, true)
 	c["injury_timer"] = 11
-	var messages := []
-	care.message.connect(func(t): messages.append(t))
+	care.text_area = TextArea.new(data, "en_us")
 	_at(11, 0)
 	care.tick_conditions()
 	_eq([gs.has_condition(Care.SICK), gs.has_condition(Care.INJURED), c["injury_timer"], c["sickness_timer"]],
 			[true, false, 0, 1], "injured for 12 hours: sick")
-	_eq(messages.size(), 1, "the 'is sick' message")
+	# The name in colour 10 from x 0, " is sick" in colour 1 from strlen(name) / 2 * 12 (the gap quirk).
+	var name_length: int = str(gs.state["partner"]["name"]).length()
+	var colours := {}
+	for y in range(120, 131):
+		for x in 256:
+			var index := care.text_area.pixel(x, y)
+			if index != 0:
+				colours[index] = mini(colours.get(index, 999), x)
+	_eq([colours.get(10, -1) < 12, colours.get(1, -1) >= name_length * 12, colours.size()], [true, true, 2],
+			"the 'is sick' message in the text area (name colour 10, then colour 1 at %d)" % (name_length * 12))
+	care.text_area = null
 	var scripts := []
 	care.script_requested.connect(func(s): scripts.append(s))
 	c["sickness_timer"] = 11

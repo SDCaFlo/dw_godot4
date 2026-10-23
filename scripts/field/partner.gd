@@ -30,6 +30,8 @@ const HIT_MAP := 10
 const STATE_NORMAL := 1
 const STATE_SLEEP := 3
 const STATE_WILD_POOP := 7
+## Waits idling while the tamer is busy (e.g. his message box).
+const STATE_IDLE := 11
 
 var field: FieldMap
 var tamer: Node3D
@@ -151,6 +153,8 @@ func tick() -> void:
 			tick_sleep()
 		STATE_WILD_POOP:
 			tick_wild_poop()
+		STATE_IDLE:
+			tick_idle()
 	step = 0.0
 	on_screen = field.is_on_screen(global_position)
 	if care != null:
@@ -237,6 +241,13 @@ func tick_sleep() -> void:
 				# handleSpecialEvolutions(2): the evolution step.
 				if clock != null:
 					clock.running = true
+
+
+## partnerTickIdle (partner.c:733).
+func tick_idle() -> void:
+	if sub_state == 0:
+		start_animation(ANIM_IDLE)
+		sub_state = 1
 
 
 ## startAnimation of a scene animation; one the model lacks counts as played, so the scene goes

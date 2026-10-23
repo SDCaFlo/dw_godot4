@@ -43,7 +43,8 @@ Last updated: 2026-10-23
 4. **Milestone "text and scripts"** (started 2026-10-23):
    - [x] Text renderer spec (`specs/text.md`): font, text area, `renderString`, UI boxes, message box, dialogue box.
    - [x] Data porter group `font` (`data_porter/specs/font.md`): glyph tables per language, `FONT_CLUT`, `TEXT_COLORS`, ASCII map, glyph sheets; 52 checks including each language's text coverage; `GameData.font()` and friends.
-   - [ ] `PsxFont`, `TextArea`, `UIBoxes`, `MessageBox` (replaces the "is sick" help-line stand-in), `DialogueBox`; `tests/test_text.gd`; VERIFY.
+   - [x] `PsxFont`, `TextArea`, `PsxDraw`, `UIBoxes`, `MessageBox` in `scripts/ui/` (reusable for new windows, menus, shops: guide `docs/ui.md`); tamer state 20 shows "<name> is sick"; partner state 11; `GameLoop.pad_pressed` (`POLLED_INPUT`); `tests/test_text.gd`; VERIFY "Text and windows".
+   - [ ] `DialogueBox` (`showTextbox`, `drawString2`, pages, choices, custom size; `specs/text.md` §2.6–2.7) with a debug key that shows a text of the map's script.
    - [ ] Event-script interpreter (spec first; `asset_porter/specs/scn.md` has the opcodes).
 5. **Next milestones, in order:** text and scripts (above: NPC dialogue, Jijimon intro, new game) → menus (inventory, feeding, items, Digimon status) → battle → evolution and training → tournaments and minigames.
 6. **Field (as needed by the milestones):** NPC Digimon, map object sprites (water, fire), lighting, depth against the background, events.

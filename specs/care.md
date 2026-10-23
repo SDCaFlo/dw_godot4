@@ -172,7 +172,7 @@ All `file:line` references are in `external-resources/dw_decomp/src/main/` unles
 - **Hourly:** sick → `sickness_timer + 1`; injured → `injury_timer + 1`.
 - **Immortal hour:** the rest is skipped.
 - **Injury turns into sickness:** `injury_timer ≥ 12`, not sick, tamer state 0 → sick, injury cleared.
-- **Message:** if the partner became sick in this tick, the tamer waits (state 0x14) and the text box shows "<name> is sick" (`IS_SICK_TEXT`, `MAIN_D_801225A0`).
+- **Message:** if the partner became sick in this tick, the tamer waits (state 0x14) and the text box shows "<name> is sick" (`IS_SICK_TEXT`, `MAIN_D_801225A0`). The name is drawn in colour 10 at row 120 and the text in colour 1 at `strlen(name) / 2 × GLYPH_WIDTH`: 12 px per character of the full-width name, so US leaves a gap after narrow letters (`partner_impl.c:1898–1904`; `specs/text.md` §2.5).
 - **Sick too long:** `sickness_timer ≥ 12`, partner state not 8, tamer state 0, lifetime not 0, no script running (`IS_SCRIPT_PAUSED == 1`):
   - `lives − 1`, script value 0xFF = 0, script section 0x4DE runs (the partner collapses);
   - `sickness_timer = 0`.
@@ -382,7 +382,7 @@ Started from the menu's "Sleep" (partner state 3, `game_menu.c:2178–2186`), on
 | menu "Sleep" (enabled while sleepy) | debug key `Z` (later also the panel), refused unless `Care.sleep_enabled` and both are free | menus milestone |
 | save prompt after sleeping (sub-state 5) | skipped | menus |
 | fade to black / in | `Fade`: `fade.c`'s counters exactly (`out_current`, `in_current`, `progress`, `protection`, stops game time); drawn as black at alpha `progress / 160` instead of the original's colour subtraction | kept, reused by warps later |
-| "<name> is sick" text box (tamer state 0x14) | `Care.message`: the help line shows it for 100 frames; the tamer isn't stopped | text renderer |
+| "<name> is sick" text box (tamer state 0x14) | done (2026-10-23): `Care._show_sick_message` draws the text into the text area and sets the tamer's state 20; `Tamer.tick_award_something` shows it in the message box (`specs/text.md` §2.5) | — |
 | script section 0x4DE (collapse / death), `IS_SCRIPT_PAUSED` | the care sets the C values (lives − 1, timer 0, `IS_NATURAL_DEATH`), sets `script_running` and emits `script_requested(0x4DE)`. The field applies what `partnerTickDying` leaves at its end (lifetime 360, sickness / injury timers 0, `partner.c:674–676`) and ends the "script"; no rebirth | scripts milestone |
 | scene animations the model lacks | skipped (the scene goes on); the original would wait forever | kept |
 | partner state 9 (eating poop) | `tick_poop_detection()` finds the pile; the state isn't entered | with the poop eaters |

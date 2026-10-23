@@ -57,6 +57,8 @@ func _ready() -> void:
 	_button(actions, "poop now", _poop_now)
 	_button(actions, "hungry now", func(): _care()["food_level"] = 0)
 	_button(actions, "stats", _set_stats)
+	# Injured for 12 hours: the next frame makes the partner sick and shows "<name> is sick".
+	_button(actions, "injured 12h", _injured_12h)
 	var values := HFlowContainer.new()
 	box.add_child(values)
 	for entry in [["happy", "happiness"], ["disc", "discipline"], ["tired", "tiredness"], ["energy", "energy_level"]]:
@@ -117,6 +119,13 @@ func _refresh() -> void:
 func _set_speed(value: int) -> void:
 	if game_loop != null:
 		game_loop.speed = value
+	_refresh()
+
+
+func _injured_12h() -> void:
+	game_state.set_condition(Care.SICK, false)
+	game_state.set_condition(Care.INJURED, true)
+	_care()["injury_timer"] = 12
 	_refresh()
 
 

@@ -3,6 +3,7 @@
 The porters have their own checklists (`asset_porter/VERIFY.md`, `data_porter/VERIFY.md`); this file covers the game systems ported to GDScript. Every system has a headless test that must print `OK` (run from `dw_godot/`, Godot 4.7, after both porters):
 
 ```
+godot --headless --path . -s res://tests/test_text.gd
 godot --headless --path . -s res://tests/test_care.gd
 godot --headless --path . -s res://tests/test_partner.gd
 godot --headless --path . -s res://tests/test_clock.gd
@@ -17,6 +18,29 @@ With the Steam build of Godot the executable is `godot.windows.opt.tools.64.exe`
 The tests prove the code does what the spec says. What they can't prove is that the spec matches the game. That is what the checks below are for: compare with what you know of the game.
 
 Sections are added as systems are ported (`PLANS.md`).
+
+## Text and windows (`scripts/ui/`, `specs/text.md`, guide `docs/ui.md`)
+
+`test_text.gd` prints `OK: text checks`. Run the project (F5), open the care panel (`C`) and press **"injured 12h"**: on the next frame Agumon gets sick and the message box opens.
+
+1. **The box:**
+   - it grows from the tamer as a grey outline in 5 quick steps, to a strip near the bottom of the screen;
+   - the frame is black / light blue / blue lines with small corner pieces, and the inside is half dark (you see the field through it);
+   - a small button sprite blinks in the bottom-right corner (3 frames).
+   - Compare with any message in the game, e.g. when a partner gets sick: colours, size and place should match.
+2. **The text:**
+   - the partner's name in orange (colour 10), then "is Sick!" in light grey;
+   - the letters are the game's own font: 12 px capitals, narrow lowercase (`i` 4 px), no anti-aliasing.
+   - **Gap after the name:** there is a gap between the name and "is Sick!". The C code places the text at 12 px per letter of the name, and the US letters are narrower (`specs/text.md` §2.5). If you remember the game showing "Agumon is sick!" without a gap, say so: that would mean the US build differs from the decomp here.
+3. **While it is open:**
+   - game time stops (the clock and bars slide away);
+   - the tamer can't walk and Agumon stands idle.
+   - Press ✕ (Enter / Space): the box shrinks back to the tamer, the clock comes back, you can walk.
+   - Wrong if: the box never closes, or you stay frozen after it.
+4. **Language (`L`):** press `L` before "injured 12h":
+   - `ja`: the name in the JP font's full-width Latin letters, then the Japanese text;
+   - `en_eu`: the EU font, all letters 8 px apart, so the gap after the name is smaller (8 px per letter).
+5. **Not there yet:** the dialogue box of the event scripts (NPC talk), the medal and tamer-level messages, the sounds.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 
@@ -59,7 +83,7 @@ Sections are added as systems are ported (`PLANS.md`).
    - **Speed:** ×60 makes one game hour pass in a real minute. Every value moves as in the game, only sooner: the clock, food, the poop level every 10 minutes, energy every hour.
    - **Hunger:** "hungry now" shows the meat bubble at once, and "starve" counts down. After 1.5 game hours without food the call ends; with energy below 20 it's a care mistake ("mistakes" + 1).
    - **Poop:** "poop now" starts the accident on the next frame. "toilet" while poopy clears it: poop level 48, happiness and discipline + 2.
-   - **Sickness:** toggle "sick" to see its bubble. At ×60, happiness and discipline drop every game hour (−10 / −5) and "timer" rises; at 12 a life is lost and the help line names the collapse script.
+   - **Sickness:** toggle "sick" to see its bubble. At ×60, happiness and discipline drop every game hour (−10 / −5) and "timer" rises; at 12 a life is lost and the help line names the collapse script. "injured 12h" makes him sick the original way, with the "<name> is sick" message box (Text section above).
    - **Praise / scold:** praise lowers discipline by 5 and raises happiness; scold raises discipline by 2 and lowers happiness by 10. The bars follow.
    - **Sleep:** "stats", then wait for 19:00 (or "+1 hour") and press "sleep". HP / MP rise during the night: about 70–80 % of the maximum for a full night.
    - **Wrong if:** a value jumps somewhere the game couldn't put it, or the bars and bubbles don't follow the values.

@@ -41,6 +41,9 @@ var _care: Care
 var _fade: Fade
 var _poop: PoopPiles
 var _panel: CareDebugPanel
+## The text area and the six UI boxes everything that shows text shares (specs/text.md).
+var _text_area: TextArea
+var _boxes: UIBoxes
 var _message := ""
 var _message_frames := 0
 
@@ -60,9 +63,12 @@ func _ready() -> void:
 	if _maps.is_empty():
 		_label.text = "No maps in %s.\nRun: python -m dwporter convert maps mmd_files" % Content.path("maps")
 		return
-	# The partner ticks before the clock, as in the original's object list (specs/care.md §2.1).
+	# The tamer (entity 0) and the partner tick before the clock, as in the original's object list
+	# (specs/care.md §2.1).
+	GameLoop.frame.connect(_tamer.tick)
 	_start_partner()
 	_start_clock()
+	_start_text()
 	_start_care()
 	_enter(start_map if start_map in _maps else _maps[0], start_spawn)
 
@@ -85,6 +91,24 @@ func _start_partner() -> void:
 	GameLoop.frame.connect(_partner.tick)
 
 
+## The text area, the UI boxes and the tamer's message box (specs/text.md). The boxes run their
+## frame after the tamer and the partner, which open and close them.
+func _start_text() -> void:
+	if not GameData.available():
+		return
+	_text_area = TextArea.new(GameData, GameData.language)
+	GameData.language_changed.connect(func(_lang): _text_area.set_language(GameData, GameData.language))
+	_boxes = UIBoxes.new()
+	_boxes.name = "UIBoxes"
+	_boxes.set_anchors_preset(Control.PRESET_FULL_RECT)
+	$Hud.add_child(_boxes)
+	_tamer.camera = _camera
+	_tamer.partner = _partner
+	_tamer.clock = _clock
+	_tamer.pad = GameLoop
+	_tamer.message_box = MessageBox.new(_boxes, _text_area)
+
+
 ## The care rules and the fade they use (specs/care.md §3). A new game's partner gets
 ## initializePartner's care values; a loaded game keeps its own.
 func _start_care() -> void:
@@ -103,7 +127,7 @@ func _start_care() -> void:
 		_care.partner = _partner
 		_care.tamer = _tamer
 		_care.fade = _fade
-		_care.message.connect(_show_message)
+		_care.text_area = _text_area
 		_care.script_requested.connect(_on_script_requested)
 		_partner.care = _care
 		_partner.clock = _clock

@@ -8,8 +8,6 @@ extends Node
 ## A scripted event the port can't play yet (callScriptSection): section 0x4DE = the partner
 ## collapses / dies.
 signal script_requested(section: int)
-## Text the original shows in a text box ("<name> is sick").
-signal message(text: String)
 ## addConditionBubble: bubble type (0 hungry, 1 poopy, 2 sick, 3 sleepy, 4 tired, 6 injured).
 signal bubble_shown(type: int)
 ## The butterfly of an unhappy partner (setButterfly / unsetButterfly).
@@ -44,6 +42,8 @@ var field: FieldMap
 var partner: Partner
 var tamer: Tamer
 var fade: Fade
+## The text area the "<name> is sick" message is drawn into (the tamer's message box shows it).
+var text_area: TextArea
 
 ## MAP_TILE_DATA.partnerAreaResponse: 0 neutral, 1 liked map, 2 disliked map (set_area_response).
 var area_response := 0
@@ -324,14 +324,30 @@ func tick_sickness_mechanics() -> void:
 		_flag(INJURED, false)
 		_put("injury_timer", 0)
 	if not was_sick and _cond(SICK):
-		# The original stops the tamer (state 0x14) and shows this in a text box.
-		message.emit("%s%s" % [game_state.state["partner"]["name"], data.text("MAIN_D_801225A0")])
+		_show_sick_message()
 	if _val("sickness_timer") >= 12 and _partner_state() != PARTNER_DYING and _tamer_state() == 0 \
 			and _val("remaining_lifetime") != 0 and not script_running:
 		game_state.set_script_value(PSTAT_DEATH, 0)
 		game_state.state["partner"]["lives"] = int(game_state.state["partner"]["lives"]) - 1
 		_call_script(SCRIPT_COLLAPSE)
 		_put("sickness_timer", 0)
+
+
+## tickSicknessMechanics' message (partner_impl.c:1898-1904): tamerSetState(0x14) shows the
+## message box; the text is the name in colour 10 at row 120, then MAIN_D_801225A0 (" is sick") in
+## colour 1 at strlen(name) / 2 * GLYPH_WIDTH. Quirk kept: that is GLYPH_WIDTH per character of the
+## (full-width) name, not the name's drawn width, so US leaves a gap after narrow letters.
+func _show_sick_message() -> void:
+	if tamer != null:
+		tamer.set_state(Tamer.STATE_AWARD)
+	if text_area == null:
+		return
+	var partner_name: String = game_state.state["partner"]["name"]
+	text_area.clear_all()
+	text_area.set_text_color(10)
+	text_area.draw_string(partner_name, 0, 120)
+	text_area.set_text_color(1)
+	text_area.draw_string(data.text("MAIN_D_801225A0"), partner_name.length() * text_area.font.glyph_width, 120)
 
 
 func _get_sick() -> void:

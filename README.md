@@ -31,7 +31,7 @@ dw_godot_port/
 │   ├── data_porter/          # Python tool: decomp tables/text -> JSON game data (see its CLAUDE.md)
 │   │   └── output/           # Generated data, gitignored, not imported by Godot (.gdignore)
 │   ├── addons/dw_tools/      # Editor plugin: "DW Data" dock, Project > Tools > "DW: Mirror dw1 assets"
-│   ├── docs/                 # Guides (dw_data_dock.md)
+│   ├── docs/                 # Guides (dw_data_dock.md, ui.md)
 │   ├── content/dw1/          # Editor mirror of the dw1 assets, imported by Godot (gitignored, local)
 │   ├── PLANS.md              # To-do list and ideas
 │   ├── specs/content.md      # Content architecture (packs, keys, merging)
@@ -42,6 +42,7 @@ dw_godot_port/
 │   │   ├── state/            # GameState autoload: the game state and savegames (specs/game_state.md)
 │   │   ├── core/             # GameLoop autoload (the original's 20 Hz game frames), Rng
 │   │   ├── systems/          # Ported game systems: Clock + ClockHud (specs/clock.md), Care (specs/care.md)
+│   │   ├── ui/               # Text and windows: the game's font, text area, UI boxes, message box (specs/text.md, docs/ui.md)
 │   │   └── field/            # FieldMap (background, camera, collision, warps), Tamer, field.gd
 │   ├── tests/                # Godot headless tests (test_game_state.gd, test_game_data.gd, test_content.gd, test_data_dock.gd)
 │   └── VERIFY.md             # Human checks of the ported game systems
@@ -97,6 +98,7 @@ The output folders can be moved: `DW_PORTER_OUTPUT` / `dw/porter/output_dir` (as
 - Tamer: walk/run animations move him through their root motion (the game's `applyRootMomentum`); directions are snapped to the camera like `tamerTickWalkingState`; collision uses the map's 100×100 grid with the game's edge checks; trigger cells 110–119 warp to the next map.
 - Partner: the partner Digimon (Agumon at a new game) follows the tamer, walking or running by distance, stopping next to him and finding the way around walls like the original (`specs/partner.md`).
 - Care: the partner gets hungry, sleepy, tired, poopy, sick or unhappy as time runs, with the original's timings; he falls asleep with you (`Z` while he is sleepy, standing in for the menu's Sleep) and poops in the wild when you don't find a toilet, leaving piles on the map. The original's condition bubbles show over his head and the happiness / discipline bars next to the clock (`specs/care.md`).
+- Text and windows: the game's own font and window frames. When the partner gets sick, the original's message box opens from the tamer ("<name> is sick!") and closes with ✕ (Enter / Space) (`specs/text.md`; how to build new windows: `docs/ui.md`).
 - Clock: the game's alarm clock in the top-left corner; time runs at one game minute per second, and at 16:00, 20:00 and 06:00 the background fades to evening, night and day like the original (`specs/clock.md`).
 - Keys: arrows move, Shift runs, `[` / `]` previous / next map, `T` one hour later, `Z` sleep, `C` care debug panel (values, game speed, condition buttons), `L` text language (area name from `GameData`), `H` hides the help line. The start map and spawn are exported on the `Field` node.
 

@@ -603,3 +603,26 @@ func toilet(id: int) -> Dictionary:
 func training_spots(map_ref: Variant) -> Dictionary:
 	var id := id_of("systems/maps", map_ref) if map_ref is String else int(map_ref)
 	return find("systems/training_spots", "map", id)
+
+
+# --- Font (data_porter/specs/font.md) --------------------------------------------------------
+
+## The glyphs of a language's font (font.c: code, rows, width), in table order; the last is the
+## sentinel drawGlyph falls back to. lang "" = the current language.
+func font(lang := "") -> Array:
+	return records("font/" + (lang if lang != "" else language))
+
+
+## FONT_CLUT: the 16 colours of the text area (index 0 transparent).
+func font_clut() -> Array:
+	return records("font/clut")
+
+
+## TEXT_COLORS: renderString's tint per colour (0x80 = x1.0).
+func text_colors() -> Array:
+	return records("font/text_colors")
+
+
+## ASCII 0x20-0x7E -> full-width Shift-JIS (convertAsciiToJis, drawString's overrides).
+func font_ascii() -> Array:
+	return records("font/ascii")

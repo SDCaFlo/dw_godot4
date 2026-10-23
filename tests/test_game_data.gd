@@ -83,6 +83,14 @@ func _init() -> void:
 	_eq(data.entity("digimon", "dw1:sukamon")["care"]["raise"]["raises_virus_bar"], false, "Sukamon's poop doesn't raise the virus bar")
 	_eq(data.item("dw1:rest_pillow")["passive"], "sleep_boost", "Rest Pillow property")
 
+	# The game's font (data_porter/specs/font.md).
+	_eq([data.font("en_us").size(), data.font("ja").size(), data.font("en_eu").size()], [79, 992, 188], "glyph counts")
+	_eq([int(data.font()[0]["code"]), data.font()[0]["char"], int(data.font()[0]["width"])], [0x8260, "Ａ", 12], "US glyph 0")
+	_eq(data.font("en_us").back()["char"], "×", "US sentinel glyph")
+	_eq(int(data.font_clut()[1]["raw"]), 0x6B5A, "FONT_CLUT[1]")
+	_eq(data.text_colors().size(), 18, "TEXT_COLORS with the EU entry")
+	_eq(int(data.font_ascii()[ord("'") - 0x20]["draw_string_code"]), 0x8175, "drawString's ' override")
+
 	data.free()
 	if OS.get_environment("DW_DATA_PACKS") == "":
 		_test_packs()

@@ -25,6 +25,16 @@ Run `python -m dwdata convert text`: it should print `24 tables, 79/79 checks pa
 - **JSON spot check:** in `output/text/main/item.json`, `records[0].used_by` should list the functions that draw technique names (`BTL_appendMoveLearnedText`, `drawMoveName`, …). In `output/text/main/main.json`, Agumon's `used_by` should point to `DIGIMON_DATA` (`src/main/main.c`).
 - Compare a few strings you remember from the game, ideally a menu label and an item description, in the language of your copy.
 
+## Font (`output/font/`)
+
+Run `python -m dwdata convert font`: it should print `6 tables, 52/52 checks passed`. Then open the glyph sheets `output/font/en_us.png`, `ja.png` and `en_eu.png` (16 glyphs per row, in table order, 2×) and `report.md`.
+
+- **US sheet:** A–Z, a–z, 0–9, then the space, 。, ? ! 」 「 , \ : ; + − =, and ○ □ × △. Compare the letters with the game's menus: narrow lowercase (`i`, `l` are 4 px wide in `report.md`), 12 px capitals.
+- **JP sheet:** punctuation, digits and Latin letters, hiragana, katakana, then kanji. The last cell is a crossed box: what JP shows for a character it doesn't have.
+- **EU sheet:** after Z come accented letters (à, é, ñ, ß, …) at katakana codes, then the lowercase letters and the button symbols.
+- **`report.md` → "Text characters without a glyph":** US `%` (shown as × in "…reduced by N%!" after a battle, if you remember that message) and `&`; the rest are JP leftovers.
+- **JSON spot check:** `en_us.json` → `records[0]` is `Ａ` (`0x8260`, width 12) with its `bitmap`; `records[78]` is × with `sentinel: true`. `ascii.json` → `'` has `code` `0x8166` but `draw_string_code` `0x8175` (US `drawString` draws an apostrophe as 「).
+
 ## Moves (`output/moves/`)
 
 Run `python -m dwdata convert moves`: it should print `3 tables, 25/25 checks passed`. Then open `output/moves/report.md`. It has one row per technique, with MP shown the way the menus show it (mp_cost × 3), plus the element factor grid and the learn chances.

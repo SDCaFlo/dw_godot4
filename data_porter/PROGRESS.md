@@ -2,13 +2,14 @@
 
 Update this file whenever a table or group changes status. Status values: `todo`, `investigating` (reading the decomp), `spec` (spec written), `done` (converter + checks + tests), `blocked`.
 
-Last updated: 2026-10-22
+Last updated: 2026-10-23
 
 ## Groups
 
 | Group | Status | Spec | Output | Notes |
 |---|---|---|---|---|
 | Text | done | `specs/text.md` | `output/text/` | 24 files, 50 blocks, 1240 strings, all languages (`ja`, `en_us`, `en_eu` + release overrides); 79/79 checks. Strings that some releases define as C literals (`MAIN_D_801346B8`, `STR_MONEY_HELD`) are read with the C reader (`c_text`) |
+| Font | done | `specs/font.md` | `output/font/` | The game's glyph tables (`font.c`): US 79 (with widths), JP 992, EU 188; `FONT_CLUT`, `TEXT_COLORS`, the ASCII map (`sjis.c`); glyph sheets as PNG; 52/52 checks, including the coverage of each language's text (known gaps: US `%`, `&` and leftover kana). For the text renderer (`../specs/text.md`) |
 | Moves | done | `specs/moves.md` | `output/moves/` | `MOVE_DATA[122]`, `TYPE_FACTORS[7][7]`, `MOVE_LEARN_CHANCES[58][3]` (`item.c`), names from `MOVE_NAMES`; 24/24 checks. Only release difference: Full Potential `unk3` in jp. Open: range 2 vs 3 (effect data), ids 0x71–0x79 |
 | Digimon | done | `specs/digimon.md` | `output/digimon/` | `DIGIMON_DATA[180]`, `RAISE_DATA[66]`, `SLEEP_PATTERN[8]`, `ITEM_TAKE_DISTANCE[66]`, `PTR_DIGIMON_FILE_NAMES[180]`, VBALL / VLALL sound ids; care properties (`first_technique`, `eats_poop`, `raises_virus_bar`); 35/35 checks; agrees with the asset porter's tables. jp differs in 4 drops and SkullGreymon's slot 0. Open: `unk2`, `checkEatDistance` units |
 | Evolution | done | `specs/evolution.md` | `output/evolution/` | `EVOLUTION_REQS`, `EVOLUTION_PATHS`, `EVOLUTION_STATS_GAINS`, `EVOLUTION_ITEM_TARGET`; 21/21 checks; selection constants checked in code. Open: WereGarurumon (62) looks cut in US, map 1 of the Kunemon rule |
@@ -28,11 +29,20 @@ Last updated: 2026-10-22
 | Shared C-table helpers | done | `tables.py` (load + checks, size vs symbols, release diffs, `used_by` with fields) |
 | Human reports | done (all groups) | `output/<group>/report.md` |
 | Content keys + `dw1` pack manifest | done | `tables.keys`, `output/pack.json` (`../specs/content.md`) |
-| Unit tests | done | 48 tests: content keys, YAML reader, `#if` evaluator, C reader (incl. switch cases, function pointers), the six converters (synthetic + real data), cross-checks with the asset porter and the US executable |
+| Unit tests | done | 54 tests: content keys, YAML reader, `#if` evaluator, C reader (incl. switch cases, function pointers), the seven converters (synthetic + real data), cross-checks with the asset porter (incl. the script texts against the US font) and the US executable |
 | Godot `GameData` autoload | done | `scripts/data/game_data.gd`: lazy table loading, every accessor named in the tables' `godot.access`, text by id / entry / name ref in 3 languages; content registry (keys, entity views, packs merged per record, `../specs/content.md`). Test `tests/test_game_data.gd` (72 checks, headless). First user: the field HUD's map name (`L` switches language) |
 
 ## Log
 
+- 2026-10-23 — Font group done (`specs/font.md`): 6 tables, 52/52 checks, PNG glyph sheets; `GameData.font()`, `font_clut()`, `text_colors()`, `font_ascii()`. Findings:
+  - the last table entry is the fallback for unknown codes: × in US, a crossed box in JP / EU;
+  - slot 60 of JP / EU is an unreachable `0xFFFF` placeholder;
+  - EU draws accented Latin letters at katakana codes;
+  - `char` uses cp932, which matches the YAML (Python's `shift_jis` differs on `0x8160` / `0x817C`);
+  - US draws × for `%` ("reduced by N%!") and `&` ("Dark Network & Concert Crush"), and for the kana of leftover JP strings;
+  - every code of the US script texts has a glyph.
+  
+  54 tests.
 - 2026-10-23 — Care properties for the care port (`../specs/care.md` §4): `raise_data.first_technique` / `eats_poop` / `raises_virus_bar` from the literal-id rules of `partner_impl.c`, `item_data.passive` for the five passive items. Each rule's C text is checked; the starters' equipped slot is checked against the technique they learn. Digimon 35/35, items 40/40 checks; tests updated.
 - 2026-10-23 — Fix: `file_names.mmd` / `tmd` wrote `CHDAT/MMD0/` for every Digimon; the loaders patch the folder digit to `id / 30` (`model.c:3409` …), so ids 30–179 pointed to files that don't exist. Found by the DW Data dock's asset check. New check on the `path[9]` lines (Digimon 33/33) and a cross-check test against the asset porter's `mmd_path`; 48 tests. Only Digimon 62 (WereGarurumon) and 114 have no model, as the asset porter's spec records.
 - 2026-10-23 — `GameData` is the content registry (`../specs/content.md` §3, §5): accessors take ids or keys, `entity()` assembles a Digimon / technique / item / map from its component tables, pack folders (`dw/data/packs`) are merged per record (add / patch / remove, provenance in `changed_by`), replacing the whole-file mod folders. Ids resolve through the records' `id` field, so removals don't shift them. Decision: cards are their own content kind (collectibles showing a Digimon, keyed by it: card 1 = `dw1:phoenixmon`), not a Digimon component; `cards_of(digimon)` finds them (most Digimon, Agumon included, have none). Items checks: 40.

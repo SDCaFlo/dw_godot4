@@ -4,7 +4,7 @@ Tooling that converts the **game data defined in the decompiled C code** (tables
 
 Sibling of `../asset_porter/` (which converts the **disc files**: textures, models, maps, sound, movies). Both write generated, gitignored output that the game loads at runtime.
 
-Status: package, CLI, writer, decomp index, C table reader and all groups (**Text**, **Moves**, **Digimon**, **Items**, **Evolution**, **Systems**) are implemented (Python 3, standard library only), and the Godot `GameData` autoload loads this output. Progress per table and group is tracked in `PROGRESS.md`; read it first and update it (tables + log line) whenever a table or group changes status.
+Status: package, CLI, writer, decomp index, C table reader and all groups (**Text**, **Font**, **Moves**, **Digimon**, **Items**, **Evolution**, **Systems**) are implemented (Python 3, standard library only), and the Godot `GameData` autoload loads this output. Progress per table and group is tracked in `PROGRESS.md`; read it first and update it (tables + log line) whenever a table or group changes status.
 
 ## Why a separate tool
 
@@ -18,7 +18,7 @@ Run from this folder:
 
 ```
 python -m dwdata list                    # data groups
-python -m dwdata convert all             # or some of: text moves digimon items evolution systems
+python -m dwdata convert all             # or some of: text font moves digimon items evolution systems
 python -m unittest discover -s tests -t .   # real-data test skipped if the decomp is missing
 ```
 
@@ -37,8 +37,8 @@ Defaults: input `../../external-resources/dw_decomp/`, output `output/` (gitigno
 | `dwdata/decomp.py` | `Decomp`: releases (`version.h`), C file → binary (`config/us/*.yaml`), US symbols (`symbols*.txt`), identifier references in `src/**/*.c` with enclosing function / data / macro and compiling releases |
 | `dwdata/cdata.py` | C data reader. `CIndex.table(c_file, name, hooks)` returns a table per release, laid out on its C type: structs / typedefs / enums / `#define`s of `include/dw/*.h` and the file, `#if VERSION_…` applied, brace elision, zero fill, width conversion, `sizeof` with PSX alignment, function-pointer tables (symbols without casts). `hooks` expand macros such as `DIGIMON_PARA_NAME(...)`. `CIndex.switch_cases(c_file, function, variable, release)` reads the cases of a `switch` as data (constant assignments + other statements as text), for effects written as code. Unsupported C raises `CError` |
 | `dwdata/tables.py` | Helpers for C-table groups: `load` (parse in every release + check), `size_check` (against `symbols.txt`), `diffs` (release differences), `used_by` (references with the fields read), `source`, `enum`, `text_ref`, `keys` / `name_base` (content keys) |
-| `dwdata/groups/` | One converter per group (`NAME`, `SOURCE_GLOB`, `SPEC`, `PURPOSE`, `convert()` with `out.check(...)` for every assumption), registered in `groups/__init__.py`. Existing: `text.py`, `moves.py`, `digimon.py`, `items.py`, `evolution.py`, `systems.py`. Groups take names from the text YAML directly (`text.load_file`), so they don't depend on run order |
-| `specs/` | One spec per group (`text.md`, `moves.md`, `digimon.md`, `items.md`, `evolution.md`, `systems.md`) |
+| `dwdata/groups/` | One converter per group (`NAME`, `SOURCE_GLOB`, `SPEC`, `PURPOSE`, `convert()` with `out.check(...)` for every assumption), registered in `groups/__init__.py`. Existing: `text.py`, `font.py`, `moves.py`, `digimon.py`, `items.py`, `evolution.py`, `systems.py`. Groups take names from the text YAML directly (`text.load_file`), so they don't depend on run order |
+| `specs/` | One spec per group (`text.md`, `font.md`, `moves.md`, `digimon.md`, `items.md`, `evolution.md`, `systems.md`) |
 | `tests/` | `unittest` tests; `test_cross_asset_porter.py` compares names, file names and sizes with `../asset_porter/dwporter/data`, and maps / toilets with the asset porter's reading of the US executable |
 
 The decomp has no `INCLUDE_ASM` left, so references are taken from C only; `asm/` is not read.
@@ -52,6 +52,8 @@ output/
   text/manifest.json            sources (sha1), checks, counts, control codes found
   text/report.md                human sheet: every block as a table (id | ja | en_us | en_eu)
   text/<dir>/<name>.json        one table per text/<dir>/<name>.yaml (e.g. text/main/item.json)
+  font/en_us.json, ja.json,     the game's glyphs per language (font.c: code, 11 x 12 px rows, width);
+       en_eu.json               clut.json, text_colors.json, ascii.json; en_us.png / ja.png / en_eu.png glyph sheets
   moves/move_data.json          MOVE_DATA (122 techniques); type_factors.json, learn_chances.json; report.md, manifest.json
   digimon/digimon_data.json     DIGIMON_DATA (180); raise_data.json, sleep_patterns.json, item_take_distance.json,
                                 file_names.json, sound_ids.json; report.md, manifest.json
@@ -79,7 +81,7 @@ Nothing from the source may be dropped: unknown or unused fields keep their C na
 
 ## Specs
 
-Location: `specs/<group>.md`. Existing: `text.md`, `moves.md`, `digimon.md`, `items.md`, `evolution.md`, `systems.md` (its scope section lists what was left out and why). Each spec must contain:
+Location: `specs/<group>.md`. Existing: `text.md`, `font.md`, `moves.md`, `digimon.md`, `items.md`, `evolution.md`, `systems.md` (its scope section lists what was left out and why). Each spec must contain:
 
 1. **Source:** the C symbols, struct definitions and text files, with `file:line`.
 2. **Original usage:** the functions that use the data and what they do with it — formulas, checks, timings — with `file:line`. This is the part that tells how to write the Godot logic; quote the C condition when it is subtle.

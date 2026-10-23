@@ -2,7 +2,7 @@
 
 A port of the original PlayStation game **Digimon World** to the [Godot](https://godotengine.org/) engine (4.7, Forward Plus renderer), aimed at making future development, modding and maintenance easier.
 
-> **Status:** early work in progress. The asset porter converts every file of the disc (textures, models, Digimon with animations, field maps, event scripts, sound and music, battle effects, movies); a first field scene walks the tamer around the converted maps. The data porter (game data from the decomp) converts all in-game text, in every language, the techniques (moves, element factors, learn chances) the Digimon data (size, type, level, elements, drops, technique slots, partner care data) the items (prices, use, effects, cards, shops) evolution (requirements, paths, stat gains, evolution items) and the system tables (battle AI, tournaments, maps, transport, fishing, …); the Godot `GameData` autoload loads it at runtime (the field shows the area name in the chosen language).
+> **Status:** early work in progress. The asset porter converts every file of the disc (textures, models, Digimon with animations, field maps, event scripts, sound and music, battle effects, movies); a first field scene walks the tamer around the converted maps. The data porter (game data from the decomp) converts all in-game text, in every language, the game's own font (glyphs of the three releases), the techniques (moves, element factors, learn chances) the Digimon data (size, type, level, elements, drops, technique slots, partner care data) the items (prices, use, effects, cards, shops) evolution (requirements, paths, stat gains, evolution items) and the system tables (battle AI, tournaments, maps, transport, fishing, …); the Godot `GameData` autoload loads it at runtime (the field shows the area name in the chosen language).
 
 ## Approach
 
@@ -73,7 +73,7 @@ dw_godot_port/
 4. Convert the game data:
    ```
    cd data_porter
-   python -m dwdata convert all            # writes data_porter/output/ (text, moves, digimon, items, evolution, systems), about a minute
+   python -m dwdata convert all            # writes data_porter/output/ (text, font, moves, digimon, items, evolution, systems), about a minute
    python -m unittest discover -s tests -t .
    ```
    Every run ends with `N/N checks passed` per family/group; a failed check makes the command exit non-zero.

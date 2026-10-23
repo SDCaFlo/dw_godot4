@@ -38,7 +38,8 @@ All `file:line` references are in `external-resources/dw_decomp/src/main/`; the 
 - **Glyph lookup** (`drawGlyph`, `:1603–1609`):
   - the code is compared with `CHAR_TO_GLYPH_TABLE` (Shift-JIS codes, byte-swapped from the string);
   - the last entry is overwritten with the code first, as a sentinel.
-  - **Quirk kept:** an unknown code draws the last glyph's pixels. In US that is ×, `0x817E`.
+  - **Quirk kept:** an unknown code draws the last glyph's pixels. In US that is ×, `0x817E`; in JP / EU a crossed box (the entry's code is 0).
+  - The US text has a few characters without a glyph, drawn as ×: `%` in "…reduced by N%!", `&` in "Dark Network & Concert Crush", and the kana of leftover JP strings (`data_porter/specs/font.md` §5).
 - **US characters** (all full-width Shift-JIS):
   - A–Z, a–z, 0–9 (`0x8260`…, `0x8281`…, `0x824F`…) and the space `0x8140`;
   - punctuation: 。`0x8142` (drawn as a period), ？ `0x8148`, ！ `0x8149`, 」 `0x8176`, 「 `0x8175`, ， `0x8143`, ＼ `0x815F`, ： `0x8146`, ； `0x8147`, ＋ `0x817B`, － `0x817C`, ＝ `0x8181`;
@@ -191,25 +192,20 @@ Used for medals, tamer-level changes and "<name> is sick" (`tickSicknessMechanic
   - the PSX ordering table becomes child order per box layer;
   - `renderSelectionCursor`'s fill box (`utils2.c:232`) is drawn as a filled rect with the same colour and semi-transparency.
 
-## 4. Data (data porter, new group `font`)
+## 4. Data (data porter group `font`, done)
 
-From `src/main/font.c`, `src/main/sjis.c` and `src/main/utils.c`, per release:
+`data_porter/specs/font.md`, from `src/main/font.c`, `sjis.c` and `utils.c`:
 
-| Table | Records | Fields |
-|---|---|---|
-| `font/en_us`, `font/ja`, `font/en_eu` | one per glyph, in table order | `index`, `code` (Shift-JIS), `char` (Unicode, decoded with Python's `shift_jis`; null if it doesn't decode), `rows` (11 × u16 as written), `width` (US: from the data; EU: the `drawGlyph` range rule, checked against the C text; JP: 12) |
-| `font/palette` | `font_clut` (16 raw 15-bit colours, RGB), `text_colors` (`TEXT_COLORS`, per release) | |
-| `font/ascii` | ASCII 0x20–0x7E → Shift-JIS (`convertAsciiToJis`), with `drawString`'s `.` / `'` overrides | |
+| Table | Records |
+|---|---|
+| `font/en_us`, `font/ja`, `font/en_eu` | one per glyph, in table order: `code` (Shift-JIS), `char` (cp932), `rows` (11 × u16 as written), `bitmap`, `width` (US: from the data; EU: the `drawGlyph` range rule; JP: 12), `sentinel` / `placeholder` |
+| `font/clut` | `FONT_CLUT`: raw 15-bit colours, `rgb8`, `transparent` |
+| `font/text_colors` | `TEXT_COLORS`: `rgb`, `tint`, the releases that have each entry |
+| `font/ascii` | ASCII 0x20–0x7E → `code` (`convertAsciiToJis`) and `draw_string_code` (US `drawString`'s `.` / `'` overrides) |
 
-**Checks:**
-- the table sizes (79 / 992 / 188, `NUM_GLYPHS`);
-- every glyph's bits 3…0 are 1 (unused);
-- the codes are unique except the last entry (sentinel);
-- `char` decodes for every code but the sentinel;
-- every ASCII character of the `en_us` text (YAML, and the US script texts of the asset porter) has a glyph;
-- the EU width rule and the `.` / `'` overrides are still in the C text.
+**Godot:** `GameData.font(language)`, `GameData.font_clut()`, `GameData.text_colors()`, `GameData.font_ascii()`.
 
-**Godot:** `GameData.font(language)`, `GameData.font_palette()`, `GameData.font_ascii()`.
+The checks (`data_porter/specs/font.md` §5) include the coverage of each language's text: every character has a glyph except a known list. A cross test does the same for the US event-script texts.
 
 ## 5. Verification
 

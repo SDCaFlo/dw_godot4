@@ -42,7 +42,7 @@ Last updated: 2026-10-23
    - How each system is ported: a short spec (C functions reproduced, state and data read) → GDScript naming each C function → headless tests with values worked out from the C code → VERIFY section → this file.
 4. **Milestone "text and scripts"** (started 2026-10-23):
    - [x] Text renderer spec (`specs/text.md`): font, text area, `renderString`, UI boxes, message box, dialogue box.
-   - [ ] Data porter group `font` (glyph tables per release, palette, ASCII map) with checks.
+   - [x] Data porter group `font` (`data_porter/specs/font.md`): glyph tables per language, `FONT_CLUT`, `TEXT_COLORS`, ASCII map, glyph sheets; 52 checks including each language's text coverage; `GameData.font()` and friends.
    - [ ] `PsxFont`, `TextArea`, `UIBoxes`, `MessageBox` (replaces the "is sick" help-line stand-in), `DialogueBox`; `tests/test_text.gd`; VERIFY.
    - [ ] Event-script interpreter (spec first; `asset_porter/specs/scn.md` has the opcodes).
 5. **Next milestones, in order:** text and scripts (above: NPC dialogue, Jijimon intro, new game) → menus (inventory, feeding, items, Digimon status) → battle → evolution and training → tournaments and minigames.

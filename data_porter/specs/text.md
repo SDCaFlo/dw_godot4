@@ -68,7 +68,7 @@ Scalars are always text (`en_us: 20`, `"Yes"`). Double-quoted strings use YAML e
 - The language is `GameData.language` (`dw/data/language` project setting, default `en_us`; `set_language()` emits `language_changed`). `release_text` matters only to reproduce an older JP build.
 - The NUL padding kept in `variants` is read as the two characters `\0` (Godot strings can't hold NUL); `text` never contains it.
 - **Text renderer:** `../specs/text.md` ports the original's renderer:
-  - the font is the game's own glyph table (`font.c`, data porter group `font`), so US ASCII is drawn full-width as in the original, and `ja` has its 992 glyphs;
+  - the font is the game's own glyph table (`font.c`, group `font`, `specs/font.md`), so US ASCII is drawn full-width as in the original, and `ja` has its 992 glyphs;
   - the button glyphs (○ □ △ ×) are glyphs of that table;
   - the control codes of §2 are handled by each renderer as it is ported.
 - **Modding:** text can be changed freely. Keep the array length and indices of `entries` blocks (the code indexes them by game id), and keep the row widths of space-padded layout strings unless the UI that draws them is changed too.

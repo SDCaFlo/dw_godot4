@@ -63,6 +63,34 @@ class CrossAssetPorterTests(unittest.TestCase):
         self.assertEqual(ours[:len(theirs)], list(theirs))
 
 
+SCRIPTS = PORTER_ROOT.parent / "asset_porter" / "output" / "scripts" / "DG"
+
+
+@unittest.skipUnless((DEFAULT_INPUT / "src").is_dir() and SCRIPTS.is_dir(),
+                     "dw_decomp or the asset porter's script output not available")
+class CrossScriptTextTests(unittest.TestCase):
+    def test_us_script_text_has_us_glyphs(self):
+        # The event scripts (US DG.SCN) store text as full-width Shift-JIS: every code must be in the US font.
+        from dwdata.groups import font
+        with tempfile.TemporaryDirectory() as tmp:
+            font.convert(DEFAULT_INPUT, Path(tmp))
+            glyphs = {r["code"] for r in json.loads((Path(tmp) / "font" / "en_us.json").read_text(
+                encoding="utf-8"))["records"]}
+        missing = {}
+        for path in sorted(SCRIPTS.glob("script_*.json")):
+            for ins in json.loads(path.read_text(encoding="utf-8"))["instructions"]:
+                for token in ins["args"].get("tokens", []):
+                    if token["kind"] != "chars":
+                        continue
+                    raw, i = bytes.fromhex(token["raw"]), 0
+                    while i < len(raw):
+                        code, i = (raw[i] << 8 | raw[i + 1], i + 2) if raw[i] >= 0x80 else (raw[i], i + 1)
+                        # 00 ends the text for drawString2; a few tokens carry 00 bytes after their text
+                        if code and code not in glyphs:
+                            missing.setdefault(f"{code:#06x}", path.name)
+        self.assertEqual(missing, {})
+
+
 EXE = PORTER_ROOT.parent.parent / "external-resources" / "game_dumped_files" / "SLUS_010.32"
 
 

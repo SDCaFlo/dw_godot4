@@ -25,11 +25,18 @@ Last updated: 2026-10-23
    - [ ] Same preview pattern for the next scenes (battle, menus) as they are built.
    - [x] "DW Data" dock, read-only (`addons/dw_tools/data_dock.gd`, guide `docs/dw_data_dock.md`): Digimon / techniques / items / cards / maps / tournaments / tables, search, links, language, model / card / map previews, porter check status, asset check.
    - [ ] Dock later: text search across all strings, item icon / technique effect / map object previews.
-3. **Core game systems:** game state and save data (savegames store keys), event script interpreter (the asset porter converts the scripts), game clock.
-4. **Field:** NPC Digimon and the partner, map object sprites (water, fire), lighting, depth against the background, events.
-5. **Text renderer:** control codes (`#C1 #R #W` / `{C1}` / bare `C R W`), button and bits glyphs, a font with kana for `ja` (data_porter/specs/text.md §4).
-6. **Battle, care, evolution, menus:** GDScript ports of the C logic, reading `GameData` properties (never id ranges); each function names the C function and the original condition it reproduces.
-7. **Modding** (last; `specs/content.md` §7)
+3. **Milestone "living field"** (decided 2026-10-23): the world runs while you walk; no text or scripts needed yet.
+   - [x] `GameState` spec (`specs/game_state.md`): every C global / `SavedState` / `PartnerPara` field mapped to a Godot field with `file:line`, content by key, save / load as JSON in `user://`.
+   - [ ] `GameState` autoload + save / load + tests.
+   - [ ] Clock: port `clock.c`; day / evening / night switch the map backgrounds; HUD clock.
+   - [ ] Partner in the field: loaded from its `GameData` entity, follows the tamer like `partner.c`, idle / walk / run animations.
+   - [ ] Care ticks: hunger, energy, sleep, poop, sickness, lifetime (`partner.c`, `partner_impl.c`), rules reading properties (`care` component); debug panel.
+   - How each system is ported: a short spec (C functions reproduced, state and data read) → GDScript naming each C function → headless tests with values worked out from the C code → VERIFY section → this file.
+4. **Next milestones, in order:** text renderer + event scripts (NPC dialogue, Jijimon intro, new game) → menus (inventory, feeding, items, Digimon status) → battle → evolution and training → tournaments and minigames.
+5. **Field (as needed by the milestones):** NPC Digimon, map object sprites (water, fire), lighting, depth against the background, events.
+6. **Text renderer** (with the scripts milestone): control codes (`#C1 #R #W` / `{C1}` / bare `C R W`), button and bits glyphs, a font with kana for `ja` (data_porter/specs/text.md §4).
+7. **All system ports** (battle, care, evolution, menus): GDScript ports of the C logic, reading `GameData` properties (never id ranges); each function names the C function and the original condition it reproduces.
+8. **Modding** (last; `specs/content.md` §7)
    - [ ] Mod formats: raw-file packs (folder + `pack.json`, no Godot needed) and `.pck` packs built in the editor.
    - [ ] Model contract for external models (animation names, scale, pivot, collision from data, textures); the asset porter names the original animations to the same contract.
    - [ ] "DW Data" dock as the modding tool: which packs changed a record, duplicate into a pack, edit, write the pack's JSON.
@@ -38,6 +45,7 @@ Last updated: 2026-10-23
 
 ## Ideas (not planned yet)
 
+- Import original memory-card saves (`.mcr` / `.mcd`): `specs/game_state.md` maps the whole `SavegamePayload` layout.
 - Godot `.tres` resources generated from the pack data for editor use (gitignored for `dw1`).
 
 ## Notes

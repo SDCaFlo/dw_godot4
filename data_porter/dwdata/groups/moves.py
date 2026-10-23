@@ -5,13 +5,14 @@ with cdata.CIndex; technique names come from text/main/item.yaml (MOVE_NAMES, sa
 """
 
 import math
-import re
 from collections import defaultdict
 
-from ..cdata import CError, CIndex, describe_type, sizeof
+from .. import tables
+from ..cdata import CIndex, describe_type
 from ..decomp import Decomp
 from ..output import GroupWriter
 from ..source import SourceText
+from ..tables import REFERENCE, enum as _enum
 from . import text as text_group
 
 NAME = "moves"
@@ -21,7 +22,6 @@ SOURCE_GLOB = "src/main/item.c"
 C_FILE = "src/main/item.c"
 TEXT_FILE = "text/main/item.yaml"
 STRUCT_HEADER = "include/dw/move.h"
-REFERENCE = "us"   # release whose values fill the records; other releases only list differences
 
 # Move struct fields (include/dw/move.h) -> JSON name; the converter checks the struct still matches.
 FIELDS = [
@@ -96,83 +96,12 @@ MOVE_SCHEMA = {
 }
 
 
-def _enum(value, names: dict):
-    return {"id": value, "name": names.get(value)}
-
-
 def _category(move_id: int) -> str:
     if move_id < TECHNIQUE_END:
         return "technique"
     if move_id < FINISHER_END:
         return "finisher"
     return "other"
-
-
-def _ref_out(ref: dict) -> dict:
-    out = {k: ref[k] for k in ("file", "line", "binary", "in", "kind", "releases")}
-    if "unknown" in ref:
-        out["unknown"] = ref["unknown"]
-    return out
-
-
-def _used_by(decomp: Decomp, refs: list, fields: list, defined_in: str) -> list:
-    """References grouped by enclosing function, with the struct fields read on those lines (heuristic)."""
-    texts = {}
-    grouped = {}
-    for r in refs:
-        if r["kind"] == "macro" or (r["file"] == defined_in and r["kind"] == "data"):
-            continue
-        if r["file"] not in texts:
-            texts[r["file"]] = (decomp.root / r["file"]).read_text(encoding="utf-8", errors="replace").splitlines()
-        line = texts[r["file"]][r["line"] - 1]
-        key = (r["file"], r["in"])
-        g = grouped.setdefault(key, {"file": r["file"], "in": r["in"], "kind": r["kind"], "binary": r["binary"],
-                                     "lines": [], "fields": set(), "releases": set()})
-        g["lines"].append(r["line"])
-        g["releases"].update(r["releases"])
-        g["fields"].update(f for f in fields if re.search(rf"(?:\.|->)\s*{f}\b", line))
-    out = []
-    for g in sorted(grouped.values(), key=lambda g: (g["file"], g["lines"][0])):
-        g["fields"] = sorted(g["fields"])
-        g["releases"] = sorted(g["releases"], key=list(decomp.releases).index)
-        out.append(g)
-    return out
-
-
-def _diffs(loaded: dict, index_value) -> dict:
-    """{release: {path: value}} where a release differs from the reference."""
-    out = {}
-    ref = index_value(loaded[REFERENCE])
-    for release, l in loaded.items():
-        if release == REFERENCE or l is None:
-            continue
-        v = index_value(l)
-        if isinstance(ref, dict):
-            d = {k: v.get(k) for k in ref if v.get(k) != ref[k]}
-        else:
-            d = v if v != ref else None
-        if d:
-            out[release] = d
-    return out
-
-
-def _load(out: GroupWriter, index: CIndex, name: str):
-    try:
-        loaded = index.table(C_FILE, name)
-    except CError as e:
-        out.check(f"{name}: parsed in every release", False, str(e))
-        return None
-    missing = [r for r, l in loaded.items() if l is None]
-    problems = [f"{r}: {i}" for r, l in loaded.items() if l for i in l.issues]
-    problems += [f"{r}: lines {l.unknown_lines} depend on unknown macros" for r, l in loaded.items()
-                 if l and l.unknown_lines]
-    problems += [f"{r}: {len(l.wrapped)} values converted to the field type" for r, l in loaded.items()
-                 if l and l.wrapped]
-    problems += [f"{r}: {l.implicit} values missing (zero-filled)" for r, l in loaded.items() if l and l.implicit]
-    ok = out.check(f"{name}: parsed in every release", not missing and not problems,
-                   "; ".join(([f"not defined in {missing}"] if missing else []) + problems[:10])
-                   or f"{loaded[REFERENCE].type.describe()} at {C_FILE}:{loaded[REFERENCE].decl.line}")
-    return loaded if ok else None
 
 
 def _report(moves: list, factors: list, chances: list) -> str:
@@ -236,9 +165,9 @@ def convert(input_root, output_root) -> GroupWriter:
         text = (decomp.root / path).read_text(encoding="utf-8", errors="replace")
         out.check(f"code still tests the id ranges: {needle}", needle in text, path)
 
-    move_data = _load(out, index, "MOVE_DATA")
-    type_factors = _load(out, index, "TYPE_FACTORS")
-    learn = _load(out, index, "MOVE_LEARN_CHANCES")
+    move_data = tables.load(out, index, C_FILE, "MOVE_DATA")
+    type_factors = tables.load(out, index, C_FILE, "TYPE_FACTORS")
+    learn = tables.load(out, index, C_FILE, "MOVE_LEARN_CHANCES")
 
     names_model = text_group.load_file(decomp, TEXT_FILE)
     names_block = text_group.block_of(names_model, "MOVE_NAMES")
@@ -248,30 +177,20 @@ def convert(input_root, output_root) -> GroupWriter:
         out.finish(sources)
         return out
 
-    refs = decomp.references(["MOVE_DATA", "TYPE_FACTORS", "MOVE_LEARN_CHANCES", "Move"])
-    symbols = decomp.symbols("main")
+    refs = decomp.references(["MOVE_DATA", "TYPE_FACTORS", "MOVE_LEARN_CHANCES"])
     us = move_data[REFERENCE]
     counts = {r: len(l.value) for r, l in move_data.items()}
     out.check("MOVE_DATA has one record per MOVE_NAMES entry in every release",
               all(n == len(names_block["items"]) for n in counts.values()),
               f"MOVE_DATA {counts}, MOVE_NAMES {len(names_block['items'])}")
     for loaded in (move_data, type_factors, learn):
-        decl, ty = loaded[REFERENCE].decl, loaded[REFERENCE].type
-        size = symbols.get(decl.name, {}).get("size")
-        out.check(f"{decl.name}: size matches the US symbol map", size == sizeof(ty),
-                  f"sizeof({ty.describe()}) = {sizeof(ty)}, config/us/symbols.txt size = {size}")
+        tables.size_check(out, decomp, loaded)
 
     # -- move_data ----------------------------------------------------------------------------
     entries = names_block["items"]
     records, bad = [], defaultdict(list)
     for i, raw in enumerate(us.value):
-        entry = entries[i] if i < len(entries) else None
-        name = None
-        if entry and not entry.get("null_entry"):
-            sid = entry["id"] or (entry.get("same_as") or {}).get("en_us")
-            name = {"string_id": sid, "text": entry["text"]}
-            if not entry["id"]:
-                name["same_as"] = True
+        name = tables.text_ref(entries[i] if i < len(entries) else None)
         dist = raw["distance"]
         root = math.isqrt(dist) if dist >= 0 else None
         if root is None or root * root != dist:
@@ -302,7 +221,7 @@ def convert(input_root, output_root) -> GroupWriter:
         if i in LEARNED_TOGETHER:
             rec["learned_with"] = LEARNED_TOGETHER[i]
         rec["c"] = raw
-        rd = _diffs(move_data, lambda l, i=i: l.value[i])
+        rd = tables.diffs(move_data, lambda l, i=i: l.value[i])
         if rd:
             rec["release_values"] = rd
         records.append(rec)
@@ -312,18 +231,9 @@ def convert(input_root, output_root) -> GroupWriter:
         out.check(f"MOVE_DATA: {check}", not bad[check], "; ".join(bad[check][:10]) or f"{len(records)} records")
 
     move_fields = [c for c, _ in FIELDS]
-    release_info = {r: {"region": rel.region, "date": rel.date} for r, rel in decomp.releases.items()}
 
     def source_of(loaded, extra=None):
-        d = loaded[REFERENCE].decl
-        s = {"files": sources, "c_file": C_FILE, "symbol": d.name, "line": d.line,
-             "c_type": loaded[REFERENCE].type.describe(), "binary": decomp.binary_of(C_FILE),
-             "reference_release": REFERENCE, "releases": release_info}
-        if d.name in symbols:
-            s["us_symbol"] = symbols[d.name]
-        if extra:
-            s.update(extra)
-        return s
+        return tables.source(decomp, loaded, sources, extra)
 
     schema = dict(MOVE_SCHEMA)
     schema["_struct"] = {"c_type": "Move", "header": f"{STRUCT_HEADER}:{struct.line}",
@@ -333,7 +243,7 @@ def convert(input_root, output_root) -> GroupWriter:
         "source": source_of(move_data, {"struct": f"{STRUCT_HEADER}:{struct.line}", "names": f"{TEXT_FILE} MOVE_NAMES"}),
         "schema": schema,
         "records": records,
-        "used_by": _used_by(decomp, refs["MOVE_DATA"], move_fields, C_FILE),
+        "used_by": tables.used_by(decomp, refs["MOVE_DATA"], move_fields, move_data),
         "godot": {"status": "planned (GameData autoload not implemented yet)",
                   "access": "GameData.move(id) -> record; GameData.text_entry(\"main/item\", \"MOVE_NAMES\", id) for "
                             "the name",
@@ -353,7 +263,7 @@ def convert(input_root, output_root) -> GroupWriter:
                                                                          [None] * 7)[a],
                                "against": [{"defender": _enum(d, ELEMENTS), "factor": v, "multiplier": v / 10}
                                            for d, v in enumerate(row)]})
-    tf_diff = _diffs(type_factors, lambda l: l.value)
+    tf_diff = tables.diffs(type_factors, lambda l: l.value)
     out.write_table("type_factors", {
         "table": {"name": "moves/type_factors", "purpose": TABLE_PURPOSES["type_factors"]},
         "source": source_of(type_factors),
@@ -365,7 +275,7 @@ def convert(input_root, output_root) -> GroupWriter:
                    "multiplier": {"derived": "factor / 10"}},
         "records": factor_records,
         "release_values": tf_diff,
-        "used_by": _used_by(decomp, refs["TYPE_FACTORS"], [], C_FILE),
+        "used_by": tables.used_by(decomp, refs["TYPE_FACTORS"], [], type_factors),
         "godot": {"status": "planned", "access": "GameData.type_factor(attacker_element, defender_element)",
                   "notes": "Keep 7 x 7: element ids index it directly."},
     }, symbols=["TYPE_FACTORS"])
@@ -387,8 +297,8 @@ def convert(input_root, output_root) -> GroupWriter:
                                "meaning": "index = which of the partner's 3 elements (DIGIMON_DATA[].special[0..2]) "
                                           "equals the technique's element; learned if chance > randomLimit(100)"}},
         "records": chance_records,
-        "release_values": _diffs(learn, lambda l: l.value),
-        "used_by": _used_by(decomp, refs["MOVE_LEARN_CHANCES"], [], C_FILE),
+        "release_values": tables.diffs(learn, lambda l: l.value),
+        "used_by": tables.used_by(decomp, refs["MOVE_LEARN_CHANCES"], [], learn),
         "godot": {"status": "planned", "access": "GameData.learn_chance(move_id, element_slot)",
                   "notes": "Only techniques 0x00-0x39 can be learned this way."},
     }, symbols=["MOVE_LEARN_CHANCES"])

@@ -40,6 +40,18 @@ Run `python -m dwdata convert moves`: it should print `3 tables, 24/24 checks pa
 - **Element factors:** the fire row should be strong against earth, ice and filth (20) and weak against air (5), if that matches what you know of the game.
 - **JSON spot check:** in `output/moves/move_data.json`, `records[2]` is Spit Fire with `name.text` in the three languages and `c` holding the raw C values. `used_by` lists `BTL_calculateDamage` (`src/btl/battle_main.c`) with fields `power`, `special`.
 
+## Digimon (`output/digimon/`)
+
+Run `python -m dwdata convert digimon`: it should print `6 tables, 31/31 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
+
+- **Known Digimon:** Agumon (3) is a Rookie, Vaccine, elements fire and battle. Its first techniques are Spit Fire and Fire Tower; it drops Sm.Recovery (50 %). Compare 2–3 Digimon you know with the game's Digimon menu (level, type icon, techniques).
+- **Type names:** Gabumon (17) shows `data`, Agumon `vaccine`, Betamon (4) `virus`. If the menu icons say otherwise, the type labels are swapped (`specs/digimon.md` §3).
+- **Partner care:** Agumon's favourite food is Meat, hunger hours 1, 5, 9, 13, 17, 21, sleep cycle 1 (19:00–04:00). Check the active-time label in the Digimon menu if you remember it.
+- **Placeholders:** the tamer (0) and NPC ids such as Jijimon or the Market Manager show `— (all slots 0)` instead of techniques.
+- **Release differences** under the first table: only jp changes (four drop items, SkullGreymon's first slot).
+- **Files:** `output/digimon/file_names.json` → `records[3].mmd` is `CHDAT/MMD0/AGUM.MMD`, the file the asset porter converts to Agumon's model.
+- **JSON spot check:** `output/digimon/digimon_data.json` → `records[3].moves[0]` is `{"slot": 0, "anim": 46, "move": {"id": 2, "name": "Spit Fire"}}`; `used_by` has around 170 functions, with the fields each reads.
+
 ## Reporting a problem
 
 Note the table, the record id and what you expected vs. saw. The table's `source` says which decomp file and line the value came from.

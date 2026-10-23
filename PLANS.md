@@ -32,6 +32,11 @@ Last updated: 2026-10-23
    - [x] Partner in the field: loaded from its `GameData` entity, follows the tamer like `partner.c`, idle / walk / run animations (`specs/partner.md`, `scripts/field/partner.gd`, `tests/test_partner.gd`).
    - [ ] Later with NPCs: entity collisions for the tamer and NPCs, the exact movement / collision split (`specs/partner.md` §5); partial animation loops in `PsxAnimator`.
    - [ ] Care ticks: hunger, energy, sleep, poop, sickness, lifetime (`partner.c`, `partner_impl.c`), rules reading properties (`care` component); debug panel.
+     - [x] Spec `specs/care.md`.
+     - [ ] Data porter: the §4 properties (`first_technique`, `eats_poop`, `raises_virus_bar`, `boosts_sleep`) with checks on the C text.
+     - [ ] `Care` + partner / tamer states 1, 3, 7; partner ticks before the clock; area response from the map setup.
+     - [ ] Bubbles (`feel_ef`), status bars (`system_w`), poop piles (`UNTI`), fade stand-in.
+     - [ ] Debug panel (`C`), `tests/test_care.gd`, VERIFY section.
    - How each system is ported: a short spec (C functions reproduced, state and data read) → GDScript naming each C function → headless tests with values worked out from the C code → VERIFY section → this file.
 4. **Next milestones, in order:** text renderer + event scripts (NPC dialogue, Jijimon intro, new game) → menus (inventory, feeding, items, Digimon status) → battle → evolution and training → tournaments and minigames.
 5. **Field (as needed by the milestones):** NPC Digimon, map object sprites (water, fire), lighting, depth against the background, events.
@@ -61,6 +66,7 @@ Last updated: 2026-10-23
 
 ## Done
 
+- 2026-10-23 — Partner follows the tamer (`165d61a`), clock (`2f3f505`), GameState (`90effc9`).
 - 2026-10-23 — DW Data dock and its guide; its asset check found the data porter's wrong model folders (Digimon 30–179), fixed. Editor mirror and `Content` loader (`9eb9172`).
 - 2026-10-23 — `Content` loader and the `res://content/dw1/` editor mirror; runtime animations now baked at 20 fps (were resampled at 30). Registry (`e161e05`), cards as their own kind (`7ee3ccf`), content keys (`280d3d0`).
 - 2026-10-23 — Content architecture spec (`specs/content.md`).

@@ -4,7 +4,7 @@ extends Node
 ## (specs/clock.md) with its HUD and the day / evening / night fades.
 ##
 ## Debug keys: [ / ] previous / next map, T one hour later, Z the menu's Sleep, C the care panel,
-## L text language, H toggle the help line.
+## D the map's script texts in the dialogue box, L text language, H toggle the help line.
 ##
 ## In the editor the scene previews start_map / start_spawn / time_of_day from the porter output
 ## (pick them in the Inspector). The preview is only in memory: before each save it is cleared
@@ -44,6 +44,10 @@ var _panel: CareDebugPanel
 ## The text area and the six UI boxes everything that shows text shares (specs/text.md).
 var _text_area: TextArea
 var _boxes: UIBoxes
+## The script state the text boxes share with the interpreter, the text boxes, the debug player.
+var _script_ctx: ScriptContext
+var _textboxes: TextBoxes
+var _dialogue: DialogueDebug
 var _message := ""
 var _message_frames := 0
 
@@ -92,21 +96,51 @@ func _start_partner() -> void:
 
 
 ## The text area, the UI boxes and the tamer's message box (specs/text.md). The boxes run their
-## frame after the tamer and the partner, which open and close them.
+## frame after the tamer, the partner and the script, which open and close them. They go into the
+## HUD in _start_care, after the clock and the bars: their ordering-table layers (1-6) are in front
+## of the HUD's (13-15).
 func _start_text() -> void:
 	if not GameData.available():
 		return
 	_text_area = TextArea.new(GameData, GameData.language)
-	GameData.language_changed.connect(func(_lang): _text_area.set_language(GameData, GameData.language))
 	_boxes = UIBoxes.new()
+	_script_ctx = ScriptContext.new()
+	_script_ctx.game_state = GameState
+	_script_ctx.data = GameData
+	_script_ctx.entity_screen_position = _entity_screen_position
+	_textboxes = TextBoxes.new(_boxes, _text_area, _script_ctx, GameLoop.pad, GameData, GameState)
+	GameData.language_changed.connect(func(_lang):
+		_text_area.set_language(GameData, GameData.language)
+		_textboxes.set_language(GameData.language))
+	# Debug: the map's script texts (key D) until the interpreter exists. It runs where tickScript
+	# does: before the objects, so before the UI boxes' frame.
+	_dialogue = DialogueDebug.new()
+	_dialogue.name = "DialogueDebug"
+	_dialogue.textboxes = _textboxes
+	_dialogue.ctx = _script_ctx
+	_dialogue.tamer = _tamer
+	_dialogue.clock = _clock
+	_dialogue.finished.connect(_show_message)
+	add_child(_dialogue)
+	GameLoop.frame.connect(_dialogue.tick)
 	_boxes.name = "UIBoxes"
 	_boxes.set_anchors_preset(Control.PRESET_FULL_RECT)
-	$Hud.add_child(_boxes)
 	_tamer.camera = _camera
 	_tamer.partner = _partner
 	_tamer.clock = _clock
-	_tamer.pad = GameLoop
+	_tamer.pad = GameLoop.pad
 	_tamer.message_box = MessageBox.new(_boxes, _text_area)
+
+
+## setupBoxOrigin's getEntityScreenPos(entity, 1) for a script id: the tamer and the partner; map
+## NPCs aren't spawned yet (null: the box opens without growing).
+func _entity_screen_position(script_id: int):
+	if script_id == ScriptContext.OWNER_TAMER:
+		return _tamer.screen_position()
+	if script_id == ScriptContext.OWNER_PARTNER and _partner != null:
+		var p := _camera.unproject_position(_partner.global_position)
+		return Vector2i(roundi(p.x) - 160, roundi(p.y) - 120)
+	return null
 
 
 ## The care rules and the fade they use (specs/care.md §3). A new game's partner gets
@@ -135,7 +169,10 @@ func _start_care() -> void:
 		if GameState.state["boot_mode"] == GameState.BOOT_NEW_GAME or debug_partner != "":
 			_care.initialize_partner()
 		_start_care_visuals()
-	# Last in the HUD and in the frame: the fade covers everything (a render object in the original).
+	# The windows in front of the HUD; last in the HUD and in the frame: the fade covers everything
+	# (a render object in the original).
+	if _boxes != null:
+		$Hud.add_child(_boxes)
 	$Hud.add_child(_fade)
 	GameLoop.frame.connect(_fade.tick)
 
@@ -240,6 +277,8 @@ func _enter(map_name: String, spawn: int) -> void:
 	_arrival_trigger = _field.tile_trigger(_tamer.position)
 	if _clock != null:
 		_record_map(map_name, spawn)
+	if _dialogue != null:
+		_dialogue.load_map(map_name, _field.data)
 	_update_label()
 
 
@@ -298,6 +337,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_C:
 			if _panel != null:
 				_panel.visible = not _panel.visible
+		KEY_D:
+			if _dialogue != null:
+				_show_message(_dialogue.play_next())
 
 
 ## The menu's "Sleep" (handleGameMenuSelection case 6, game_menu.c:2178): only while it is enabled
@@ -318,7 +360,7 @@ func _update_label() -> void:
 		if _clock.map_has_time_of_day:
 			time = {Clock.TIME_DAY: "day", Clock.TIME_EVENING: "evening", Clock.TIME_NIGHT: "night"}[_clock.current_time_of_day]
 		time = "year %d day %d %02d:%02d (%s)" % [clock["year"], clock["day"], clock["hour"], clock["minute"], time]
-	var help := _message if _message != "" else "arrows move, shift run, [ ] map, T +1 hour, Z sleep, C care, L language, H hide"
+	var help := _message if _message != "" else "arrows move, shift run, [ ] map, T +1 hour, Z sleep, C care, D dialogue, L language, H hide"
 	_label.text = "%s\n%s\n%s" % [_map_label(), time, help]
 
 

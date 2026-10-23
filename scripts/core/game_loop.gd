@@ -9,10 +9,10 @@ const FRAME_RATE := 20.0
 ## Game frames run at most per Godot frame: after a stall the game slows down instead of
 ## running many frames at once.
 const MAX_FRAMES_PER_STEP := 3
-## The pad buttons the ported code polls: confirm (✕), cancel (△), the d-pad.
-const PAD_ACTIONS: PackedStringArray = ["ui_accept", "ui_cancel", "ui_up", "ui_down", "ui_left", "ui_right"]
-
 var paused := false
+## The pad as the original reads it (Pad: POLLED_INPUT, CHANGED_INPUT, isKeyDown), polled at the
+## start of every game frame.
+var pad := Pad.new()
 ## Debug: game frames run per original frame (1 = the original's pace). Every system ticks on
 ## `frame`, so timers keep their exact frame counts, only sooner. Not part of the original.
 var speed := 1
@@ -20,9 +20,8 @@ var speed := 1
 var frame_count := 0
 
 var _accumulated := 0.0
-## Buttons pressed since the last game frame, and the ones the current frame sees.
-var _pending := {}
-var _polled := {}
+## Buttons pressed since the last game frame (a tap shorter than a frame still counts once).
+var _tapped := 0
 
 
 func _process(delta: float) -> void:
@@ -38,23 +37,23 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	for action in PAD_ACTIONS:
+	for action in Pad.ACTIONS:
 		if event.is_action_pressed(action, false):
-			_pending[action] = true
+			_tapped |= Pad.ACTIONS[action]
 
 
-## POLLED_INPUT: true in the one game frame after the button went down (a press between two game
-## frames is seen by the next one).
-func pad_pressed(action: String) -> bool:
-	return _polled.has(action)
-
-
-## Tests and debug tools: a button press the next game frame sees.
+## Debug tools: the button is held for the next game frame.
 func press(action: String) -> void:
-	_pending[action] = true
+	_tapped |= Pad.ACTIONS.get(action, 0)
 
 
-## The start of a game frame: the presses since the last one become this frame's POLLED_INPUT.
+## gameLoop's pollInputGame + processInput (main.c:3935-3940): the buttons held now, plus taps
+## since the last game frame.
 func _poll() -> void:
-	_polled = _pending
-	_pending = {}
+	var down := _tapped
+	_tapped = 0
+	for action in Pad.ACTIONS:
+		if Input.is_action_pressed(action):
+			down |= Pad.ACTIONS[action]
+	pad.poll(down)
+	pad.process()

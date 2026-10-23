@@ -35,12 +35,20 @@ Sections are added as systems are ported (`PLANS.md`).
 3. **While it is open:**
    - game time stops (the clock and bars slide away);
    - the tamer can't walk and Agumon stands idle.
-   - Press ✕ (Enter / Space): the box shrinks back to the tamer, the clock comes back, you can walk.
+   - Press ✕ (Enter / Space): the box shrinks back to the tamer, the clock comes back, you can walk. As in the C, it reacts to ✕ being held, so holding ✕ when the box appears closes it at once.
    - Wrong if: the box never closes, or you stay frozen after it.
 4. **Language (`L`):** press `L` before "injured 12h":
    - `ja`: the name in the JP font's full-width Latin letters, then the Japanese text;
    - `en_eu`: the EU font, all letters 8 px apart, so the gap after the name is smaller (8 px per letter).
-5. **Not there yet:** the dialogue box of the event scripts (NPC talk), the medal and tamer-level messages, the sounds.
+5. **Dialogue (`D`):** `D` plays the next run of the current map's script texts (the help line names it, e.g. `dialogue 1 / 13 (script_004 @142)`); ✕ turns the pages. This is a debug player of the texts only: what the script does between them (animations, walking, battles) comes with the interpreter. Check:
+   - **Speaker line:** the name on the first row, in light blue for the tamer ("Player" on a new game) and orange for the partner. NPC names (yellow) show only on maps whose Digimon have a script id. The text follows on 3 rows. A text without a speaker uses all 4 rows.
+   - **Colour codes:** words in another colour, e.g. at Dragon Eye Lake (press `]` until the help line shows `MAYO06`; then `D` until it shows `@54`) the second text: "Will you play the Lake Guardian's **Blue Flute**?".
+   - **Pages:** the "next" sprite blinks while it waits. Longer texts continue on the next page with ✕.
+   - **Holding ✕ doesn't skip:** a new box waits until ✕ was released once.
+   - **Choices:** MAYO06's third text "I'll play / I won't play". A grey cursor bar covers the option. Up and down move it and wrap around; ✕ picks (the help line names the option); △ leaves the choice.
+   - **While it plays:** game time stops (the clock and bars slide away), the tamer can't walk. After the run you can walk again.
+   - **Compare with the game:** the box, the text placement (5 px in, rows 13 px apart), the shadow, the cursor. Wrong if: a row is cut, the name is missing or in the wrong colour, or letters overlap.
+6. **Not there yet:** the interpreter (what happens between the texts), the medal and tamer-level messages, the sounds.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

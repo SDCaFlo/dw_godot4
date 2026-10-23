@@ -4,6 +4,8 @@ extends SceneTree
 ## Exits 1 if a check fails. Needs the data porter output (font group).
 
 var _failed := 0
+## Checks run: a script error aborts a test function silently, so the count shows it.
+var _checks := 0
 var _frames := 0
 var data: Node
 var boxes: UIBoxes
@@ -21,6 +23,12 @@ func _process(_delta: float) -> bool:
 		_text_area()
 		_boxes()
 		_message_box_and_tamer()
+		_pad()
+		_draw_string2()
+		_show_textbox()
+		_dialogue_pages()
+		_dialogue_choice()
+		_dialogue_debug()
 		# Drawn by the engine in the next frames: the frame, the text and the arrow must not error.
 		boxes = UIBoxes.new()
 		root.add_child(boxes)
@@ -34,7 +42,7 @@ func _process(_delta: float) -> bool:
 	elif _frames == 4:
 		boxes.queue_free()
 		data.free()
-		print("%s: text checks" % ("FAILED %d" % _failed if _failed else "OK"))
+		print("%s: text checks (%d run)" % ["FAILED %d" % _failed if _failed else "OK", _checks])
 		quit(1 if _failed else 0)
 	return false
 
@@ -159,7 +167,7 @@ func _message_box_and_tamer() -> void:
 	clock.running = true
 	var partner := Partner.new()
 	var tamer := Tamer.new()
-	var pad: Node = load("res://scripts/core/game_loop.gd").new()
+	var pad := Pad.new()
 	tamer.clock = clock
 	tamer.partner = partner
 	tamer.message_box = box
@@ -171,25 +179,255 @@ func _message_box_and_tamer() -> void:
 	tamer.tick()
 	_eq([tamer.sub_state, b.boxes[1].state, b.boxes[1].start], [5, UIBoxes.STATE_OPENING, Rect2i(-5, -5, 10, 10)],
 			"sub-state 4: box 1 grows from the tamer")
-	pad._poll()
+	pad.poll(0)
 	tamer.tick()
 	_eq(tamer.sub_state, 5, "waits for the confirm button")
-	pad.press("ui_accept")
-	pad._poll()
+	pad.poll(Pad.CONFIRM)
 	tamer.tick()
 	_eq([tamer.state, partner.state, tamer.camera_follow, clock.running, b.boxes[1].state],
-			[Tamer.STATE_FREE, Partner.STATE_NORMAL, true, true, UIBoxes.STATE_CLOSING], "confirm: the box closes, all free")
-	pad._poll()
-	_eq(pad.pad_pressed("ui_accept"), false, "a press is seen by one game frame only")
+			[Tamer.STATE_FREE, Partner.STATE_NORMAL, true, true, UIBoxes.STATE_CLOSING],
+			"confirm held (POLLED_INPUT): the box closes, all free")
 	tamer.free()
 	partner.free()
-	pad.free()
 	clock.free()
 	gs.free()
 	b.free()
 
 
+func _pad() -> void:
+	var pad := Pad.new()
+	pad.poll(Pad.CONFIRM)
+	pad.process()
+	# isKeyDown takes the key from INPUT_FRESH_MASK but not from this frame's INPUT_PENDING_MASK.
+	_eq([pad.is_held(Pad.CONFIRM), pad.is_changed(Pad.CONFIRM), pad.is_key_down(Pad.CONFIRM), pad.is_key_down(Pad.CONFIRM)],
+			[true, true, true, true], "pressed: held, changed, isKeyDown (all of this frame)")
+	pad.poll(Pad.CONFIRM)
+	pad.process()
+	_eq([pad.is_changed(Pad.CONFIRM), pad.is_key_down(Pad.CONFIRM)], [false, false], "still held: not new, not again")
+	pad.poll(0)
+	pad.process()
+	pad.poll(Pad.CONFIRM)
+	pad.process()
+	_eq(pad.is_key_down(Pad.CONFIRM), true, "released and pressed again: counts again")
+	# pollInputGame's d-pad repeat: new on frame 1, then on the 6th frame held and every 2 frames.
+	pad = Pad.new()
+	var changed := []
+	for frame in 11:
+		pad.poll(Pad.DOWN)
+		if pad.is_changed(Pad.DOWN):
+			changed.append(frame + 1)
+	_eq(changed, [1, 6, 8, 10], "CHANGED_INPUT d-pad repeat")
+	# processInput's repeat mask: once, then on the 8th frame held and every 2 frames.
+	pad = Pad.new()
+	pad.set_repeat_mask(0x5000)
+	var downs := []
+	for frame in 13:
+		pad.poll(Pad.DOWN)
+		pad.process()
+		if pad.is_key_down(Pad.DOWN):
+			downs.append(frame + 1)
+	_eq(downs, [1, 8, 10, 12], "isKeyDown with INPUT_REPEAT_MASK")
+
+
+## TextBoxes on a fresh UI box set, with a script context and a pad.
+func _text_boxes(lang := "en_us") -> Array:
+	var b := UIBoxes.new()
+	var area := TextArea.new(data, lang)
+	var ctx := ScriptContext.new()
+	var gs: Node = load("res://scripts/state/game_state.gd").new()
+	gs.data = data
+	gs.new_game()
+	ctx.game_state = gs
+	ctx.data = data
+	var pad := Pad.new()
+	var tb := TextBoxes.new(b, area, ctx, pad, data, gs)
+	return [tb, b, area, ctx, pad, gs]
+
+
+func _free(parts: Array) -> void:
+	parts[1].free()
+	parts[5].free()
+
+
+func _draw_string2() -> void:
+	var parts := _text_boxes()
+	var tb: TextBoxes = parts[0]
+	var area: TextArea = parts[2]
+	var put := func(bytes: Array) -> void:
+		tb.lines.fill(0)
+		for i in bytes.size():
+			tb.lines[i] = bytes[i]
+	var ink_at := func(x: int, y: int) -> int: return area.pixel(x, y + 5)   # Ａ row 5: ink in columns 1-7
+	put.call([0x01, 3, 0x41, 0x82, 0x60, 0x0D, 0])
+	area.clear_all()
+	_eq(tb.draw_string2(0, 0, 0), 0, "0D ends the line: 0")
+	_eq([ink_at.call(1, 0), ink_at.call(13, 0)], [3, 3], "01 3 sets the colour; ASCII A and Ａ are the same glyph, 12 apart")
+	put.call([0x82, 0x81, 0x81, 0x40, 0x82, 0x60, 0])
+	area.clear_all()
+	area.set_text_color(1)
+	_eq(tb.draw_string2(0, 0, 0), 1, "00 ends the text: 1")
+	# ａ advances 8; the full-width space clears its cell and advances by the last width again (8),
+	# so Ａ's ink is at 17-23 (with a 12 px space it would be at 21-27).
+	_eq([ink_at.call(17, 0), ink_at.call(24, 0)], [1, 0], "quirk: the space after ａ advances 8, Ａ lands at 16")
+	put.call([0x41, 0x0C, 0, 0x41, 0])
+	area.clear_all()
+	tb.draw_string2(0, 0, 0)
+	_eq(ink_at.call(97, 0), 1, "0C: to the next multiple of 8 cells (96)")
+	put.call([0x17, 0, 0x41, 0])
+	area.clear_all()
+	tb.draw_string2(0, 0, 0)
+	_eq([ink_at.call(105, 0), ink_at.call(104, 0)], [1, 0], "17: x 105 (the cell lands on 104)")
+	put.call([0x0F, 0, 0x41, 0])
+	area.clear_all()
+	tb.draw_string2(0, 0, 0)
+	_eq(ink_at.call(5, 0), 1, "0F: 6 px blank (the cell lands on 4)")
+	tb.fixed_width = true
+	put.call([0x82, 0x81, 0x82, 0x60, 0])
+	area.clear_all()
+	tb.draw_string2(0, 0, 0)
+	_eq(ink_at.call(13, 0), 1, "DRAW_STRING2_IS_FIXED_WIDTH: ａ advances 12")
+	_eq(Array(TextBoxes.int_to_string_sjis(5, 3, 1)), [0x82, 0x54], "intToStringSJIS 5, 3 digits, zeros dropped")
+	_eq(Array(TextBoxes.int_to_string_sjis(5, 3, 0)), [0x81, 0x40, 0x81, 0x40, 0x82, 0x54], "zeros as full-width spaces")
+	_eq(Array(TextBoxes.int_to_string_sjis(0, 3, 1)), [0x82, 0x4F], "the last digit stays")
+	_eq(Array(TextBoxes.int_to_string_sjis(105, 3, 1)), [0x82, 0x50, 0x82, 0x4F, 0x82, 0x54], "inner zeros stay")
+	_free(parts)
+
+
+func _show_textbox() -> void:
+	var parts := _text_boxes()
+	var tb: TextBoxes = parts[0]
+	var ctx: ScriptContext = parts[3]
+	var gs: Node = parts[5]
+	gs.state["partner"]["name"] = "Agu"
+	ctx.code = PackedByteArray([0x82, 0x60, 0x82, 0x61, 0x0D, 0, 0x82, 0x62, 0x0D, 0, 0, 0, 0x2A, 0])
+	tb.setup_dialogue_box(ScriptContext.OWNER_NONE)
+	var width := tb.show_textbox(0, ScriptContext.OWNER_PARTNER)
+	var e: TextBoxes.Entry = tb.entries[0]
+	var row := func(r: int, n: int) -> Array: return Array(tb.lines.slice(r * tb.line_size, r * tb.line_size + n))
+	# Back page = page 1: rows 4-7. The name is full-width (typed names are).
+	_eq(row.call(4, 12), [1, 10, 0x82, 0x60, 0x82, 0x87, 0x82, 0x95, 1, 1, 0x0D, 0], "speaker line: colour 10, the partner's name")
+	_eq(row.call(5, 6), [0x82, 0x60, 0x82, 0x61, 0x0D, 0], "first line")
+	_eq(row.call(6, 3), [0x82, 0x62, 0], "last line: its 0D became the terminator")
+	_eq([width, e.page_ready, e.write_count, ctx.pointer, ctx.active_instruction], [2, 1, 1, 12, ScriptContext.OP_SHOW_TEXTBOX],
+			"widest line 2, last page (next op isn't SHOW_TEXTBOX), pointer after the text")
+	# Values: 04 p (script value, 3 digits), 05 the tamer's name.
+	gs.set_script_value(3, 42)
+	gs.state["tamer"]["name"] = "Ry"
+	ctx.code = PackedByteArray([0x04, 3, 0x05, 0, 0x0D, 0, 0, 0, 0])
+	ctx.pointer = 0
+	tb.show_textbox(0, ScriptContext.OWNER_NONE)
+	# The back page is still page 1 (no flip yet): row 4.
+	_eq(row.call(4, 9), [0x82, 0x53, 0x82, 0x51, 0x82, 0x71, 0x82, 0x99, 0], "04: ４２; 05: the tamer's name")
+	_free(parts)
+
+
+## One frame as the game runs it: the pad, tickScript's tickTextboxHandling, the UI boxes.
+func _frame(parts: Array, buttons := 0) -> void:
+	parts[4].poll(buttons)
+	parts[4].process()
+	parts[0].tick_textbox_handling()
+	parts[1].step()
+
+
+func _dialogue_pages() -> void:
+	var parts := _text_boxes()
+	var tb: TextBoxes = parts[0]
+	var b: UIBoxes = parts[1]
+	var ctx: ScriptContext = parts[3]
+	var sounds := []
+	tb.sound.connect(func(id): sounds.append(id))
+	# Page 1, SHOW_TEXTBOX, page 2, then another instruction (0x2A).
+	ctx.code = PackedByteArray([0x82, 0x60, 0x0D, 0, 0, 0, ScriptContext.OP_SHOW_TEXTBOX, 0, 0x82, 0x61, 0x0D, 0, 0, 0, 0x2A, 0])
+	tb.setup_dialogue_box(ScriptContext.OWNER_NONE)
+	tb.show_textbox(0, ScriptContext.OWNER_NONE)
+	var e: TextBoxes.Entry = tb.entries[0]
+	_eq(e.page_ready, 0, "page 1 is not the last (SHOW_TEXTBOX follows)")
+	_frame(parts)
+	_eq([e.registered, b.boxes[0].state], [1, UIBoxes.STATE_OPEN], "one line drawn: the page is complete and the box opens (static)")
+	_frame(parts)
+	_eq([e.back_page, e.flip_count, ctx.active_instruction], [1, 1, 0], "the box shows page 1; not the last page: the script goes on")
+	# The interpreter: SHOW_TEXTBOX writes page 2 into the back page while page 1 is shown.
+	ctx.pointer += 2
+	tb.show_textbox(0, ScriptContext.OWNER_NONE)
+	_eq([e.page_ready, e.write_count], [1, 2], "page 2 is the last")
+	_frame(parts)
+	_frame(parts)
+	_eq([tb.arrow_flag, b.boxes[0].arrow >= 0], [1, true], "waiting: tickConfirmDialogue sets the arrow flag each frame, the arrow shows")
+	_frame(parts, Pad.CONFIRM)
+	_eq([e.back_page, sounds, ctx.active_instruction], [0, [3], ScriptContext.OP_SHOW_TEXTBOX], "confirm: page 2 is shown")
+	_frame(parts, Pad.CONFIRM)
+	_eq(ctx.active_instruction, ScriptContext.OP_SHOW_TEXTBOX, "held confirm: not again")
+	_frame(parts)
+	_frame(parts, Pad.CONFIRM)
+	_eq([ctx.active_instruction, e.idle, sounds], [0, 1, [3, 3]], "confirm on the last page: the text is done")
+	tb.close_all_textboxes()
+	_eq([b.boxes[0].state, e.vram_rows], [UIBoxes.STATE_CLOSED, 0], "closeAllTextboxes: closed at once, rows freed")
+	_free(parts)
+
+
+func _dialogue_choice() -> void:
+	var parts := _text_boxes()
+	var tb: TextBoxes = parts[0]
+	var ctx: ScriptContext = parts[3]
+	var sounds := []
+	tb.sound.connect(func(id): sounds.append(id))
+	# SET_SELECTION's bytes after the opcode: count 2, targets 0x1234 and 0x0042, a third short,
+	# the text (two lines), 2 more bytes.
+	var bytes := [2, 0x34, 0x12, 0x42, 0x00, 0, 0, 0x82, 0x60, 0x0D, 0, 0x82, 0x61, 0x82, 0x62, 0x0D, 0, 0, 0, 0x2A, 0]
+	ctx.code = PackedByteArray(bytes)
+	ctx.dialogue_owner = ScriptContext.OWNER_NONE
+	tb.setup_dialogue_box(ScriptContext.OWNER_NONE)
+	tb.script_show_selection()
+	_eq([tb.selection["count"], tb.selection["pointer"], tb.selection["cursor_width"], tb.selection["cursor_offset_y"],
+			ctx.active_instruction], [2, 1, 2 * 12 + 2, 0, ScriptContext.OP_SET_SELECTION],
+			"the choice: 2 options, the widest is 2 columns, no speaker line")
+	for i in 4:
+		_frame(parts)
+	for key in [Pad.DOWN, 0, Pad.DOWN, 0, Pad.UP, 0]:
+		_frame(parts, key)
+	_eq([tb.selection["current"], sounds], [1, [2, 2, 2]], "down, down (wraps), up (wraps)")
+	_frame(parts, Pad.CONFIRM)
+	_eq([ctx.pointer, sounds.back()], [0x42, 3], "confirm: the script jumps to the option's target")
+	# Cancel: continue after the text.
+	ctx.pointer = 0
+	tb.setup_dialogue_box(0xFE)
+	tb.script_show_selection()
+	for i in 4:
+		_frame(parts)
+	_frame(parts, Pad.CANCEL)
+	_eq([ctx.pointer, sounds.back()], [tb.selection["end_pointer"], 4], "cancel: after the text (sound 4)")
+	_free(parts)
+
+
+func _dialogue_debug() -> void:
+	var map = Content.load_json("maps/MAYO04A/map.json")
+	if not map is Dictionary or Content.load_json("scripts/index.json") == null:
+		print("SKIP dialogue debug: asset porter output missing")
+		return
+	var parts := _text_boxes()
+	var tb: TextBoxes = parts[0]
+	var debug := DialogueDebug.new()
+	debug.textboxes = tb
+	debug.ctx = parts[3]
+	var summaries := []
+	debug.finished.connect(func(s): summaries.append(s))
+	debug.load_map("MAYO04A", map)
+	_eq(debug.starts.size() > 0, true, "MAYO04A has script texts")
+	debug.play_next()
+	var frames := 0
+	while debug.running and frames < 200:
+		parts[4].poll(Pad.CONFIRM if frames % 10 == 9 else 0)
+		parts[4].process()
+		debug.tick()
+		parts[1].step()
+		frames += 1
+	_eq([debug.running, summaries.size()], [false, 1], "the first text of MAYO04A plays and ends (%d frames)" % frames)
+	debug.free()
+	_free(parts)
+
+
 func _eq(actual: Variant, expected: Variant, what: String) -> void:
+	_checks += 1
 	if actual == expected:
 		return
 	_failed += 1

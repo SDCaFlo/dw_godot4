@@ -35,12 +35,12 @@ var camera_follow := true
 ## TAMER_SUB_STATE (reset by tamerSetState = set_state).
 var sub_state := 0
 ## For tick(): the field camera (screen positions), the partner and clock it stops, the message box,
-## the pad (the GameLoop autoload).
+## the pad (GameLoop.pad).
 var camera: Camera3D
 var partner: Partner
 var clock: Clock
 var message_box: MessageBox
-var pad: Node
+var pad: Pad
 
 var _player: AnimationPlayer
 var _skeleton: Skeleton3D
@@ -131,7 +131,8 @@ func tick_award_something() -> void:
 				sub_state = 5
 				# playSound(0, 7): later with audio.
 		5:
-			if pad != null and pad.pad_pressed("ui_accept"):
+			# POLLED_INPUT & CONFIRM_BUTTON: held, not newly pressed (specs/text.md §2.8).
+			if pad != null and pad.is_held(Pad.CONFIRM):
 				if message_box != null:
 					message_box.close(screen_rect())
 				set_state(STATE_FREE)

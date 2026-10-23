@@ -79,6 +79,34 @@ func encode(text: String, draw_string := true) -> PackedInt32Array:
 	return out
 
 
+## A code no table has: what a character without a Shift-JIS code is written as (it draws the
+## fallback glyph, like any unknown code).
+const NO_CODE := 0xFFFE
+
+
+## The bytes a C string holds for `text` (strcpy into the text-box lines): ASCII stays one byte,
+## unless `full_width` (names typed on the naming screen, every JP / EU string), where it becomes
+## convertAsciiToJis's code; other characters are their 2-byte Shift-JIS code, high byte first.
+func to_bytes(text: String, full_width := false) -> PackedByteArray:
+	var out := PackedByteArray()
+	var wide := full_width or language != "en_us"
+	for i in text.length():
+		var c := text.unicode_at(i)
+		var code := 0
+		if c < 0x80:
+			if not wide:
+				out.append(c)
+				continue
+			code = _ascii.get(c, [0, 0])[0]
+		else:
+			code = _codes.get(text[i], 0)
+		if code == 0:
+			code = NO_CODE
+		out.append(code >> 8)
+		out.append(code & 0xFF)
+	return out
+
+
 ## Bit 15 - x of a row is pixel x; a 0 bit is ink (font.c:1630).
 static func is_ink(rows: Array, x: int, y: int) -> bool:
 	return (int(rows[y]) >> (15 - x)) & 1 == 0

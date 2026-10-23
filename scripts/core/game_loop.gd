@@ -11,6 +11,9 @@ const FRAME_RATE := 20.0
 const MAX_FRAMES_PER_STEP := 3
 
 var paused := false
+## Debug: game frames run per original frame (1 = the original's pace). Every system ticks on
+## `frame`, so timers keep their exact frame counts, only sooner. Not part of the original.
+var speed := 1
 ## Game frames run since start.
 var frame_count := 0
 
@@ -23,5 +26,6 @@ func _process(delta: float) -> void:
 	_accumulated = minf(_accumulated + delta, MAX_FRAMES_PER_STEP / FRAME_RATE)
 	while _accumulated >= 1.0 / FRAME_RATE:
 		_accumulated -= 1.0 / FRAME_RATE
-		frame_count += 1
-		frame.emit()
+		for i in speed:
+			frame_count += 1
+			frame.emit()

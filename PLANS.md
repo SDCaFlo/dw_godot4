@@ -38,7 +38,7 @@ Last updated: 2026-10-23
      - [x] Bubbles (`feel_ef`, STP split by `PsxTexture`), status bars (`system_w`), poop piles (`UNTI`), fade.
      - [ ] Backlog (graphics): a black area around the poop piles (reported 2026-10-23). Probably the pile's shadow polygon, semi-transparent in the TMD, drawn opaque by the glTF import (check the UNTI.TMD primitive flags and the asset porter's material export).
      - [ ] Later: the bubble's bone offset (`CONDITION_FX_OFFSETS`, effect_common.c:307) into the data / asset porter; the butterfly (`butterfly.c`); `createCloudFX` with the effects.
-     - [ ] Debug panel (`C`), `tests/test_care.gd`, VERIFY section.
+     - [x] Debug panel (`C`, `scripts/debug/care_debug_panel.gd`, `GameLoop.speed`), `tests/test_care.gd`, VERIFY section.
    - How each system is ported: a short spec (C functions reproduced, state and data read) → GDScript naming each C function → headless tests with values worked out from the C code → VERIFY section → this file.
 4. **Next milestones, in order:** text renderer + event scripts (NPC dialogue, Jijimon intro, new game) → menus (inventory, feeding, items, Digimon status) → battle → evolution and training → tournaments and minigames.
 5. **Field (as needed by the milestones):** NPC Digimon, map object sprites (water, fire), lighting, depth against the background, events.

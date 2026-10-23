@@ -3,7 +3,8 @@ extends Node
 ## Field scene: one map, the tamer walking on it, warps between maps, the game clock
 ## (specs/clock.md) with its HUD and the day / evening / night fades.
 ##
-## Debug keys: [ / ] previous / next map, T one hour later, L text language, H toggle the help line.
+## Debug keys: [ / ] previous / next map, T one hour later, Z the menu's Sleep, C the care panel,
+## L text language, H toggle the help line.
 ##
 ## In the editor the scene previews start_map / start_spawn / time_of_day from the porter output
 ## (pick them in the Inspector). The preview is only in memory: before each save it is cleared
@@ -39,6 +40,7 @@ var _partner: Partner
 var _care: Care
 var _fade: Fade
 var _poop: PoopPiles
+var _panel: CareDebugPanel
 var _message := ""
 var _message_frames := 0
 
@@ -139,6 +141,15 @@ func _start_care_visuals() -> void:
 	_poop.partner = _partner
 	$World/SubViewport.add_child(_poop)
 	_care.poop_changed.connect(_poop.refresh)
+	_panel = CareDebugPanel.new()
+	_panel.name = "CareDebugPanel"
+	_panel.care = _care
+	_panel.clock = _clock
+	_panel.partner = _partner
+	_panel.game_state = GameState
+	_panel.sleep_action = _menu_sleep
+	_panel.visible = false
+	$Hud.add_child(_panel)
 
 
 ## setButterfly removes the bubble first (handleConditionBubble, partner_impl.c:1590). The
@@ -260,6 +271,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_label.visible = not _label.visible
 		KEY_Z:
 			_menu_sleep()
+		KEY_C:
+			if _panel != null:
+				_panel.visible = not _panel.visible
 
 
 ## The menu's "Sleep" (handleGameMenuSelection case 6, game_menu.c:2178): only while it is enabled
@@ -280,7 +294,7 @@ func _update_label() -> void:
 		if _clock.map_has_time_of_day:
 			time = {Clock.TIME_DAY: "day", Clock.TIME_EVENING: "evening", Clock.TIME_NIGHT: "night"}[_clock.current_time_of_day]
 		time = "year %d day %d %02d:%02d (%s)" % [clock["year"], clock["day"], clock["hour"], clock["minute"], time]
-	var help := _message if _message != "" else "arrows move, shift run, [ ] map, T +1 hour, Z sleep, L language, H hide"
+	var help := _message if _message != "" else "arrows move, shift run, [ ] map, T +1 hour, Z sleep, C care, L language, H hide"
 	_label.text = "%s\n%s\n%s" % [_map_label(), time, help]
 
 

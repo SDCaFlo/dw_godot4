@@ -6,8 +6,9 @@ Status:
   - partner states 1 / 3 / 7 (`scripts/field/partner.gd`) and the tamer's state, camera follow and scene animations (`tamer.gd`);
   - the fade (`scripts/field/fade.gd`);
   - test `tests/test_care.gd`; human checks in `VERIFY.md`;
-  - the visuals: `scripts/systems/condition_bubbles.gd`, `status_bars.gd`, `psx_texture.gd`, `scripts/field/poop_piles.gd`.
-- **Next:** the debug panel (§3.5).
+  - the visuals: `scripts/systems/condition_bubbles.gd`, `status_bars.gd`, `psx_texture.gd`, `scripts/field/poop_piles.gd`;
+  - the debug panel: `scripts/debug/care_debug_panel.gd`, and `GameLoop.speed`.
+- **Later:** evolution, the scenes behind the menus (feeding, praise / scold, toilet), the butterfly (§3.3).
 
 The partner's needs as time runs on the field:
 - hunger and energy, sleep, tiredness, poop, sickness and injury, unhappiness, lifetime;
@@ -398,10 +399,20 @@ Started from the menu's "Sleep" (partner state 3, `game_menu.c:2178–2186`), on
 
 ### 3.5 Debug panel
 
-A panel in the field HUD (key `C`), not part of the original:
-- **Values:** every care value, readable, with the condition bits as named toggles.
-- **Time:** game speed ×1 / ×10 / ×60 (the `GameLoop` emits that many frames per tick, so every timer runs as in the game, only faster) and "+1 hour" through `skip_hours`.
-- **Actions:** set happiness / discipline / tiredness / energy; make the partner hungry, poopy (pooping timer 1), sleepy; "Sleep" (enabled while sleepy); praise, scold, toilet.
+`CareDebugPanel` (`scripts/debug/care_debug_panel.gd`), in the field HUD (key `C`), not part of the original:
+- **Values:** the partner, its state and lives, the area response; time and frame; happiness, discipline, tiredness, weight; energy, food, next hunger hour, starvation; sleep schedule and timers; poop, virus bar, care mistakes; sickness / injury; lifetime, age, evolution timer, time on the map; HP / MP.
+- **Condition bits:** toggles that follow the state.
+- **Time:**
+  - game speed ×1 / ×10 / ×60: `GameLoop.speed`, which emits that many game frames per original frame, so every timer keeps its frame counts, only sooner;
+  - "+1 hour": `skip_hours(1)` and the clock moving one hour, as a script's time skip does.
+- **Actions:**
+  - "sleep": the field's menu stand-in, refused unless the partner is sleepy;
+  - "praise" and "scold": `handle_praise_scold(15 / 4)`, the state change only (the scene is a menus step);
+  - "toilet": `handle_toilet` while poopy;
+  - "poop now": pooping timer 1, so the accident starts next frame;
+  - "hungry now": food level 0;
+  - "stats": 500 HP / MP, half left, standing in for the intro's stats;
+  - ±10 for happiness, discipline, tiredness, energy, clamped by `tick_condition_boundaries`.
 
 `T` (one hour, `advance_to_time`) stays: it jumps the clock without the hourly care effects, like the scripts' time jumps.
 

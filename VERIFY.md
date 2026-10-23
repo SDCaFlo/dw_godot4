@@ -54,9 +54,16 @@ Sections are added as systems are ported (`PLANS.md`).
    - Wrong if: you stay frozen, or he keeps running without squatting.
    
    A poop pile (a brown swirl with a shadow) stays on the ground in front of where he squatted. It is still there after you leave the map and come back, and there are at most 16 per map.
-5. **Hunger:** a hungry bubble at Agumon's hunger hours (1, 5, 9, 13, 17, 21 o'clock; the first call after 09:00 at the new game's start). It lasts 1.5 game hours if you don't feed him (no feeding yet). Sickness and lifetime need the debug panel to check quickly; the tests cover their timings.
-6. **What isn't there yet:**
-   - the debug panel;
+5. **Hunger:** a hungry bubble at Agumon's hunger hours (1, 5, 9, 13, 17, 21 o'clock; the first call is 09:00 on a new game). It lasts 1.5 game hours if you don't feed him (no feeding yet), then the next call is set.
+6. **Debug panel (`C`):** the care values on the right; click the buttons (focus stays with the game, so arrows still move).
+   - **Speed:** ×60 makes one game hour pass in a real minute. Every value moves as in the game, only sooner: the clock, food, the poop level every 10 minutes, energy every hour.
+   - **Hunger:** "hungry now" shows the meat bubble at once, and "starve" counts down. After 1.5 game hours without food the call ends; with energy below 20 it's a care mistake ("mistakes" + 1).
+   - **Poop:** "poop now" starts the accident on the next frame. "toilet" while poopy clears it: poop level 48, happiness and discipline + 2.
+   - **Sickness:** toggle "sick" to see its bubble. At ×60, happiness and discipline drop every game hour (−10 / −5) and "timer" rises; at 12 a life is lost and the help line names the collapse script.
+   - **Praise / scold:** praise lowers discipline by 5 and raises happiness; scold raises discipline by 2 and lowers happiness by 10. The bars follow.
+   - **Sleep:** "stats", then wait for 19:00 (or "+1 hour") and press "sleep". HP / MP rise during the night: about 70–80 % of the maximum for a full night.
+   - **Wrong if:** a value jumps somewhere the game couldn't put it, or the bars and bubbles don't follow the values.
+7. **What isn't there yet:**
    - the butterfly over an unhappy partner;
    - feeding, praise / scold, toilets (menus);
    - the collapse / death script (the help line names it), evolution, the butterfly.

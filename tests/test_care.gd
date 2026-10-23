@@ -48,6 +48,7 @@ func _run() -> void:
 	_new_partner()
 	_properties()
 	_visuals()
+	_debug_panel()
 
 	care.free()
 	clock.free()
@@ -460,6 +461,40 @@ func _visuals() -> void:
 		bars._on_frame()
 	_eq(bars.offset_x, StatusBars.OFFSET_SHOWN, "and back to 75")
 	bars.free()
+
+
+## The debug panel (specs/care.md §3.5) and the game speed.
+func _debug_panel() -> void:
+	var loop: Node = load("res://scripts/core/game_loop.gd").new()
+	var count := [0]
+	loop.frame.connect(func(): count[0] += 1)
+	loop.speed = 10
+	loop._process(0.05)
+	_eq(count[0], 10, "speed x10: 10 game frames per original frame")
+	_reset("dw1:agumon", 10, 30)
+	var panel := CareDebugPanel.new()
+	panel.care = care
+	panel.clock = clock
+	panel.game_state = gs
+	panel.game_loop = loop
+	root.add_child(panel)
+	panel._set_speed(60)
+	_eq(loop.speed, 60, "speed buttons set the game loop")
+	var evo: int = c["evo_timer"]
+	panel._skip_hour()
+	_eq([gs.state["clock"]["hour"], gs.state["clock"]["minute"], c["evo_timer"]], [11, 30, evo + 1],
+			"+1 hour: skipHours and the clock")
+	panel._poop_now()
+	_eq([gs.has_condition(Care.POOPY), c["pooping_timer"]], [true, 1], "poop now: the accident on the next frame")
+	panel._toilet()
+	_eq([gs.has_condition(Care.POOPY), c["poop_level"]], [false, 48], "toilet: handleToilet (US doubles the timer)")
+	c["happiness"] = 95
+	panel._add("happiness", 10)
+	_eq(c["happiness"], 100, "+10 stays within the boundaries")
+	panel._set_condition(true, Care.SICK)
+	_eq(gs.has_condition(Care.SICK), true, "condition toggles")
+	panel.queue_free()
+	loop.free()
 
 
 func _with_level(level: int) -> String:

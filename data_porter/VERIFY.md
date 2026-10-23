@@ -97,10 +97,10 @@ Run `python -m dwdata convert systems`: it should print `18 tables, 59/59 checks
 
 ## Godot `GameData` (`scripts/data/game_data.gd`)
 
-Run after `convert all`, from `dw_godot/`, with Godot 4.7: `godot --headless --path . -s res://tests/test_game_data.gd`. It should print `OK: GameData checks` (Agumon, Spit Fire, Meat, type factors, battle commands, flee chances, maps, text by id in en_us and ja, a mod override).
+Run after `convert all`, from `dw_godot/`, with Godot 4.7: `godot --headless --path . -s res://tests/test_game_data.gd`. It should print `OK: GameData checks` (Agumon, Spit Fire, Meat, type factors, battle commands, flee chances, maps, text by id in en_us and ja, lookups by key, entity views, a test pack merged over dw1). The two `ERROR` lines it prints are expected: they are the test's bad pack and foreign key being rejected.
 
 - **In the game:** run the project (F5). The help line shows the area name from the data porter, e.g. `Native Forest (MAYO04A, en_us)`. Press `L`: the name switches to `迷わずの森 (…, ja)`, then `en_eu`. Walk through a warp or use `[` / `]`: the name follows the map. If the Japanese name shows as boxes, the font has no kana (the menus will get their own font later).
-- **Mods:** copy e.g. `data_porter/output/items/item_data.json` into a folder, change Meat's price, and set the folder in the `dw/data/mod_dirs` project setting (or `DW_DATA_MODS`). `GameData.item(38).price` returns the new price; the other tables are unchanged.
+- **Packs:** the test already builds one (in `user://test_game_data_pack`: Meat's price patched, Metal Banana removed, a "Super Meat" item and a "Testmon" Digimon added). To try one by hand, make a folder with `pack.json` = `{"id": "mypack", "depends": ["dw1"]}` and `items/item_data.json` = `{"records": [{"key": "dw1:meat", "patch": {"price": 80}}]}`, list the folder in the `dw/data/packs` project setting (or `DW_DATA_PACKS`), and `GameData.item("dw1:meat").price` returns 80 while everything else is unchanged.
 - **Missing output:** rename `data_porter/output` and run: the field still works and shows the asset porter's map name, and the test prints `SKIP`. Code that asks for a table anyway gets `{}` and one error per table naming `python -m dwdata convert all`.
 
 ## Reporting a problem

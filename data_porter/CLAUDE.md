@@ -98,7 +98,7 @@ The `GameData` autoload (`../scripts/data/game_data.gd`, registered in `project.
 - **Tables:** `table("digimon/digimon_data")` (whole file), `records(name)`, `record(name, index)`, `find(name, field, value)` / `find_all` (a reference field matches on its id). Loaded on first use, cached; `reload()` drops the cache.
 - **Accessors:** the one each table names in its `godot.access` (`digimon(id)`, `move(id)`, `item(id)`, `map(id)`, `battle_commands(brain, arena)`, …). They return the record (or `{}`), or an int for factor / chance lookups (`-1` = not in the table). A table's `godot.access` must name a function that exists.
 - **Text:** `text(id)`, `text_entry(table, block, index)`, `localize(name_ref)` in `GameData.language` (`dw/data/language`, `set_language()` → `language_changed`).
-- **Mods:** folders in env `DW_DATA_MODS` (`;`-separated) or `dw/data/mod_dirs`; a mod file replaces the whole table file at the same relative path, later folders win.
+- **Content registry** (`../specs/content.md`): this output is the `dw1` pack; pack folders in env `DW_DATA_PACKS` (`;`-separated) or `dw/data/packs` are merged over it per record (add / patch / remove by `key`, `id` or `index`). Accessors take a numeric id or a key (`digimon(3)` = `digimon("dw1:agumon")`); `id_of`, `key_of`, `entity(kind, ref)` (all components of a Digimon, technique, item, map), `changed_by(table, ref)`, `packs()`.
 - Numbers inside records are floats (Godot's JSON parser); the NUL padding of text `variants` reads as `\0`.
 - **Test:** `../tests/test_game_data.gd` (`godot --headless --path .. -s res://tests/test_game_data.gd`, exits 1 on failure). In `-s` mode the autoload name isn't registered, so the test instantiates the script.
 

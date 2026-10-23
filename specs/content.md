@@ -50,7 +50,7 @@ The C code spreads one Digimon over many parallel arrays indexed by the same id.
 | Item | `item` (`item_data`), `effect` (`item_effects`), `evolution_target` (`item_targets`) |
 | Map | `map` (`maps`, plus the asset porter's `maps/<NAME>/`), `toilet`, `training_spots` |
 
-- In `dw1` the components stay in their tables (the porter output stays a lossless mirror of the decomp). The registry assembles the entity view.
+- In `dw1` the components stay in their tables (the porter output stays a lossless mirror of the decomp). The registry assembles the entity view: `GameData.entity("digimon", "dw1:agumon")` → `{kind, key, id, digimon, files, sounds, care: {raise, sleep, item_take_distance}, evolution: {requirements, paths, gains}, card, enemy_music}`; absent components are left out (Agumon has no card). A pack-added entity gives its components in a `components` dictionary on its main record.
 - A new pack adds a Digimon as one entity record with the components it needs. Components it omits are "absent": a Digimon with no `card` simply has no card, one with no `care` can't be a partner.
 - Tables that aren't per-entity (type factors, flee chances, battle commands, the tournament schedule) stay tables. Packs patch their records (§5).
 
@@ -85,7 +85,7 @@ Packs are applied in load order (`dw1` first, then by `depends` / `load_after`).
 
 The registry keeps, for every record, which packs changed it (for debugging and for the dock).
 
-The current `GameData` mod folders (whole-file replacement) are the first step. They are replaced by this once packs exist.
+Implemented in `GameData` (`scripts/data/game_data.gd`, "Packs"): pack folders come from `dw/data/packs` / `DW_DATA_PACKS` and are applied in that order after `dw1`; a pack is skipped if its id is taken or not `a-z 0-9 _`, or a `depends` entry isn't loaded before it. A target is addressed by `key`, `id` (dw1 alias) or `index` (array position, for tables without keys or ids). An added record must use the pack's own namespace, may not reuse an existing key, and loses any numeric `id`. Ids keep resolving after a removal, because they are looked up by the records' `id` field, not their position. `changed_by(table, ref)` lists the packs that changed a record. Load-order sorting by `load_after` and conflict reports are not done yet (§7).
 
 ## 6. Assets: one loader, two sources
 

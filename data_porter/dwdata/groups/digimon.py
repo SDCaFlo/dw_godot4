@@ -46,7 +46,11 @@ RAISE_FIELDS = ["hungerTimes", "energyCap", "energyThreshold", "energyUsage", "p
                 "favoriteFood", "sleepCycle", "favoredRegion", "trainingType", "defaultWeight", "viewX", "viewY",
                 "viewZ"]
 SLEEP_FIELDS = ["sleepyHour", "sleepyMinute", "wakeupHour", "wakeupMinute", "awakeHours", "sleepyHours"]
-MODEL_DIRS = {"mmd": "CHDAT/MMD0/{}.MMD", "tmd": "CHDAT/TMD0/{}.TMD"}   # model.c:2691-2695, :453-455
+# model.c:2691-2695 ("CHDAT\\MMD0\\", "CHDAT\\TMD0\\"); the loaders then patch the folder digit:
+# path[9] = id / 30 + '0' (model.c:3409, :3445, :3631 for MMD, :3682 for TMD), so ids 30-59 are in MMD1 ...
+MODEL_DIRS = {"mmd": "CHDAT/MMD{folder}/{name}.MMD", "tmd": "CHDAT/TMD{folder}/{name}.TMD"}
+MODELS_PER_FOLDER = 30
+FOLDER_EVIDENCE = ["path[9] = digiType / 30 + '0';", "path[9] = digimonType / 30 + '0';"]
 
 TABLE_PURPOSES = {
     "digimon_data": "Every Digimon: name, bones, collision size, type, level, elements, drop item, technique slots",
@@ -54,7 +58,7 @@ TABLE_PURPOSES = {
                   "weight, menu view position",
     "sleep_patterns": "Sleep cycles referenced by raise_data.sleep_cycle: sleepy / wake-up time, hours awake / asleep",
     "item_take_distance": "Partner: distance at which it takes an item thrown to it (index = Digimon id - 1)",
-    "file_names": "Model / texture file name of every Digimon (CHDAT/MMD0/<name>.MMD, CHDAT/TMD0/<name>.TMD)",
+    "file_names": "Model / texture file name of every Digimon (CHDAT/MMD<id / 30>/<name>.MMD, CHDAT/TMD<id / 30>/<name>.TMD)",
     "sound_ids": "Sound banks of every Digimon: VBALL bank (all Digimon), VLALL voice bank (partners)",
 }
 
@@ -398,17 +402,24 @@ def convert(input_root, output_root) -> GroupWriter:
             name = None
         file_rows.append({"id": i, "name": digimon[i]["name"]["text"]["en_us"] if digimon[i]["name"] else None,
                           "symbol": sym, "file_name": name,
-                          **{k: fmt.format(name) for k, fmt in MODEL_DIRS.items() if name}})
+                          **{k: fmt.format(folder=i // MODELS_PER_FOLDER, name=name)
+                             for k, fmt in MODEL_DIRS.items() if name}})
     out.check("every PTR_DIGIMON_FILE_NAMES entry points to a file name string", not fbad, "; ".join(fbad[:10]) or
               f"{len(file_rows)} names")
+    model_c = (decomp.root / MODEL_C).read_text(encoding="utf-8", errors="replace")
+    out.check("the model loaders pick the folder as id / 30 (model.c path[9])",
+              all(e in model_c for e in FOLDER_EVIDENCE), " / ".join(FOLDER_EVIDENCE))
     out.write_table("file_names", {
         "table": {"name": "digimon/file_names", "purpose": TABLE_PURPOSES["file_names"]},
         "source": tables.source(decomp, files, sources, {"strings": f"{MODEL_C} STR_DIGIMON_FILE_NAME_*"}),
         "schema": {"id": {"meaning": "Digimon id", "ref": "digimon/digimon_data"},
                    "symbol": {"meaning": "C string the pointer refers to"},
                    "file_name": {"meaning": "file name stem used to build the model / texture paths (model.c:3405)"},
-                   "mmd": {"meaning": "model + animation file (CHDAT\\MMD0\\<name>.MMD)"},
-                   "tmd": {"meaning": "model-only file (CHDAT\\TMD0\\<name>.TMD)"}},
+                   "mmd": {"meaning": "model + animation file CHDAT\\MMD<id / 30>\\<name>.MMD (the loaders patch the "
+                                      "folder digit of \"CHDAT\\MMD0\\\", model.c:3409); the asset porter's "
+                                      "mmd_files/MMD<n>/<name>.gltf"},
+                   "tmd": {"meaning": "model-only file CHDAT\\TMD<id / 30>\\<name>.TMD (model.c:3682); not on the "
+                                      "US disc"}},
         "records": file_rows,
         "used_by": tables.used_by(decomp, refs["PTR_DIGIMON_FILE_NAMES"], [], files),
         "godot": {"status": status, "access": "GameData.digimon_file(id) -> asset_porter output name",

@@ -121,6 +121,7 @@ Project > Tools > **DW: Mirror dw1 assets** copies models, map backgrounds / doo
 - Run `godot --headless --path . -s res://tests/test_content.gd` (from `dw_godot/`): `OK: Content checks` means the imported models play exactly like the runtime-loaded files (every animation track at every 20 fps frame). If it fails with an import-setting difference, Godot 4.7 may name an option differently than 4.3 (see `Content.MODEL_IMPORT`).
 - F5 still works the same (the field now uses the imported tamer and backgrounds).
 - `git status` shows nothing under `content/` (gitignored).
+- DW Data dock > Overview > **Check assets**: `digimon 178/180`, `map 242/244`, `card 66/66`, each with as many "imported" as "found"; the missing ones are the known disc gaps (`../docs/dw_data_dock.md` §5).
 
 ## Reporting a problem
 

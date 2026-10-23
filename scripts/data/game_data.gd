@@ -1,3 +1,4 @@
+@tool
 extends Node
 ## Content registry: the data porter output (the "dw1" pack) plus content packs merged over it
 ## (specs/content.md). Autoload "GameData".

@@ -23,7 +23,8 @@ Last updated: 2026-10-23
    - [x] `res://content/dw1/` mirror: Project > Tools > "DW: Mirror dw1 assets" (`addons/dw_tools`) copies models, map backgrounds / doors and cards, with import settings that keep the animations exact (§6). Gitignored.
    - [ ] Export preset excluding `content/dw1/*` (when the first export is made).
    - [ ] Same preview pattern for the next scenes (battle, menus) as they are built.
-   - [ ] "DW Data" dock, read-only first: browse Digimon / techniques / items / maps from the registry, search, readable record view, spec link, model preview.
+   - [x] "DW Data" dock, read-only (`addons/dw_tools/data_dock.gd`, guide `docs/dw_data_dock.md`): Digimon / techniques / items / cards / maps / tournaments / tables, search, links, language, model / card / map previews, porter check status, asset check.
+   - [ ] Dock later: text search across all strings, item icon / technique effect / map object previews.
 3. **Core game systems:** game state and save data (savegames store keys), event script interpreter (the asset porter converts the scripts), game clock.
 4. **Field:** NPC Digimon and the partner, map object sprites (water, fire), lighting, depth against the background, events.
 5. **Text renderer:** control codes (`#C1 #R #W` / `{C1}` / bare `C R W`), button and bits glyphs, a font with kana for `ja` (data_porter/specs/text.md §4).
@@ -51,6 +52,7 @@ Last updated: 2026-10-23
 
 ## Done
 
+- 2026-10-23 — DW Data dock and its guide; its asset check found the data porter's wrong model folders (Digimon 30–179), fixed. Editor mirror and `Content` loader (`9eb9172`).
 - 2026-10-23 — `Content` loader and the `res://content/dw1/` editor mirror; runtime animations now baked at 20 fps (were resampled at 30). Registry (`e161e05`), cards as their own kind (`7ee3ccf`), content keys (`280d3d0`).
 - 2026-10-23 — Content architecture spec (`specs/content.md`).
 - 2026-10-23 — Field scene editor preview (`8a29c15`, tamer meshes `74a678b`; this file created).

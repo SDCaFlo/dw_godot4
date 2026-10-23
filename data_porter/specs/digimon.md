@@ -85,7 +85,7 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
   - Patterns 0–5 are fixed day cycles: sleep at 16, 19, 22, 2, 7 or 10 o'clock, for 9 hours.
   - Patterns 6 and 7 have no times. They are the Fresh / In-Training cycles: only `sleepyHours` (1 or 3) is used.
 - **`ITEM_TAKE_DISTANCE`**: read as `[type - 1]` (`partner.c:434–456`), the distance `checkEatDistance` allows when the tamer gives the partner an item. Entry 65 (Digimon 66) is never read.
-- **`PTR_DIGIMON_FILE_NAMES`**: pointers to 4-letter file names (`AGUM`). The model is `CHDAT\MMD0\<name>.MMD` (`model.c:3405–3408`, `:2695`, `:453`), the model-only variant `CHDAT\TMD0\<name>.TMD` (`:3678–3681`). These are the files the asset porter converts.
+- **`PTR_DIGIMON_FILE_NAMES`**: pointers to 4-letter file names (`AGUM`). The model is `CHDAT\MMD<id / 30>\<name>.MMD`: the loaders start from the string `"CHDAT\\MMD0\\"` (`model.c:2695`) and then patch its folder digit, `path[9] = digiType / 30 + '0'` (`:3409`, `:3445`, `:3631`), so ids 0–29 are in `MMD0`, 30–59 in `MMD1` … 150–179 in `MMD5`. The model-only variant is `CHDAT\TMD<id / 30>\<name>.TMD` the same way (`:3680–3682`; no `TMD` folders exist on the US disc). These are the files the asset porter converts (`mmd_files/MMD<n>/<name>.gltf`). Before 2026-10-23 the output wrote `MMD0` for every id; the converter now checks the `path[9]` lines and the cross-check test compares the paths with the asset porter's `mmd_path`.
 - **`DIGIMON_VBALL_SOUND_ID`**: bank of the Digimon's sounds in `VBALL` (7 sectors per bank, `sound.c:702`, `sound_async.c:227`).
 - **`DIGIMON_VLALL_SOUND_ID`**: the partner's voice bank in `VLALL` (15 sectors per bank, `sound.c:681–686`). Only ids 1–65 read it; the others use bank 15.
 

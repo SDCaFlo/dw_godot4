@@ -42,14 +42,14 @@ Run `python -m dwdata convert moves`: it should print `3 tables, 25/25 checks pa
 
 ## Digimon (`output/digimon/`)
 
-Run `python -m dwdata convert digimon`: it should print `6 tables, 32/32 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
+Run `python -m dwdata convert digimon`: it should print `6 tables, 33/33 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
 
 - **Known Digimon:** Agumon (3) is a Rookie, Vaccine, elements fire and battle. Its first techniques are Spit Fire and Fire Tower; it drops Sm.Recovery (50 %). Compare 2–3 Digimon you know with the game's Digimon menu (level, type icon, techniques).
 - **Type names:** Gabumon (17) shows `data`, Agumon `vaccine`, Betamon (4) `virus`. If the menu icons say otherwise, the type labels are swapped (`specs/digimon.md` §3).
 - **Partner care:** Agumon's favourite food is Meat, hunger hours 1, 5, 9, 13, 17, 21, sleep cycle 1 (19:00–04:00). Check the active-time label in the Digimon menu if you remember it.
 - **Placeholders:** the tamer (0) and NPC ids such as Jijimon or the Market Manager show `— (all slots 0)` instead of techniques.
 - **Release differences** under the first table: only jp changes (four drop items, SkullGreymon's first slot).
-- **Files:** `output/digimon/file_names.json` → `records[3].mmd` is `CHDAT/MMD0/AGUM.MMD`, the file the asset porter converts to Agumon's model.
+- **Files:** `output/digimon/file_names.json` → `records[3].mmd` is `CHDAT/MMD0/AGUM.MMD`, the file the asset porter converts to Agumon's model; `records[30].mmd` (Tokomon) is `CHDAT/MMD1/TOKO.MMD` (folder = id / 30). The DW Data dock's **Check assets** shows whether every one of them has a model (`../docs/dw_data_dock.md`).
 - **JSON spot check:** `output/digimon/digimon_data.json` → `records[3].moves[0]` is `{"slot": 0, "anim": 46, "move": {"id": 2, "name": "Spit Fire"}}`; `used_by` has around 170 functions, with the fields each reads.
 
 ## Items (`output/items/`)

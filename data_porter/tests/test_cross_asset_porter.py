@@ -46,6 +46,12 @@ class CrossAssetPorterTests(unittest.TestCase):
         ours = [(f["file_name"], d["name"]["string_id"], d["name"]["text"]["en_us"]) for d, f in zip(data, files)]
         self.assertEqual(ours, [tuple(t[:3]) for t in theirs])
 
+    def test_model_paths(self):
+        # Both build the disc path like the loaders: CHDAT/MMD<id / 30>/<NAME>.MMD (model.c path[9]).
+        mmd_path = _module("digimon").mmd_path
+        files = self.load("digimon/file_names")
+        self.assertEqual([f["mmd"] for f in files], [mmd_path(f["id"]) for f in files])
+
     def test_bones_and_size(self):
         theirs = _module("skeletons").TYPE_PARAMS
         ours = [(d["bone_count"], d["radius"], d["height"]) for d in self.load("digimon/digimon_data")]

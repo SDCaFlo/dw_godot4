@@ -2,7 +2,7 @@
 
 What the game remembers while it runs and in a savegame, how the original stores it, and how the Godot `GameState` autoload (`scripts/state/game_state.gd`, planned) holds it. Every field below is backed by the decomp (`file:line`, paths relative to `external-resources/dw_decomp/`).
 
-Status: spec written 2026-10-23. Implementation is the next step (`PLANS.md`, milestone "living field").
+Status: implemented 2026-10-23 (`scripts/state/game_state.gd`, autoload `GameState`; test `tests/test_game_state.gd`; human checks in `VERIFY.md`). The systems that change the state (clock, partner, care) come next (`PLANS.md`, milestone "living field").
 
 ## 1. Source: what a savegame is
 
@@ -85,7 +85,7 @@ The VS mode's registered Digimon (`battleRegistrationData[40]`, `vs.h:32`) are i
 
 ### 3.1 `GameState` autoload
 
-`scripts/state/game_state.gd`, autoload `GameState`, after `GameData`. It holds the state in sections, as plain dictionaries / arrays like the rest of the port (typed wrappers were declined). Game systems read and change it directly or through small helpers (§3.4); each change that the UI must follow emits `changed(section)`.
+`scripts/state/game_state.gd`, autoload `GameState`, after `GameData`. It holds the state in sections, as plain dictionaries / arrays like the rest of the port (typed wrappers were declined). It reaches the registry through its `data` property (the `GameData` autoload by default), so tests can run it without a scene tree. Partner stats are not in the default record: the partner initialisation (next step) sets them. Game systems read and change it directly or through small helpers (§3.4); each change that the UI must follow emits `changed(section)`.
 
 ### 3.2 Fields
 
@@ -141,7 +141,7 @@ Runtime-only (not saved, like the original): the script stack, script values 35�
 
 ```
 GameState.new_game(partner := "dw1:agumon")    # §2.1 / initializeDefaultSavegame defaults
-GameState.save(slot) / load(slot) / saves() -> [{slot, preview}]
+GameState.save_game(slot) / load_game(slot) / list_saves() -> [{slot, preview}]
 GameState.is_trigger_set(t) / set_trigger(t) / clear_trigger(t)    # isTriggerSet, setTrigger, unsetTrigger
 GameState.script_value(i) / set_script_value(i, v)                 # readPStat / writePStat (byte: v & 0xFF)
 GameState.card_count(card) / set_card_count(card, n)               # getCardAmount / setCardAmount (0–15)

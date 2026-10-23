@@ -27,7 +27,7 @@ Last updated: 2026-10-23
    - [ ] Dock later: text search across all strings, item icon / technique effect / map object previews.
 3. **Milestone "living field"** (decided 2026-10-23): the world runs while you walk; no text or scripts needed yet.
    - [x] `GameState` spec (`specs/game_state.md`): every C global / `SavedState` / `PartnerPara` field mapped to a Godot field with `file:line`, content by key, save / load as JSON in `user://`.
-   - [ ] `GameState` autoload + save / load + tests.
+   - [x] `GameState` autoload + save / load + tests (`scripts/state/game_state.gd`, `tests/test_game_state.gd`, `VERIFY.md`).
    - [ ] Clock: port `clock.c`; day / evening / night switch the map backgrounds; HUD clock.
    - [ ] Partner in the field: loaded from its `GameData` entity, follows the tamer like `partner.c`, idle / walk / run animations.
    - [ ] Care ticks: hunger, energy, sleep, poop, sickness, lifetime (`partner.c`, `partner_impl.c`), rules reading properties (`care` component); debug panel.
@@ -50,7 +50,7 @@ Last updated: 2026-10-23
 
 ## Notes
 
-- Godot on this machine's command line is 4.3 (`godotenv`); the project targets 4.7. Headless checks have been run with 4.3 on a scratch copy of the project (so 4.3 doesn't touch `.godot/`); the user runs 4.7.
+- Godot 4.7.2 (Steam): `F:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe`; run the headless tests with it on the real project (`--headless --path . -s res://tests/<test>.gd`). `godot.exe` on the PATH is an older 4.3 (`godotenv`); earlier checks used it on a scratch copy. 4.7 prints a GDScript backtrace under every error / warning, the tests' expected ones included.
 - glTF loaded by a `@tool` script behaves differently in the editor: textures default to "extract" (the editor tries to copy them into the project) and meshes come out as `ImporterMeshInstance3D`, which don't render. `Content.load_model` handles both; always load models through it.
 - Godot's scene importer defaults (30 fps bake, AnimationPlayer optimizer) distort PSX animations; dw1 models need `Content.MODEL_IMPORT` (written by the mirror). The optimizer is a per-node import option, so it can't be a project default. The runtime glTF loader also bakes at 30 fps unless told otherwise (`generate_scene(state, 20, …)`).
 - Expected editor noise: `Basis … must be normalized` while importing the mirror (zero-scale keys in 12 models, `asset_porter/specs/mmd.md` open questions); `editor_resource_preview … !cache.has` while thumbnails are rebuilt (Godot). The tamer sets its root-motion track only in the running game (the editor's NodePath check misreads it as invalid).

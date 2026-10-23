@@ -39,8 +39,10 @@ dw_godot_port/
 │   ├── scripts/
 │   │   ├── content/          # Content: asset loader (editor mirror if imported, else the porter output)
 │   │   ├── data/             # GameData autoload: runtime loading of the data porter output
+│   │   ├── state/            # GameState autoload: the game state and savegames (specs/game_state.md)
 │   │   └── field/            # FieldMap (background, camera, collision, warps), Tamer, field.gd
-│   └── tests/                # Godot headless tests (test_game_data.gd, test_content.gd, test_data_dock.gd)
+│   ├── tests/                # Godot headless tests (test_game_state.gd, test_game_data.gd, test_content.gd, test_data_dock.gd)
+│   └── VERIFY.md             # Human checks of the ported game systems
 └── external-resources/       # Not tracked; reference material and dumped game files
     ├── dw_decomp/            # Decompiled C code (asm/, config/, include/, src/, text/, ...)
     └── game_dumped_files/    # Files dumped from your own disc

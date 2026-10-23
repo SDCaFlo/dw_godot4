@@ -1,3 +1,4 @@
+@tool
 class_name PorterAssets
 ## Runtime access to the asset porter output (asset_porter/output, see asset_porter/CLAUDE.md).
 ##
@@ -49,6 +50,9 @@ static func load_texture(rel: String) -> ImageTexture:
 static func load_model(rel: String) -> Node3D:
 	var document := GLTFDocument.new()
 	var state := GLTFState.new()
+	# Textures stay in memory. The default (extract) makes the editor try to copy them into the
+	# project for import, which would put game content under res://.
+	state.handle_binary_image = GLTFState.HANDLE_BINARY_EMBED_AS_UNCOMPRESSED
 	var err := document.append_from_file(path(rel), state)
 	if err != OK:
 		push_error("PorterAssets: cannot load glTF %s (error %d)" % [path(rel), err])

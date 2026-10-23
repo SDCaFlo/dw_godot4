@@ -1,3 +1,4 @@
+@tool
 class_name FieldMap
 extends Node3D
 ## A field map from the porter output (asset_porter/output/maps/<NAME>/, spec asset_porter/specs/map.md):
@@ -68,6 +69,16 @@ func load_map(name: String) -> bool:
 
 	_load_doors()
 	return true
+
+
+## Drops the loaded map (doors, backgrounds, collision); the saved nodes are reset by the Field.
+func unload() -> void:
+	map_name = ""
+	data = {}
+	_collision = PackedByteArray()
+	_backgrounds.clear()
+	for child in _doors.get_children():
+		child.queue_free()
 
 
 func display_name() -> String:

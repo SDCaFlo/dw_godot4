@@ -1,3 +1,4 @@
+@tool
 class_name Tamer
 extends Node3D
 ## The player character on a field map (tamer.c: tamerTickWalkingState).
@@ -42,10 +43,12 @@ func _ready() -> void:
 func place(spawn: Dictionary) -> void:
 	position = spawn["position"]
 	_set_direction(spawn["rotation"])
+	if Engine.is_editor_hint() and _player != null:
+		_player.advance(0.0)  # idle pose in the editor (no _process there)
 
 
 func _process(delta: float) -> void:
-	if _player == null or field == null:
+	if Engine.is_editor_hint() or _player == null or field == null:
 		return
 	var input := Vector2(Input.get_axis("ui_left", "ui_right"), Input.get_axis("ui_up", "ui_down"))
 	if input != Vector2.ZERO:

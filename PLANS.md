@@ -40,11 +40,16 @@ Last updated: 2026-10-23
      - [ ] Later: the bubble's bone offset (`CONDITION_FX_OFFSETS`, effect_common.c:307) into the data / asset porter; the butterfly (`butterfly.c`); `createCloudFX` with the effects.
      - [x] Debug panel (`C`, `scripts/debug/care_debug_panel.gd`, `GameLoop.speed`), `tests/test_care.gd`, VERIFY section.
    - How each system is ported: a short spec (C functions reproduced, state and data read) → GDScript naming each C function → headless tests with values worked out from the C code → VERIFY section → this file.
-4. **Next milestones, in order:** text renderer + event scripts (NPC dialogue, Jijimon intro, new game) → menus (inventory, feeding, items, Digimon status) → battle → evolution and training → tournaments and minigames.
-5. **Field (as needed by the milestones):** NPC Digimon, map object sprites (water, fire), lighting, depth against the background, events.
-6. **Text renderer** (with the scripts milestone): control codes (`#C1 #R #W` / `{C1}` / bare `C R W`), button and bits glyphs, a font with kana for `ja` (data_porter/specs/text.md §4).
-7. **All system ports** (battle, care, evolution, menus): GDScript ports of the C logic, reading `GameData` properties (never id ranges); each function names the C function and the original condition it reproduces.
-8. **Modding** (last; `specs/content.md` §7)
+4. **Milestone "text and scripts"** (started 2026-10-23):
+   - [x] Text renderer spec (`specs/text.md`): font, text area, `renderString`, UI boxes, message box, dialogue box.
+   - [ ] Data porter group `font` (glyph tables per release, palette, ASCII map) with checks.
+   - [ ] `PsxFont`, `TextArea`, `UIBoxes`, `MessageBox` (replaces the "is sick" help-line stand-in), `DialogueBox`; `tests/test_text.gd`; VERIFY.
+   - [ ] Event-script interpreter (spec first; `asset_porter/specs/scn.md` has the opcodes).
+5. **Next milestones, in order:** text and scripts (above: NPC dialogue, Jijimon intro, new game) → menus (inventory, feeding, items, Digimon status) → battle → evolution and training → tournaments and minigames.
+6. **Field (as needed by the milestones):** NPC Digimon, map object sprites (water, fire), lighting, depth against the background, events.
+7. **Text, later parts:** the battle / menu control codes (`#C1 #R #W` / `{C1}` / bare `C R W`, data_porter/specs/text.md §2) with their renderers; the `ja` font comes from the JP glyph table (`specs/text.md` §2.1).
+8. **All system ports** (battle, care, evolution, menus): GDScript ports of the C logic, reading `GameData` properties (never id ranges); each function names the C function and the original condition it reproduces.
+9. **Modding** (last; `specs/content.md` §7)
    - [ ] Mod formats: raw-file packs (folder + `pack.json`, no Godot needed) and `.pck` packs built in the editor.
    - [ ] Model contract for external models (animation names, scale, pivot, collision from data, textures); the asset porter names the original animations to the same contract.
    - [ ] "DW Data" dock as the modding tool: which packs changed a record, duplicate into a pack, edit, write the pack's JSON.

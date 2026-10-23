@@ -134,6 +134,8 @@ Paths are relative to this folder.
 - **Effects written as code become data when they are constant.** A handler's `switch` cases are read as values (`switch_cases`); any other statement is kept as C text next to them, and the rules around them go in the spec. Parallel C arrays with the same index (`ITEM_PARA`, `ITEM_FUNCTIONS`, `ITEM_CLUT_DATA`) may be merged into one table, with every symbol listed in `source`.
 - **C tables: US values in the records, other releases as differences.** Each table is read for every release; records hold the US values, and `release_values` lists what another release changes (C field names). Each record also keeps its raw C values (`c`), next to readable names, enums as `{id, name}` and derived values (`mp` = mpCost × 3).
 
+- **Content architecture** (`../specs/content.md`): this output is the `dw1` content pack. Planned additions: a `key` on every entity record (from the name's string id, §2) and property flags that replace the original id-range rules (§4), added per system when it is ported. Both are additions; the lossless fields stay.
+
 ## Rules
 
 - Never write into `external-resources/`.

@@ -30,6 +30,8 @@ dw_godot_port/
 │   │   └── output/           # Generated assets, gitignored, not imported by Godot (.gdignore)
 │   ├── data_porter/          # Python tool: decomp tables/text -> JSON game data (see its CLAUDE.md)
 │   │   └── output/           # Generated data, gitignored, not imported by Godot (.gdignore)
+│   ├── PLANS.md              # To-do list and ideas
+│   ├── specs/content.md      # Content architecture (packs, keys, merging)
 │   ├── scenes/field/         # Field scene (map + tamer)
 │   ├── scripts/
 │   │   ├── porter/           # PorterAssets: runtime loading of the asset porter output
@@ -92,7 +94,7 @@ Not yet: NPC Digimon, partner, map object sprites (water, fire), lighting, depth
 
 ## Roadmap
 
-Detailed next steps and ideas: `PLANS.md`.
+Detailed next steps and ideas: `PLANS.md`. How content is organised (the original game as the `dw1` content pack, keys, and room for new content and mods later): `specs/content.md`.
 
 - [x] Asset extraction and conversion pipeline (every disc file: textures, models, Digimon, maps, scripts, sound, effects, movies)
 - [x] Game data pipeline (data porter: text, moves, Digimon, items, evolution, system tables)

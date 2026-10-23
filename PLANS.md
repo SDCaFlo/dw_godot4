@@ -33,7 +33,7 @@ Last updated: 2026-10-23
    - [ ] Later with NPCs: entity collisions for the tamer and NPCs, the exact movement / collision split (`specs/partner.md` §5); partial animation loops in `PsxAnimator`.
    - [ ] Care ticks: hunger, energy, sleep, poop, sickness, lifetime (`partner.c`, `partner_impl.c`), rules reading properties (`care` component); debug panel.
      - [x] Spec `specs/care.md`.
-     - [ ] Data porter: the §4 properties (`first_technique`, `eats_poop`, `raises_virus_bar`, `boosts_sleep`) with checks on the C text.
+     - [x] Data porter: the §4 properties (`raise_data.first_technique`, `eats_poop`, `raises_virus_bar`; `item_data.passive`) with checks on the C text.
      - [ ] `Care` + partner / tamer states 1, 3, 7; partner ticks before the clock; area response from the map setup.
      - [ ] Bubbles (`feel_ef`), status bars (`system_w`), poop piles (`UNTI`), fade stand-in.
      - [ ] Debug panel (`C`), `tests/test_care.gd`, VERIFY section.

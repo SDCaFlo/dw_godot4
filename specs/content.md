@@ -68,6 +68,7 @@ The original code identifies kinds of content by **id ranges and literal ids**, 
 | HP / MP items `0–6` index `HEALING_VALUES` by id | `specs/items.md` | the `effect` component carries its values |
 | evolution items `< 0x7d` index `EVOLUTION_ITEM_TARGET[id - 0x47]` | `specs/items.md` | `evolution_target` component |
 | Numemon `11` fallback, Sukamon `0x27`, Nanimon `0x35`, fixed Fresh targets, special evolutions | `specs/evolution.md` §2 | evolution rule properties (e.g. `fallback_evolution`, `virus_bar_target`) or rule records |
+| starters Agumon `3` / Gabumon `0x11`, poop eaters `0xb` / `0x27`, Sukamon's poop, Rest Pillow `0x22` and the other passive items | `specs/care.md` §4 | `raise_data.first_technique`, `eats_poop`, `raises_virus_bar`; `item_data.passive` (done) |
 | 180 Digimon, 128 items, 122 techniques, 66 cards | every spec | no fixed counts: iterate the registry |
 
 Rules:

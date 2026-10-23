@@ -46,14 +46,18 @@ SWITCH_HANDLERS = {
 }
 ZERO_DEFAULTS = {"handleFood", "handleChips"}   # their effect variables start at 0 (item.c:2706-2708, :2258)
 # Items with a handler but no case: their effect comes from code that checks the inventory.
-# (item id, file, text that must still be in it, effect)
+# (item id, file, text that must still be in it, effect, property). The property (item_data `passive`)
+# replaces the literal id in the ported code (../specs/content.md §4).
 PASSIVE = [
-    (0x21, "src/trn/trn_reward.c", "getItemCount(0x21) > 0", "training gains x1.1 (trn_reward.c:712, trn2_hud.c:251)"),
-    (0x22, "src/main/partner_impl.c", "getItemCount(0x22) != 0", "sleep recovery factor x1.2 (partner_impl.c:1351)"),
-    (0x23, "src/main/btl.c", "INVENTORY.types.array[j] == 0x23", "battle roll +20 (btl.c:309-321)"),
-    (0x24, "src/main/btl.c", "INVENTORY.types.array[j] == 0x24", "battle roll -50, wins over the repel (btl.c:309-321)"),
+    (0x21, "src/trn/trn_reward.c", "getItemCount(0x21) > 0", "training gains x1.1 (trn_reward.c:712, trn2_hud.c:251)",
+     "training_boost"),
+    (0x22, "src/main/partner_impl.c", "getItemCount(0x22) != 0", "sleep recovery factor x1.2 (partner_impl.c:1351)",
+     "sleep_boost"),
+    (0x23, "src/main/btl.c", "INVENTORY.types.array[j] == 0x23", "battle roll +20 (btl.c:309-321)", "battle_repel"),
+    (0x24, "src/main/btl.c", "INVENTORY.types.array[j] == 0x24", "battle roll -50, wins over the repel (btl.c:309-321)",
+     "battle_lure"),
     (0x25, "src/main/partner.c", "getItemCount(0x25) != 0",
-     "while the tamer walks (animation 2), partner +5 HP and MP every 20 frames (partner.c:949-960)"),
+     "while the tamer walks (animation 2), partner +5 HP and MP every 20 frames (partner.c:949-960)", "walking_heal"),
 ]
 PLACEHOLDER_RARITY = 5   # cards 0 and 65: tamer, no price (CARD_PRICES has 5 classes)
 # PARTNER_PARA.trainBoostFlag bits: the stat whose training gain each bit scales (trn_reward.c:169-517)
@@ -225,12 +229,13 @@ def convert(input_root, output_root) -> GroupWriter:
         if missing:
             effect_problems.append(f"{handler}: no case for items {missing}")
         for i in [i for i in users if i not in covered and i in passive]:
-            _, path, needle, effect = passive[i]
+            _, path, needle, effect, prop = passive[i]
             text = (decomp.root / path).read_text(encoding="utf-8", errors="replace")
             if needle not in text:
                 effect_problems.append(f"passive item {i:#x}: `{needle}` no longer in {path}")
+            items[i]["passive"] = prop
             effects.append({"item": item_ref(i), "handler": handler, "values": {},
-                            "passive": {"effect": effect, "evidence": f"{path}: {needle}"},
+                            "passive": {"effect": effect, "property": prop, "evidence": f"{path}: {needle}"},
                             "defaults": "no case: using the item does nothing (every effect variable is 0)"})
         if any(case.get("falls_through") for case in us):
             effect_problems.append(f"{handler}: a case falls through")
@@ -326,6 +331,10 @@ def convert(input_root, output_root) -> GroupWriter:
                     "gets it (thrown / fed); null = no effect", "ref": "items/item_effects"},
         "icon_clut": {"c_name": "ITEM_CLUT_DATA[id]", "meaning": "palette row of the item icon (setItemTexture, "
                                                                  "utils2.c:308: CLUT y = 0x1e8 + value)"},
+        "passive": {"derived": "an inventory check on the literal item id (item_effects `passive.evidence`)",
+                    "values": {p[4]: p[3] for p in PASSIVE},
+                    "meaning": "effect of carrying the item, read by the ported code instead of the id "
+                               "(../specs/content.md §4); absent = none"},
         "c": {"meaning": "the ITEM_PARA record as the C initializer gives it"},
         "_struct": {"c_type": "Item", "header": f"include/dw/item.h:{item_struct.line}",
                     "fields": describe_type(item_struct)},

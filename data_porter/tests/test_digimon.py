@@ -41,6 +41,14 @@ class RealDataTests(unittest.TestCase):
         raise_ = self.load("raise_data")["records"][3]
         self.assertEqual(raise_["favorite_food"], {"id": 38, "name": "Meat"})
         self.assertEqual(raise_["hunger_hours"], [1, 5, 9, 13, 17, 21])
+        # care properties from the literal ids of partner_impl.c (specs/care.md §4)
+        self.assertEqual(raise_["first_technique"], {"slot": 0, "anim": 0x2E, "move": {"id": 2, "name": "Spit Fire"}})
+        rows = self.load("raise_data")["records"]
+        self.assertEqual(rows[0x11]["first_technique"]["slot"], 2)
+        self.assertEqual(rows[0x11]["first_technique"]["move"]["id"], 0x2B)
+        self.assertIsNone(rows[1]["first_technique"])
+        self.assertEqual([r["id"] for r in rows if r["eats_poop"]], [0xB, 0x27])
+        self.assertEqual([r["id"] for r in rows if not r["raises_virus_bar"]], [0x27])
         self.assertEqual(self.load("file_names")["records"][3]["mmd"], "CHDAT/MMD0/AGUM.MMD")
 
     def test_release_differences_and_placeholders(self):

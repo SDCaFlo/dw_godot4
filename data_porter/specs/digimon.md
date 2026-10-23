@@ -102,6 +102,15 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
 - `raise_data`:
   - `hunger_hours` (without the -1 padding); `favorite_food {id, name}`; `sleep_cycle {id, summary}`; `view {x, y, z}`
   - the other fields renamed to snake_case
+  - **Care properties** (`../specs/content.md` §4, `../specs/care.md` §4): the care code names Digimon by literal id in `partner_impl.c`. The porter turns each rule into a property and checks that the C text is still there (whitespace collapsed):
+
+    | Property | C rule | dw1 values |
+    |---|---|---|
+    | `first_technique {slot, anim, move}` | `initializePartner` (`:499–506`): `if (type == 3) { …moves[0] = 0x2e; learnMove(2); }`, the same for `0x11` with `0x30` / `0x2b` | Agumon slot 0 Spit Fire, Gabumon slot 2 Sonic Jab (0x2B); null for the others |
+    | `eats_poop` | `tickPoopDetection` (`:1697`): returns unless type is `0xb` or `0x27` | Numemon, Sukamon |
+    | `raises_virus_bar` | `createPoopPile` (`:1319`): `if (type != 0x27) virusBar++` | false for Sukamon only |
+
+    `slot` is the technique slot the starter has equipped (battle animation `anim` = 0x2e + slot). A second check confirms that slot holds the technique the starter learns.
 - `item_take_distance`: `index` (C index), `digimon {id = index + 1, name}`, `distance`.
 - `file_names`: `symbol`, `file_name`, and the `mmd` / `tmd` paths.
 - `sound_ids`: `vball`, and `vlall` (null where the code doesn't read it; the raw array is under `raw`).
@@ -136,7 +145,8 @@ The converter checks:
   - the drop item is an item id and the drop chance ≤ 100;
   - padding is 0;
 - `RAISE_DATA`: hunger hours are ascending hours, then -1; the sleep cycle is a `SLEEP_PATTERN` index; the favourite food is an item id;
-- every file name pointer resolves to a string.
+- every file name pointer resolves to a string;
+- the care rules behind `first_technique`, `eats_poop` and `raises_virus_bar` are still in `partner_impl.c`, and each starter's equipped slot holds the technique it learns.
 
 Tests: `tests/test_digimon.py` (real data when `dw_decomp` is present), `tests/test_cross_asset_porter.py` (names, file names, bone counts, radius and height match `asset_porter/dwporter/data`).
 

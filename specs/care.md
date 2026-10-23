@@ -388,14 +388,14 @@ A panel in the field HUD (key `C`), not part of the original:
 
 ## 4. Content properties (`specs/content.md` §4)
 
-The care code names Digimon and items by literal id. The data porter derives these properties and checks the C text is unchanged (`out.check`), so `dw1` behaves the same:
+The care code names Digimon and items by literal id. The data porter derives these properties and checks the C text is unchanged (`out.check`), so `dw1` behaves the same. Done 2026-10-23 (`data_porter/specs/digimon.md` §3, `items.md` §3):
 
 | C rule | Where | Property |
 |---|---|---|
 | `type == 3` → slot 0 = 0x2E, `learnMove(2)`; `type == 0x11` → 0x30, `learnMove(0x2B)` | `initializePartner`, `:499–506` | `raise_data.first_technique`: `{slot, move}` (null for others) |
 | `type == 0xB \|\| type == 0x27` eat poop | `tickPoopDetection`, `:1697` | `raise_data.eats_poop` |
 | `type != 0x27` raises the virus bar | `createPoopPile`, `:1319` | `raise_data.raises_virus_bar` (false for Sukamon) |
-| `getItemCount(0x22)` boosts sleep | `sleepRegen`, `:1351` | `item_data.boosts_sleep` (Rest Pillow) |
+| `getItemCount(0x22)` boosts sleep | `sleepRegen`, `:1351` | `item_data.passive == "sleep_boost"` (Rest Pillow; the other passive items got theirs too, `data_porter/specs/items.md` §3) |
 | levels 1 / 2 (Fresh / In-Training schedules), level checks of `setFoodTimer`, `setSleepTimes`, `tickSleepMechanics` | §2.4, §2.5 | `digimon.level.id` (already data) |
 
 `dw1`-only rules, kept as documented code:

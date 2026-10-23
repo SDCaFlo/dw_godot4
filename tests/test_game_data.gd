@@ -76,6 +76,12 @@ func _init() -> void:
 	_eq(data.entity("item", "dw1:meat")["effect"]["handler"], "handleFood", "item entity effect")
 	_eq(data.entity("move", 2).has("learn"), true, "Spit Fire can be learned")
 	_eq(data.entity("map", "dw1:mayo01").has("toilet"), true, "MAYO01 has a toilet")
+	# Care properties (specs/care.md §4) replace the literal ids of partner_impl.c.
+	var raise: Dictionary = agumon["care"]["raise"]
+	_eq([int(raise["first_technique"]["slot"]), int(raise["first_technique"]["move"]["id"])], [0, 2], "Agumon's first technique")
+	_eq([raise["eats_poop"], raise["raises_virus_bar"]], [false, true], "Agumon's poop properties")
+	_eq(data.entity("digimon", "dw1:sukamon")["care"]["raise"]["raises_virus_bar"], false, "Sukamon's poop doesn't raise the virus bar")
+	_eq(data.item("dw1:rest_pillow")["passive"], "sleep_boost", "Rest Pillow property")
 
 	data.free()
 	if OS.get_environment("DW_DATA_PACKS") == "":
@@ -103,6 +109,7 @@ func _test_packs() -> void:
 		 "components": {"care": {"raise": {"favorite_food": "testpack:super_meat"}}}},
 	]})
 	_write(dir + "/systems/flee_chances.json", {"records": [{"index": 0, "patch": {"chance": 61}}]})
+	_write(dir + "/digimon/raise_data.json", {"records": [{"id": 3, "patch": {"eats_poop": true}}]})
 	_write(bad + "/pack.json", {"id": "badpack", "depends": ["nothere"]})
 	ProjectSettings.set_setting("dw/data/packs", PackedStringArray([dir, bad]))
 
@@ -127,6 +134,7 @@ func _test_packs() -> void:
 	_eq(testmon["care"]["raise"]["favorite_food"], "testpack:super_meat", "added entity's own components")
 	_eq(testmon.has("card"), false, "added entity has no dw1 components")
 	_eq(int(data.digimon(3)["radius"]), 120, "tables the pack doesn't touch are unchanged")
+	_eq(data.entity("digimon", "dw1:agumon")["care"]["raise"]["eats_poop"], true, "a pack can patch a care property")
 	data.free()
 	ProjectSettings.set_setting("dw/data/packs", PackedStringArray())
 

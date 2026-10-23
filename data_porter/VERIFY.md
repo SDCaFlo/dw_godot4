@@ -42,11 +42,16 @@ Run `python -m dwdata convert moves`: it should print `3 tables, 25/25 checks pa
 
 ## Digimon (`output/digimon/`)
 
-Run `python -m dwdata convert digimon`: it should print `6 tables, 33/33 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
+Run `python -m dwdata convert digimon`: it should print `6 tables, 35/35 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
 
 - **Known Digimon:** Agumon (3) is a Rookie, Vaccine, elements fire and battle. Its first techniques are Spit Fire and Fire Tower; it drops Sm.Recovery (50 %). Compare 2–3 Digimon you know with the game's Digimon menu (level, type icon, techniques).
 - **Type names:** Gabumon (17) shows `data`, Agumon `vaccine`, Betamon (4) `virus`. If the menu icons say otherwise, the type labels are swapped (`specs/digimon.md` §3).
 - **Partner care:** Agumon's favourite food is Meat, hunger hours 1, 5, 9, 13, 17, 21, sleep cycle 1 (19:00–04:00). Check the active-time label in the Digimon menu if you remember it.
+- **Care properties** (`output/digimon/raise_data.json`):
+  - `records[3].first_technique` is slot 0, Spit Fire: a new game's Agumon knows Spit Fire;
+  - `records[17]` (Gabumon) is slot 2, Sonic Jab (43). If you ever started with Gabumon, he should know Sonic Jab;
+  - `eats_poop` is true only for Numemon (11) and Sukamon (39);
+  - `raises_virus_bar` is false only for Sukamon. In the game, Numemon and Sukamon eat poop piles near you.
 - **Placeholders:** the tamer (0) and NPC ids such as Jijimon or the Market Manager show `— (all slots 0)` instead of techniques.
 - **Release differences** under the first table: only jp changes (four drop items, SkullGreymon's first slot).
 - **Files:** `output/digimon/file_names.json` → `records[3].mmd` is `CHDAT/MMD0/AGUM.MMD`, the file the asset porter converts to Agumon's model; `records[30].mmd` (Tokomon) is `CHDAT/MMD1/TOKO.MMD` (folder = id / 30). The DW Data dock's **Check assets** shows whether every one of them has a model (`../docs/dw_data_dock.md`).
@@ -59,7 +64,7 @@ Run `python -m dwdata convert items`: it should print `8 tables, 40/40 checks pa
 - **Shop prices:** compare a few prices with a shop you remember: Meat 50, Sm. recovery 100, MP Floppy 300, Off. Disk 500. Selling should pay half.
 - **Where items can be used:** Various (8) and the disks (15–21) are `battle`, Bandage (13) and food are `field`, the recovery items are `both`. In the game, battle-only items can't be used in the field menu.
 - **Food effects:** Meat energy +12 / weight +1; Supercarrot gives a training boost to Off, Brain, MP (`train_boost` in `item_effects.json`); Moldy Meat sicknessChance 100. Compare with what you know of the game.
-- **Passive items** (33–37: Trn. manual, Rest pillow, Enemy repel, Enemy bell, Health shoe) show `passive: …` instead of an effect.
+- **Passive items** (33–37: Trn. manual, Rest pillow, Enemy repel, Enemy bell, Health shoe) show `passive: …` instead of an effect. In `item_data.json` they carry the property `passive`: `training_boost`, `sleep_boost`, `battle_repel`, `battle_lure`, `walking_heal`; no other item has it.
 - **Cards:** card prices 5000 / 1500 / 500 / 100 / 50 by rarity; card 1 (Phoenixmon) is rarity 0 (5000). Compare a card price with the card shop.
 - **Inventories:** `inventories.json` holds the two built-in inventories (boot, default savegame). Both are full of high-end items; if you know what a new game starts with, note whether it matches (`specs/items.md` §6).
 - **JSON spot check:** `item_data.json` → `records[38]` is Meat with its description, `handler` = `handleFood`, `c` = the raw C record; `item_effects.json` lists each item's `case` line in `item.c`.

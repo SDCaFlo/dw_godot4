@@ -51,6 +51,23 @@ SLEEP_FIELDS = ["sleepyHour", "sleepyMinute", "wakeupHour", "wakeupMinute", "awa
 MODEL_DIRS = {"mmd": "CHDAT/MMD{folder}/{name}.MMD", "tmd": "CHDAT/TMD{folder}/{name}.TMD"}
 MODELS_PER_FOLDER = 30
 FOLDER_EVIDENCE = ["path[9] = digiType / 30 + '0';", "path[9] = digimonType / 30 + '0';"]
+# Care rules on literal Digimon ids (partner_impl.c), turned into raise_data properties (../specs/content.md §4,
+# ../specs/care.md §4). The C text must still be there (compared with whitespace collapsed).
+# initializePartner: equipped animation and learned technique of the starters
+FIRST_TECHNIQUE = [
+    (3, 0x2E, 2, "if (type == 3) { PARTNER_ENTITY.digimonEntity.stats.base.moves[0] = 0x2e; learnMove(2); }"),
+    (0x11, 0x30, 0x2B, "if (type == 0x11) { PARTNER_ENTITY.digimonEntity.stats.base.moves[0] = 0x30; "
+                       "learnMove(0x2b); }"),
+]
+# tickPoopDetection: only these walk to poop and eat it
+POOP_EATERS = ({0xB, 0x27}, "if ((PARTNER_ENTITY.digimonEntity.entity.type != 0xb) && "
+                            "(PARTNER_ENTITY.digimonEntity.entity.type != 0x27)) { return; }")
+# createPoopPile: pooping raises the virus bar, except for this one
+NO_VIRUS_BAR = ({0x27}, "if (PARTNER_ENTITY.digimonEntity.entity.type != 0x27) PARTNER_PARA.virusBar++;")
+
+
+def _collapsed(text: str) -> str:
+    return " ".join(text.split())
 
 TABLE_PURPOSES = {
     "digimon_data": "Every Digimon: name, bones, collision size, type, level, elements, drop item, technique slots",
@@ -307,6 +324,25 @@ def convert(input_root, output_root) -> GroupWriter:
                   "favourite food is an item id"):
         out.check(f"RAISE_DATA: {check}", not rbad[check], "; ".join(rbad[check][:10]) or f"{len(raise_rows)} records")
 
+    # -- care properties (literal ids of partner_impl.c) --------------------------------------
+    partner_c = _collapsed((decomp.root / PARTNER_C).read_text(encoding="utf-8", errors="replace"))
+    rules = [needle for *_, needle in FIRST_TECHNIQUE] + [POOP_EATERS[1], NO_VIRUS_BAR[1]]
+    missing = [needle for needle in rules if _collapsed(needle) not in partner_c]
+    out.check("the care rules on literal Digimon ids are still in partner_impl.c", not missing,
+              "; ".join(missing) or f"{len(rules)} rules")
+    first = {}
+    for type_id, anim, move, _ in FIRST_TECHNIQUE:
+        slot = anim - MOVE_ANIM_BASE
+        first[type_id] = {"slot": slot, "anim": anim, "move": move_ref(move)}
+    wrong = [f"{t}: slot {f['slot']} holds {data[REFERENCE].value[t]['moves'][f['slot']]}, learns {f['move']['id']}"
+             for t, f in first.items() if data[REFERENCE].value[t]["moves"][f["slot"]] != f["move"]["id"]]
+    out.check("the starters' equipped slot holds the technique they learn", not wrong,
+              "; ".join(wrong) or ", ".join(f"{t}: slot {f['slot']} = {f['move']['name']}" for t, f in first.items()))
+    for r in raise_rows:
+        r["first_technique"] = first.get(r["id"])
+        r["eats_poop"] = r["id"] in POOP_EATERS[0]
+        r["raises_virus_bar"] = r["id"] not in NO_VIRUS_BAR[0]
+
     raise_struct = index.program(PARTNER_C, REFERENCE).structs["RaiseData"]
     out.write_table("raise_data", {
         "table": {"name": "digimon/raise_data", "purpose": TABLE_PURPOSES["raise_data"]},
@@ -343,6 +379,14 @@ def convert(input_root, output_root) -> GroupWriter:
                                "meaning": "weight after evolving / at start"},
             "view": {"c_name": "viewX, viewY, viewZ", "c_type": "int16_t",
                      "meaning": "model position in the Digimon menu view (game_menu.c:3989)"},
+            "first_technique": {"derived": "initializePartner (partner_impl.c:499-506): `type == 3` / `type == 0x11`",
+                                "meaning": "a new partner of this kind starts with technique slot `slot` equipped "
+                                           "(battle animation `anim` = 0x2e + slot) and the technique `move` learned; "
+                                           "null = none (../specs/care.md §2.15)"},
+            "eats_poop": {"derived": "tickPoopDetection (partner_impl.c:1697): type 0xb or 0x27",
+                          "meaning": "walks to a poop pile near the tamer and eats it"},
+            "raises_virus_bar": {"derived": "createPoopPile (partner_impl.c:1319): type != 0x27",
+                                 "meaning": "each poop pile adds 1 to the virus bar (16 = Sukamon)"},
             "c": {"meaning": "the record as the C initializer gives it"},
             "_struct": {"c_type": "RaiseData", "fields": describe_type(raise_struct)},
         },

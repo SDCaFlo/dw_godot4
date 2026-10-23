@@ -101,10 +101,13 @@ Items and what they do, the healing values, the built-in inventories, the invent
 - `item_data` merges the three per-item C arrays, which share the index: `ITEM_PARA` with `name` and `description` from the text, `handler` from `ITEM_FUNCTIONS`, `icon_clut` from `ITEM_CLUT_DATA`.
   - Renamed fields: `price` (C `value`), `merit` (C `meritValue`), `sort_category` (C `sortingValue`), `usable` (C `itemColor`, as `{id, name}`), `droppable` (bool).
   - Derived: `sell_price` = value >> 1.
+  - **Property `passive`** on the five passive items (`../specs/content.md` §4): `training_boost` (0x21), `sleep_boost` (0x22), `battle_repel` (0x23), `battle_lure` (0x24), `walking_heal` (0x25). Absent on every other item.
+    - It replaces the literal ids of the inventory checks (`getItemCount(0x22)` …). The ported code asks "does the inventory hold an item whose `passive` is `sleep_boost`", so a pack can add another pillow.
+    - Each property comes from the same evidence check as `item_effects.passive`.
   - `c` keeps the raw `ITEM_PARA` record.
 - `item_effects`: one record per item with a handler.
   - `values` (switch assignments, or the heal values); `code` (other statements, C text); `defaults`
-  - `train_boost` (decoded `trainFlag`); `passive` (passive items, with evidence); `evolution` (where the target comes from)
+  - `train_boost` (decoded `trainFlag`); `passive` (passive items: effect, `property`, evidence); `evolution` (where the target comes from)
 - `card_data`: `digimon {id, name}`, `rarity`, `price`, `sell_price`, `merit`, `c`. `source.prices` lists the price and roll range per class.
 - `inventories`: `default_savegame` and `boot`, as non-empty slots `{slot, item, amount}` plus the raw arrays.
 - `shops`: one record with `maps` and `shopkeepers`.

@@ -43,6 +43,10 @@ class RealDataTests(unittest.TestCase):
         self.assertEqual(effects[41]["train_boost"], {"stats": ["off", "brain", "mp"], "factor_percent": 120,
                                                       "frames": 7200})
         self.assertIn("passive", effects[0x21])
+        items = self.load("item_data")
+        self.assertEqual(items[0x22]["passive"], "sleep_boost")      # Rest Pillow (sleepRegen)
+        self.assertEqual(effects[0x22]["passive"]["property"], "sleep_boost")
+        self.assertNotIn("passive", meat)
 
     def test_cards_and_shops(self):
         cards = self.load("card_data")

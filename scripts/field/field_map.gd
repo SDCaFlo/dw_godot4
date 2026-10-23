@@ -87,16 +87,69 @@ func display_name() -> String:
 
 
 ## 0 day, 1 evening, 2 night (updateTimeOfDay); maps with one palette always show palette 0.
+## Ends a running fade, as updateTimeOfDay removes the transition object (map.c:4307).
 func set_time_of_day(value: int) -> void:
 	time_of_day = value
+	_end_transition()
 	if _backgrounds.is_empty():
 		background.texture = null
 		return
-	background.texture = _backgrounds[value if value < _backgrounds.size() else 0]
+	background.texture = _background(value)
 
 
 func palette_count() -> int:
 	return _backgrounds.size()
+
+
+# --- Day / evening / night fade (tickDaytimeTransition, map.c:4527; specs/clock.md §2.5) --------
+
+## Frames into the running fade, -1 when none (DAYTIME_TRANSITION_FRAME).
+var _transition_frame := -1
+var _transition_target := 0
+var _overlay: Sprite2D
+
+
+## initializeDaytimeTransition's effect on the map: fade to `palette` over 25 game frames.
+func start_daytime_transition(palette: int) -> void:
+	if _backgrounds.size() <= 1:
+		return
+	_end_transition()
+	_transition_target = palette
+	_transition_frame = 0
+	_overlay = Sprite2D.new()
+	_overlay.centered = false
+	_overlay.texture_filter = background.texture_filter
+	_overlay.texture = _background(palette)
+	background.add_child(_overlay)
+	_overlay.modulate.a = Clock.transition_weight(0)
+
+
+## One game frame of the fade: the target palette weighs 1/6, 1/5, 1/4, 1/3, 1/2 (5 frames
+## each), then replaces the old one at frame 25. The original moves each 5-bit palette channel by
+## that fraction; the port cross-fades the converted pictures.
+func tick_daytime_transition() -> void:
+	if _transition_frame < 0:
+		return
+	_transition_frame += 1
+	if _transition_frame >= 25:
+		set_time_of_day(_transition_target)
+		return
+	_overlay.modulate.a = Clock.transition_weight(_transition_frame)
+
+
+func is_in_daytime_transition() -> bool:
+	return _transition_frame >= 0
+
+
+func _end_transition() -> void:
+	_transition_frame = -1
+	if _overlay != null:
+		_overlay.queue_free()
+		_overlay = null
+
+
+func _background(palette: int) -> Texture2D:
+	return _backgrounds[palette if palette < _backgrounds.size() else 0]
 
 
 # --- Entities -------------------------------------------------------------------------------

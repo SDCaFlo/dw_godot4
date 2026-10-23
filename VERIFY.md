@@ -3,6 +3,7 @@
 The porters have their own checklists (`asset_porter/VERIFY.md`, `data_porter/VERIFY.md`); this file covers the game systems ported to GDScript. Every system has a headless test that must print `OK` (run from `dw_godot/`, Godot 4.7, after both porters):
 
 ```
+godot --headless --path . -s res://tests/test_clock.gd
 godot --headless --path . -s res://tests/test_game_state.gd
 godot --headless --path . -s res://tests/test_game_data.gd
 godot --headless --path . -s res://tests/test_content.gd
@@ -14,6 +15,21 @@ With the Steam build of Godot the executable is `godot.windows.opt.tools.64.exe`
 The tests prove the code does what the spec says. What they can't prove is that the spec matches the game. That is what the checks below are for: compare with what you know of the game.
 
 Sections are added as systems are ported (`PLANS.md`).
+
+## Clock (`scripts/systems/clock.gd`, `clock_hud.gd`, `specs/clock.md`)
+
+`test_clock.gd` prints `OK: Clock checks`. Then run the project (F5):
+
+1. **HUD:** the alarm clock sits in the top-left corner: two bells, the face (day / evening / night sectors), the minute hand, a small creature on top that moves, and a yellow hour marker on the rim. The game starts at 08:00, so the hand points up and the marker is on the right side.
+2. **Time runs:** one game minute per real second. The hand turns 6° per minute; the help line at the bottom shows the year, day and time.
+3. **`T`** jumps one hour ahead (debug key). At 17:00 the creature on top switches to its night frame (with a "Z"); at 16:00, 20:00 and 06:00 the background fades over about a second: day → evening → night → day. Maps without a day / night cycle never change (110 of them, e.g. Drill Tunnel `TUNN01`, Grey Lord's Mansion `YAKA02`; use `[` / `]` to get there).
+   - Wrong if: the fade jumps instantly, happens at other hours, or happens indoors.
+4. **Real time:** waiting from 15:59 to 16:00 without pressing `T` starts the same fade on its own.
+5. **Map changes:** walking to another map at night keeps the night background.
+6. **What isn't there yet:**
+   - the partner's status bars next to the clock (care step);
+   - the clock sliding out while scripts stop the time (no scripts yet);
+   - the tamer and Digimon don't get darker at night (no field lighting yet).
 
 ## Game state (`scripts/state/game_state.gd`, `specs/game_state.md`)
 

@@ -28,7 +28,7 @@ Last updated: 2026-10-23
 3. **Milestone "living field"** (decided 2026-10-23): the world runs while you walk; no text or scripts needed yet.
    - [x] `GameState` spec (`specs/game_state.md`): every C global / `SavedState` / `PartnerPara` field mapped to a Godot field with `file:line`, content by key, save / load as JSON in `user://`.
    - [x] `GameState` autoload + save / load + tests (`scripts/state/game_state.gd`, `tests/test_game_state.gd`, `VERIFY.md`).
-   - [ ] Clock: port `clock.c`; day / evening / night switch the map backgrounds; HUD clock.
+   - [x] Clock: port `clock.c`; day / evening / night switch the map backgrounds; HUD clock (`specs/clock.md`, `scripts/systems/clock.gd`, `GameLoop` 20 Hz frames, `tests/test_clock.gd`).
    - [ ] Partner in the field: loaded from its `GameData` entity, follows the tamer like `partner.c`, idle / walk / run animations.
    - [ ] Care ticks: hunger, energy, sleep, poop, sickness, lifetime (`partner.c`, `partner_impl.c`), rules reading properties (`care` component); debug panel.
    - How each system is ported: a short spec (C functions reproduced, state and data read) → GDScript naming each C function → headless tests with values worked out from the C code → VERIFY section → this file.

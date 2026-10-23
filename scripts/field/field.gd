@@ -1,8 +1,9 @@
 @tool
 extends Node
-## Field scene: one map, the tamer walking on it, warps between maps.
+## Field scene: one map, the tamer walking on it, warps between maps, the game clock
+## (specs/clock.md) with its HUD and the day / evening / night fades.
 ##
-## Debug keys: [ / ] previous / next map, T time of day, L text language, H toggle the help line.
+## Debug keys: [ / ] previous / next map, T one hour later, L text language, H toggle the help line.
 ##
 ## In the editor the scene previews start_map / start_spawn / time_of_day from the porter output
 ## (pick them in the Inspector). The preview is only in memory: before each save it is cleared
@@ -16,7 +17,8 @@ extends Node
 	set(value):
 		start_spawn = value
 		_refresh_preview()
-## 0 day, 1 evening, 2 night (maps with one palette always show the day).
+## Editor preview only: 0 day, 1 evening, 2 night (maps with one palette always show the day).
+## In the game the clock decides.
 @export_enum("day", "evening", "night") var time_of_day := 0:
 	set(value):
 		time_of_day = value
@@ -30,6 +32,7 @@ extends Node
 var _maps: PackedStringArray
 ## Triggers are ignored until the tamer leaves the cell it arrived on.
 var _arrival_trigger := 0
+var _clock: Clock
 
 @onready var _field: FieldMap = $World/SubViewport/FieldMap
 @onready var _tamer: Tamer = $World/SubViewport/Tamer
@@ -47,8 +50,28 @@ func _ready() -> void:
 	if _maps.is_empty():
 		_label.text = "No maps in %s.\nRun: python -m dwporter convert maps mmd_files" % Content.path("maps")
 		return
-	_field.time_of_day = time_of_day
+	_start_clock()
 	_enter(start_map if start_map in _maps else _maps[0], start_spawn)
+
+
+## addClock (clock.c:90): the clock and its HUD run while the field is played.
+func _start_clock() -> void:
+	_clock = Clock.new()
+	_clock.name = "Clock"
+	add_child(_clock)
+	_clock.time_of_day_changed.connect(_field.set_time_of_day)
+	_clock.daytime_transition.connect(_field.start_daytime_transition)
+	_clock.minute_passed.connect(_update_label)
+	var hud := ClockHud.new()
+	hud.name = "ClockHud"
+	hud.clock = _clock
+	hud.set_anchors_preset(Control.PRESET_FULL_RECT)
+	$Hud.add_child(hud)
+	# The clock takes the top-left corner: the help line moves to the bottom.
+	_label.offset_top = 200
+	_label.offset_bottom = 238
+	_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	GameLoop.frame.connect(_field.tick_daytime_transition)
 
 
 func _enter(map_name: String, spawn: int) -> void:
@@ -57,7 +80,24 @@ func _enter(map_name: String, spawn: int) -> void:
 	_tamer.place(_field.spawn(clampi(spawn, 0, _field.data["spawns"].size() - 1)))
 	_field.follow(_tamer.global_position)
 	_arrival_trigger = _field.tile_trigger(_tamer.position)
+	if _clock != null:
+		_record_map(map_name, spawn)
 	_update_label()
+
+
+## CURRENT_SCREEN / CURRENT_EXIT (and the previous ones) in the game state, then updateTimeOfDay
+## for the new map (setupMap, map.c:4244).
+func _record_map(map_name: String, spawn: int) -> void:
+	var world: Dictionary = GameState.state["world"]
+	var id := GameData.map_id(map_name)
+	if id >= 0:
+		world["previous_screen"] = world["screen"]
+		world["screen"] = GameData.key_of("systems/maps", id)
+	world["previous_exit"] = world["exit"]
+	world["exit"] = spawn
+	_clock.map_has_time_of_day = id < 0 or not GameData.map(id).get("no_time_of_day", false)
+	_clock.active = true
+	_clock.update_time_of_day()
 
 
 func _process(_delta: float) -> void:
@@ -81,8 +121,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			var index := (_maps.find(_field.map_name) + step + _maps.size()) % _maps.size()
 			_enter(_maps[index], 0)
 		KEY_T:
-			_field.set_time_of_day((_field.time_of_day + 1) % 3)
-			_update_label()
+			var clock: Dictionary = GameState.state["clock"]
+			# % 24: advanceToTime starts a new day only for an earlier hour (specs/clock.md §2.4).
+			_clock.advance_to_time((clock["hour"] + 1) % 24, clock["minute"])
 		KEY_L:
 			var languages := GameData.LANGUAGES
 			GameData.set_language(languages[(languages.find(GameData.language) + 1) % languages.size()])
@@ -92,9 +133,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 func _update_label() -> void:
-	var times := ["day", "evening", "night"]
-	var time: String = times[_field.time_of_day] if _field.palette_count() > 1 else "no time cycle"
-	_label.text = "%s  %s\narrows move, shift run, [ ] map, T time, L language, H hide" % [_map_label(), time]
+	var time: String = ["day", "evening", "night"][_field.time_of_day] if _field.palette_count() > 1 else "no time cycle"
+	if _clock != null:
+		var clock: Dictionary = GameState.state["clock"]
+		if _clock.map_has_time_of_day:
+			time = {Clock.TIME_DAY: "day", Clock.TIME_EVENING: "evening", Clock.TIME_NIGHT: "night"}[_clock.current_time_of_day]
+		time = "year %d day %d %02d:%02d (%s)" % [clock["year"], clock["day"], clock["hour"], clock["minute"], time]
+	_label.text = "%s\n%s\narrows move, shift run, [ ] map, T +1 hour, L language, H hide" % [_map_label(), time]
 
 
 ## Map name from the data porter (MAP_ENTRIES + map.yaml) in the GameData language; the asset

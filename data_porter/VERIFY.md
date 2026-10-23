@@ -75,6 +75,19 @@ Run `python -m dwdata convert evolution`: it should print `4 tables, 21/21 check
 - **Evolution items:** Grey Claws → Greymon, Fireball → Meramon. Electo ring and Moon mirror show `never works` (confirmed: they were never implemented in the game).
 - **JSON spot check:** `requirements.json` → `records[5].bonus` has `discipline: 90` and `techs: 35`; `paths.json` → `records[58]` (Phoenixmon, id 59) has `ignored_values: [-2, 0]`.
 
+## Systems (`output/systems/`)
+
+Run `python -m dwdata convert systems`: it should print `18 tables, 57/57 checks passed`. Then open `output/systems/report.md`.
+
+- **Tournaments:** names and grade letters (Grade D … Beetle Cup) match the arena board; Grade D is held on most days, Grade S on days 6, 13, 20, 27 of the month. If you remember the schedule, compare.
+- **Battle commands:** field battles: 3 commands below brain 100 up to 9 from brain 500; arena: one fewer (no running away). Does that match what you remember of the command menu?
+- **Flee chances:** a Virus partner keeps away other Virus enemies the most (30).
+- **Maps:** `maps.json` → `records[0]` is `MAYO01` (Native Forest, toilet 0). Map names in the report match the area names shown when entering.
+- **Birdramon transport:** 6 destinations, 1000–2500 bits.
+- **Training spots:** Green Gym lists one spot per stat.
+- **Fishing:** fish kinds are Digianchovy … Digiseabass; a stuck line gives Sm. recovery most of the time (35 %).
+- **Mojyamon trades:** e.g. Digimushrm → Med. recovery, Supercarrot → Omnipotent.
+
 ## Reporting a problem
 
 Note the table, the record id and what you expected vs. saw. The table's `source` says which decomp file and line the value came from.

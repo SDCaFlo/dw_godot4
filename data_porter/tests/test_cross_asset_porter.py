@@ -57,5 +57,36 @@ class CrossAssetPorterTests(unittest.TestCase):
         self.assertEqual(ours[:len(theirs)], list(theirs))
 
 
+EXE = PORTER_ROOT.parent.parent / "external-resources" / "game_dumped_files" / "SLUS_010.32"
+
+
+@unittest.skipUnless((DEFAULT_INPUT / "src").is_dir() and EXE.is_file() and ASSET_DATA.is_dir(),
+                     "dw_decomp, the dumped executable or asset_porter not available")
+class CrossExecutableTests(unittest.TestCase):
+    """The data porter reads C source; the asset porter reads the same tables from the US executable."""
+
+    def test_maps_and_toilets_match_the_executable(self):
+        import sys
+        sys.path.insert(0, str(ASSET_DATA.parent.parent))
+        try:
+            from dwporter.families import maps as asset_maps
+        finally:
+            sys.path.pop(0)
+        theirs = asset_maps.read_tables(EXE.read_bytes())
+        from dwdata.groups import systems
+        with tempfile.TemporaryDirectory() as tmp:
+            systems.convert(DEFAULT_INPUT, Path(tmp))
+            ours = json.loads((Path(tmp) / "systems" / "maps.json").read_text(encoding="utf-8"))["records"]
+            toilets = json.loads((Path(tmp) / "systems" / "toilets.json").read_text(encoding="utf-8"))["records"]
+        self.assertEqual([(m["file"], m["images_8bpp"], m["images_4bpp"], m["sound_bank"], m["no_time_of_day"],
+                           m["wild_digimon"], m["doors_id"], m["c"]["toiletId"], m["c"]["loadingName"]) for m in ours],
+                         [(e["filename"], e["num_8bpp"], e["num_4bpp"], e["sound_id"], e["no_time_cycle"],
+                           e["has_digimon"], e["doors_id"], e["toilet_id"], e["loading_name"])
+                          for e in theirs["entries"]])
+        self.assertEqual([(m["name"]["text"]["en_us"] or "").strip() for m in ours],
+                         [e["display_name"] for e in theirs["entries"]])
+        self.assertEqual([t["walk_to"] + t["camera_to"] for t in toilets], theirs["toilets"])
+
+
 if __name__ == "__main__":
     unittest.main()

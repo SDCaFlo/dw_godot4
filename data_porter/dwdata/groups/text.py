@@ -322,6 +322,20 @@ def block_of(model: FileModel, name: str):
     return next((b for b in model.blocks if b["block"] == name), None)
 
 
+def string_index(decomp: Decomp) -> dict:
+    """{string id: {"text": {lang: ...}, "file": "text/..."}} over every text file (first definition wins)."""
+    out = {}
+    for path in sorted(decomp.rel(p) for p in decomp.root.glob(SOURCE_GLOB)):
+        if path in EXCLUDED:
+            continue
+        model = load_file(decomp, path)
+        for block in model.blocks:
+            for item in block["items"]:
+                for sid in item.get("line_ids") or ([item["id"]] if item["id"] else []):
+                    out.setdefault(sid, {"text": item.get("text"), "file": path})
+    return out
+
+
 def _owner_c(src_path: str) -> str:
     # text/<dir>/<name>.yaml -> src/<dir>/<name>.c
     return "src/" + src_path[len("text/"):-len(".yaml")] + ".c"

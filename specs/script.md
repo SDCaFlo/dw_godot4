@@ -7,7 +7,7 @@ Status (2026-10-24):
 - **done:** step 3, the NPCs (`specs/npc.md`, option A): `LOAD` / `SET` / `UNLOAD_DIGIMON`, `UNLOAD_ENTITY`, `SET_AUTOTALK`, `PLAY_ANIMATION`, `ENTITY_LOOK_AT_ENTITY`, `ENTITY_SET_ROTATION`, `RESET_ENTITY_ORIGIN`, `ENTITY_WALK_TO` on NPCs, movement types 0–2, talking and the turn to each other;
 - **done:** step 3b, the NPCs' behaviour between talks (`specs/npc.md` §2.10);
 - **done:** step 4, scripted movement and the camera (2026-10-24): slot types 3–11, 14, 15, the camera slot, the sync bit (§2.7 "Step 4"), the camera (`specs/camera.md`), the toilet scene (`specs/care.md` §2.16); `tests/test_camera.gd`;
-- **next:** step 5, with their systems (§3.1).
+- **next:** step 5a, the map objects: spec written 2026-10-24 (`specs/map_objects.md`), code not started. Step 5 is split into 5a–5e (§3.1).
 
 The original's bytecode interpreter: how a script section starts, how each frame runs instructions until one waits, the call stack, the conditions, and what each instruction changes. It runs the map setup (music, NPCs), every NPC talk, trigger cells, cutscenes, shops, battles and the new game. The script files and their instruction layouts are documented in `asset_porter/specs/scn.md`; the text and choice instructions in `specs/text.md` §2.6–2.7.
 
@@ -211,8 +211,8 @@ Every call clears trigger 44. An owner below `0xC8` (an NPC) is allowed to move.
 | 9 | `ENTITY_MOVE_TO_ENTITY` (0x6D, 0) | `tickEntityMoveTo(id, target, 0, 0, speed, 0)` | see the quirk |
 | 10 | nothing (see 0x6E) | `tickEntityMoveTo(…, 1)` | — |
 | 11 | `ENTITY_MOVE_TO_WITH_CAMERA` (0x6E, 0), `ENTITY_MOVE_TO_ENTITY_WITH_CAMERA` (0x6F, 0) | `tickEntityMoveTo(id, target, 0, 0, speed, 1)` | see the quirk |
-| 12 | `ROTATE_3D_OBJECT` (0x70, 103), slot 11 | `tickRotateDoor` | step 5 (map objects) |
-| 13 | `MOVE_OBJECT_TO` (0x71, 293), slots 12–21 | `tickMoveObjectTo` | step 5 (map objects) |
+| 12 | `ROTATE_3D_OBJECT` (0x70, 103), slot 11 | `tickRotateDoor` | step 5a (`specs/map_objects.md` §2.6) |
+| 13 | `MOVE_OBJECT_TO` (0x71, 293), slots 12–21 | `tickMoveObjectTo` | step 5a (`specs/map_objects.md` §2.4) |
 | 14 | `ENTITY_MOVE_TO_AXIS` (0x72, 15) | `tickEntityMoveToAxis(id, value, axis, speed, 0)` | the axis on the value |
 | 15 | `ENTITY_MOVE_TO_AXIS_WITH_CAMERA` (0x73, 27) | as 14, with the camera | as 14 |
 
@@ -310,7 +310,17 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
    - **the toilet:** `CALL_DIGIMON_ROUTINE` 0 ported (partner state 6, `Partner.tick_toilet`, setting the sync bit); the other routines stay reported, and a wait on their sync bit still ends at once;
    - **tests:** `tests/test_camera.gd` (new: the follow, the pans, the camera slot, the moves with the camera, the toilet scene on MAYO01 with Agumon's model), `test_script.gd` (the moves, the axis moves, a walk to an entity, the shared delta, the sync bit).
    - Done 2026-10-24.
-5. **With their systems:** the builtins (shops, naming, new game, item keeper, jukebox, Birdramon, training, tournaments, save), `START_BATTLE`, items and chests on the map, map objects, sounds and music, `DEAL_DAMAGE`'s number.
+5. **With their systems**, split by system (uses in the scripts counted 2026-10-24):
+   - **5a. map objects** (`specs/map_objects.md`, spec written 2026-10-24):
+     - the overlay sprites drawn, animated and sorted against the models;
+     - `SET_OBJ_VISIBILITY` (1,669 uses), `MOVE_OBJECT_TO` (293, slot type 13), `ROTATE_3D_OBJECT` (103, slot type 12), `SET_RECT_IMPASSABLE` (16), `SPAWN_SPRITE_AT_ENTITY` / `_AT_LOCATION` (18 / 0);
+     - builtin 0x15 (107), File City's lights, the snow;
+     - the porters: the door slots, the map record's `light_objects` and `snow`;
+   - **5b. items and chests on the map:** `SPAWN_ITEM` (241), `SPAWN_CHEST` (71), picking them up;
+   - **5c. sound and music:** `PLAY_SOUND` (501), `SET_BGM` (527, with `handleMusicOverride`), `STOP_BGM`, on the asset porter's sound banks and music;
+   - **5d. battles:** `START_BATTLE` (499) and its outcome;
+   - **5e. the builtins with their menus**, one system at a time: shops, item keeper, jukebox, Birdramon, training (0x07, 32 uses), tournaments, naming, new game, save, …; `DEAL_DAMAGE`'s number; the 3D map props (boulder, dirt cart, Toy Town's boxes, …).
+   - The order after 5a is open.
 6. **Death and lives** (own spec later; after step 5's battles, since the battle loss shares it): `CALL_DIGIMON_ROUTINE` 7 (the collapse, `tamerTickSicknessLostLife`) and 9 (the battle loss, `tamerTickBattleLostLife`): the `MURD` scene (lives box, iris; `src/murd/murd.c`) and `DOOA` (`src/dooa/dooa.c`); the collapse script `0x4DE` then replaces the care stand-in; dying (3 / 4) if it belongs there.
 
 ## 4. Data

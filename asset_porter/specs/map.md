@@ -45,6 +45,9 @@ UV = (tex_x % 256, tex_y % 256); `transparency` = blend mode; instance (x, y) = 
 
 `DOOR_MAPDATA[doorsId − 1]` (exe @ `0x80122E60`, 24 × 54 bytes): 6 slots of model id (255 = none, `DOOR/DOOR<id>.TMD`), position xyz, rotation. Their textures are the map images in VRAM (`tmd.md`).
 
+- **Planned (`../../specs/map_objects.md` §3):** `map.json` `doors` keeps each door's `slot` (0–5): the scripts' `ROTATE_3D_OBJECT` names the slot, and tables 1 and 6 have an empty slot 0 (`[255, 9, 9, 9, 10, 10]`, `[255, 18, 16, 17, 255, 255]`). The empty slots stay dropped.
+- Model 10 is drawn twice by `renderDoors` (`map_object.c:374`): a mirrored copy (rotation `−vy`, `∓680` on z) makes a double door.
+
 ## Camera (verified)
 
 `GsSetRefView2`: eye = viewpoint × 2, target = reference × 2 (PSX axes, +Y down); camera right = down × forward, screen down = forward × right. A point projects to `screen = H · (x/z, y/z)`; the screen centre shows the background centre at load (`setupMap`: cameraX = width·128/2 − 160, drawing offset 160, 120), so

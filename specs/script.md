@@ -250,13 +250,15 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
    - map entry through MAPHEAD (`SET_SCRIPT`, section `0xFE`);
    - trigger cells 51–109, the toilet cell 120 (section `0x4E2` runs; its `CALL_DIGIMON_ROUTINE` 0, the partner's toilet scene, comes with step 3);
    - `WARP_TO` / `TELEPORT` with the fade and the map name.
-3. **NPCs** (own spec `specs/npc.md`):
-   - `SECTION_ON_EXIT`; the partner's collapse `0x4DE` (replaces the care stand-in; needs `CALL_DIGIMON_ROUTINE` 7);
+3. **NPCs** (own spec `specs/npc.md`, option A: they stand between talks; their AI is 3b):
+   - `SECTION_ON_EXIT` (already decoded; its sections need this step's opcodes);
+   - `CALL_DIGIMON_ROUTINE` moved out (`specs/npc.md` §2.9): the toilet scene (0) needs step 4's camera pan; the collapse (7) and the battle loss (9) are the `MURD` / `DOOA` scenes, their own system with the collapse script `0x4DE`;
    - `LOAD` / `SET` / `UNLOAD_DIGIMON`, `UNLOAD_ENTITY`;
    - talking and autotalk; `SET_AUTOTALK`, `PLAY_ANIMATION`, `CALL_DIGIMON_ROUTINE`;
    - the tamer's collision with NPCs (`specs/partner.md` §5).
-4. **Scripted movement:** the 22 slots, `WAIT_FOR_ENTITY`, the camera moves. Done early: the slot ticks and type 2 (`ENTITY_WALK_TO`) for the tamer and the partner.
+4. **Scripted movement:** the 22 slots, `WAIT_FOR_ENTITY`, the camera moves (`createCameraMovement` / `tickCameraMovement`, `MOVE_CAMERA_TO*`), and the partner's toilet scene (`CALL_DIGIMON_ROUTINE` 0, `tickPartnerToilet`), which needs the camera pan. Done early: the slot ticks and type 2 (`ENTITY_WALK_TO`) for the tamer and the partner.
 5. **With their systems:** the builtins (shops, naming, new game, item keeper, jukebox, Birdramon, training, tournaments, save), `START_BATTLE`, items and chests on the map, map objects, sounds and music, `DEAL_DAMAGE`'s number.
+6. **Death and lives** (own spec later; after step 5's battles, since the battle loss shares it): `CALL_DIGIMON_ROUTINE` 7 (the collapse, `tamerTickSicknessLostLife`) and 9 (the battle loss, `tamerTickBattleLostLife`): the `MURD` scene (lives box, iris; `src/murd/murd.c`) and `DOOA` (`src/dooa/dooa.c`); the collapse script `0x4DE` then replaces the care stand-in; dying (3 / 4) if it belongs there.
 
 ## 4. Data
 

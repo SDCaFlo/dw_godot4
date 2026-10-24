@@ -127,7 +127,7 @@ Per map id:
 
 ### `toilets` (`TOILET_DATA[10]`, `src/main/toilet_data.c:4`)
 
-Per toilet: the x / z point the partner walks to (`posX1/Y1`) and the camera target (`posX2/Y2`), as used by `tickPartnerToilet` (`partner.c:540–560`), plus the maps that use it.
+Per toilet: the x / z point the partner walks to first (`posX1/Y1`, `walk_to`; it walks back there after) and the toilet itself (`posX2/Y2`, `camera_to`: the camera pans to it and the partner squats there), as used by `tickPartnerToilet` (`partner.c:540–590`, `specs/care.md` §2.16), plus the maps that use it.
 
 ### `birdramon_transport` (`BIRDRA_TRANSPORT_TARGETS[6]`, `script_common.c:611`)
 

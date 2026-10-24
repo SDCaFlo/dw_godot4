@@ -8,7 +8,7 @@ Status:
   - test `tests/test_care.gd`; human checks in `VERIFY.md`;
   - the visuals: `scripts/systems/condition_bubbles.gd`, `status_bars.gd`, `psx_texture.gd`, `scripts/field/poop_piles.gd`;
   - the debug panel: `scripts/debug/care_debug_panel.gd`, and `GameLoop.speed`.
-- **Later:** evolution, the scenes behind the menus (feeding, praise / scold, toilet), the butterfly (§3.3).
+- **Later:** evolution, the scenes behind the menus (feeding, praise / scold), the butterfly (§3.3). The toilet scene (§2.16) comes with step 4 of `specs/script.md` (spec written 2026-10-24).
 
 The partner's needs as time runs on the field:
 - hunger and energy, sleep, tiredness, poop, sickness and injury, unhappiness, lifetime;
@@ -337,6 +337,25 @@ Started from the menu's "Sleep" (partner state 3, `game_menu.c:2178–2186`), on
 - **Not set here:** stats (HP, MP, offense…). The intro scripts give them.
 - **Quirk:** loading a game (boot modes 1 / 2) calls `initializePartner` too (`main.c:3462`, `:3480`), before the map's head script. How the saved `PARTNER_PARA` survives that isn't traced (§5).
 
+### 2.16 The toilet scene (`tickPartnerToilet`, `partner.c:536`; `handleToilet`, `partner_impl.c:1730`)
+
+Started by stepping on a toilet cell (120) while the partner is poopy. The cell runs `MAPHEAD` section `0x4E2` (`specs/script.md` §2.2): `CALL_DIGIMON_ROUTINE 0` (partner state 6, the sync bit cleared, `partner.c:1139`), `WAIT_FOR_ENTITY 0xFF` (the sync bit and every slot free), `PLAY_SOUND 0 10`, end. The toilet is `TOILET_DATA[MAP_ENTRIES[map].toiletId − 1]` (data porter `systems/toilets`: `walk_to` = `posX1/Y1`, `camera_to` = `posX2/Y2`).
+
+| Sub-state | What happens |
+|---|---|
+| 0 | tamer state 6 (stands, idle); the camera stops following; `POS1` = `walk_to`, `POS2` = `camera_to` (y: the partner's); a pan to `POS2` over 20 frames (`createCameraMovement`, `specs/camera.md` §2.3); the partner runs (animation 4) |
+| 1 | the tamer faces the partner; the partner walks to `POS1` (`tickEntityWalkTo`: faces the point, done on its tile) |
+| 2 | the same to `POS2` (the toilet itself); there, animation 10 (squatting) |
+| 3 | at the animation's end: `handleToilet`; a pan back to the tamer over 20 frames; animation 2 (walk) |
+| 4 | the partner walks back to `POS1`; on its tile the sync bit is set (the script goes on, ends, and gives back the field: partner state 1, tamer state 0, the follow) |
+
+- **`handleToilet`:** happiness + 2, discipline + 2, `poop_level = 2 × poop_timer` (US), poopy cleared, `handlePoopWeightLoss` (ported as `Care.handle_toilet`, §3.4).
+- **No walls:** state 6 ticks nothing else; the walks are root motion turned towards the points.
+- **The care tick:** it runs only in partner state 1 (§2.1), so nothing else happens during the scene.
+- **Quirk (sub-state 4):** `entityLookAtLocation(&TAMER_ENTITY.entity, (VECTOR *)&location)` passes the address of the local pointer, not the partner's location. The tamer turns towards a point made of stack values (the pointer's bits as x), a direction not known from the code. The port leaves the tamer's rotation as sub-state 3 left it (facing the partner on the toilet); checkable in the game (§6).
+- **Sub-state 4 never ends by itself:** once on `POS1`, the walk returns done every frame and the bit stays set. The script's end (`setMovementEnabled(-1, 0)`) sets partner state 1.
+- **Order in the frame:** the pans run as their own object (`specs/camera.md` §6).
+
 ## 3. Godot design
 
 ### 3.1 Nodes and the tick
@@ -489,6 +508,7 @@ The virus-bar evolution to Sukamon (0x27) and the reincarnation stats (types 1, 
 - **`randomLimit(1)`** in `setSleepTimes` is always 0. Possibly meant as 0–1; kept.
 - **`CONDITION_BUBBLE_TYPE`** starts at 0 (bss), so a hungry bubble can't be the first bubble shown after boot until the type is forgotten. Matches the C; harmless.
 - **The butterfly** (`butterfly.c`) and `createCloudFX` are not read yet.
+- **The toilet scene's last turn** (§2.16, sub-state 4): the tamer looks at a point made of stack values (the C passes `&location`, a pointer's address). Which way he faces while the partner walks back is only checkable in the game; the port keeps his rotation.
 - **`handlePraiseScold`** (`:1113`):
   - **Which is which:** state 4 is the scold (discipline +2, happiness −10) and state 15 the praise (discipline −5, happiness + discipline / 10 + 2). The menu's "Scold" is entry 5 → state 4 and "Praise" entry 4 → state 15 (`game_menu.c:2187–2209`).
   - **Uninitialised happiness:** a scold with `ITEM_SCOLD_FLAG == 1` (right after an accident or a refused item) gives discipline +8 and leaves `happinessDelta` uninitialised. The port uses 0.

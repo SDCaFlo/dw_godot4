@@ -143,6 +143,12 @@ func _quads() -> void:
 	var centre := corner + Vector2(int(obj["width"]), int(obj["height"])) / 2
 	_eq([node.visible, (map.background_pixel(node.global_position) - centre).length() < 0.01], [true, true],
 			"instance 7's quad: shown, centred on its background rectangle")
+	# ISSUES.md I-1: MAYO01's bush (sprite 0) is opaque but has STP texels; the STP bit only matters
+	# on a semi-transparent sprite, so its opaque pass draws them all.
+	var bush: ShaderMaterial = o.instance(0)["node"].material_override
+	_eq([int(map.data["objects"][0]["transparency"]), map.data["objects"][0]["stp_files"][0] != null,
+			bush.get_shader_parameter("use_stp"), bush.next_pass == null], [4, true, false, true],
+			"an opaque sprite with STP texels draws them all (no STP split, no blended pass)")
 
 
 ## A synthetic map: the u8 timer's wrap (times 0) and the C's frame list.

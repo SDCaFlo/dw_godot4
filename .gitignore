@@ -8,3 +8,6 @@ data_porter/output/
 # Editor mirror of the dw1 assets (Project > Tools > DW: Mirror dw1 assets), imported by Godot
 /content/dw1/
 __pycache__/
+
+# Issue evidence: screenshots of the game (game art, never committed); see ISSUES.md
+/issues/evidence/

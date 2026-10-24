@@ -84,7 +84,7 @@ Nothing is drawn or animated while `MAP_LAYER_ENABLED` is 0 (battles, menus that
   - 2: subtractive;
   - 3: +25 %.
   - In the data: 4,518 sprites are opaque, 3,580 additive, 564 50 / 50, 448 +25 % and 57 subtractive. Ten sprites have values 1280–1344, which `& 3` makes 0.
-  - As on any PSX polygon, the blending applies only to the texels with the STP bit set, and texel 0x0000 is not drawn.
+  - As on any PSX polygon, the blending applies only to the texels with the STP bit set, and texel 0x0000 is not drawn. On an opaque sprite the STP bit means nothing: all its texels are drawn opaque (3,959 opaque sprites in use have STP texels, e.g. MAYO01's bush; ISSUES.md I-1).
 - **Texture:** `clut` −1 is an 8-bit sprite on CLUT row 480, the map's active time-of-day palette, so these sprites change palette with the background. Below 16 it is a 4-bit sprite on row 486. From 16 on it is 8-bit on row `clut + 468`.
 - **Animation:**
   - every frame, drawn or not (hidden, off screen, a blank frame), `timer` (u8) counts up;

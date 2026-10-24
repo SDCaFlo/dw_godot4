@@ -111,7 +111,7 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
 ## Map objects (`scripts/field/map_overlays.gd`, `field_map.gd`, `specs/map_objects.md`)
 
 `test_map_objects.gd` prints `OK: map object checks`. `render_check.gd` prints `background 0 / 76800 pixels differ` and saves the frame in `user://` (it says where): open it, the map's sprites must sit on the background. In the game (F5), check:
-1. **Animated details:** Native Forest's flowers (MAYO01, the lower left), water, torches and smoke on other maps. Compare their speed with the game, and the tamer walking in front of and behind the parts of the background that are sprites (tree trunks, roofs). Wrong if: a sprite is offset from the background, flickers, or covers the tamer when he is in front of it.
+1. **Animated details:** Native Forest's flowers (MAYO01, the lower left), water, torches and smoke on other maps. Walk behind MAYO01's bush by the toilet: it covers the tamer (ISSUES.md I-1). Compare their speed with the game, and the tamer walking in front of and behind the parts of the background that are sprites (tree trunks, roofs). Wrong if: a sprite is offset from the background, flickers, or covers the tamer when he is in front of it.
 2. **Brightness:** the glowing (additive) sprites, e.g. File City's lights and the Factorial Town effects. Compare with the game: Godot blends in linear colour, so they may look brighter (`specs/map_objects.md` §6).
 3. **File City TWNB04's lights** (instances 49–50): off from 7:00 to 18:59, on otherwise.
 4. **Doors:** the Great Canyon gates (GCAN02/03/06/10) sliding apart in their scene before the warp; Grey Lord's Mansion doors (YAKA11A / 11B / 13), with both halves of the double doors (model 10). Compare whether those doors snap shut at the end of their swing as in the port (§6).
@@ -119,6 +119,7 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
 6. **Digimon Bridge (MAYO08A):** when the bridge is broken, its cells are blocked (the tamer stops before them).
 7. **Snow** on Freezeland (FRZL01–16): flakes falling over everything, drifting, melting at the bottom.
 8. **Day / evening / night:** the sprites change palette with the background, at the end of its fade.
+9. **No grey dots at night:** the background's transparent texels show black (ISSUES.md I-4), e.g. the rocks of Native Forest at night.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

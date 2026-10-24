@@ -375,6 +375,10 @@ func _material(sprite: int) -> Material:
 	if variant < stp_files.size() and stp_files[variant] != null:
 		stp_tex = _texture(str(stp_files[variant]))
 	var transparency := int(obj.get("transparency", OPAQUE))
+	# The STP bit only matters on a semi-transparent polygon: an opaque sprite (SetSemiTrans 0) draws
+	# all its texels in the opaque pass (ISSUES.md I-1: MAYO01's bush has STP texels).
+	if transparency == OPAQUE:
+		stp_tex = null
 	var opaque := _pass("blend_mix", tex, stp_tex, false)
 	if transparency != OPAQUE and stp_tex != null:
 		var mode := transparency & 3

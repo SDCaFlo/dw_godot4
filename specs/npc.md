@@ -1,6 +1,6 @@
 # NPCs (port spec)
 
-Status (2026-10-23): step 3 of `specs/script.md` §3.1 done, option A (decided 2026-10-23): the map Digimon appear, can be talked to, and are moved and animated by scripts; between talks they stand. Code: `scripts/field/field_digimon.gd` (shared with the partner), `npc.gd`, `field_entities.gd`, the interpreter's entity opcodes, `field.gd`; test `tests/test_npc.gd` (38 checks). Their own behaviour (waypoint wandering, looking at / tracking the tamer) is step 3b (§3.4), filled into the same frame function.
+Status (2026-10-23): step 3 of `specs/script.md` §3.1 done, option A (decided 2026-10-23): the map Digimon appear, can be talked to, and are moved and animated by scripts; between talks they stand. Code: `scripts/field/field_digimon.gd` (shared with the partner), `npc.gd`, `field_entities.gd`, the interpreter's entity opcodes, `field.gd`; test `tests/test_npc.gd` (38 checks). Their own behaviour (waypoint wandering, looking at / tracking the tamer) is step 3b: spec written 2026-10-24 (§2.10, §3.4), code not started.
 
 The map Digimon ("NPCs") of the original: up to 8 per map, placed by the map setup scripts from the map's entity list, ticked once per game frame, talked to by touching them (✕ or on contact), and moved by script instructions. Wild enemies are NPCs too: their talk section starts the battle.
 
@@ -25,6 +25,10 @@ All `file:line` references are in `external-resources/dw_decomp/src/main/`; the 
 | `setMovementEnabled` (the NPC part) | `overworld.c:1869` | `stopAnim` |
 | `resetEntityOrigin` | `overworld.c:1829` | `RESET_ENTITY_ORIGIN` |
 | `initializeLoadedMap` (the NPC overlap) | `main.c:3821-3858` | with loaded games (§2.8) |
+| **3b:** `NPCEntityTickWaypointAI`, `tickWaypointWait`, `NPCEntityTickWaypointWalk` | `overworld.c:1359`, `:1695`, `:1719` | wandering (§2.10.1) |
+| **3b:** `NPCEntityIsInTrackingRect`, `NPCEntityIsInTrackingRadius` | `overworld.c:1389`, `:1446` | the follow modes' range (§2.10.2) |
+| **3b:** `NPCEntityTickLookingAtTamer`, `NPCEntityTickTrackingTamer` / `2` / `3` / `4` | `overworld.c:1400`, `:1424`, `:1465`, `:1548`, `:1626` | the follow modes (§2.10.3) |
+| **3b:** `collisionGrace`'s blocked axes, `applyRootMomentum`'s `animFlag` tests | `map.c:3466`, `anim.c:434` | walls stop walking NPCs (§2.10.4) |
 
 ## 2. Original behaviour
 
@@ -70,8 +74,8 @@ Every NPC on the map, once per frame (in the object list, after the tamer and th
 1. If `NPC_ACTIVE_ANIM[slot] != 0`: nothing but the animation tick (step 6).
 2. Else if `stopAnim` (the script took it over, §2.7): if `animation != 0`, set it to 0 and start animation 0. Then step 6.
 3. Else (free):
-   - **3b:** `NPCEntityTickWaypointAI` when `lookAtTamerState == 0`;
-   - **3b:** by `followMode`: 2 / 11 look at the tamer while he is in the tracking rect; 3–5 / 12–14 track him (`NPCEntityTickTrackingTamer`); 6 / 15 and 7 / 16 track him in a radius (`TrackingTamer2`, animation 2 or 4); 8 / 9 / 17 / 18 in the rect (`TrackingTamer2`, animation 2);
+   - **3b:** `NPCEntityTickWaypointAI` when `lookAtTamerState == 0` (§2.10.1);
+   - **3b:** by `followMode`: 2 / 11 look at the tamer while he is in the tracking rect; 3–5 / 12–14 track him (`NPCEntityTickTrackingTamer`); 6 / 15 and 7 / 16 track him in a radius (`TrackingTamer2`, animation 2 or 4); 8 / 9 / 17 / 18 in the rect (`TrackingTamer2`, animation 2) (§2.10.3);
    - `NPC_COLLISION_STATE[slot] = entityCheckCollision(NULL, npc, 0, 0)`;
    - **autotalk (US):** if that hit the tamer (0), the tamer is free (state 0) and the NPC's autotalk is 1: the NPC's step is blocked (`animFlag |= 2`), and while no script runs (`IS_SCRIPT_PAUSED == 1`) its section starts: `TALKED_TO_ENTITY = slot + 2`, `callScriptSection(CURRENT_SCRIPT_ID, npc.scriptId, 1)` (menus closed first);
    - if it hit anything, isn't walking to a script point and plays animation 2–4 (a walk): `collisionGrace` turns it along the obstacle.
@@ -135,8 +139,65 @@ The savegame's `npcMaps[8]` (`world.npc_on_map`) is written on save and copied b
   - 1 (`KAR`), 2 / 10 (evolution), 3 / 4 (dying), 5 / 6 (opening / ending), 8 (Machinedramon): with their systems;
   - 214 (32 uses, all `49 D6`): no case; only the `scriptPauseGame`.
   - Until then the routines stay reported and the sync-bit wait ends at once (as now).
-- **Step 3b:** the AI branches of §2.3 step 3.
+- **Step 3b:** the AI branches of §2.3 step 3 (§2.10).
 - **Battles:** an enemy's talk section reaches `START_BATTLE` (reported) and goes on as if nothing happened (`specs/script.md` §6).
+
+### 2.10 Step 3b: behaviour between talks (`overworld.c:1224-1781`)
+
+The two branches of §2.3 step 3, run in that order every frame while the NPC is free (`NPC_ACTIVE_ANIM` 0, `stopAnim` 0). Both read `NPC_COLLISION_STATE[slot]`, which is set later in the same frame: they see the **previous frame's** collision. All the turns go through `getRotationDifference` + `rotateEntity` at speed **0x71** per frame (the scripts' `tickLookAtEntity` turns 0x200). The NPC moves only by its animation's root motion along its rotation; the AI just picks animations and turns it. "Reached" always means standing on the same model tile as the target (`getModelTile`), never a distance.
+
+**In the data** (989 NPCs on 216 maps):
+- **Follow modes:** 1 (372: none), 2 (175: look at), 12 (441: track, mostly wild enemies), 16 (1: MAYO00's Agumon, the radius tracker). Modes 3–9, 11, 13–15, 17, 18 aren't used; they are ported anyway (they share the functions).
+- **AI sections:** only 0 (wait), 1 (walk), 2 (run). The most common paths are `0` (610 NPCs: wait, i.e. stand), `1 1` (102), `1 0 1 0` (46), `2 2` (33). 379 NPCs walk or run.
+- **Waits:** 10, 20, 40, 80 frames are the most common. One is negative (−1666), which ends at once.
+
+#### 2.10.1 Wandering (`NPCEntityTickWaypointAI`, `overworld.c:1359`)
+
+Only while `lookAtTamerState == 0`. The path is `aiSections[8]` (ended by −1) with `waypoints[i]` belonging to `aiSections[i]` (same index; `loadMapDigimon` reads `count` waypoints after the 8 sections). By `aiSections[activeSection]`:
+- **0, wait** (`tickWaypointWait`, `:1695`):
+  - `hasWaypointTarget` 0: if `animation` isn't 0, set it to 0 and start it; timer 0; `hasWaypointTarget` 1;
+  - 1: timer + 1; when it reaches `waypoints[activeSection].vx` (the x holds the frame count): `hasWaypointTarget` 0, timer 0, next section.
+- **1, walk / 2, run** (`NPCEntityTickWaypointWalk(…, 2 or 4)`, `:1719`):
+  - `hasWaypointTarget` 0: the target is `waypoints[activeSection]`; if `animation` isn't the walk's (2 or 4), set it and start it; `hasWaypointTarget` 1;
+  - 1: if the previous frame's collision was −1, turn towards the target (US only; JP always turns). When on the target's tile: `hasWaypointTarget` 0, next section (the animation keeps playing into the next section).
+- After either, if `activeSection >= 8` or `aiSections[activeSection] == −1`, it goes back to 0: the path loops.
+- A section with no waypoint in the data reads the previous map's leftover in the C (2 NPCs: DGHA02 slot 2 sections 2–3, FACT04 slot 6). The port reads 0 for it: a wait of 0 ends at once (§6).
+
+#### 2.10.2 The range tests
+
+- **Rect** (`NPCEntityIsInTrackingRect`, `:1389`): the tamer is strictly inside the square of half-size `trackingRange` around the NPC's **map position** (`posX`, `posZ`, its origin; not where it stands now). With range 0 it is never true (385 NPCs, 118 of them mode 12).
+- **Radius** (`NPCEntityIsInTrackingRadius`, `:1446`): `dx + dz < (trackingRange * 6 / 10)²`, with `dx`, `dz` the NPC's current position minus the tamer's. **Quirk:** the C adds the signed deltas instead of their squares, so it is true unless the NPC is more than `(range * 6 / 10)²` units towards +x / +z of him in sum: with MAYO00's range 2000 that is 1 440 000, far beyond any map, so always true. Kept. Only MAYO00's Agumon (mode 16) uses it.
+
+#### 2.10.3 The follow modes (`NPCEntityTickOverworld`, `:1247-1304`)
+
+Each mode's tick runs when the tamer is in range **or** `lookAtTamerState != 0` (so once started, it finishes even after he leaves the range).
+
+- **2 / 11, look at** (`NPCEntityTickLookingAtTamer`, `:1400`):
+  - state 0: `animation` 0, started (even if already 0), state 1;
+  - state 1: turn towards the tamer's current position; if he is no longer in the rect: state 0 and `hasWaypointTarget` 0 (the wandering restarts its current section).
+- **3–5 / 12–14, track** (`NPCEntityTickTrackingTamer`, `:1424`, then `TrackingTamer3`, `:1548`): a charge at where the tamer was, then back home:
+  - state 0: the target is the tamer's position now (fixed, not updated); `animation` 2 (walk), state 1;
+  - 1: `animation` 4 (run), state 2;
+  - 2: if the previous frame's collision was −1, turn towards the target. On the target's tile, or if the previous frame's collision was the tamer (0): `animation` 0, timer 0, state 3;
+  - 3: timer + 1; at 40: `animation` 2, the target is the NPC's map position, timer 0, state 4;
+  - 4: like 2 towards home, but only the tile ends it (bumping the tamer doesn't): `animation` 0, timer 0, state 0 and `hasWaypointTarget` 0.
+  - The charge's contact with the tamer is what starts an enemy's battle: §2.3's autotalk (collision 0, tamer free, autotalk 1).
+- **6 / 15 (walk) and 7 / 16 (run): track in the radius; 8 / 9 / 17 / 18: track from the rect (walk)** (`NPCEntityTickTrackingTamer2`, `:1465`, then `TrackingTamer4`, `:1626`): a chase that keeps turning to him:
+  - state 0: if `animation` isn't the mode's (2 or 4), set it and start it; state 1;
+  - 1: while he is in the **radius** (for all these modes, also 8 / 9 / 17 / 18): if the previous frame's collision was −1, turn towards his current position. Out of the radius: the target is the map position, state 2;
+  - 2: walk home (turning as in TrackingTamer3 state 4); on its tile: `animation` 0, timer 0, state 3;
+  - 3: timer + 1; at 80: state 0, `hasWaypointTarget` 0, timer 0.
+- **1, 10 and the rest:** nothing (the wandering only).
+- `lookAtTamerState` is cleared by `clearMapAITable` (a talk's `setMovementEnabled(npc, 1)`, the end of a script, a map change): a chase stops where it is, and the NPC restarts its path from section 0.
+
+#### 2.10.4 Walls and other entities
+
+A walking NPC (animation 2–4, not walked by a script) whose next step hits anything (map 10, an entity 0–9) gets `collisionGrace(NULL, npc)` (§2.3). Besides turning it (up to 0x50 per frame) towards the first free of its 4 grace directions:
+- **Blocked axes:** every grace direction it tried and found blocked before the free one sets `animFlag |= 8 << (direction / 1024)`: 8 for 0 (−z), 0x10 for 0x400 (−x), 0x20 for 0x800 (+z), 0x40 for 0xC00 (+x). `applyRootMomentum` zeroes the root motion's component going that way (`anim.c:479-486`): the NPC slides along the wall instead of walking into it.
+- **No free direction:** it turns 32 and its whole step is held (`animFlag |= 2`).
+- `entityCheckCollision` and `collisionGrace` both start with `animFlag &= 5`, which clears these bits and the held step: they last one frame.
+- The same holds for the partner's `collisionGrace` on entity hits (`specs/partner.md` §3): it never gets the map's hits, but bumping an NPC now also stops its motion towards it.
+- Rotations: `rotateEntity` leaves `rotation.vy` outside 0–4095 for a frame when it crosses 0 (the next frame snaps it to the target). The port keeps rotations in 0–4095; the turn reaches the same angles.
 
 ## 3. Godot design
 
@@ -165,9 +226,19 @@ The savegame's `npcMaps[8]` (`world.npc_on_map`) is written on save and copied b
 - `scriptPauseGame`'s turn to each other (§2.5) and `setMovementEnabled` for NPCs (§2.7).
 - The tamer's `start_animation` takes any animation id: the loops (0, 2, 3) through his `AnimationPlayer` as now, the others as scene animations (`PsxAnimator`, as the sleep scene's 8).
 
-### 3.4 Step 3b (later)
+### 3.4 Step 3b
 
-Fill `Npc.tick_waypoint_ai()` (`NPCEntityTickWaypointAI`, `NPCEntityTickWaypointWalk`, `overworld.c:1359`, `:1723`) and `Npc.tick_follow_mode()` (`NPCEntityTickLookingAtTamer`, `TrackingTamer` 1–4, `NPCEntityIsInTrackingRect` / `Radius`, `overworld.c:1400-1719`). The data (waypoints, AI sections, tracking range, follow mode), the AI state fields, the collision, `collisionGrace` and the root-motion movement are all in place after step 3.
+- **`Npc`:**
+  - `tick_waypoint_ai()`: §2.10.1 (`tick_waypoint_wait`, `tick_waypoint_walk(anim)`);
+  - `tick_follow_mode()`: the mode switch of §2.10.3, with `in_tracking_rect()`, `in_tracking_radius()`, `tick_looking_at_tamer()`, `tick_tracking_tamer()` (3), `tick_tracking_tamer_2(anim)` (4);
+  - `_set_animation(id)`: the slot's `animation` field and `start_animation`, as the C's `mapDigimon->animation = …; startAnimation(…)` pairs;
+  - `_turn_towards(x, z)`: `rotate_entity` at 0x71 (the interpreter's static `rotate_entity`, moved to `FieldDigimon` so both use it);
+  - the AI state stays in the slot dictionary (`look_at_tamer_state`, `has_waypoint_target`, `waypoint_wait_timer`, `active_section`, and a new `target_location`), as now, so `clear_map_ai_table` and `SET_DIGIMON` keep working on it.
+- **`FieldDigimon`:**
+  - `blocked_axes` (the `animFlag` bits 8–0x40), set by `collision_grace` and applied in `_move` (§2.10.4); `collision_grace`'s no-free-direction case sets `step_blocked`;
+  - `clear_step_flags()` (`animFlag &= 5`): clears both, called where the C's `entityCheckCollision` / `collisionGrace` run for that entity (the NPC tick, the partner's `tick_collision`).
+- **Nothing new in the data:** the map data already has the follow mode, tracking range, AI sections and waypoints.
+- **Missing animations:** a model without animation 4 (or 2) keeps playing its current one (`PsxAnimator.play` returns false), so the NPC still turns and stops as the C, only with the wrong animation; the AI doesn't wait on animations.
 
 ## 4. Data
 
@@ -192,6 +263,21 @@ Fill `Npc.tick_waypoint_ai()` (`NPCEntityTickWaypointAI`, `NPCEntityTickWaypoint
 - `test_script.gd`: the real-script run keeps every section ending; fewer unported names.
 - `test_partner.gd` unchanged after the `FieldDigimon` refactor.
 
+Step 3b, in `tests/test_npc.gd` (synthetic slots on a real map, the tamer moved by hand):
+- wandering: a `0` path waits `vx` frames then loops; `1 0 1 0` walks (animation 2) to the first waypoint's tile, waits, walks on, back to section 0; `2` runs (animation 4); a missing waypoint waits 0;
+- turning at 0x71 per frame, only when the previous frame's collision was −1;
+- look at (mode 2): starts in the rect only (strict edges, around the map position, range 0 never), turns to the tamer, stops and restarts the wander when he leaves;
+- track (mode 12): walk then run to the tamer's position at the start, stop on its tile or on touching him, wait 40, walk home, state 0; a talk (`set_stop_anim`) clears it;
+- radius track (mode 16): the `dx + dz` quirk;
+- walls: a walking NPC against a wall gets its axis bits and slides (no motion into the wall); fully boxed in, its step is held; the bits clear next frame;
+- the partner bumping an NPC: its motion towards the NPC stops (axis bits).
+
+`VERIFY.md`, NPCs (3b):
+- a map with wanderers (e.g. File City's town NPCs): they walk their paths, pause, loop; they slide along walls instead of walking into them;
+- a map with wild enemies (mode 12): walking into their range, they walk then run at where you were, stop, wait 2 s, walk back home; touching you starts their section (the battle is reported);
+- a mode-2 NPC turns to follow you while you are near and goes back to wandering when you leave;
+- during a talk the other NPCs keep moving; the one you talk to stops, and after the talk restarts its path.
+
 `VERIFY.md`, NPCs:
 - MAYO04A (the start map): the Aruraumon (day, 7:00–19:00) or the Goburimon (night) at their places, as the setup's IFs choose;
 - touch a wild one: its section starts (the battle is reported);
@@ -202,4 +288,5 @@ Fill `Npc.tick_waypoint_ai()` (`NPCEntityTickWaypointAI`, `NPCEntityTickWaypoint
 
 - **The leftover `a1` of `setActiveAnim(0xC)`** (§2.6) when the animated NPC exists: the value written to the slot-7 NPC's `NPC_ACTIVE_ANIM`. If it is non-zero, the slot-7 NPC stops reacting (no collision, no autotalk) after any scene that walks or animates another NPC, until the map is reloaded. Checkable in an emulator: after such a scene on a map with a slot-7 NPC (e.g. File City's Whamon, TWNA02–13), can you still walk into it / talk to it?
 - **MAYO04A's Etemon** stands at y = −1000 (1000 units up) with autotalk 1, placed only before trigger 242: what it is for (a scene's actor parked out of sight?) isn't traced.
+- **3b, waypoints missing from the data** (§2.10.1): DGHA02 slot 2 (sections 2–3) and FACT04 slot 6 have a section without a waypoint; the C reads whatever the slot held on the previous map. The port reads 0 (a wait of 0, a walk to the map's origin). Only checkable in an emulator, and only matters on those 2 NPCs.
 - **`unk1`, `unk2`** of the map data: not read by the overworld code found so far (battle?).

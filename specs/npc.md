@@ -1,6 +1,6 @@
 # NPCs (port spec)
 
-Status (2026-10-23): spec written, step 3 of `specs/script.md` §3.1, option A (decided 2026-10-23): the map Digimon appear, can be talked to, and are moved and animated by scripts; between talks they stand. Their own behaviour (waypoint wandering, looking at / tracking the tamer) is step 3b (§3.4), filled into the same frame function.
+Status (2026-10-23): step 3 of `specs/script.md` §3.1 done, option A (decided 2026-10-23): the map Digimon appear, can be talked to, and are moved and animated by scripts; between talks they stand. Code: `scripts/field/field_digimon.gd` (shared with the partner), `npc.gd`, `field_entities.gd`, the interpreter's entity opcodes, `field.gd`; test `tests/test_npc.gd` (38 checks). Their own behaviour (waypoint wandering, looking at / tracking the tamer) is step 3b (§3.4), filled into the same frame function.
 
 The map Digimon ("NPCs") of the original: up to 8 per map, placed by the map setup scripts from the map's entity list, ticked once per game frame, talked to by touching them (✕ or on contact), and moved by script instructions. Wild enemies are NPCs too: their talk section starts the battle.
 
@@ -148,7 +148,8 @@ The savegame's `npcMaps[8]` (`world.npc_on_map`) is written on save and copied b
   - `Partner` extends it (no behaviour change; `test_partner.gd` must still pass).
 - **`Npc`** (`scripts/field/npc.gd`, extends `FieldDigimon`): one NPC slot: the map data (`MAP_DIGIMON_TABLE`: type, follow mode, position, rotation, tracking range, AI sections, waypoints) and its state (`script_id`, `autotalk`, `stop_anim`, `active_anim`, `walking_towards`, `collision_state`, `on_map`, the AI state of 3b: `look_at_tamer_state`, `has_waypoint_target`, `waypoint_wait_timer`, the angles, `active_section`). `tick()` is §2.3, with `tick_waypoint_ai()` and `tick_follow_mode()` empty (reported once).
 - **`FieldEntities`** (`scripts/field/field_entities.gd`, new): `ENTITY_TABLE[10]`: the tamer, the partner, 8 NPC slots. `script_id_to_entity_id`, `entity_from_script_id`, `entity_check_collision(source, entity)`, `npc_for_script_id`, the 8 loaded-model slots. The interpreter's `_actor`, `script_id_to_entity_id` and the field's `_entity_screen_position` / `entity_type` use it.
-- The tamer gets `step`, `radius` from the data and the blocked-step flag (`animFlag & 2`), so his root motion stops at an NPC like the original's.
+- The tamer gets `step`, `on_screen` / `on_map` and the blocked-step flag (`animFlag & 2`), so his root motion stops at an NPC like the original's. His model radius (100) equals `DIGIMON_DATA[0].radius`.
+- Without an entity table (headless tests of other systems) the entity opcodes run as unported (`ScriptInterpreter.NPC_OPS`, their bytes in `UNPORTED`).
 
 ### 3.2 The field
 

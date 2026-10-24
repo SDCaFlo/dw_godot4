@@ -4,10 +4,14 @@ extends ColorRect
 ## rect. A render object in the original, so it steps once per game frame after the tick objects
 ## (connect tick() to GameLoop.frame after the partner and the clock).
 ##
-## The original subtracts `progress` (0..160) from every colour (semi-transparency mode 2); the
-## port darkens with black at alpha progress / 160, close but not the same curve.
+## renderFade (fade.c:144) draws a textured quad tinted progress (0..160) in semi-transparency mode
+## 2: screen minus quad. A tint of 128 is 1.0 on the PSX, so from progress 128 the whole texel
+## (assumed white) is subtracted and the screen is black; the port subtracts grey min(progress /
+## 128, 1) the same way.
 
 const FULL := 160
+## The tint of a full-strength texel (PSX texture modulation: 128 = 1.0).
+const TINT_ONE := 128.0
 ## Not in the original: game frames the screen stays black after a map change, before the fade in.
 ## The PSX reads the new map from the CD while black (changeMap blocks the game loop); the port
 ## loads it in one frame. Also covers the frames that run in bursts after the load's hitch.
@@ -29,7 +33,9 @@ var _hold := 0
 
 
 func _ready() -> void:
-	color = Color.BLACK
+	var blend := CanvasItemMaterial.new()
+	blend.blend_mode = CanvasItemMaterial.BLEND_MODE_SUB
+	material = blend
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# Anchors and offsets: anchors alone keep the old (zero) size.
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -84,4 +90,5 @@ func tick() -> void:
 
 func _draw_progress() -> void:
 	visible = progress > 0
-	color.a = float(progress) / FULL
+	var grey := minf(progress / TINT_ONE, 1.0)
+	color = Color(grey, grey, grey)

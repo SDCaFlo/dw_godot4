@@ -381,7 +381,7 @@ Started from the menu's "Sleep" (partner state 3, `game_menu.c:2178–2186`), on
 |---|---|---|
 | menu "Sleep" (enabled while sleepy) | debug key `Z` (later also the panel), refused unless `Care.sleep_enabled` and both are free | menus milestone |
 | save prompt after sleeping (sub-state 5) | skipped | menus |
-| fade to black / in | `Fade`: `fade.c`'s counters exactly (`out_current`, `in_current`, `progress`, `protection`, stops game time); drawn as black at alpha `progress / 160` instead of the original's colour subtraction | kept, reused by warps later |
+| fade to black / in | `Fade`: `fade.c`'s counters exactly (`out_current`, `in_current`, `progress`, `protection`, stops game time); drawn as the original's colour subtraction (`renderFade`, mode 2): grey `min(progress / 128, 1)` subtracted, so black from progress 128 (the texel assumed white; 128 is a tint of 1.0) | kept, reused by warps later |
 | "<name> is sick" text box (tamer state 0x14) | done (2026-10-23): `Care._show_sick_message` draws the text into the text area and sets the tamer's state 20; `Tamer.tick_award_something` shows it in the message box (`specs/text.md` §2.5) | — |
 | script section 0x4DE (collapse / death), `IS_SCRIPT_PAUSED` | the care sets the C values (lives − 1, timer 0, `IS_NATURAL_DEATH`), sets `script_running` and emits `script_requested(0x4DE)`. The field applies what `partnerTickDying` leaves at its end (lifetime 360, sickness / injury timers 0, `partner.c:674–676`) and ends the "script"; no rebirth | scripts milestone |
 | scene animations the model lacks | skipped (the scene goes on); the original would wait forever | kept |
@@ -483,7 +483,7 @@ The virus-bar evolution to Sukamon (0x27) and the reincarnation stats (types 1, 
 - **Loading a game** calls `initializePartner` (§2.15). The port keeps the saved care values on load. Where the original restores `PARTNER_PARA` after the reset is to be traced with the save menu.
 - **Wild poop, sub-state 1 (answered 2026-10-23):**
   - **Rule:** `getPartnerTamerCloseness() > 0` means near *or close* (0 is far). The partner runs to the tamer until it is within 3.5 radii, then squats.
-  - **No walls in the scenes:** these states never call `entityCheckCollision`, the only caller of `checkMapCollision` (`map.c:3434`), so nothing tests the map. The port first blocked the partner on walls in every state, and a far partner then ran into a wall forever, with the tamer frozen. Now the map blocks only in the normal state (`Partner._move`). The sleep scene's walk to the tamer (sub-state 1) is covered by the same rule.
+  - **No walls in the scenes:** these states never call `entityCheckCollision`, the only caller of `checkMapCollision` (`map.c:3434`), so nothing tests the map. The port first blocked the partner on walls in every state, and a far partner then ran into a wall forever, with the tamer frozen. Then the map blocked only in the normal state; since 2026-10-24 it blocks the partner in no state (`specs/partner.md` §3: the C never holds the partner's motion at walls). The sleep scene's walk to the tamer (sub-state 1) is the same.
 - **Partner stats** at a new game are 0 until the intro scripts set them. The unhappy stat loss then clamps them to 1, as the code would. The debug panel can set stats.
 - **`sub_tiredness`** is never increased in the decomp (§2.6): kept as dead code.
 - **`randomLimit(1)`** in `setSleepTimes` is always 0. Possibly meant as 0–1; kept.

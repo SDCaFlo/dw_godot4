@@ -4,7 +4,8 @@ Status (2026-10-23):
 - **done:** step 1 of §3.1, the core: `ScriptFiles`, `ScriptInterpreter`, `systems/script_stat_limits`, `tests/test_script.gd`;
 - **done:** step 2, the entry points: map entry through MAPHEAD, warp cells (tamer state 5), trigger cells 51–109, the toilet cell, `WARP_TO` / `TELEPORT` with the fade and the map name, the previous-map rules (`change_map_previous`). `SECTION_ON_EXIT` and the collapse `0x4DE` moved to step 3: they need the entity opcodes;
 - **done ahead of step 4:** `ENTITY_WALK_TO` for the tamer and the partner (movement type 2, §2.7), for the walk-out exits;
-- **next:** step 3, the NPCs.
+- **done:** step 3, the NPCs (`specs/npc.md`, option A): `LOAD` / `SET` / `UNLOAD_DIGIMON`, `UNLOAD_ENTITY`, `SET_AUTOTALK`, `PLAY_ANIMATION`, `ENTITY_LOOK_AT_ENTITY`, `ENTITY_SET_ROTATION`, `RESET_ENTITY_ORIGIN`, `ENTITY_WALK_TO` on NPCs, movement types 0–2, talking and the turn to each other;
+- **next:** step 3b (the NPCs' AI) or step 4 (scripted movement and the camera).
 
 The original's bytecode interpreter: how a script section starts, how each frame runs instructions until one waits, the call stack, the conditions, and what each instruction changes. It runs the map setup (music, NPCs), every NPC talk, trigger cells, cutscenes, shops, battles and the new game. The script files and their instruction layouts are documented in `asset_porter/specs/scn.md`; the text and choice instructions in `specs/text.md` §2.6–2.7.
 

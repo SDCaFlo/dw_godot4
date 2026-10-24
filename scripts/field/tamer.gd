@@ -27,6 +27,13 @@ const SCREEN_BONE := 1
 var direction := 0
 var radius := 100
 var field: FieldMap
+## Entity 0 of the entity table (FieldEntities): on the map and on screen (isInvisible).
+var on_screen := true
+var on_map := true
+## Ground distance his root motion moved during the last game frame (entityMoveForward's step).
+var step := 0.0
+## animFlag & 2: his step is held this frame (checkMapInteraction: he stands against an NPC).
+var step_blocked := false
 ## The tamer's state (TAMER_STATE); input moves him only in STATE_FREE, which also ends a scene
 ## animation.
 var state := STATE_FREE:
@@ -120,7 +127,10 @@ func _process(delta: float) -> void:
 			_play(ANIM_IDLE)
 		_player.advance(delta)
 		motion = _player.get_root_motion_position()
-	_move(_skeleton.global_basis * motion)
+	var world_motion := _skeleton.global_basis * motion
+	step += Vector2(world_motion.x, world_motion.z).length()
+	if not step_blocked:
+		_move(world_motion)
 	if camera_follow:
 		field.follow(global_position)
 
@@ -138,10 +148,15 @@ func tick() -> void:
 		STATE_FREE:
 			if map_interaction.is_valid():
 				map_interaction.call()
+			else:
+				step_blocked = false
 		STATE_CHANGE_MAP:
 			tick_change_map()
 		STATE_AWARD:
 			tick_award_something()
+	if state != STATE_FREE:
+		step_blocked = false
+	step = 0.0
 
 
 ## tamerTickChangeMap (tamer.c:1367): fade out running (animation 2), the map name at frame 10,
@@ -245,10 +260,28 @@ func look_at_psx(target_x: int, target_z: int) -> void:
 		_set_direction((0x800 + roundi(atan2(dx, dz) * 0x800 / PI)) & 0xFFF)
 
 
-## startAnimationTamer(id) for the loop animations (0 idle, 2 run, 3 walk), as STATE_SCRIPT plays
-## them.
+## startAnimationTamer(id), as STATE_SCRIPT plays it: the loops (0 idle, 2 run, 3 walk) through his
+## AnimationPlayer, the others as scene animations (PsxAnimator, held on their last frame).
 func start_animation(id: int) -> void:
 	_script_animation = id
+	if id == 0 or id == 2 or id == 3:
+		_scene_playing = false
+	else:
+		play_scene_animation(id)
+
+
+## entity->anim.animId: the scene animation playing, else the loop's id.
+func animation_id() -> int:
+	if _scene_playing and _scene != null:
+		return _scene.anim_id
+	if _player == null:
+		return _script_animation if state == STATE_SCRIPT else 0
+	return int(_player.current_animation.trim_prefix("anim_")) if _player.current_animation != "" else 0
+
+
+## PSX rotation.vy, for the scripts (ENTITY_SET_ROTATION, tickLookAtEntity).
+func set_direction(vy: int) -> void:
+	_set_direction(vy)
 
 
 func _animation_name(id: int) -> String:

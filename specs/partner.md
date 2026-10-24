@@ -88,10 +88,12 @@ Animation ids follow the game: 0 idle, 1 tired idle, 2 walk, 3 tired walk, 4 run
 - **`Partner`** (`scripts/field/partner.gd`, a node of the field scene next to the tamer) loads the model of `GameState.state.partner.digimon` through its `files` component (`CHDAT/MMD<n>/<NAME>.MMD` → `mmd_files/MMD<n>/<NAME>.gltf`).
   - **Logic:** decisions run once per game frame (`GameLoop.frame`).
   - **Visuals:** the animation and root-motion movement run every Godot frame, like the tamer, so they stay smooth.
-  - **Walls:** the partner moves like the tamer: root motion along its facing, undone when the map blocks it, sliding along the free axis.
-    
-    The original's split between the collision probe (`entityCheckCollision` restores the position) and the movement in the momentum code isn't traced yet, so this follows the tamer port.
-  - **Entity collisions:** the partner checks the tamer only, with the box test of `entityCheckEntityCollision`: its leading edge after one step (`Partner.step`, the root motion of the last game frame) against the tamer's square, radii `DIGIMON_DATA` 120 for Agumon and 100 for the tamer. A bump keeps the old rotation (§2.3) and, in the close range, stops the walk at once. It never blocks the movement: like the original, the entity checks restore the position, and only the map stops the momentum.
+  - **Walls (traced 2026-10-24):** nothing stops the partner at the map, as in the original: its root motion moves it along its facing, whatever the map.
+    - In the C only `collisionGrace` (`map.c:3466`) holds motion: it sets the `animFlag` axis bits `8 << (rotation / 1024)` that `applyRootMomentum` (`anim.c:482-489`) uses to zero the motion towards blocked sides, or bit 2 for the whole step.
+    - The partner gets `collisionGrace` for entity hits only (`map.c:3356`). A map hit (10) changes nothing in `partnerTickCollision` or `partnerTickWalking` (`partner.c:900`), so its walk is never held by a wall. The tamer's walls are his `collisionGrace` (`tamer.c:681`).
+    - What keeps the partner off walls is the waypoints (§2.3): with no 5-tile-wide line to the tamer it walks his earlier tiles. On a corner it may cut a little into the wall, as the C allows.
+    - Before, the port stopped it at walls like the tamer (sliding along the free axis); pressed into a corner with both axes blocked it stayed there, facing the wall, until the tamer moved tile (reported 2026-10-24).
+  - **Entity collisions:** the partner checks the tamer only, with the box test of `entityCheckEntityCollision`: its leading edge after one step (`Partner.step`, the root motion of the last game frame) against the tamer's square, radii `DIGIMON_DATA` 120 for Agumon and 100 for the tamer. A bump keeps the old rotation (§2.3) and, in the close range, stops the walk at once. It never blocks the movement: like the original, the entity checks restore the position. NPCs are entities 2–9 of the same test (`FieldDigimon.probe`, `specs/npc.md` §2.4).
     
     **Why it must not block:** the boxes touch at up to about 311 units on a diagonal, which is still "near" (≥ 300 for Agumon). A blocked step there would leave the partner walking in place; unblocked, it walks on into the close range and stops. NPCs and the tamer's own collision with the partner come with NPCs.
     

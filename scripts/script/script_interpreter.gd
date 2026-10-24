@@ -29,8 +29,13 @@ const MAP_ENTRY_SECTION := 0xFE
 ## The 22 SCRIPT_MOVEMENT slots; 0xFF = free.
 const MOVEMENT_SLOTS := 0x16
 const FREE := 0xFF
-## Movement slot type 2: walk to a point (ENTITY_WALK_TO).
+## Movement slot types: 0 turn to an entity (ENTITY_LOOK_AT_ENTITY, a talk's turn), 1 set the
+## rotation (ENTITY_SET_ROTATION), 2 walk to a point (ENTITY_WALK_TO).
+const MOVE_LOOK_AT := 0
+const MOVE_SET_ROTATION := 1
 const MOVE_WALK_TO := 2
+## tickLookAtEntity's turn per frame (rotateEntity speed).
+const LOOK_AT_SPEED := 0x200
 ## setTrigger(0x2C) skips scriptPauseGame's turn to each other (TRIGGER_44 in trigger.h).
 const TRIGGER_NO_TURN := 0x2C
 const MONEY_MAX := 999999
@@ -66,8 +71,10 @@ const NAMES := {
 	0x7D: "SPAWN_SPRITE_AT_LOCATION", 0x7E: "SPAWN_SPRITE_AT_ENTITY", 0xFB: "SET_SCRIPT", 0xFC: "UNUSED_FC",
 	0xFD: "UNUSED_FD", 0xFE: "END_SECTION", 0xFF: "END_SCRIPT",
 }
-## Opcodes whose system isn't ported: [bytes the C reads after the opcode, scriptPauseGame first,
-## the handler ends the frame (longjmp 2)].
+## The entity opcodes (specs/npc.md §2.2): ported, but run as unported without an entity table.
+const NPC_OPS := [0x46, 0x47, 0x48, 0x4C, 0x4D, 0x54, 0x56, 0x6A, 0x79]
+## Opcodes whose system isn't ported (and NPC_OPS without an entity table): [bytes the C reads
+## after the opcode, scriptPauseGame first, the handler ends the frame (longjmp 2)].
 const UNPORTED := {
 	0x46: [1, false, false], 0x47: [3, true, false], 0x48: [1, true, false], 0x49: [1, true, false],
 	0x4C: [3, true, false], 0x4D: [3, true, false], 0x4F: [5, true, false],
@@ -94,6 +101,8 @@ var clock: Clock
 var care: Care
 var tamer: Tamer
 var partner: Partner
+## The entity table (the NPCs, specs/npc.md); null: only the tamer and the partner.
+var entities: FieldEntities
 ## Field hooks for the map change (step 2): func(map, exit, show_name) -> bool done, called every
 ## frame of scriptTickChangeMap; SET_SCRIPT's loadMap(map); returnFromScriptFile's setupMap().
 var tick_map_change := Callable()
@@ -103,6 +112,10 @@ var setup_map := Callable()
 ## Ticked so far: type 2 (ENTITY_WALK_TO) for the tamer and the partner; the rest with step 4.
 var movement: Array = []
 var movement_args: Array = []
+## tickLookAtEntity's HAS_ROTATION_DATA / ROTATION_DATA per entity (0-9): the target point taken
+## on the first frame of a turn.
+var _has_rotation_data: Array = []
+var _rotation_data: Array = []
 
 var _reported := {}
 ## SCRIPT_MAP_CHANGE_SHOW_NAME.
@@ -119,6 +132,10 @@ func _init(script_ctx: ScriptContext, script_files: ScriptFiles, text_boxes: Tex
 	movement.fill(FREE)
 	movement_args.resize(MOVEMENT_SLOTS)
 	movement_args.fill({})
+	_has_rotation_data.resize(10)
+	_has_rotation_data.fill(false)
+	_rotation_data.resize(10)
+	_rotation_data.fill(Vector2i.ZERO)
 
 
 # --- starting a section (script_interp.c:2235-2273) --------------------------------------------------
@@ -239,21 +256,37 @@ func _wait_done() -> bool:
 
 
 ## tickScriptedMovements / tickScriptedMovement (script_interp.c:2821, :2275): every slot in use.
-## Only type 2 has its tick so far; the other types are never set (their opcodes are unported).
+## Types 0-2 have their ticks; the others are never set (their opcodes are unported). A slot whose
+## entity is gone ends at once.
 func _tick_scripted_movements() -> void:
 	for slot in MOVEMENT_SLOTS:
 		if movement[slot] == FREE:
 			continue
 		var actor := _actor(slot)
+		var args: Dictionary = movement_args[slot]
 		var done := true
-		if movement[slot] == MOVE_WALK_TO and actor != null:
-			var args: Dictionary = movement_args[slot]
-			done = tick_entity_walk_to(actor, args["x"], args["z"])
+		if actor != null:
+			match movement[slot]:
+				MOVE_LOOK_AT:
+					done = tick_look_at_entity(slot, int(args["target"]))
+				MOVE_SET_ROTATION:
+					actor.set_direction(int(args["angle"]))
+				MOVE_WALK_TO:
+					done = tick_entity_walk_to(actor, args["x"], args["z"])
+					if slot >= 2 and entities != null:
+						# NPC_IS_WALKING_TOWARDS while it walks (tamer.c:1012, :1048).
+						entities.walking_towards[slot - 2] = 0 if done else 1
 		if done:
-			# The walkers go back to animation 0 (startAnimationTamer(0) / partnerStartAnimation(0)).
+			# The walkers go back to animation 0 (startAnimationTamer(0) / partnerStartAnimation(0)
+			# / scriptNPCStartAnimation(id, 0)).
 			if slot < 10 and movement[slot] < 8 and actor != null:
 				actor.start_animation(0)
 			movement[slot] = FREE
+
+
+func _set_movement(slot: int, type: int, args: Dictionary) -> void:
+	movement[slot] = type
+	movement_args[slot] = args
 
 
 ## tickEntityWalkTo(id, 0xFF, x, z, 0) (tamer.c:991): turn to the point; done on its tile. The
@@ -264,13 +297,75 @@ static func tick_entity_walk_to(actor: Node3D, x: int, z: int) -> bool:
 	return from == FieldMap.model_tile(x, z)
 
 
-## The entity a movement slot moves: 0 the tamer, 1 the partner (NPCs with step 3).
+## tickLookAtEntity (tamer.c:1058): the first frame takes the target's position, then the entity
+## turns 0x200 per frame (rotateEntity) the shorter way to it.
+func tick_look_at_entity(entity_id: int, target_script_id: int) -> bool:
+	var actor := _actor(entity_id)
+	if not _has_rotation_data[entity_id]:
+		var target := _entity_for_script_id(target_script_id)
+		if target == null:
+			return true
+		_rotation_data[entity_id] = Vector2i(int(target.position.x), int(-target.position.z))
+		_has_rotation_data[entity_id] = true
+		return false
+	var to: Vector2i = _rotation_data[entity_id]
+	var turned := rotate_entity(actor.direction, to.x - int(actor.position.x), to.y - int(-actor.position.z), LOOK_AT_SPEED)
+	actor.set_direction(turned[0])
+	if turned[1]:
+		_has_rotation_data[entity_id] = false
+	return turned[1]
+
+
+## getRotationDifference + rotateEntity (overworld.c:1484, :1503): one turn step from `vy` towards
+## the angle of (dx, dz). Returns [new vy, reached].
+static func rotate_entity(vy: int, dx: int, dz: int, speed: int) -> Array:
+	var target := (0x800 + roundi(atan2(dx, dz) * 0x800 / PI)) & 0xFFF
+	var cw: int
+	var cc: int
+	if target > vy:
+		cw = target - vy
+		cc = vy + (4096 - target)
+	else:
+		cw = target + (4096 - vy)
+		cc = vy - target
+	if vy < target:
+		if cc < cw:
+			vy -= speed
+			if target - 4096 > vy:
+				return [target, true]
+		elif cw < cc:
+			vy += speed
+			if target < vy:
+				return [target, true]
+	elif target < vy:
+		if cc < cw:
+			vy -= speed
+			if vy < target:
+				return [target, true]
+		elif cw < cc:
+			vy += speed
+			if target + 4096 < vy:
+				return [target, true]
+	else:
+		return [target, true]
+	return [vy & 0xFFF, false]
+
+
+## The entity a movement slot moves: 0 the tamer, 1 the partner, 2-9 the NPCs.
 func _actor(slot: int) -> Node3D:
 	if slot == 0:
 		return tamer
 	if slot == 1:
 		return partner
+	if entities != null and slot < 10:
+		return entities.entity(slot)
 	return null
+
+
+## getEntityFromScriptId; null when there is none.
+func _entity_for_script_id(script_id: int) -> Node3D:
+	var id := script_id_to_entity_id(script_id)
+	return _actor(id) if id != FREE else null
 
 
 ## scriptSetEntityWalking (script_interp.c:879): the walk animation and the script state.
@@ -283,6 +378,40 @@ func set_entity_walking(script_id: int, anim: int) -> void:
 		if partner != null:
 			partner.start_animation((anim + 1) << 1)
 			partner.set_state(Partner.STATE_SCRIPT)
+	else:
+		_npc_start_animation(script_id, (anim + 1) << 1)
+
+
+## scriptStartAnimation (script_interp.c:893): PLAY_ANIMATION.
+func script_start_animation(script_id: int, anim: int) -> void:
+	if script_id == ScriptContext.OWNER_TAMER:
+		if tamer != null:
+			tamer.start_animation(anim)
+			tamer.set_state(Tamer.STATE_SCRIPT)
+	elif script_id == ScriptContext.OWNER_PARTNER:
+		if partner != null:
+			partner.start_animation(anim)
+			partner.set_state(Partner.STATE_SCRIPT)
+	else:
+		_npc_start_animation(script_id, anim)
+
+
+## scriptNPCStartAnimation (overworld.c:1802) on the first NPC with that script id, then the
+## setActiveAnim(0xC) quirk (specs/npc.md §2.6): the C passes the script id 0xC and a leftover
+## animId, so the animated NPC keeps its frame and the NPC with script id 12 gets NPC_ACTIVE_ANIM
+## = the leftover. Without the animated NPC the leftover is the animation id; with it, it is
+## unknown (§6: left unchanged).
+func _npc_start_animation(script_id: int, anim: int) -> void:
+	if entities == null:
+		return
+	var slot := entities.npc_slot_for_script_id(script_id)
+	if slot >= 0:
+		entities.npcs[slot].start_animation(anim)
+		return
+	var gated := entities.npc_slot_for_script_id(0xC)
+	if gated >= 0:
+		# setActiveAnim stores an int8.
+		entities.active_anim[gated] = ((anim & 0xFF) ^ 0x80) - 0x80
 
 
 ## The end of tickScript once the script paused (script_interp.c:634-642).
@@ -312,7 +441,12 @@ func pause_game(owner: int) -> void:
 		textboxes.text_area.clear_all()
 		if clock != null:
 			clock.running = false
-		# An event section's NPC and the tamer turn to each other (movement slots type 0): step 4.
+		# An event section (an NPC talk): the NPC and the tamer turn to each other (type 0).
+		if ctx.section_is_event != 0 and not game_state.is_trigger_set(TRIGGER_NO_TURN):
+			var npc := script_id_to_entity_id(ctx.section)
+			if npc != FREE:
+				_set_movement(npc, MOVE_LOOK_AT, {"id": ctx.section, "target": ScriptContext.OWNER_TAMER})
+				_set_movement(0, MOVE_LOOK_AT, {"id": ScriptContext.OWNER_TAMER, "target": ctx.section})
 	game_state.clear_trigger(TRIGGER_NO_TURN)
 	if owner < ScriptContext.OWNER_SPECIAL:
 		var entity := script_id_to_entity_id(owner)
@@ -327,11 +461,19 @@ func set_movement_enabled(id: int, enabled: bool) -> void:
 		tamer.set_state(Tamer.STATE_STILL if enabled else Tamer.STATE_FREE)
 	if (id == 1 or id == -1) and partner != null:
 		partner.set_state(Partner.STATE_IDLE if enabled else Partner.STATE_NORMAL)
-	# NPCs (MAP_DIGIMON_TABLE[].stopAnim): step 3.
+	# The NPCs: MAP_DIGIMON_TABLE[].stopAnim, their AI state cleared when taken.
+	if entities != null:
+		if id == -1:
+			entities.set_stop_anim(-1, enabled)
+		elif id >= 2:
+			entities.set_stop_anim(id - 2, enabled)
 
 
-## scriptIdToEntityId (script_value.c:131): 0 the tamer, 1 the partner, 2-9 NPCs (step 3), 0xFF none.
+## scriptIdToEntityId (script_value.c:131): 0 the tamer, 1 the partner, 2-9 the NPC entities,
+## 0xFF none.
 func script_id_to_entity_id(script_id: int) -> int:
+	if entities != null:
+		return entities.script_id_to_entity_id(script_id)
 	if script_id == ScriptContext.OWNER_TAMER:
 		return 0
 	if script_id == ScriptContext.OWNER_PARTNER:
@@ -567,7 +709,43 @@ func _op_28_3f(op: int) -> int:
 
 
 func _op_46_58(op: int) -> int:
+	if entities == null and op in NPC_OPS:
+		return _unported_op(op)
 	match op:
+		0x46:
+			entities.load_model(ctx.next_byte())
+		0x47:
+			pause_game(0xFF)
+			var type := ctx.next_byte()
+			var slot := ctx.next_byte()
+			entities.set_digimon(type, slot, ctx.next_byte())
+		0x48:
+			pause_game(0xFF)
+			var id := ctx.next_byte()
+			if not entities.unload_entity(id):
+				_report(op, "UNLOAD_ENTITY of an entity not on the map")
+		0x4C:
+			pause_game(0xFF)
+			ctx.pointer += 1
+			var id := ctx.next_byte()
+			var target := ctx.next_byte()
+			var slot := script_id_to_entity_id(id)
+			if slot != FREE:
+				_set_movement(slot, MOVE_LOOK_AT, {"id": id, "target": target})
+		0x4D:
+			pause_game(0xFF)
+			var id := ctx.next_byte()
+			var angle := _s16(_u16())
+			var slot := script_id_to_entity_id(id)
+			if slot != FREE:
+				_set_movement(slot, MOVE_SET_ROTATION, {"id": id, "angle": angle})
+		0x54:
+			pause_game(0xFF)
+			entities.reset_entity_origin(ctx.next_byte())
+		0x56:
+			ctx.pointer += 1
+			var id := ctx.next_byte()
+			script_start_animation(id, ctx.next_byte())
 		OP_WAIT_FOR_ENTITY:
 			var id := ctx.next_byte()
 			ctx.active_instruction = OP_WAIT_FOR_ENTITY
@@ -580,14 +758,10 @@ func _op_46_58(op: int) -> int:
 			var z := _s16(_u16())
 			var anim := ctx.next_byte()
 			ctx.next_byte()
-			var slot := script_id_to_entity_id(id)
-			if slot == FREE:
-				# An NPC (its animation and slot come with step 3).
-				_report(op, "ENTITY_WALK_TO (NPC)")
-				return NEXT
 			set_entity_walking(id, anim)
-			movement[slot] = MOVE_WALK_TO
-			movement_args[slot] = {"id": id, "x": x, "z": z}
+			var slot := script_id_to_entity_id(id)
+			if slot != FREE:
+				_set_movement(slot, MOVE_WALK_TO, {"id": id, "x": x, "z": z})
 		0x4B:
 			pause_game(0xFF)
 			ctx.script_param_1 = ctx.next_byte()
@@ -622,7 +796,17 @@ func _op_5a_5f(op: int) -> int:
 
 
 func _op_64_7e(op: int) -> int:
+	if entities == null and op in NPC_OPS:
+		return _unported_op(op)
 	match op:
+		0x6A:
+			ctx.pointer += 1
+			var slot := script_id_to_entity_id(ctx.next_byte())
+			var value := ctx.next_byte()
+			if slot != FREE and slot >= 2:
+				entities.slots[slot - 2]["autotalk"] = value
+		0x79:
+			entities.unload_model(ctx.next_byte())
 		ScriptContext.OP_CALL_ROUTINE:
 			return _call_routine(ctx.next_byte())
 		0x65:

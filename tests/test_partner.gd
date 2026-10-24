@@ -71,17 +71,16 @@ func _run() -> void:
 	_eq(partner.direction, 0xC00, "collisionGrace doesn't turn for the tamer (he is its source; turning here spun the partner)")
 	partner.step = 0.0
 
-	# The map blocks only in the normal state: the scenes have no entityCheckCollision, so a far
-	# partner reaches the tamer through walls (it used to run into a wall forever).
+	# No walls: the original never stops the partner's root motion at the map (only collisionGrace
+	# zeroes motion, and the partner gets it for entity hits alone); blocking left it stuck.
 	map._collision.fill(0x80)
 	partner.position = Vector3(1000, 0, 0)
 	partner._set_direction(0xC00)
 	partner._move(Vector3(10, 0, 0))
-	_eq(partner.position.x, 1000.0, "normal state: a wall blocks the step")
-	partner.set_state(Partner.STATE_WILD_POOP)
-	partner._move(Vector3(10, 0, 0))
-	_eq(partner.position.x, 1010.0, "wild-poop scene: no map collision")
-	partner.set_state(Partner.STATE_NORMAL)
+	_eq(partner.position.x, 1010.0, "normal state: a wall doesn't stop the step")
+	partner.step = 10.0
+	_eq(partner.probe(partner.direction), Partner.HIT_MAP, "entityCheckCollision still reports the map (10)")
+	partner.step = 0.0
 	map._collision.fill(0)
 	_animator(partner)
 	_walking(partner, tamer, gs)

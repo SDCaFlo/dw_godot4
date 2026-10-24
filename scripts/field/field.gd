@@ -35,6 +35,10 @@ extends Node
 var _maps: PackedStringArray
 var _clock: Clock
 var _partner: Partner
+## The entity table: the tamer, the partner, the map's NPCs (specs/npc.md).
+var _entities: FieldEntities
+## TALKED_TO_ENTITY: the entity (2-9) of the last NPC talk.
+var _talked_to_entity := 0
 var _care: Care
 var _fade: Fade
 var _poop: PoopPiles
@@ -73,6 +77,7 @@ func _ready() -> void:
 	# (specs/care.md §2.1).
 	GameLoop.frame.connect(_tamer.tick)
 	_start_partner()
+	_start_npcs()
 	_start_clock()
 	_start_text()
 	_start_care()
@@ -95,6 +100,51 @@ func _start_partner() -> void:
 		_partner = null
 		return
 	GameLoop.frame.connect(_partner.tick)
+
+
+## The entity table and the map's NPCs (specs/npc.md): created by SET_DIGIMON, ticked after the
+## partner in slot order (the NPC objects come after the tamer's and the partner's).
+func _start_npcs() -> void:
+	_entities = FieldEntities.new()
+	_entities.tamer = _tamer
+	_entities.partner = _partner
+	_entities.npc_factory = _create_npc
+	if _partner != null:
+		_partner.entities = _entities
+	GameLoop.frame.connect(_tick_npcs)
+
+
+func _create_npc(slot: int) -> Npc:
+	var npc := Npc.new()
+	npc.name = "Npc%d" % slot
+	npc.slot = slot
+	npc.field = _field
+	npc.entities = _entities
+	npc.tamer = _tamer
+	npc.talk = _npc_autotalk
+	$World/SubViewport.add_child(npc)
+	if not npc.load_digimon(GameData, int(_entities.slots[slot]["type"])):
+		npc.queue_free()
+		return null
+	return npc
+
+
+func _tick_npcs() -> void:
+	for npc in _entities.npcs:
+		if npc != null:
+			npc.tick()
+
+
+## NPCEntityTickOverworld's autotalk (overworld.c:1328): while no script runs, the NPC's section.
+func _npc_autotalk(npc: Npc) -> void:
+	if _interpreter != null and _script_ctx.is_paused:
+		_talk_to(npc)
+
+
+## TALKED_TO_ENTITY and callScriptSection(CURRENT_SCRIPT_ID, npc.scriptId, 1).
+func _talk_to(npc: Npc) -> void:
+	_talked_to_entity = npc.slot + 2
+	_interpreter.call_section(_script_ctx.current_script_id, npc.script_id(), 1)
 
 
 ## The text area, the UI boxes and the tamer's message box (specs/text.md). The boxes run their
@@ -125,6 +175,8 @@ func _start_text() -> void:
 	_interpreter.clock = _clock
 	_interpreter.tamer = _tamer
 	_interpreter.partner = _partner
+	_interpreter.entities = _entities
+	_script_ctx.entity_type = _entity_type
 	_interpreter.unported.connect(func(_op, what): _show_message("script: not ported yet: " + what))
 	# Map entry goes through MAPHEAD (specs/script.md §3): SET_SCRIPT loads the map, the end of
 	# the setup section sets it up, script warps run the map change.
@@ -156,15 +208,26 @@ func _start_text() -> void:
 	_tamer.message_box = MessageBox.new(_boxes, _text_area)
 
 
-## setupBoxOrigin's getEntityScreenPos(entity, 1) for a script id: the tamer and the partner; map
-## NPCs aren't spawned yet (null: the box opens without growing).
+## setupBoxOrigin's getEntityScreenPos(entity, 1) for a script id: the tamer, the partner, an NPC
+## on the map (null without one: the box opens without growing).
 func _entity_screen_position(script_id: int):
 	if script_id == ScriptContext.OWNER_TAMER:
 		return _tamer.screen_position()
 	if script_id == ScriptContext.OWNER_PARTNER and _partner != null:
 		var p := _camera.unproject_position(_partner.global_position)
 		return Vector2i(roundi(p.x) - 160, roundi(p.y) - 120)
+	var npc := _entities.entity_from_script_id(script_id) if _entities != null else null
+	if npc is Npc:
+		return npc.screen_position(_camera)
 	return null
+
+
+## The Digimon type of a script id's entity (the speaker's name): the partner's, an NPC's; -1.
+func _entity_type(script_id: int) -> int:
+	if script_id == ScriptContext.OWNER_PARTNER:
+		return GameData.id_of("digimon/digimon_data", GameState.state["partner"]["digimon"])
+	var slot := _entities.npc_slot_for_script_id(script_id) if _entities != null else -1
+	return int(_entities.slots[slot]["type"]) if slot >= 0 else -1
 
 
 ## The care rules and the fade they use (specs/care.md §3). A new game's partner gets
@@ -325,6 +388,13 @@ func _script_load_map(map_id: int) -> void:
 func _load_map_at_exit(map_name: String, exit: int) -> bool:
 	if not _field.load_map(map_name):
 		return false
+	# changeMap's removeMapEntities, then loadMap's clearMapDigimon + loadMapDigimon (the NPCs
+	# appear when the MAPHEAD section's SET_DIGIMON places them).
+	if _entities != null:
+		_entities.remove_map_entities()
+		_entities.clear_map_digimon()
+		var entry: Dictionary = _field.data.get("map_entry", {})
+		_entities.load_map_digimon(_field.data.get("digimon", []), bool(entry.get("has_digimon", false)))
 	var spawn_point := _field.spawn(clampi(exit, 0, _field.data["spawns"].size() - 1))
 	_tamer.place(spawn_point)
 	if _partner != null:
@@ -375,13 +445,30 @@ func _change_map(map_id: int, exit: int) -> void:
 	_interpreter.run_map_head(map_id)
 
 
-## checkMapInteraction (tamer.c:660), the cells: 120 the toilet, 110-119 warps, 51-79 scripts on
-## entering, 80-109 scripts on ✕. (NPC talk and chests come with the NPCs and items.)
+## checkMapInteraction (tamer.c:660): the NPCs (touching one holds his step; ✕ or its autotalk
+## starts its section), then the cells: 120 the toilet, 110-119 warps, 51-79 scripts on entering,
+## 80-109 scripts on ✕. (Chests come with the items.)
 func _check_map_interaction() -> void:
-	if _tamer.state != Tamer.STATE_FREE or _field.data.is_empty():
+	if _field.data.is_empty():
+		return
+	var paused := _script_ctx == null or _script_ctx.is_paused
+	if _entities != null:
+		# entityCheckCollision(partner, tamer) clears animFlag & 2 first.
+		_tamer.step_blocked = false
+		var pad := GameLoop.pad
+		var confirm_now := (pad.polled & ~pad.polled_previous & Pad.CONFIRM) != 0
+		var hit := _entities.tamer_collision(confirm_now, _tamer.animation_id() == 0)
+		if hit >= 2 and hit < 10:
+			_tamer.step_blocked = true
+			var npc: Npc = _entities.entity(hit)
+			var autotalk := npc.autotalk()
+			if (autotalk == 1 or (autotalk == 0 and pad.is_changed(Pad.CONFIRM))) and paused and _interpreter != null:
+				_talk_to(npc)
+				# The C goes on to the cells, with the script now running (IS_SCRIPT_PAUSED 0).
+				paused = _script_ctx.is_paused
+	if _tamer.state != Tamer.STATE_FREE:
 		return
 	var trigger := _field.tile_trigger(_tamer.position)
-	var paused := _script_ctx == null or _script_ctx.is_paused
 	if trigger == 120:
 		if GameState.has_condition(GameState.CONDITION_POOPY) and paused and _interpreter != null:
 			_interpreter.call_section(ScriptFiles.MAPHEAD, 0x4E2, 0)

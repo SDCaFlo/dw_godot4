@@ -271,10 +271,10 @@ func _walk_to() -> void:
 	_eq([interp.movement[1], partner.state, interp.movement_args[1]["z"]],
 			[ScriptInterpreter.MOVE_WALK_TO, Partner.STATE_SCRIPT, 1000], "the partner: slot 1, state 12")
 	_force_end()
-	# An NPC's walk is reported (step 3) and its bytes skipped.
+	# An NPC's walk without the entity table (tests/test_npc.gd has them): its bytes skipped.
 	gs.set_script_value(73, 0)
 	_run([0x4E, 0x05, 0, 0, 0, 0, 0, 0, 0x1E, 0, 73, 1, 0xFE, 0])
-	_eq([gs.script_value(73), "ENTITY_WALK_TO (NPC)" in unported], [1, true], "an NPC's walk: reported, bytes skipped")
+	_eq(gs.script_value(73), 1, "an NPC's walk without NPCs: bytes skipped, the script goes on")
 	# Green Gym's walk-out (script 108, section 0x33): the tamer runs to (2200, -3000), then WARP_TO.
 	if Content.load_json("scripts/index.json") != null:
 		var warps := []

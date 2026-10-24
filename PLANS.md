@@ -2,7 +2,7 @@
 
 Working list of what comes next and ideas not started yet. Keep it current: when something is done, move it to "Done" with the commit and drop the details that now live in the code / docs. Per-tool progress stays in `asset_porter/PROGRESS.md` and `data_porter/PROGRESS.md`; the high-level roadmap is in `README.md`.
 
-Last updated: 2026-10-23
+Last updated: 2026-10-24
 
 ## Rules for everything below
 
@@ -48,7 +48,7 @@ Last updated: 2026-10-23
    - [ ] Event-script interpreter (`specs/script.md`, spec written 2026-10-23). Order (§3.1):
      - [x] 1. core: `ScriptFiles`, `ScriptInterpreter` (flow, IF, stack, values, triggers, money, items, cards, stats, dates, text, DELAY), unported opcodes skipped and reported; `D` runs the map's sections; data porter `systems/script_stat_limits`; `tests/test_script.gd` runs all 1269 sections and 255 map setups to their end;
      - [x] 2. entry points: map entry through MAPHEAD (`SET_SCRIPT`, section 0xFE, `setupMap`), warp cells (tamer state 5: fade, map name `scripts/ui/map_name.gd`, `changeMap`), trigger cells 51–109, toilet cell (section 0x4E2), `WARP_TO` / `TELEPORT`; data porter `change_map_previous` (63 checks); `Fade` now covers the screen (its rect had size 0); VERIFY "Map changes";
-     - [ ] 3. NPCs (`specs/npc.md`), option A (decided 2026-10-23): spawning, talking, autotalk, animations; the NPCs stand with their idle animation between talks (spec written 2026-10-23). `CALL_DIGIMON_ROUTINE` moved out: the toilet scene (routine 0) goes to step 4 (camera pan), the collapse / battle loss (7 / 9, the `MURD` + `DOOA` scenes) becomes its own "death and lives" system with the collapse script 0x4DE;
+     - [x] 3. NPCs (`specs/npc.md`; `FieldDigimon` shared with the partner, `Npc`, `FieldEntities`, the entity opcodes, talking; `tests/test_npc.gd`; VERIFY "NPCs"), option A (decided 2026-10-23): spawning, talking, autotalk, animations; the NPCs stand with their idle animation between talks (spec written 2026-10-23). `CALL_DIGIMON_ROUTINE` moved out: the toilet scene (routine 0) goes to step 4 (camera pan), the collapse / battle loss (7 / 9, the `MURD` + `DOOA` scenes) becomes its own "death and lives" system with the collapse script 0x4DE;
      - [ ] 3b. (after 3) NPC behaviour between talks, option B: `NPCEntityTickWaypointAI` / `NPCEntityTickWaypointWalk` (wandering on waypoints) and the `followMode` branches (`NPCEntityTickLookingAtTamer`, `TrackingTamer` 1–4) of `NPCEntityTickOverworld` (`overworld.c:1224`). Step 3 ports that function's frame with these two branches empty, so 3b only fills them in;
      - [ ] 4. scripted movement and the camera, and the partner's toilet scene (`CALL_DIGIMON_ROUTINE` 0, needs the camera pan) (done early: the slot ticks and `ENTITY_WALK_TO` for the tamer and partner, tamer state 10 / partner state 12, so the 121 walk-out exits play);
      - [ ] 5. builtins, battles, items / chests, map objects, sound, with their systems;

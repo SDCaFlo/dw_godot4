@@ -1,10 +1,10 @@
 class_name Partner
-extends Node3D
+extends FieldDigimon
 ## The partner Digimon on the field (specs/partner.md, specs/care.md): partnerTickOverworld with
 ## the normal state (map.c partnerTickCollision, partner.c partnerTickWalking, the care rules) and
 ## the sleep and wild-poop scenes. Decisions run once per game frame (tick, on GameLoop.frame,
 ## before the clock); the animation and its root-motion movement run every Godot frame like the
-## tamer's.
+## tamer's (FieldDigimon).
 
 ## PartnerPara.condition bits read here (params.h:10-16).
 const TIRED_LOOK := 0x1 | 0x2 | 0x20 | 0x40
@@ -15,16 +15,6 @@ const ANIM_WALK := 2
 const ANIM_TIRED_WALK := 3
 const ANIM_RUN := 4
 const WAYPOINTS := 30
-## COLLISION_GRACE_ROTATION (map.c:346): directions collisionGrace tries, by rotation / 512.
-const GRACE := [
-	[0x000, 0x400, 0xC00, 0x800], [0x400, 0x000, 0x800, 0xC00], [0x400, 0x800, 0x000, 0xC00],
-	[0x800, 0x400, 0xC00, 0x000], [0x800, 0xC00, 0x400, 0x000], [0xC00, 0x800, 0x000, 0x400],
-	[0xC00, 0x000, 0x800, 0x400], [0x000, 0xC00, 0x400, 0x800],
-]
-## entityCheckCollision results.
-const FREE := -1
-const HIT_TAMER := 0
-const HIT_MAP := 10
 
 ## PARTNER_STATE values ported so far (partnerTickOverworld, partner.c:218-258).
 const STATE_NORMAL := 1
@@ -35,7 +25,6 @@ const STATE_IDLE := 11
 ## A script moves it (scriptSetEntityWalking): nothing ticks but the animation (partner.c:246).
 const STATE_SCRIPT := 12
 
-var field: FieldMap
 var tamer: Node3D
 var game_state: Node
 ## The care rules (specs/care.md); null: the partner only follows.
@@ -45,13 +34,6 @@ var fade: Fade
 ## PARTNER_STATE / PARTNER_SUB_STATE (partner_impl.c:221), not saved.
 var state := STATE_NORMAL
 var sub_state := 0
-var digimon := ""
-## DIGIMON_DATA.radius.
-var radius := 100
-## PSX rotation.vy (4096 per turn).
-var direction := 0
-var animator: PsxAnimator
-var on_screen := true
 
 ## partner.c state (PARTNER_ANIMATION, STOP_DISTANCE_TIMER, EMOTION_ANIM_TIMEOUT, IS_STANDING_STILL).
 var partner_animation := ANIM_IDLE
@@ -66,14 +48,8 @@ var waypoint_current := 0
 var waypoint_count := 0
 var tamer_previous_tile := Vector2i.ZERO
 
-## DIGIMON_DATA[0].radius: the tamer's collision square.
+## DIGIMON_DATA[0].radius: the tamer's collision square (for the tests without an entity table).
 var tamer_radius := 0
-## Ground distance the root motion moved during the last game frame: the step entityMoveForward
-## probes with (the animation's forward momentum; 0 while idling).
-var step := 0.0
-
-var _skeleton: Skeleton3D
-var _model: Node3D
 
 
 func _ready() -> void:
@@ -85,28 +61,9 @@ func _ready() -> void:
 
 ## Loads the model of a Digimon (key or id) through its files component.
 func load_digimon(data: Node, ref: Variant) -> bool:
-	var record: Dictionary = data.digimon(ref)
-	var mmd: String = data.digimon_file(ref).get("mmd", "")
-	if record.is_empty() or mmd == "":
-		push_error("Partner: no model for %s" % ref)
+	if not super.load_digimon(data, ref):
 		return false
-	var rel := "mmd_files/%s/%s.gltf" % [mmd.get_slice("/", 1), mmd.get_file().get_basename()]
-	var model := Content.load_model(rel)
-	if model == null:
-		return false
-	if _model != null:
-		_model.queue_free()
-	_model = model
-	add_child(model)
-	digimon = record.get("key", str(ref))
-	radius = int(record["radius"])
 	tamer_radius = int(data.digimon(0).get("radius", 0))
-	_skeleton = model.find_children("*", "Skeleton3D", true, false)[0]
-	var player: AnimationPlayer = model.find_children("*", "AnimationPlayer", true, false)[0]
-	var anim_root := player.get_node(player.root_node)
-	player.root_motion_track = NodePath("%s:bone_0" % anim_root.get_path_to(_skeleton))
-	animator = PsxAnimator.new(player, Content.load_json(rel))
-	start_animation(ANIM_IDLE)
 	return true
 
 
@@ -133,14 +90,6 @@ func place_for_spawn(spawn: Dictionary) -> void:
 	set_state(STATE_NORMAL)
 	if game_state != null:
 		game_state.state["partner"]["care"]["area_effect_timer"] = 0
-
-
-func _process(delta: float) -> void:
-	if animator == null or field == null:
-		return
-	var motion := _skeleton.global_basis * animator.advance(delta)
-	step += Vector2(motion.x, motion.z).length()
-	_move(motion)
 
 
 ## partnerTickOverworld (partner.c:213): one game frame of the partner's state, then the screen
@@ -392,57 +341,13 @@ func tick_collision() -> void:
 			pop_waypoint()
 	else:
 		look_at_psx(int(tamer.position.x), int(-tamer.position.z))
-	# An entity collision (0-9) keeps the old rotation and turns along the obstacle.
-	if probe(direction) == HIT_TAMER:
+	# An entity collision (0-9: the tamer or an NPC) keeps the old rotation and turns along the
+	# obstacle; collisionGrace gets the tamer as the source, so only the others make it turn.
+	var hit := probe(direction)
+	if hit >= 0 and hit < HIT_MAP:
 		_set_direction(previous_direction)
-		collision_grace()
+		collision_grace(tamer)
 	tamer_previous_tile = tamer_tile
-
-
-## entityCheckCollision as a probe (map.c:3400): one step (entityMoveForward: the animation's
-## forward motion of a game frame, `step`) along `rotation_vy` from here. FREE, HIT_TAMER or
-## HIT_MAP; the position is not changed. `ignore_tamer`: the tamer is the `source` argument,
-## which the entity loop skips.
-func probe(rotation_vy: int, ignore_tamer := false) -> int:
-	var angle := (rotation_vy - 0x800) * PI / 0x800
-	# The C deltas are whole units: a step under 1 unit (idling) probes nothing.
-	var dx := float(int(sin(angle) * step))
-	var dz := float(int(cos(angle) * step))
-	if rotation_vy == 0x400 or rotation_vy == 0xC00:
-		dz = 0.0
-	if rotation_vy == 0 or rotation_vy == 0x800:
-		dx = 0.0
-	var x := position.x
-	var z := -position.z
-	if _blocked(x + dx, z + dz, dx, dz):
-		return HIT_MAP
-	if not ignore_tamer and hits_tamer(x + dx, z + dz, dx, dz):
-		return HIT_TAMER
-	return FREE
-
-
-## collisionGrace (map.c:3466): try the 4 directions of COLLISION_GRACE_ROTATION and turn at
-## most 0x50 per frame towards the first free one; with none free, turn 32. partnerTickCollision
-## passes the tamer as the source, so the tamer never blocks here: bumping only the tamer keeps
-## the old rotation and nothing else.
-func collision_grace() -> void:
-	if probe(direction, true) == FREE:
-		return
-	var start := direction
-	for candidate: int in GRACE[start / 512]:
-		if probe(candidate, true) == FREE:
-			var clockwise: int = start - candidate
-			if clockwise < 0:
-				clockwise = (clockwise + 0x1000) & 0xFFF
-			var counter: int = candidate - start
-			if counter < 0:
-				counter = (counter + 0x1000) & 0xFFF
-			if clockwise - counter < 0:
-				_set_direction(start + 0xFB0 if clockwise >= 0x51 else start + 0x1000 - clockwise)
-			else:
-				_set_direction(start + 0x50 if counter >= 0x51 else start + counter)
-			return
-	_set_direction(start + 32)
 
 
 ## initializePartnerWaypoint (map.c:2926).
@@ -466,15 +371,6 @@ func set_waypoint(index: int, tile: Vector2i) -> void:
 func pop_waypoint() -> void:
 	waypoint_count -= 1
 	waypoint_current = (waypoint_current + 1) % WAYPOINTS
-
-
-## entityLookAtLocation (map.c:3389): rotation.vy = _atan(dz, dx) = 0x800 + atan2(dx, dz).
-func look_at_psx(target_x: int, target_z: int) -> void:
-	var dx := target_x - int(position.x)
-	var dz := target_z - int(-position.z)
-	if dx == 0 and dz == 0:
-		return
-	_set_direction((0x800 + roundi(atan2(dx, dz) * 0x800 / PI)) & 0xFFF)
 
 
 # --- partnerTickWalking (partner.c:827) --------------------------------------------------------
@@ -596,95 +492,38 @@ func update_condition_animation() -> void:
 			partner_animation = 0x13
 
 
-func start_animation(id: int) -> void:
-	if animator != null:
-		animator.play(id)
-
-
 # --- Movement (like the tamer: specs/partner.md §3) --------------------------------------------
 
-## Root motion against the map only: the original's entity checks restore the position and steer
-## (tick_collision, tick_walking) but never block the momentum, so the partner reaches the close
-## range and stops there. The map blocks only in the normal state: the scenes (sleep, wild poop)
-## never call entityCheckCollision, so the partner walks straight to the tamer, walls or not
-## (specs/care.md §2.10; blocking there left it running into a wall forever).
-func _move(motion: Vector3) -> void:
-	var x := position.x
-	var z := -position.z
-	var dx := motion.x
-	var dz := -motion.z
-	if direction == 0x400 or direction == 0xC00:
-		dz = 0.0
-	if direction == 0 or direction == 0x800:
-		dx = 0.0
-	if dx == 0.0 and dz == 0.0:
-		return
-	if state != STATE_NORMAL:
-		pass
-	elif not _blocked(x + dx, z + dz, dx, dz):
-		pass
-	elif not _blocked(x + dx, z, dx, 0.0):
-		dz = 0.0
-	elif not _blocked(x, z + dz, 0.0, dz):
-		dx = 0.0
-	else:
-		return
-	position.x += dx
-	position.z -= dz
+## No walls (specs/partner.md §3): the original never stops the partner's root motion at the map.
+## Its entity checks only test (the position is restored), a map hit (10) changes nothing in
+## partnerTickCollision or partnerTickWalking, and only collisionGrace sets the animFlag axis bits
+## that zero the motion, which the partner gets for entity hits alone. The waypoints keep it off
+## walls; blocking it here left it pressed into corners forever.
+
+## Without an entity table (the tests) the tamer is entity 0.
+func _fallback_entities() -> Array:
+	return [tamer]
 
 
-## entityCheckEntityCollision (map.c:3740), the non-tamer branch: after the step to (x, z), the
-## partner's box edge on the side it moves touches the tamer's square (isRectInRect).
+## partnerTickCollision's collisionGrace(tamer, partner): the tamer is always the source, so
+## bumping only him keeps the old rotation.
+func collision_grace(source: Node3D = null) -> void:
+	super.collision_grace(tamer if source == null else source)
+
+
+## The tamer's square is DIGIMON_DATA[0].radius.
+func radius_of(other: Node3D) -> int:
+	return tamer_radius if other == tamer else super.radius_of(other)
+
+
+## entityCheckEntityCollision against the tamer: the step to (x, z) touches his square.
 func hits_tamer(x: float, z: float, dx: float, dz: float) -> bool:
-	if tamer == null:
-		return false
-	var tx := tamer.position.x
-	var tz := -tamer.position.z
-	var square := Rect2(tx - tamer_radius, tz - tamer_radius, tamer_radius * 2, tamer_radius * 2)
-	var left := x - radius
-	var right := x + radius
-	var near := z - radius
-	var far := z + radius
-	if dx < 0 and _touches(square, left, near, left, far):
-		return true
-	if dx > 0 and _touches(square, right, near, right, far):
-		return true
-	if dz < 0 and _touches(square, left, near, right, near):
-		return true
-	if dz > 0 and _touches(square, left, far, right, far):
-		return true
-	return false
-
-
-static func _touches(square: Rect2, x1: float, z1: float, x2: float, z2: float) -> bool:
-	return x2 >= square.position.x and x1 <= square.end.x and z2 >= square.position.y and z1 <= square.end.y
-
-
-func _blocked(x: float, z: float, dx: float, dz: float) -> bool:
-	return field.blocked(int(x), int(z), int(signf(dx)), int(signf(dz)), radius)
-
-
-func _set_direction(vy: int) -> void:
-	direction = vy & 0xFFF
-	rotation.y = Content.psx_yaw(direction)
+	return tamer != null and hits_square(tamer, x, z, dx, dz)
 
 
 func _condition() -> int:
 	return game_state.state["partner"]["care"]["condition"] if game_state != null else 0
 
 
-## getModelTile of the partner.
-func tile() -> Vector2i:
-	return _tile(position)
-
-
 func _waypoint(index: int) -> Vector2i:
 	return Vector2i(waypoint_x[index], waypoint_y[index])
-
-
-static func _tile(p: Vector3) -> Vector2i:
-	return FieldMap.model_tile(int(p.x), int(-p.z))
-
-
-static func _psx(p: Vector3) -> Array:
-	return [int(p.x), int(-p.y), int(-p.z)]

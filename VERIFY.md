@@ -4,6 +4,7 @@ The porters have their own checklists (`asset_porter/VERIFY.md`, `data_porter/VE
 
 ```
 godot --headless --path . -s res://tests/test_script.gd
+godot --headless --path . -s res://tests/test_npc.gd
 godot --headless --path . -s res://tests/test_text.gd
 godot --headless --path . -s res://tests/test_care.gd
 godot --headless --path . -s res://tests/test_partner.gd
@@ -64,7 +65,7 @@ In the game (F5), `D` runs the next section of the current map's script (the hel
 Every map is entered through its MAPHEAD script, as in the original. Run the project (F5).
 1. **Start:** Native Forest (MAYO04A). The help line names what its setup met and couldn't run (`SET_BGM`, `LOAD_DIGIMON`, `SET_DIGIMON`, `SPAWN_ITEM`); the tamer and Agumon stand at the map's exit 0.
 2. **Walking through an exit:**
-   - the tamer keeps running straight in his direction while the screen fades to black over 1 s (no walls stop him, as in the C); the camera stops following him;
+   - the tamer keeps running straight in his direction while the screen fades to black over 1 s, darkest colours first, fully black by the end (no walls stop him, as in the C); the camera stops following him;
    - at the half the map's area name appears in the centre ("Coela Point" going to MAYO05) in white, in front of the black;
    - at full black the name goes and the screen stays black for 1 s more (the port's stand-in for the CD load, `Fade.LOAD_FRAMES`); then it fades in over 1 s, with the tamer and Agumon standing still at the exit that matches the one you took;
    - the clock and bars stop during the change and come back after it.
@@ -74,6 +75,16 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
 5. **Trigger cells:** on MAYO04A, stand at the sign and press ✕: the sign's text (section 0x51) runs. Cells that start a scene when stepped on (51–79) run it at once, if their map has one.
 6. **Toilet:** step on a toilet while Agumon needs to go: its script (MAPHEAD 0x4E2) runs; Agumon's toilet scene itself is unported (reported), so only the texts show for now.
 7. **Debug `[` / `]`:** the previous / next map, with the same fade and name, to its exit 0.
+
+## NPCs (`scripts/field/npc.gd`, `field_entities.gd`, `field_digimon.gd`, `specs/npc.md`)
+
+`test_npc.gd` prints `OK: NPC checks`. In the game (F5), the map setups now place the map's Digimon; between talks they stand in their idle animation (their wandering is step 3b). Check:
+1. **Native Forest (MAYO04A), the start:** by day (7:00–19:00) an Aruraumon stands by the fence; at night (`T` advances the hour) a Goburimon instead (after re-entering the map). Wrong if: none appear, or two of the same.
+2. **Talking:** walk into the Aruraumon. It talks on contact (autotalk 1): the tamer stops against it, he and the NPC turn to face each other, and the box opens with its name in yellow ("I guess I can play with you."). Its battle is reported as unported, and the section goes on.
+3. **✕ talk:** File City (press `]` to the TWNA maps) or Jijimon's house: walk up to an NPC with autotalk 0, face it and press ✕ from a short distance (the reach is 50 units in front). Its section starts; walking into it without ✕ only stops you.
+4. **Blocking:** you can't walk through an NPC; Agumon goes around NPCs as it goes around walls.
+5. **Scenes:** sections that walk, turn or animate NPCs play those moves now; camera moves and `ENTITY_MOVE_TO` slides still don't (step 4). Compare a scene you know: who turns to whom, who walks where.
+6. **The original's slot-7 quirk** (`specs/npc.md` §6, `PLANS.md`): after a scene that animates an NPC, on a map whose last NPC has script id 12 (File City's Whamon), check the real game: can you still talk to that NPC?
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 
@@ -136,7 +147,7 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
    - when you stop, he finishes his step, stops next to you and idles.
 3. **Close:** he doesn't walk into the tamer and stops facing him, also at a diagonal. Run, then stop: once he has caught up he stands still (he must not keep turning on the spot).
 4. **Standing still:** after a few seconds he plays another standing animation now and then. Hungry, sleepy, happy and other mood animations need the care step.
-5. **Walls:** walk around a corner or a tree so that the wall is between you. He takes the way you walked instead of pressing into the wall. If you walk far away while he's off screen, he catches up by appearing on your path.
+5. **Walls:** walk around a corner or a tree so that the wall is between you. He takes the way you walked; he never stays pressed into a wall or corner. On a tight corner he may cut a little into the wall: the original doesn't stop him at walls either (`specs/partner.md` §3). Compare with the game: does Agumon cut corners the same way? If you walk far away while he's off screen, he catches up by appearing on your path.
 6. **Map changes:** after a warp he appears 200 units from your spawn point, facing you.
 7. **Other Digimon:** select the `Field` node and type a key in **Debug Partner** in the Inspector (e.g. `dw1:gabumon`, `dw1:greymon`; keys are shown in the DW Data dock), then F5: that model follows instead, with its own size. Clear it afterwards (it's saved in the scene).
    - Wrong if: he floats, sinks, slides without animating, runs in place, or gets stuck walking next to the tamer.

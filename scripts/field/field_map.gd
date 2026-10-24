@@ -45,6 +45,16 @@ var _backgrounds: Array[Texture2D] = []
 
 @onready var camera: Camera3D = $Camera3D
 @onready var _doors: Node3D = $Doors
+## The overlay sprites (specs/map_objects.md), made on first use.
+var overlays: MapOverlays:
+	get:
+		if _overlays == null:
+			_overlays = MapOverlays.new()
+			_overlays.name = "Overlays"
+			_overlays.field = self
+			add_child(_overlays)
+		return _overlays
+var _overlays: MapOverlays
 
 
 func load_map(name: String) -> bool:
@@ -77,6 +87,8 @@ func load_map(name: String) -> bool:
 	set_time_of_day(time_of_day)
 
 	_load_doors()
+	overlays.palette = time_of_day if time_of_day < _backgrounds.size() else 0
+	overlays.load(data)
 	_pan_speed = 0
 	_pan_has_target = false
 	return true
@@ -90,6 +102,9 @@ func unload() -> void:
 	_backgrounds.clear()
 	for child in _doors.get_children():
 		child.queue_free()
+	_door_slots.clear()
+	if _overlays != null:
+		_overlays.clear()
 
 
 func display_name() -> String:
@@ -106,6 +121,8 @@ func set_time_of_day(value: int) -> void:
 		background.texture = null
 		return
 	background.texture = _background(value)
+	if _overlays != null:
+		_overlays.set_palette(value if value < _backgrounds.size() else 0)
 
 
 func palette_count() -> int:
@@ -189,20 +206,131 @@ func map_rotation() -> int:
 	return (0x800 + roundi(atan2(dx, dz) * 0x800 / PI)) & 0xFFF
 
 
+# --- Doors (loadDoors, renderDoors, tickRotateDoor; map_object.c:309-1040, specs/map_objects.md §2.6)
+
+## MAP_3D_OBJ[6]: per slot {model, translation, rotation (PSX vx, vy), direction, nodes}, or null
+## (model 255).
+const DOOR_SLOTS := 6
+## renderDoors draws model 10 twice: a double door, the copy mirrored 680 along z.
+const DOUBLE_DOOR := 10
+const DOUBLE_DOOR_OFFSET := 680
+## The models whose swing ends back on `direction`.
+const DOORS_SWING_BACK := [9, 0xA, 0xB, 0xC, 0xD, 0x10, 0x11, 0x12, 0x13]
+var _door_slots: Array = []
+## MAP_OBJ_ROTATE_TIMER: one for every door, reset by loadDoors and when a move is done.
+var _rotate_timer := 0
+
+
 func _load_doors() -> void:
 	for child in _doors.get_children():
 		child.queue_free()
-	for door in data.get("doors", []):
+	_door_slots.clear()
+	_door_slots.resize(DOOR_SLOTS)
+	var doors: Array = data.get("doors", [])
+	for k in doors.size():
+		var door: Dictionary = doors[k]
+		var slot := int(door.get("slot", k))
 		var rel := "maps/%s/doors/door_%02d.gltf" % [map_name, int(door["model"])]
-		if not Content.exists(rel):
+		if slot < 0 or slot >= DOOR_SLOTS or not Content.exists(rel):
 			continue
-		var model := Content.load_model(rel)
-		model.position = Content.psx_to_godot(door["position"])
-		model.rotation.y = Content.psx_yaw(door["rotation"])
-		_doors.add_child(model)
+		var p: Array = door["position"]
+		var d := {"model": int(door["model"]), "translation": Vector3i(int(p[0]), int(p[1]), int(p[2])),
+				"rotation": Vector2i(0, int(door["rotation"])), "direction": int(door["rotation"]), "nodes": []}
+		for c in (2 if d["model"] == DOUBLE_DOOR else 1):
+			var model := Content.load_model(rel)
+			_doors.add_child(model)
+			d["nodes"].append(model)
+		_door_slots[slot] = d
+		_place_door(d)
+	# loadDoors runs only on maps with doors: elsewhere the timer keeps its value.
+	if not doors.is_empty():
+		_rotate_timer = 0
+
+
+## projectPosition for a door, and renderDoors' copy of model 10.
+func _place_door(d: Dictionary) -> void:
+	var t: Vector3i = d["translation"]
+	var r: Vector2i = d["rotation"]
+	for c in d["nodes"].size():
+		var node: Node3D = d["nodes"][c]
+		var pos := t
+		var vy := r.y
+		if c == 1:
+			pos.z -= (1 if vy < 0 else -1) * DOUBLE_DOOR_OFFSET
+			vy = -vy
+		node.position = Content.psx_to_godot([pos.x, pos.y, pos.z])
+		# RotMatrix with vz 0: the x tilt (model 0x1A), then the yaw.
+		node.rotation = Vector3(r.x * TAU / 4096.0, Content.psx_yaw(vy), 0)
+
+
+## Door slot k's state, for the tests: {model, translation, rotation, direction} or {}.
+func door(k: int) -> Dictionary:
+	if k < 0 or k >= _door_slots.size() or _door_slots[k] == null:
+		return {}
+	return _door_slots[k]
+
+
+## tickRotateDoor(door, target) (map_object.c:932), slot type 12, by the door's model: the timer
+## counts first; the frame it passes the limit moves nothing, resets it and is done (model 0x1A
+## moves first). Any other model, or an empty slot, never ends.
+func tick_rotate_door(k: int, target: int) -> bool:
+	var d := door(k)
+	var model: int = d.get("model", -1)
+	var limit := 0
+	match model:
+		0, 9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 0x10, 0x11, 0x12, 0x13:
+			limit = 32
+		5, 0x1F, 0x20, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1B, 0x1C, 0x1D, 0x1E:
+			limit = 9
+		0x1A:
+			limit = 19
+		_:
+			return false
+	_rotate_timer += 1
+	if model == 0x1A:
+		d["rotation"].x = clampi(d["rotation"].x - target * 110, -0x400, 0)
+		_place_door(d)
+	if _rotate_timer > limit:
+		_rotate_timer = 0
+		if model in DOORS_SWING_BACK:
+			d["rotation"].y = d["direction"]
+			_place_door(d)
+		return true
+	match model:
+		0:
+			d["rotation"].y -= target * 33
+		5, 0x1F, 0x20:
+			d["translation"].y -= target * 200
+		0x15, 0x16, 0x18, 0x1B, 0x1D:
+			_slide_door(d, 30)
+		0x14, 0x17, 0x19, 0x1C, 0x1E:
+			_slide_door(d, -30)
+		0x1A:
+			return false
+		_:
+			d["rotation"].y += target * 33
+	_place_door(d)
+	return false
+
+
+## The sliding gates move along x, or along z on map 0x81 (the C tests CURRENT_SCREEN).
+func _slide_door(d: Dictionary, amount: int) -> void:
+	if int(data.get("map_entry", {}).get("id", -1)) == 0x81:
+		d["translation"].z += amount
+	else:
+		d["translation"].x += amount
 
 
 # --- Collision (map_collision.c) ------------------------------------------------------------
+
+## setImpassableRect (map_collision.c:190), SET_RECT_IMPASSABLE: cells [x, x + w) x [z, z + h)
+## blocked (0x80) until the map is loaded again.
+func set_impassable_rect(x: int, z: int, w: int, h: int) -> void:
+	for tz in range(z, z + h):
+		for tx in range(x, x + w):
+			var i := tx + tz * GRID
+			if i >= 0 and i < _collision.size():
+				_collision[i] = 0x80
 
 func _cell(tx: int, tz: int) -> int:
 	if tx < 0 or tz < 0 or tx >= GRID or tz >= GRID:
@@ -354,6 +482,24 @@ func background_pixel(world: Vector3) -> Vector2:
 	var v := Vector3(world.x, -world.y, -world.z) - _eye
 	var depth := v.dot(_forward)
 	return background_size / 2 + _projection * Vector2(v.dot(_right), v.dot(_down)) / depth
+
+
+## The view depth of a Godot point: along the camera's forward axis, in PSX units.
+func view_depth(world: Vector3) -> float:
+	return (Vector3(world.x, -world.y, -world.z) - _eye).dot(_forward)
+
+
+## The Godot point at a view depth that projects onto a background pixel (background_pixel's
+## inverse).
+func world_at_pixel(pixel: Vector2, depth: float) -> Vector3:
+	var p := pixel - background_size / 2
+	var psx := _eye + _forward * depth + (_right * p.x + _down * p.y) * depth / _projection
+	return Vector3(psx.x, -psx.y, -psx.z)
+
+
+## The projection distance H: pixels per unit at depth 1.
+func projection() -> float:
+	return _projection
 
 
 ## initializeDrawingOffsets: the scroll that centres `world` becomes the virtual scroll, and the

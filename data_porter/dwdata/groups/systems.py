@@ -30,6 +30,7 @@ SCRIPT_C, TOURNAMENT_C, GAME_MENU = "src/main/script_common.c", "src/main/tourna
 MAP_C, TOILET_C, TRN_HUD, TRN2_HUD = "src/main/map.c", "src/main/toilet_data.c", "src/trn/trn_hud.c", "src/trn2/trn2_hud.c"
 FISH_C, SHOP_MENU, DOOA_C = "src/fish/fish.c", "src/shop/script_menu.c", "src/dooa/dooa.c"
 MAIN_C = "src/main/main.c"
+OVERWORLD_C = "src/main/overworld.c"
 SCRIPT_VALUE_C, SCRIPT_H = "src/main/script_value.c", "include/dw/script.h"
 # changeMap (map.c:5326-5396): (map left, map entered, PREVIOUS_SCREEN, PREVIOUS_EXIT or None).
 CHANGE_MAP_PREVIOUS = [
@@ -37,6 +38,16 @@ CHANGE_MAP_PREVIOUS = [
     (0xCF, 0x77, 0x76, 1), (0xCF, 0x69, 0x6A, 0), (0x2B, 0x2A, 0x29, 1), (6, 0x69, 0x6A, None),
     (0x8E, 0x87, 0x84, 1), (5, 0xC, 0xD, 1),
 ]
+# loadMapObjects (overworld.c:364): the snow maps, whose first SNOW_INSTANCES object instances fall
+# as snow (flag 0x80, buildSnowflakePrim; specs/map_objects.md §2.5). Ranges [first, end).
+SNOW_MAPS = [(0x58, 0x61), (0x84, 0x88)]
+SNOW_INSTANCES = 0x23
+SNOW_EVIDENCE = ("if (((mapId >= 0x58 && mapId < 0x61) || (mapId >= 0x84 && mapId < 0x88)) && k < 0x23) "
+                 "{ if (k >= 0x14) { mapObjects->x = randomLimit(320); } mapObjects->y = randomLimit(240); "
+                 "mapObjects->flag |= 0x80; }")
+# updateMapLightState (utils2.c:553): the hours the light entries test (7 <= HOUR < 0x13).
+LIGHT_EVIDENCE = "if ((HOUR >= 7) && (HOUR < 0x13)) { if (p->mode == 0) {"
+UTILS2_C = "src/main/utils2.c"
 # The C text of those rules (whitespace collapsed).
 CHANGE_MAP_EVIDENCE = [
     "if (CURRENT_SCREEN == 0xcf) { if (mapId == 0x26) { PREVIOUS_SCREEN = 0x58; } if (mapId == 0x46) { "
@@ -127,7 +138,7 @@ def convert(input_root, output_root) -> GroupWriter:
     index = CIndex(decomp)
     files = sorted({BTL_MAIN, BTL_SETUP, BTL_C, BATTLE_UI, STD_MAIN, STD_SETUP, VS_MAIN, VS_SELECT, VS_DEMO,
                     VS_INTRO, SCRIPT_C, TOURNAMENT_C, GAME_MENU, MAP_C, TOILET_C, TRN_HUD, TRN2_HUD, FISH_C,
-                    SHOP_MENU, DOOA_C, SCRIPT_VALUE_C, SCRIPT_H})
+                    SHOP_MENU, DOOA_C, SCRIPT_VALUE_C, SCRIPT_H, OVERWORLD_C, UTILS2_C})
     sources = [SourceText(decomp.root, p).identity() for p in files]
 
     missing = [f"{p}: {needle}" for p, needle in EVIDENCE
@@ -153,7 +164,7 @@ def convert(input_root, output_root) -> GroupWriter:
             (TRN_HUD, "TRN_TRAINING_SPOTS"), (FISH_C, "FISH_KIND_INFO"), (FISH_C, "FISH_BITE_CHANCE"),
             (FISH_C, "FISH_BAIT_CHANCES"), (FISH_C, "FISHING_MAP_DATA"), (SHOP_MENU, "MOJYAMON_ITEMS_GIVE"),
             (SHOP_MENU, "MOJYAMON_ITEMS_GET"), (SCRIPT_C, "BABY_IDS"), (DOOA_C, "REINCARNATE_BABY_TYPE"),
-            (SCRIPT_C, "BGM_TRACK_NAMES"), (VS_DEMO, "VS_DEMO_DIGIMON"), (VS_SELECT, "VS__BATTLE_COUNTS"),
+            (SCRIPT_C, "BGM_TRACK_NAMES"), (SCRIPT_C, "MAP_LIGHT_UPDATE_DATA"), (VS_DEMO, "VS_DEMO_DIGIMON"), (VS_SELECT, "VS__BATTLE_COUNTS"),
             (SCRIPT_VALUE_C, "STATS_LIMIT_ARRAY"), (SCRIPT_VALUE_C, "MULTIPLE_OF_10")]:
         load(c_file, name)
     digimon_l = tables.load(out, index, MAIN_C, "DIGIMON_DATA",
@@ -378,10 +389,22 @@ def convert(input_root, output_root) -> GroupWriter:
     for source, target, previous, previous_exit in CHANGE_MAP_PREVIOUS:
         maps[source].setdefault("change_map_previous", []).append(
             {"to": target, "previous_screen": previous, "previous_exit": previous_exit})
+    # The overlay rules of specs/map_objects.md as map properties (the original tests map ids).
+    overworld_c = " ".join((decomp.root / OVERWORLD_C).read_text(encoding="utf-8", errors="replace").split())
+    out.check("loadMapObjects' snow maps are still in the code", SNOW_EVIDENCE in overworld_c, SNOW_EVIDENCE[:60])
+    for first, end in SNOW_MAPS:
+        for k in range(first, end):
+            maps[k]["snow"] = {"instances": SNOW_INSTANCES, "random_x_from": 0x14}
+    utils2_c = " ".join((decomp.root / UTILS2_C).read_text(encoding="utf-8", errors="replace").split())
+    out.check("updateMapLightState's hours are still in the code", LIGHT_EVIDENCE in utils2_c, LIGHT_EVIDENCE)
+    for light in us["MAP_LIGHT_UPDATE_DATA"]:
+        maps[light["mapId"]].setdefault("light_objects", []).append(
+            {"start": light["startId"], "count": light["count"], "mode": light["mode"],
+             "trigger": None if light["trigger"] == 0xFFFF else light["trigger"], "c": light})
     # Maps are keyed by file name: the area name is shared by many maps (specs/content.md §2).
     tables.keys(out, maps, "map", lambda r: r["file"].lower() if r["file"] else None)
     map_struct = index.program(MAP_C, REFERENCE).structs["MapEntry"]
-    write("maps", ["MAP_ENTRIES", "MAP_NAME_PTR", "ARENA_MAPS"], {
+    write("maps", ["MAP_ENTRIES", "MAP_NAME_PTR", "ARENA_MAPS", "MAP_LIGHT_UPDATE_DATA"], {
         "id": {"meaning": "map id (CURRENT_SCREEN; MAP/MAP<id // 15 + 1>/<file>.MAP, see asset_porter specs/map.md)"},
         "key": dict(tables.KEY_SCHEMA, meaning="content key dw1:<file name> (specs/content.md §2)"),
         "file": {"c_name": "filename"}, "images_8bpp": {"c_name": "num8bppImages"},
@@ -398,6 +421,13 @@ def convert(input_root, output_root) -> GroupWriter:
                                            "`previous_screen` instead of this map, and PREVIOUS_EXIT `previous_exit` "
                                            "(null = unchanged). Fleeing a battle returns to the previous map. The "
                                            "original tests these literal map ids; absent = no rule"},
+        "snow": {"meaning": "loadMapObjects (overworld.c:364): the first `instances` object instances are snow "
+                            "(flag 0x80, random y; random x from `random_x_from` on). The original tests map ids "
+                            "0x58-0x60 and 0x84-0x87; absent = no snow"},
+        "light_objects": {"c_name": "MAP_LIGHT_UPDATE_DATA", "meaning": "updateMapLightState (utils2.c:553), every "
+                          "frame: object instances start .. start + count - 1 get flag 0 (shown) or 1 (hidden) by the "
+                          "hour; mode 0 shown from 7:00 to 18:59, mode 1 hidden then. Only while `trigger` is set "
+                          "(null = always). Absent = none"},
         "_struct": {"c_type": "MapEntry", "fields": describe_type(map_struct)},
     }, maps, {"access": "GameData.map(id)", "notes": "Cross-check with the asset porter's map table."})
 

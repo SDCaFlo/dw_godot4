@@ -1,6 +1,6 @@
 # Map objects (port spec)
 
-Status (2026-10-24): spec written for step 5a of `specs/script.md` §3.1; code not started. Today the port draws the background and the doors (static, `FieldMap._load_doors`); the map's overlay sprites aren't drawn, and their opcodes are reported.
+Status (2026-10-24): ported with step 5a of `specs/script.md` §3.1: `MapOverlays` (`scripts/field/map_overlays.gd`), the doors and blocked cells in `FieldMap`, the opcodes in `ScriptInterpreter`; `tests/test_map_objects.gd`, `tests/render_check.gd` (a rendered frame, not headless).
 
 The field's map objects:
 - **Overlay sprites:** animated 2D details drawn over the background and sorted against the 3D models. Examples: water, torches, smoke, lights, and the parts of the background that stand in front of the tamer.
@@ -122,9 +122,10 @@ Nothing is drawn or animated while `MAP_LAYER_ENABLED` is 0 (battles, menus that
 
 Only for instances with flag bit 0x80, every frame:
 - **Movement by sprite id** (`animSprites[0]`):
-  - 0, 3, 4: drift `±randomLimit(6)`-ish, fall 3 px;
-  - 1, 5, 6: drift ±1, fall 1 px;
-  - 2: drift ±2, fall 10 px.
+  - 0, 3, 4: `randomLimit(6)`, folded to −2 … 3 (a value above 3 becomes `−(r % 3)`), fall 3 px;
+  - 1, 5, 6: `randomLimit(2)`: 0 or 1, fall 1 px;
+  - 2: `randomLimit(4)`: −1 … 2, fall 10 px;
+  - other sprite ids leave the C's range and speed uninitialised: the port gives them no drift and no fall.
 - **Drift:** applied to x every third frame, and only for sprites 0, 3 and 4. It is always added to the drawn position. x wraps between 0 and 320.
 - **Landing:** from y 0x83 on, a flake (not sprite 2) has a 2-in-10 chance per frame to start its "melt" frames. When they end it goes back to y 0. Every flake goes back to y 0 at y 0xF1.
 - **Drawing:** in screen coordinates (not scrolled), always 4-bit on row 486 (`clut × 16`), at order 0x1E.
@@ -168,7 +169,7 @@ Only for instances with flag bit 0x80, every frame:
 - **The porters:**
   - **asset porter** (`asset_porter/specs/map.md` first): `map.json`'s `doors` keeps the slot of each door (`slot` 0–5), so `ROTATE_3D_OBJECT`'s index finds it. The empty slots stay dropped.
     - Check: tables 1 and 6 keep slots 1–5.
-    - Check: the object sprites keep the STP bit the blending needs, as the indexed TIMs (`tim.md`: STP isn't in an indexed PNG's alpha). If the sprite PNGs lose it, add a mask or the raw palette, as the 16-bit TIMs have.
+    - The object sprites' PNGs lost the STP bit the blending needs (RGBA, alpha only for 0x0000): the porter now writes an `.stp.png` mask next to each sprite that has STP texels (`objects[k].stp_files`). 4,247 of the 4,635 semi-transparent sprites in use have one; the others draw opaque, as on the PSX.
   - **data porter** (`data_porter/specs/systems.md`): `MAP_LIGHT_UPDATE_DATA` becomes a component of the map record, `light_objects: {start, count, mode, trigger or null}`. The light rule then reads a map property, not a map id (`specs/content.md`).
 - **`MapOverlays`** (new, `scripts/field/map_overlays.gd`, a child of `FieldMap`):
   - `load(data, map_entry)` builds the instances from `map.json` (`objects`, `object_instances`), with the snow setup. The snow maps become a map property too (`snow`), not the id ranges.
@@ -179,8 +180,9 @@ Only for instances with flag bit 0x80, every frame:
     - `someY` 10000: the quad sits just in front of the background, behind everything.
   - **Materials:** unshaded, the blend mode from `transparency` (mix, add, subtract, +25 %), depth test on, no depth write for the semi-transparent ones.
     - On a tie the C draws the lower index on top: `sorting_offset` follows the index.
-    - Time-of-day palette sprites (`clut` −1) use the PNG of the active palette (`object_<k>_p<N>.png`). During the time-of-day fade they cross-fade with the same weight as the background (`Clock.transition_weight`).
-  - **Snow:** a `CanvasLayer` over the 3D view, in screen pixels. The C draws snow at order 0x1E, in front of every model.
+    - Time-of-day palette sprites (`clut` −1) use the PNG of the active palette (`object_<k>_p<N>.png`). They change palette when the background's fade ends (`FieldMap.set_time_of_day`); the C fades row 480 for both, so during the 25 frames of the fade the sprites keep the old palette (§6).
+    - **The compositing:** the background canvas layer moved into the 3D viewport, as its environment's background (`Environment.BG_CANVAS`, canvas layers up to −1). The additive and subtractive sprites then blend with the background, which a transparent viewport over it couldn't do. `tests/render_check.gd` checks the background reaches the screen unchanged (0 pixels differ on MAYO01 and TWNB04).
+  - **Snow:** quads as the others, at the depth of order 0x1E (480), placed each frame on the screen pixels (scroll + x, y): in front of every model, as the C's order 0x1E.
   - **`tick()`** on `GameLoop.frame`, after the interpreter (where the C renders), unless the map layer is off: the animation of §2.3 and the snow of §2.5. The quad's visibility follows the flag and the blank frames. The off-screen test is only an optimisation and doesn't change what is drawn, so it isn't ported.
   - `set_flag(instance, flag)`, `reset_animation(start, count)`, `tick_move_to(instance, slot, steps, x, y) -> bool`, `place_at(world, instance, count)`, `update_light_state(hour, triggers)`.
   - The sprite PNGs load at runtime from the raw output (`Content`: the editor mirror leaves them out, 19k files).
@@ -233,4 +235,6 @@ Only for instances with flag bit 0x80, every frame:
   - the C's order between a model's polygon and a sprite on the same entry isn't known.
 - **Mist** (`renderMist`, screens 115–119, 121, 163, 220) and the **Ninjamon effect** (`createNinjamonEffect`, overlay mode 1): drawn from the overlays but started by other code. They aren't in this step.
 - **Models 9–13 snapping back** (§2.6) at the end of their swing: to check in the game, on a map with those doors.
+- **Blending in linear colour:** Godot blends in its linear buffer, the PSX in its 5-bit colour space: the additive sprites (3,580) may look brighter than on the PSX. To compare in the game.
+- **The time-of-day fade** doesn't fade the palette sprites (§3): they switch at its end.
 - **The 3D map props** started by builtins (the boulder `SPAWN_BOULDER` / `MOVE_BOULDER` in Drill Tunnel, the dirt cart, Toy Town's boxes, the gearbox, Angemon's pedestal, the medals, the chests, the warp crystals; `map_object.c`): they share `MAP_3D_OBJ` slot 0 with the doors in some cases. They come with their own systems.

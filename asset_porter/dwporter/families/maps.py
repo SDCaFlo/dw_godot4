@@ -117,22 +117,24 @@ def _object_sprite(vram: Vram, obj: dict, cache: dict):
         bpp, page_x, clut = 8, 384 + (obj["tex_x"] // 256) * 128, (0, obj["clut"] + 468)
     key = (page_x, 0, bpp) + clut
     if key not in cache:
-        cache[key] = vram.sample_page(*key)
-    rgba, loaded = cache[key]
+        cache[key] = vram.sample_page_stp(*key)
+    rgba, loaded, stp_page = cache[key]
     u0, v0 = obj["tex_x"] % 256, obj["tex_y"] % 256
     w, h = max(obj["width"], 1), max(obj["height"], 1)
-    out, missing = bytearray(), 0
+    out, stp, missing = bytearray(), bytearray(), 0
     for v in range(v0, v0 + h):
         for u in range(u0, u0 + w):
             i = (v % PAGE_SIZE) * PAGE_SIZE + u % PAGE_SIZE  # UVs are 8-bit: they wrap inside the page
             if loaded[i]:
                 out += rgba[i * 4:i * 4 + 4]
+                stp.append(255 if stp_page[i] else 0)
             else:
                 out += bytes(4)
+                stp.append(0)
                 missing += 1
     where = {"page": {"x": page_x, "y": 0, "bpp": bpp}, "clut": {"x": clut[0], "y": clut[1]},
              "uv_wraps": u0 + w > PAGE_SIZE or v0 + h > PAGE_SIZE}
-    return w, h, bytes(out), missing, where
+    return w, h, bytes(out), missing, where, bytes(stp)
 
 
 def _background(tfs, setup: dict, palette: int) -> tuple:
@@ -276,15 +278,23 @@ def convert(input_root, output_root, map_ids=None) -> AssetWriter:
         used = {s for inst in (parsed["objects"] or {}).get("instances", []) for s in inst["sprites"] if s >= 0}
         for k, obj in enumerate((parsed["objects"] or {}).get("definitions", [])):
             variants = list(vrams) if obj["clut"] == -1 else [next(iter(vrams))]
-            info = dict(obj, files=[], used_by_instances=k in used, missing_texels=0)
+            info = dict(obj, files=[], stp_files=[], used_by_instances=k in used, missing_texels=0)
             for p in variants:
-                w, h, px, missing, where = _object_sprite(vrams[p], obj, caches[p])
+                w, h, px, missing, where, stp = _object_sprite(vrams[p], obj, caches[p])
                 info["missing_texels"] += missing
                 if k in used and obj["width"] > 0 and obj["height"] > 0:
                     missing_total += missing
                 path = folder / "objects" / (f"object_{k:03d}_p{p}.png" if obj["clut"] == -1 else f"object_{k:03d}.png")
                 png.write(path, png.encode_rgba(w, h, px))
                 info["files"].append(out._rel(path))
+                # STP mask (255 = bit set), only when a texel has it: semi-transparent sprites blend
+                # only those texels (tim.md; buildMapOverlayPrim's SetSemiTrans).
+                if any(stp):
+                    spath = path.with_name(path.stem + ".stp.png")
+                    png.write(spath, png.encode_gray(w, h, stp))
+                    info["stp_files"].append(out._rel(spath))
+                else:
+                    info["stp_files"].append(None)
                 info.update(where)
                 if p == variants[0]:
                     sprites_day[k] = (w, h, px)
@@ -295,10 +305,12 @@ def convert(input_root, output_root, map_ids=None) -> AssetWriter:
         # doors
         door_list = []
         if entry["doors_id"]:
-            for slot in tables["doors"][entry["doors_id"] - 1]:
+            # The slot index is kept: ROTATE_3D_OBJECT names MAP_3D_OBJ slots, and some tables
+            # start with an empty one (specs/map.md "Doors").
+            for k, slot in enumerate(tables["doors"][entry["doors_id"] - 1]):
                 if slot["model"] == 255:
                     continue
-                door_list.append(slot)
+                door_list.append(dict(slot, slot=k))
             for model in sorted({d["model"] for d in door_list}):
                 dpath = f"DOOR/DOOR{model:02d}.TMD"
                 dsrc = SourceFile.open(input_root, dpath)

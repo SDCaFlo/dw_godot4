@@ -245,6 +245,13 @@ func screen_rect() -> Rect2i:
 	return Rect2i(p.x - 5, p.y - 5, 10, 10)
 
 
+## posData[node].posMatrix.workm.t: the world position of a bone (SPAWN_SPRITE_AT_ENTITY).
+func bone_position(node: int) -> Vector3:
+	if _skeleton == null or node < 0 or node >= _skeleton.get_bone_count():
+		return global_position
+	return _skeleton.global_transform * _skeleton.get_bone_global_pose(node).origin
+
+
 ## getEntityScreenPos (utils.c:176): bone 1 projected, relative to the screen centre.
 func screen_position() -> Vector2i:
 	if camera == null or _skeleton == null or not camera.is_inside_tree():

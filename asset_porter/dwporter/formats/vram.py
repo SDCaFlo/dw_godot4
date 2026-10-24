@@ -50,6 +50,15 @@ class Vram:
         entry reads VRAM that nothing was loaded into (those texels are transparent), so callers
         can tell a complete texture from a partial one.
         """
+        rgba, loaded, _ = self.sample_page_stp(page_x, page_y, bpp, clut_x, clut_y)
+        return rgba, loaded
+
+    def sample_page_stp(self, page_x: int, page_y: int, bpp: int, clut_x: int = 0, clut_y: int = 0):
+        """sample_page plus `stp`: 1 byte per texel, 1 where the colour's STP bit (bit 15) is set.
+
+        The GPU blends a semi-transparent polygon only on those texels (tim.md); RGBA alpha can't
+        carry it, since 0x0000 already takes alpha 0.
+        """
         per_word = {4: 4, 8: 2}.get(bpp, 1)
         shifts = [i * (16 // per_word) for i in range(per_word)]
         mask = (1 << (16 // per_word)) - 1
@@ -58,21 +67,23 @@ class Vram:
             palette = []
             for i in range(1 << (16 // per_word)):
                 color, ok = self.word(clut_x + i, clut_y)
-                palette.append((bytes(psx.color_to_rgba(color)) if ok else transparent, ok))
-        out, loaded = [], bytearray()
+                palette.append((bytes(psx.color_to_rgba(color)) if ok else transparent, ok, color >> 15))
+        out, loaded, stp = [], bytearray(), bytearray()
         for v in range(PAGE_SIZE):
             for w in range(PAGE_SIZE // per_word):
                 word, ok = self.word(page_x + w, page_y + v)
                 if bpp in (4, 8):
                     for s in shifts:
-                        rgba, ok2 = palette[(word >> s) & mask]
+                        rgba, ok2, bit = palette[(word >> s) & mask]
                         good = ok and ok2
                         out.append(rgba if good else transparent)
                         loaded.append(good)
+                        stp.append(bit if good else 0)
                 else:
                     out.append(bytes(psx.color_to_rgba(word)) if ok else transparent)
                     loaded.append(ok)
-        return b"".join(out), bytes(loaded)
+                    stp.append(word >> 15 if ok else 0)
+        return b"".join(out), bytes(loaded), bytes(stp)
 
     def sources_in(self, x: int, y: int, w: int, h: int) -> list:
         """Labels of loaded rects overlapping the given VRAM rect."""

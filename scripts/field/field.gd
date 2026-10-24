@@ -61,7 +61,7 @@ var _message_frames := 0
 @onready var _tamer: Tamer = $World/SubViewport/Tamer
 @onready var _label: Label = $Hud/Label
 @onready var _camera: Camera3D = $World/SubViewport/FieldMap/Camera3D
-@onready var _background: Sprite2D = $Background/Sprite2D
+@onready var _background: Sprite2D = $World/SubViewport/Background/Sprite2D
 
 
 func _ready() -> void:
@@ -188,10 +188,15 @@ func _start_text() -> void:
 	_interpreter.load_map = _script_load_map
 	_interpreter.setup_map = _script_setup_map
 	_interpreter.tick_map_change = _tick_script_map_change
+	# gameLoop: updateTournamentRegistration's updateMapLightState, then tickScript
+	# (specs/map_objects.md §2.4).
+	GameLoop.frame.connect(_update_map_light_state)
 	GameLoop.frame.connect(_interpreter.tick_script)
 	# The camera's pans (tickCameraMovement), after the script and the partner that start them
 	# (specs/camera.md §6).
 	GameLoop.frame.connect(_field.tick_pan)
+	# The overlay sprites animate where the map renders, after the ticks.
+	GameLoop.frame.connect(_field.overlays.tick)
 	_map_name = MapName.new()
 	_map_name.name = "MapName"
 	_map_name.text_area = _text_area
@@ -408,6 +413,10 @@ func _load_map_at_exit(map_name: String, exit: int) -> bool:
 	if _partner != null:
 		_partner.place_for_spawn(spawn_point)
 	var id := -1 if Engine.is_editor_hint() or not GameData.available() else GameData.map_id(map_name)
+	# loadMapObjects' snow maps: a property of the map record (specs/map_objects.md §2.5).
+	var snow: Dictionary = GameData.map(id).get("snow", {}) if id >= 0 else {}
+	if not snow.is_empty():
+		_field.overlays.load(_field.data, snow)
 	if _clock != null:
 		var world: Dictionary = GameState.state["world"]
 		if id >= 0:
@@ -424,6 +433,17 @@ func _load_map_at_exit(map_name: String, exit: int) -> bool:
 		_script_debug.load_map(id)
 	_update_label()
 	return true
+
+
+## updateMapLightState (utils2.c:553) on the current map's light_objects, every frame. The
+## tournament registration that may return before it isn't ported (§2.4).
+func _update_map_light_state() -> void:
+	var screen = GameState.state["world"].get("screen")
+	if screen == null or _field.data.is_empty():
+		return
+	var lights: Array = GameData.map(screen).get("light_objects", [])
+	if not lights.is_empty():
+		_field.overlays.update_light_state(lights, int(GameState.state["clock"]["hour"]), GameState.is_trigger_set)
 
 
 ## setupMap (map.c:4225), at the end of the MAPHEAD section: the time of day (updateTimeOfDay),

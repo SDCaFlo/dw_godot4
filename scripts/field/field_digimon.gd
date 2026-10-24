@@ -90,6 +90,13 @@ func start_animation(id: int) -> void:
 		animator.play(id)
 
 
+## posData[node].posMatrix.workm.t: the world position of a bone (SPAWN_SPRITE_AT_ENTITY).
+func bone_position(node: int) -> Vector3:
+	if _skeleton == null or node < 0 or node >= _skeleton.get_bone_count():
+		return global_position
+	return _skeleton.global_transform * _skeleton.get_bone_global_pose(node).origin
+
+
 ## entityLookAtLocation (map.c:3389): rotation.vy = _atan(dz, dx) = 0x800 + atan2(dx, dz).
 func look_at_psx(target_x: int, target_z: int) -> void:
 	var dx := target_x - int(position.x)

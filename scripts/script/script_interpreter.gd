@@ -32,8 +32,8 @@ const FREE := 0xFF
 ## Movement slot types (tickScriptedMovement, specs/script.md §2.7): 0 turn to an entity
 ## (ENTITY_LOOK_AT_ENTITY, a talk's turn), 1 set the rotation (ENTITY_SET_ROTATION), 2-5 walk to a
 ## point or an entity, without or with the camera, 6-7 the camera slot's pans to a point or an
-## entity, 8-11 moves (slides) to a point or an entity, 14-15 moves on one axis. 12-13 (doors,
-## objects) come with the map objects.
+## entity, 8-11 moves (slides) to a point or an entity, 12 a door's move (slot 11), 13 a map
+## sprite's move (slots 12-21; specs/map_objects.md), 14-15 moves on one axis.
 const MOVE_LOOK_AT := 0
 const MOVE_SET_ROTATION := 1
 const MOVE_WALK_TO := 2
@@ -46,10 +46,15 @@ const MOVE_TO := 8
 const MOVE_TO_ENTITY := 9
 const MOVE_TO_WITH_CAMERA := 10
 const MOVE_TO_ENTITY_WITH_CAMERA := 11
+const MOVE_ROTATE_DOOR := 12
+const MOVE_OBJECT_TO := 13
 const MOVE_TO_AXIS := 14
 const MOVE_TO_AXIS_WITH_CAMERA := 15
 ## The camera's movement slot (WAIT_FOR_ENTITY 0xC8).
 const CAMERA_SLOT := 10
+## ROTATE_3D_OBJECT's slot, and MOVE_OBJECT_TO's first (its slot argument adds to it).
+const DOOR_SLOT := 11
+const OBJECT_SLOT := 12
 ## entityCheckCollision results that end a walk to an entity: entities 0-8 (col < 9).
 const WALK_HIT_LIMIT := 9
 ## CALL_DIGIMON_ROUTINE 0: the toilet scene (partner state 6).
@@ -293,8 +298,8 @@ func _sync_bit_set() -> bool:
 
 
 ## tickScriptedMovements / tickScriptedMovement (script_interp.c:2821, :2275): every slot in use.
-## Types 12-13 (doors, objects) come with the map objects and end at once; a slot whose entity is
-## gone ends at once.
+## The doors and the map sprites (types 12, 13) move through the field; without one they end at
+## once, as a slot whose entity is gone.
 func _tick_scripted_movements() -> void:
 	for slot in MOVEMENT_SLOTS:
 		if movement[slot] == FREE:
@@ -305,6 +310,11 @@ func _tick_scripted_movements() -> void:
 		var done := true
 		if type == MOVE_CAMERA_TO or type == MOVE_CAMERA_TO_ENTITY:
 			done = _tick_camera_slot(type, args)
+		elif type == MOVE_ROTATE_DOOR:
+			done = field == null or field.tick_rotate_door(int(args["id"]), int(args["target"]))
+		elif type == MOVE_OBJECT_TO:
+			done = field == null or field.overlays.tick_move_to(int(args["id"]), slot - OBJECT_SLOT,
+					int(args["target"]), int(args["x"]), int(args["z"]))
 		elif actor != null:
 			match type:
 				MOVE_LOOK_AT:
@@ -981,6 +991,13 @@ func _op_46_58(op: int) -> int:
 		0x55:
 			ctx.pointer += 1
 			ctx.textbox_origin = [_s16(_u16()), _s16(_u16()), _s16(_u16())]
+		0x57:
+			# SET_OBJ_VISIBILITY _, instance, flag: setMapObjectsFlag sets the whole flag.
+			if field == null:
+				return _unported_op(op)
+			ctx.pointer += 1
+			var instance := ctx.next_byte()
+			field.overlays.set_flag(instance, ctx.next_byte())
 		0x58:
 			pause_game(0xFF)
 			var pstat := ctx.next_byte()
@@ -1048,6 +1065,10 @@ func _op_64_7e(op: int) -> int:
 			if slot != FREE:
 				_set_movement(slot, MOVE_TO_AXIS if op == 0x72 else MOVE_TO_AXIS_WITH_CAMERA,
 						{"id": id, "x": value, "target": ((axis & 0xFF) ^ 0x80) - 0x80, "speed": speed})
+		0x70, 0x71, 0x7C, 0x7D, 0x7E:
+			if field == null:
+				return _unported_op(op)
+			return _op_map_object(op)
 		ScriptContext.OP_CALL_ROUTINE:
 			return _call_routine(ctx.next_byte())
 		0x65:
@@ -1078,6 +1099,57 @@ func _op_64_7e(op: int) -> int:
 			game_state.set_script_value(0, ctx.saved_pstat0)
 		_:
 			return _unported_op(op)
+	return NEXT
+
+
+## The map-object opcodes (specs/map_objects.md §2.4-2.7; script_interp.c:2062-2175).
+func _op_map_object(op: int) -> int:
+	match op:
+		0x70:
+			# ROTATE_3D_OBJECT door, _, target (int8): slot 11 type 12.
+			pause_game(0xFF)
+			var door := ctx.next_byte()
+			ctx.next_byte()
+			_set_movement(DOOR_SLOT, MOVE_ROTATE_DOOR, {"id": door, "target": _s8(ctx.next_byte())})
+		0x71:
+			# MOVE_OBJECT_TO slot, instance, speed (unused), steps (int8), _, x, y: slot 12 + slot
+			# type 13.
+			pause_game(0xFF)
+			var slot := ctx.next_byte() + OBJECT_SLOT
+			var instance := ctx.next_byte()
+			var speed := ctx.next_byte()
+			var steps := _s8(ctx.next_byte())
+			ctx.next_byte()
+			var x := _s16(_u16())
+			var y := _s16(_u16())
+			if slot < MOVEMENT_SLOTS:
+				_set_movement(slot, MOVE_OBJECT_TO, {"id": instance, "speed": speed, "target": steps, "x": x, "z": y})
+			else:
+				_report(op, "MOVE_OBJECT_TO slot %d" % (slot - OBJECT_SLOT))
+		0x7C:
+			# SET_RECT_IMPASSABLE _, x, z, w, h: setImpassableRect's arguments are int8.
+			ctx.next_byte()
+			var x := _s8(_u16())
+			var z := _s8(_u16())
+			var w := _s8(ctx.next_byte())
+			field.set_impassable_rect(x, z, w, _s8(ctx.next_byte()))
+		0x7D:
+			# SPAWN_SPRITE_AT_LOCATION count, x, y, z, instance (no uses).
+			var count := ctx.next_byte()
+			var p := [_s16(_u16()), _s16(_u16()), _s16(_u16())]
+			var instance := _s16(_u16())
+			field.overlays.place_at(Vector2i(field.background_pixel(Content.psx_to_godot(p)).round()), instance, count)
+		0x7E:
+			# SPAWN_SPRITE_AT_ENTITY id, node (int8), instance: the node's world position.
+			var id := ctx.next_byte()
+			var node := _s8(ctx.next_byte())
+			var instance := ctx.next_byte()
+			var entity := _entity_for_script_id(id)
+			if entity == null or not entity.has_method("bone_position"):
+				_report(op, "SPAWN_SPRITE_AT_ENTITY of an entity not on the map")
+			else:
+				var pixel := Vector2i(field.background_pixel(entity.bone_position(node)).round())
+				field.overlays.place_at(pixel, instance)
 	return NEXT
 
 
@@ -1160,6 +1232,13 @@ func _call_routine(routine: int) -> int:
 		0x38:
 			game_state.set_script_value(0xF3, (ctx.shop_variable / 256) & 0xFF)
 			game_state.set_script_value(0xF4, ctx.shop_variable & 0xFF)
+		0x15:
+			# resetMapObjectAnimation(script value 0xF7, count script value 0xF8), then the frame ends.
+			if field == null:
+				_report(ScriptContext.OP_CALL_ROUTINE, "CALL_ROUTINE 0x15")
+				return STOP
+			field.overlays.reset_animation(ctx.read_pstat(0xF7), ctx.read_pstat(0xF8))
+			return STOP
 		0x21:
 			# The arena's daily setup (tournament day, partner).
 			for t in [0x25, 0x26, 0x27]:
@@ -1481,6 +1560,11 @@ func _s32() -> int:
 static func _s16(v: int) -> int:
 	v &= 0xFFFF
 	return v - 0x10000 if v >= 0x8000 else v
+
+
+static func _s8(v: int) -> int:
+	v &= 0xFF
+	return v - 0x100 if v >= 0x80 else v
 
 
 func _partner_type() -> int:

@@ -7,7 +7,8 @@ Status (2026-10-24):
 - **done:** step 3, the NPCs (`specs/npc.md`, option A): `LOAD` / `SET` / `UNLOAD_DIGIMON`, `UNLOAD_ENTITY`, `SET_AUTOTALK`, `PLAY_ANIMATION`, `ENTITY_LOOK_AT_ENTITY`, `ENTITY_SET_ROTATION`, `RESET_ENTITY_ORIGIN`, `ENTITY_WALK_TO` on NPCs, movement types 0–2, talking and the turn to each other;
 - **done:** step 3b, the NPCs' behaviour between talks (`specs/npc.md` §2.10);
 - **done:** step 4, scripted movement and the camera (2026-10-24): slot types 3–11, 14, 15, the camera slot, the sync bit (§2.7 "Step 4"), the camera (`specs/camera.md`), the toilet scene (`specs/care.md` §2.16); `tests/test_camera.gd`;
-- **next:** step 5a, the map objects: spec written 2026-10-24 (`specs/map_objects.md`), code not started. Step 5 is split into 5a–5e (§3.1).
+- **done:** step 5a, the map objects (2026-10-24, `specs/map_objects.md`): the overlay sprites, `SET_OBJ_VISIBILITY`, `MOVE_OBJECT_TO`, `ROTATE_3D_OBJECT`, `SET_RECT_IMPASSABLE`, `SPAWN_SPRITE_AT_*`, builtin 0x15; `tests/test_map_objects.gd`;
+- **next:** step 5b–5e (§3.1): the order is open.
 
 The original's bytecode interpreter: how a script section starts, how each frame runs instructions until one waits, the call stack, the conditions, and what each instruction changes. It runs the map setup (music, NPCs), every NPC talk, trigger cells, cutscenes, shops, battles and the new game. The script files and their instruction layouts are documented in `asset_porter/specs/scn.md`; the text and choice instructions in `specs/text.md` §2.6–2.7.
 
@@ -311,7 +312,7 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
    - **tests:** `tests/test_camera.gd` (new: the follow, the pans, the camera slot, the moves with the camera, the toilet scene on MAYO01 with Agumon's model), `test_script.gd` (the moves, the axis moves, a walk to an entity, the shared delta, the sync bit).
    - Done 2026-10-24.
 5. **With their systems**, split by system (uses in the scripts counted 2026-10-24):
-   - **5a. map objects** (`specs/map_objects.md`, spec written 2026-10-24):
+   - **5a. map objects** (`specs/map_objects.md`, spec and code 2026-10-24, done):
      - the overlay sprites drawn, animated and sorted against the models;
      - `SET_OBJ_VISIBILITY` (1,669 uses), `MOVE_OBJECT_TO` (293, slot type 13), `ROTATE_3D_OBJECT` (103, slot type 12), `SET_RECT_IMPASSABLE` (16), `SPAWN_SPRITE_AT_ENTITY` / `_AT_LOCATION` (18 / 0);
      - builtin 0x15 (107), File City's lights, the snow;

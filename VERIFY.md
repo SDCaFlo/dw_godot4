@@ -6,6 +6,8 @@ The porters have their own checklists (`asset_porter/VERIFY.md`, `data_porter/VE
 godot --headless --path . -s res://tests/test_script.gd
 godot --headless --path . -s res://tests/test_npc.gd
 godot --headless --path . -s res://tests/test_camera.gd
+godot --headless --path . -s res://tests/test_map_objects.gd
+godot --path . -s res://tests/render_check.gd -- MAYO01 0 260 140   # not headless: renders a frame
 godot --headless --path . -s res://tests/test_text.gd
 godot --headless --path . -s res://tests/test_care.gd
 godot --headless --path . -s res://tests/test_partner.gd
@@ -105,6 +107,18 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
    - Compare with the game: the tamer's facing while Agumon walks back (the C turns him to a garbage point there, `specs/care.md` §6), the timing.
 5. **Cutscenes with camera moves:** sections that pan the camera (`MOVE_CAMERA_TO`, `MOVE_CAMERA_TO_ENTITY`; e.g. the File City scenes, Jijimon's house) and walk or slide entities with it. After a pan back to the tamer he is centred again; after a pan elsewhere, the follow carries on from there, so he may stay off-centre until you walk. Compare where the tamer is on screen afterwards with the game.
 6. **Rising / sinking** (`ENTITY_MOVE_TO_AXIS` on y, 15 uses): entities slide up or down without changing animation.
+
+## Map objects (`scripts/field/map_overlays.gd`, `field_map.gd`, `specs/map_objects.md`)
+
+`test_map_objects.gd` prints `OK: map object checks`. `render_check.gd` prints `background 0 / 76800 pixels differ` and saves the frame in `user://` (it says where): open it, the map's sprites must sit on the background. In the game (F5), check:
+1. **Animated details:** Native Forest's flowers (MAYO01, the lower left), water, torches and smoke on other maps. Compare their speed with the game, and the tamer walking in front of and behind the parts of the background that are sprites (tree trunks, roofs). Wrong if: a sprite is offset from the background, flickers, or covers the tamer when he is in front of it.
+2. **Brightness:** the glowing (additive) sprites, e.g. File City's lights and the Factorial Town effects. Compare with the game: Godot blends in linear colour, so they may look brighter (`specs/map_objects.md` §6).
+3. **File City TWNB04's lights** (instances 49–50): off from 7:00 to 18:59, on otherwise.
+4. **Doors:** the Great Canyon gates (GCAN02/03/06/10) sliding apart in their scene before the warp; Grey Lord's Mansion doors (YAKA11A / 11B / 13), with both halves of the double doors (model 10). Compare whether those doors snap shut at the end of their swing as in the port (§6).
+5. **Scenes that move sprites:** Amida Forest (TROP06), Secret Beach Cave (OGRE10), Factorial Town (FACT08B).
+6. **Digimon Bridge (MAYO08A):** when the bridge is broken, its cells are blocked (the tamer stops before them).
+7. **Snow** on Freezeland (FRZL01–16): flakes falling over everything, drifting, melting at the bottom.
+8. **Day / evening / night:** the sprites change palette with the background, at the end of its fade.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

@@ -45,7 +45,7 @@ UV = (tex_x % 256, tex_y % 256); `transparency` = blend mode; instance (x, y) = 
 
 `DOOR_MAPDATA[doorsId − 1]` (exe @ `0x80122E60`, 24 × 54 bytes): 6 slots of model id (255 = none, `DOOR/DOOR<id>.TMD`), position xyz, rotation. Their textures are the map images in VRAM (`tmd.md`).
 
-- **Planned (`../../specs/map_objects.md` §3):** `map.json` `doors` keeps each door's `slot` (0–5): the scripts' `ROTATE_3D_OBJECT` names the slot, and tables 1 and 6 have an empty slot 0 (`[255, 9, 9, 9, 10, 10]`, `[255, 18, 16, 17, 255, 255]`). The empty slots stay dropped.
+- `map.json` `doors` keeps each door's `slot` (0–5, `../../specs/map_objects.md` §2.6): the scripts' `ROTATE_3D_OBJECT` names the slot, and tables 1 and 6 have an empty slot 0 (`[255, 9, 9, 9, 10, 10]`, `[255, 18, 16, 17, 255, 255]`). The empty slots stay dropped.
 - Model 10 is drawn twice by `renderDoors` (`map_object.c:374`): a mirrored copy (rotation `−vy`, `∓680` on z) makes a double door.
 
 ## Camera (verified)
@@ -69,6 +69,7 @@ For Godot (axes x, −y, −z): camera at `(eye.x, −eye.y, −eye.z)` looking 
 | `background_<p>.png` | full background (width·128 × height·128) with palette p; missing tiles transparent |
 | `collision.png` | 100 × 100 grey, raw collision values |
 | `objects/object_<k>.png`, `object_<k>_p<p>.png` | object sprites (per palette when clut = −1) |
+| `objects/object_<k>[_p<p>].stp.png` | grey mask, 255 where the texel's colour has the STP bit: the texels a semi-transparent sprite blends (`tim.md`). Only for sprites that have one; `objects[k].stp_files` lists them per palette (null when none) |
 | `doors/door_<id>.gltf` | door models textured with this map's VRAM |
 | `overview.png` | **human check**: background (palette 0) + object sprites (frame 0, opaque) + walkable cells (green), trigger cells (orange), spawns (cyan), NPC digimon (yellow), doors (magenta) |
 | `map.json` | everything: table entry (incl. display name, sound, flags), header, setup, camera, TFS palettes + tile headers, image TIM headers/VRAM, objects (+ placement in VRAM, missing texels, whether used), instances, spawns, warps (+ target map name), digimon (+ type name, stats, AI, waypoints), doors, toilet, collision values, overview counts |

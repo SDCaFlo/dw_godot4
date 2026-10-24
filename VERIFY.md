@@ -78,13 +78,18 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
 
 ## NPCs (`scripts/field/npc.gd`, `field_entities.gd`, `field_digimon.gd`, `specs/npc.md`)
 
-`test_npc.gd` prints `OK: NPC checks`. In the game (F5), the map setups now place the map's Digimon; between talks they stand in their idle animation (their wandering is step 3b). Check:
-1. **Native Forest (MAYO04A), the start:** by day (7:00–19:00) an Aruraumon stands by the fence; at night (`T` advances the hour) a Goburimon instead (after re-entering the map). Wrong if: none appear, or two of the same.
+`test_npc.gd` prints `OK: NPC checks`. In the game (F5), the map setups place the map's Digimon; between talks they wander their paths and react to you by their follow mode (`specs/npc.md` §2.10). Check:
+1. **Native Forest (MAYO04A), the start:** by day (7:00–19:00) an Aruraumon walks back and forth between two points by the fence, turning in arcs; at night (`T` advances the hour) a Goburimon instead (after re-entering the map). Wrong if: none appear, two of the same, or it walks on the spot / never turns back.
 2. **Talking:** walk into the Aruraumon. It talks on contact (autotalk 1): the tamer stops against it, he and the NPC turn to face each other, and the box opens with its name in yellow ("I guess I can play with you."). Its battle is reported as unported, and the section goes on.
 3. **✕ talk:** File City (press `]` to the TWNA maps) or Jijimon's house: walk up to an NPC with autotalk 0, face it and press ✕ from a short distance (the reach is 50 units in front). Its section starts; walking into it without ✕ only stops you.
 4. **Blocking:** you can't walk through an NPC; Agumon goes around NPCs as it goes around walls.
 5. **Scenes:** sections that walk, turn or animate NPCs play those moves now; camera moves and `ENTITY_MOVE_TO` slides still don't (step 4). Compare a scene you know: who turns to whom, who walks where.
 6. **The original's slot-7 quirk** (`specs/npc.md` §6, `PLANS.md`): after a scene that animates an NPC, on a map whose last NPC has script id 12 (File City's Whamon), check the real game: can you still talk to that NPC?
+7. **Wandering (3b):** on maps with several NPCs (File City, the forests), the walkers go from point to point, stop for a moment (½–4 s), and loop. Against a wall or another Digimon they slide along it and turn away instead of walking into it. Wrong if: one stays pressed into a wall walking on the spot, or walks through walls.
+8. **Wild enemies (follow mode 12):** walk into an enemy's range (e.g. MAYO04A's walking Aruraumon, by day, or Goburimon, at night: 300 units around the point where it first stands). It walks, then runs, at the place where you were when it noticed you (it doesn't steer after you). It stops there or when it touches you, waits 2 s, then walks back to its place. Touching you starts its section (the battle is reported). Compare with the game: the moment it notices you, the speed of the charge, the wait.
+9. **Looking at you (follow mode 2):** near such an NPC it stops and turns to follow you; when you walk away it goes back to its path.
+10. **During a talk:** the NPC you talk to stops; the others keep moving. After the talk it restarts its path from the first point.
+11. **Agumon and NPCs:** when Agumon bumps into an NPC it no longer overlaps it: it stops moving towards it and turns along it.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

@@ -309,46 +309,11 @@ func tick_look_at_entity(entity_id: int, target_script_id: int) -> bool:
 		_has_rotation_data[entity_id] = true
 		return false
 	var to: Vector2i = _rotation_data[entity_id]
-	var turned := rotate_entity(actor.direction, to.x - int(actor.position.x), to.y - int(-actor.position.z), LOOK_AT_SPEED)
+	var turned := FieldDigimon.rotate_entity(actor.direction, to.x - int(actor.position.x), to.y - int(-actor.position.z), LOOK_AT_SPEED)
 	actor.set_direction(turned[0])
 	if turned[1]:
 		_has_rotation_data[entity_id] = false
 	return turned[1]
-
-
-## getRotationDifference + rotateEntity (overworld.c:1484, :1503): one turn step from `vy` towards
-## the angle of (dx, dz). Returns [new vy, reached].
-static func rotate_entity(vy: int, dx: int, dz: int, speed: int) -> Array:
-	var target := (0x800 + roundi(atan2(dx, dz) * 0x800 / PI)) & 0xFFF
-	var cw: int
-	var cc: int
-	if target > vy:
-		cw = target - vy
-		cc = vy + (4096 - target)
-	else:
-		cw = target + (4096 - vy)
-		cc = vy - target
-	if vy < target:
-		if cc < cw:
-			vy -= speed
-			if target - 4096 > vy:
-				return [target, true]
-		elif cw < cc:
-			vy += speed
-			if target < vy:
-				return [target, true]
-	elif target < vy:
-		if cc < cw:
-			vy -= speed
-			if vy < target:
-				return [target, true]
-		elif cw < cc:
-			vy += speed
-			if target + 4096 < vy:
-				return [target, true]
-	else:
-		return [target, true]
-	return [vy & 0xFFF, false]
 
 
 ## The entity a movement slot moves: 0 the tamer, 1 the partner, 2-9 the NPCs.

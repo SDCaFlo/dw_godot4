@@ -1,6 +1,6 @@
 # NPCs (port spec)
 
-Status (2026-10-23): step 3 of `specs/script.md` §3.1 done, option A (decided 2026-10-23): the map Digimon appear, can be talked to, and are moved and animated by scripts; between talks they stand. Code: `scripts/field/field_digimon.gd` (shared with the partner), `npc.gd`, `field_entities.gd`, the interpreter's entity opcodes, `field.gd`; test `tests/test_npc.gd` (38 checks). Their own behaviour (waypoint wandering, looking at / tracking the tamer) is step 3b: spec written 2026-10-24 (§2.10, §3.4), code not started.
+Status (2026-10-23): step 3 of `specs/script.md` §3.1 done, option A (decided 2026-10-23): the map Digimon appear, can be talked to, and are moved and animated by scripts; between talks they stand. Code: `scripts/field/field_digimon.gd` (shared with the partner), `npc.gd`, `field_entities.gd`, the interpreter's entity opcodes, `field.gd`; test `tests/test_npc.gd` (38 checks). Step 3b done (2026-10-24): their behaviour between talks (waypoint wandering, looking at / tracking the tamer, sliding along walls; §2.10, §3.4); `tests/test_npc.gd` 70 checks.
 
 The map Digimon ("NPCs") of the original: up to 8 per map, placed by the map setup scripts from the map's entity list, ticked once per game frame, talked to by touching them (✕ or on contact), and moved by script instructions. Wild enemies are NPCs too: their talk section starts the battle.
 

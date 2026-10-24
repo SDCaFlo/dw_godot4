@@ -87,6 +87,7 @@ func _empty_slot() -> Dictionary:
 		"ai_sections": [-1, -1, -1, -1, -1, -1, -1, -1], "waypoints": [], "active_section": 0,
 		"animation": 0, "stop_anim": 0, "look_at_tamer_state": 0, "has_waypoint_target": 0,
 		"waypoint_wait_timer": 0, "target_angle": 0, "cc_diff": 0, "cw_diff": 0,
+		"target_location": [0, 0, 0],
 	}
 
 

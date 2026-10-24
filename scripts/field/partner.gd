@@ -343,7 +343,7 @@ func tick_collision() -> void:
 		look_at_psx(int(tamer.position.x), int(-tamer.position.z))
 	# An entity collision (0-9: the tamer or an NPC) keeps the old rotation and turns along the
 	# obstacle; collisionGrace gets the tamer as the source, so only the others make it turn.
-	var hit := probe(direction)
+	var hit := check_collision()
 	if hit >= 0 and hit < HIT_MAP:
 		_set_direction(previous_direction)
 		collision_grace(tamer)
@@ -423,7 +423,7 @@ func tick_walking() -> void:
 				update_condition_animation()
 			if a.anim_id > 1 and a.anim_id < 5:
 				# entityCheckCollision == 0: the step runs into the tamer.
-				var bumped := probe(direction) == HIT_TAMER
+				var bumped := check_collision() == HIT_TAMER
 				if a.loop_count == PsxAnimator.ENDLESS:
 					a.finish_loop()
 				if a.loop_count == 0 or bumped:

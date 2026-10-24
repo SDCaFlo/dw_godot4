@@ -15,6 +15,12 @@ const GRACE := [
 const FREE := -1
 const HIT_TAMER := 0
 const HIT_MAP := 10
+## animFlag's blocked-axis bits (collisionGrace, map.c:3466): 8 << (direction / 1024), the root
+## motion's component that way zeroed (applyRootMomentum, anim.c:479).
+const BLOCK_MINUS_Z := 0x08
+const BLOCK_MINUS_X := 0x10
+const BLOCK_PLUS_Z := 0x20
+const BLOCK_PLUS_X := 0x40
 
 var field: FieldMap
 ## The entity table (ENTITY_TABLE); null: only the entities of _fallback_entities collide.
@@ -35,6 +41,8 @@ var on_map := true
 var step := 0.0
 ## animFlag & 2: the root motion is held this frame (the step ran into the tamer).
 var step_blocked := false
+## animFlag & 0x78: the BLOCK_* directions collisionGrace found blocked this frame.
+var blocked_axes := 0
 
 var _skeleton: Skeleton3D
 var _model: Node3D
@@ -92,7 +100,7 @@ func look_at_psx(target_x: int, target_z: int) -> void:
 
 
 ## The root motion (applyRootMomentum): nothing tests the map here (specs/partner.md §3); an
-## axis-aligned rotation moves on its axis only.
+## axis-aligned rotation moves on its axis only; the axes collisionGrace blocked don't move.
 func _move(motion: Vector3) -> void:
 	var dx := motion.x
 	var dz := -motion.z
@@ -100,8 +108,29 @@ func _move(motion: Vector3) -> void:
 		dz = 0.0
 	if direction == 0 or direction == 0x800:
 		dx = 0.0
+	if blocked_axes & BLOCK_MINUS_Z and dz < 0:
+		dz = 0.0
+	if blocked_axes & BLOCK_MINUS_X and dx < 0:
+		dx = 0.0
+	if blocked_axes & BLOCK_PLUS_Z and dz > 0:
+		dz = 0.0
+	if blocked_axes & BLOCK_PLUS_X and dx > 0:
+		dx = 0.0
 	position.x += dx
 	position.z -= dz
+
+
+## animFlag &= 5, as entityCheckCollision and collisionGrace start: the held step and the blocked
+## axes last one frame.
+func clear_step_flags() -> void:
+	step_blocked = false
+	blocked_axes = 0
+
+
+## entityCheckCollision(source, self) on its own next step: clears the step flags, then probes.
+func check_collision(source: Node3D = null) -> int:
+	clear_step_flags()
+	return probe(direction, source)
 
 
 # --- entityCheckCollision (map.c:3400) ------------------------------------------------------------
@@ -177,14 +206,19 @@ static func touches(square: Rect2, x1: float, z1: float, x2: float, z2: float) -
 
 
 ## collisionGrace (map.c:3466): try the 4 directions of COLLISION_GRACE_ROTATION and turn at
-## most 0x50 per frame towards the first free one; with none free, turn 32. `source` is skipped
-## by the probes (the partner passes the tamer, so bumping only him keeps the old rotation).
+## most 0x50 per frame towards the first free one, blocking the axes of the ones tried before it;
+## with none free, turn 32 and hold the step. `source` is skipped by the probes (the partner
+## passes the tamer, so bumping only him keeps the old rotation).
 func collision_grace(source: Node3D = null) -> void:
+	clear_step_flags()
 	if probe(direction, source) == FREE:
 		return
 	var start := direction
+	var flags := 0
 	for candidate: int in GRACE[start / 512]:
-		if probe(candidate, source) == FREE:
+		if probe(candidate, source) != FREE:
+			flags |= 8 << (candidate / 1024)
+		else:
 			var clockwise: int = start - candidate
 			if clockwise < 0:
 				clockwise = (clockwise + 0x1000) & 0xFFF
@@ -195,8 +229,46 @@ func collision_grace(source: Node3D = null) -> void:
 				_set_direction(start + 0xFB0 if clockwise >= 0x51 else start + 0x1000 - clockwise)
 			else:
 				_set_direction(start + 0x50 if counter >= 0x51 else start + counter)
+			blocked_axes = flags
 			return
 	_set_direction(start + 32)
+	step_blocked = true
+
+
+## getRotationDifference + rotateEntity (overworld.c:1484, :1503): one turn step from `vy` towards
+## the angle of (dx, dz). Returns [new vy, reached]. The C leaves vy outside 0-4095 for a frame
+## when it crosses 0; this keeps it in range (the same angles are reached).
+static func rotate_entity(vy: int, dx: int, dz: int, speed: int) -> Array:
+	var target := (0x800 + roundi(atan2(dx, dz) * 0x800 / PI)) & 0xFFF
+	var cw: int
+	var cc: int
+	if target > vy:
+		cw = target - vy
+		cc = vy + (4096 - target)
+	else:
+		cw = target + (4096 - vy)
+		cc = vy - target
+	if vy < target:
+		if cc < cw:
+			vy -= speed
+			if target - 4096 > vy:
+				return [target, true]
+		elif cw < cc:
+			vy += speed
+			if target < vy:
+				return [target, true]
+	elif target < vy:
+		if cc < cw:
+			vy -= speed
+			if vy < target:
+				return [target, true]
+		elif cw < cc:
+			vy += speed
+			if target + 4096 < vy:
+				return [target, true]
+	else:
+		return [target, true]
+	return [vy & 0xFFF, false]
 
 
 func _blocked(x: float, z: float, dx: float, dz: float) -> bool:

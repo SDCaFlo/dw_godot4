@@ -40,6 +40,9 @@ func _process(_delta: float) -> bool:
 	_turns(mayo)
 	_movement_enabled(mayo)
 	_animations()
+	_wander()
+	_follow()
+	_walls()
 	_teardown()
 	print("%s: NPC checks (%d run)" % ["FAILED %d" % _failed if _failed else "OK", _checks])
 	quit(1 if _failed else 0)
@@ -204,6 +207,9 @@ func _collision(mayo: Dictionary) -> void:
 	partner._set_direction(0x800)
 	partner.step = 10.0
 	_eq(partner.probe(partner.direction), 3, "the partner's step into an NPC: entity 3")
+	partner.collision_grace()
+	_eq(partner.blocked_axes, FieldDigimon.BLOCK_PLUS_Z, "its collisionGrace blocks its motion towards the NPC (+z)")
+	partner.clear_step_flags()
 	partner.step = 0.0
 
 
@@ -213,6 +219,9 @@ func _autotalk(mayo: Dictionary) -> void:
 	ents.set_digimon(86, 1, 1)
 	var npc: Npc = ents.npcs[1]
 	npc.radius = 100
+	# Standing only: its follow mode 12 would charge, and a walking NPC's collisionGrace clears the
+	# held step (specs/npc.md §2.10.4).
+	ents.slots[1]["follow_mode"] = 1
 	tamer.radius = 100
 	tamer.state = Tamer.STATE_FREE
 	tamer.position = Vector3(275 - 205, 0, -1755)
@@ -247,11 +256,11 @@ func _turns(mayo: Dictionary) -> void:
 	var steps := []
 	var vy := 0
 	for i in 3:
-		var r := ScriptInterpreter.rotate_entity(vy, 100, 0, 0x200)
+		var r := FieldDigimon.rotate_entity(vy, 100, 0, 0x200)
 		steps.append(r)
 		vy = r[0]
 	_eq(steps, [[0xE00, false], [0xC00, false], [0xC00, true]], "rotateEntity: 0x200 per frame the short way (0 -> 0xC00 over 0xE00), done on the angle")
-	_eq(ScriptInterpreter.rotate_entity(0x100, 0, 100, 0x200), [0x800 - 0x800 + 0x300, false],
+	_eq(FieldDigimon.rotate_entity(0x100, 0, 100, 0x200), [0x800 - 0x800 + 0x300, false],
 			"rotateEntity from 0x100 towards 0x800: +0x200")
 	_load(mayo)
 	ents.set_digimon(162, 0, 0)
@@ -326,6 +335,161 @@ func _animations() -> void:
 	_eq([tamer.state, tamer._script_animation, partner.state], [Tamer.STATE_SCRIPT, 8, Partner.STATE_SCRIPT],
 			"PLAY_ANIMATION: the tamer's state 10 with the animation, the partner's state 12")
 	_force_end()
+
+
+## One synthetic NPC in slot 0 (type 80) at the PSX origin, facing 0, placed; the tamer and the
+## partner far away. Step 3b's checks drive it by hand (no model: positions are set, not walked).
+func _ai_npc(follow_mode: int, tracking_range: int, sections: Array, waypoints: Array) -> Npc:
+	ents.remove_map_entities()
+	ents.clear_map_digimon()
+	ents.load_map_digimon([{"type": 80, "follow_mode": follow_mode, "position": [0, 0, 0], "rotation": [0, 0, 0],
+			"tracking_range": tracking_range, "script_id": 5, "current_hp": 100, "ai_sections": sections,
+			"waypoints": waypoints}], true)
+	ents.set_digimon(80, 0, 0)
+	var npc: Npc = ents.npcs[0]
+	npc.radius = 100
+	tamer.position = Vector3(8000, 0, 0)
+	partner.position = Vector3(-8000, 0, 0)
+	ents.collision_state[0] = -1
+	return npc
+
+
+## The tamer at a PSX point.
+func _tamer_at(x: int, z: int) -> void:
+	tamer.position = Vector3(x, 0, -z)
+
+
+## NPCEntityTickWaypointAI, tickWaypointWait, NPCEntityTickWaypointWalk (specs/npc.md §2.10.1).
+func _wander() -> void:
+	var npc := _ai_npc(1, 0, [1, 0, 2, 0], [[1000, 0, 0], [3, 0, 0], [0, 0, 1000], [2, 0, 0]])
+	var s: Dictionary = ents.slots[0]
+	npc.tick()
+	_eq([npc.animation_id(), s["animation"], s["has_waypoint_target"], s["target_location"]], [2, 2, 1, [1000, 0, 0]],
+			"a walk section: animation 2, the target is its waypoint")
+	npc.tick()
+	_eq(npc.direction, 0xF8F, "it turns 0x71 per frame the short way (0 -> 0xC00 over 0xF8F)")
+	ents.collision_state[0] = 10
+	npc.tick()
+	_eq(npc.direction, 0xF8F, "no turn while the previous frame's step was blocked")
+	npc.position = Vector3(1000, 0, 0)
+	npc.tick()
+	_eq([s["active_section"], s["has_waypoint_target"], npc.animation_id()], [1, 0, 2],
+			"on the waypoint's tile: the next section (the walk animation goes on)")
+	npc.tick()
+	_eq([npc.animation_id(), s["has_waypoint_target"]], [0, 1], "a wait section: idle")
+	npc.tick()
+	npc.tick()
+	_eq(s["active_section"], 1, "still waiting after 2 frames (wait 3)")
+	npc.tick()
+	_eq(s["active_section"], 2, "after the waypoint x's frames: the next section")
+	npc.tick()
+	_eq(npc.animation_id(), 4, "a run section: animation 4")
+	npc.position = Vector3(0, 0, -1000)
+	npc.tick()
+	npc.tick()
+	npc.tick()
+	npc.tick()
+	_eq(s["active_section"], 0, "past the last section (-1) the path starts over")
+	# A section without a waypoint in the data reads 0: a wait of 0.
+	npc = _ai_npc(1, 0, [0, 0], [[1, 0, 0]])
+	s = ents.slots[0]
+	for i in 3:
+		npc.tick()
+	_eq(s["active_section"], 1, "the first wait (1 frame) done")
+	npc.tick()
+	npc.tick()
+	_eq(s["active_section"], 0, "the missing waypoint's wait ends at once (specs/npc.md §6)")
+
+
+## The follow modes (specs/npc.md §2.10.2-3).
+func _follow() -> void:
+	# Mode 2: look at the tamer in the rect (strict edges, around the map position).
+	var npc := _ai_npc(2, 500, [0], [[1000, 0, 0]])
+	var s: Dictionary = ents.slots[0]
+	_tamer_at(500, 0)
+	npc.tick()
+	_eq(s["look_at_tamer_state"], 0, "mode 2: the rect's edge is outside")
+	_tamer_at(499, 0)
+	npc.tick()
+	_eq([s["look_at_tamer_state"], npc.animation_id()], [1, 0], "in the rect: idle, looking")
+	npc.tick()
+	_eq(npc.direction, 0xF8F, "it turns towards him at 0x71")
+	npc.position = Vector3(3000, 0, 0)
+	npc.tick()
+	_eq(s["look_at_tamer_state"], 1, "the rect stays around the map position, not where it stands")
+	_tamer_at(0, 600)
+	npc.tick()
+	_eq([s["look_at_tamer_state"], s["has_waypoint_target"]], [0, 0], "out of the rect: back to its path")
+	npc = _ai_npc(2, 0, [0], [[1000, 0, 0]])
+	_tamer_at(0, 0)
+	npc.tick()
+	_eq(ents.slots[0]["look_at_tamer_state"], 0, "range 0: never in the rect")
+	# Mode 12: a charge at where he was, a wait, the walk home.
+	npc = _ai_npc(12, 1000, [0], [[1000, 0, 0]])
+	s = ents.slots[0]
+	_tamer_at(500, 0)
+	npc.tick()
+	_eq([s["look_at_tamer_state"], npc.animation_id(), s["target_location"]], [1, 2, [500, 0, 0]],
+			"mode 12, the tamer in the rect: walk, the target where he stands")
+	npc.tick()
+	_eq([s["look_at_tamer_state"], npc.animation_id()], [2, 4], "then run")
+	_tamer_at(5000, 0)
+	npc.tick()
+	_eq([s["look_at_tamer_state"], s["target_location"]], [2, [500, 0, 0]], "the target doesn't follow him")
+	npc.position = Vector3(500, 0, 0)
+	npc.tick()
+	_eq([s["look_at_tamer_state"], npc.animation_id()], [3, 0], "on the target's tile: idle, waiting")
+	for i in 39:
+		npc.tick()
+	_eq(s["look_at_tamer_state"], 3, "still waiting after 39 frames")
+	npc.tick()
+	_eq([s["look_at_tamer_state"], npc.animation_id(), s["target_location"]], [4, 2, [0, 0, 0]],
+			"after 40: walk home (the map position)")
+	npc.position = Vector3(0, 0, 0)
+	npc.tick()
+	_eq([s["look_at_tamer_state"], npc.animation_id()], [0, 0], "home: idle, state 0")
+	s["look_at_tamer_state"] = 2
+	s["target_location"] = [5000, 0, 0]
+	ents.collision_state[0] = 0
+	npc.tick()
+	_eq(s["look_at_tamer_state"], 3, "touching the tamer (the previous frame's collision 0) ends the charge")
+	ents.set_stop_anim(0, true)
+	_eq([s["look_at_tamer_state"], s["active_section"]], [0, 0], "a talk (setMovementEnabled) clears the chase")
+	ents.set_stop_anim(0, false)
+	# Mode 16: the radius test's quirk (dx + dz, not squared).
+	npc = _ai_npc(16, 10, [0], [[1000, 0, 0]])
+	_tamer_at(-40, 0)
+	var near := npc.in_tracking_radius()
+	_tamer_at(5000, 0)
+	_eq([near, npc.in_tracking_radius()], [false, true],
+			"tracking radius (range 10, 6^2 = 36): false 40 units away on -x, true 5000 away on +x (the C adds dx + dz)")
+
+
+## collisionGrace's blocked axes and held step (specs/npc.md §2.10.4).
+func _walls() -> void:
+	var npc := _ai_npc(1, 0, [1], [[5000, 0, 0]])
+	npc._set_direction(0xC00)
+	# A wall in the tile column x 100-199 (tile 51).
+	for tz in FieldMap.GRID:
+		map._collision[51 + tz * FieldMap.GRID] = 0x80
+	ents.collision_state[0] = 10
+	npc.step = 30.0
+	npc.tick()
+	_eq([ents.collision_state[0], npc.direction, npc.blocked_axes, npc.step_blocked], [10, 0xC50, FieldDigimon.BLOCK_PLUS_X, false],
+			"walking into a wall (+x): +x blocked, it turns 0x50 towards the free -z")
+	var before := npc.position
+	npc._move(Vector3(10, 0, 10))
+	_eq(npc.position - before, Vector3(0, 0, 10), "its root motion keeps only the free axis: it slides along the wall")
+	map._collision.fill(0x80)
+	npc._set_direction(0xC00)
+	npc.step = 30.0
+	npc.tick()
+	_eq([npc.direction, npc.step_blocked], [0xC20, true], "boxed in: it turns 32 and its step is held")
+	map._collision.fill(0)
+	npc.step = 30.0
+	npc.tick()
+	_eq([npc.step_blocked, npc.blocked_axes], [false, 0], "the next frame's collision check clears them")
+	npc.step = 0.0
 
 
 func _force_end() -> void:

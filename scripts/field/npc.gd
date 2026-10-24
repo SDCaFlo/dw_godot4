@@ -331,5 +331,5 @@ func screen_position(camera: Camera3D) -> Vector2i:
 	var world := global_position
 	if _skeleton != null and _skeleton.get_bone_count() > 1:
 		world = _skeleton.global_transform * _skeleton.get_bone_global_pose(1).origin
-	var s := camera.unproject_position(world)
+	var s := FieldMap.unproject(camera, world)
 	return Vector2i(roundi(s.x) - 160, roundi(s.y) - 120)

@@ -90,7 +90,10 @@ Last updated: 2026-10-24
 
 ## Done
 
-- 2026-10-24 — ISSUES.md I-5: the PSX semi-transparency of model polygons (STP masks from the asset porter, `PsxLit` blended passes): the poop's shadow.
+- 2026-10-24 — ISSUES.md D-1 (the debugger window: status, map list, render scale) and I-3 (3D render scale, 4× by default); I-6 (Palmon's shimmering) logged.
+- 2026-10-24 — ISSUES.md I-5 (`5fdc59e`).
+
+- 2026-10-24 — ISSUES.md I-5 details: the PSX semi-transparency of model polygons (STP masks from the asset porter, `PsxLit` blended passes): the poop's shadow.
 - 2026-10-24 — ISSUES.md I-2: the field lighting (`specs/lighting.md`: the map's lights and the ambient per vertex, by the time of day; `PsxLit`, `FieldLighting`, `tests/test_lighting.gd`; `19fd5b8`).
 - 2026-10-24 — ISSUES.md (new) with I-1 (sprites in front of the tamer) and I-4 (night holes) fixed (`fbcf612`).
 

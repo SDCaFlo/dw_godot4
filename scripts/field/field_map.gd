@@ -489,6 +489,16 @@ func background_pixel(world: Vector3) -> Vector2:
 	return background_size / 2 + _projection * Vector2(v.dot(_right), v.dot(_down)) / depth
 
 
+## The 3D view's resolution as a multiple of the PSX's 320 x 240 (ISSUES.md I-3, set by the field):
+## the 3D renders at 320 x 240 x this and is shown at the PSX size, like an emulator's upscaling.
+static var render_scale := 1
+
+
+## Camera3D.unproject_position in PSX screen pixels (0-320, 0-240), whatever the render scale.
+static func unproject(cam: Camera3D, world: Vector3) -> Vector2:
+	return cam.unproject_position(world) / render_scale
+
+
 ## The view depth of a Godot point: along the camera's forward axis, in PSX units.
 func view_depth(world: Vector3) -> float:
 	return (Vector3(world.x, -world.y, -world.z) - _eye).dot(_forward)

@@ -4,7 +4,8 @@ extends Node
 ## (specs/clock.md) with its HUD and the day / evening / night fades.
 ##
 ## Debug keys: [ / ] previous / next map, T one hour later, Z the menu's Sleep, C the care panel,
-## D the next section of the map's script, L text language, H toggle the help line.
+## D the next section of the map's script, L text language, H toggle the help line, F1 the debugger
+## window (DebugWindow: the status, a map list to teleport to, the 3D render scale).
 ##
 ## In the editor the scene previews start_map / start_spawn / time_of_day from the porter output
 ## (pick them in the Inspector). The preview is only in memory: before each save it is cleared
@@ -26,6 +27,12 @@ extends Node
 		_refresh_preview()
 ## Debug: a Digimon key (e.g. "dw1:greymon") to use as the partner instead of the game state's.
 @export var debug_partner := ""
+## The 3D view's resolution as a multiple of 320 x 240 (ISSUES.md I-3): 1 is the PSX's, more is
+## an emulator-like upscaling (the background and the 2D stay at the PSX resolution). The
+## debugger changes it while playing.
+@export_range(1, 4) var render_scale := 4
+## Debug: open the debugger window (F1 toggles it).
+@export var debug_window := true
 ## Editor only: show the map in the editor viewports.
 @export var editor_preview := true:
 	set(value):
@@ -56,6 +63,7 @@ var _map_name: MapName
 var _script_change_state := 0
 var _message := ""
 var _message_frames := 0
+var _debug: DebugWindow
 
 @onready var _field: FieldMap = $World/SubViewport/FieldMap
 @onready var _tamer: Tamer = $World/SubViewport/Tamer
@@ -81,7 +89,45 @@ func _ready() -> void:
 	_start_clock()
 	_start_text()
 	_start_care()
+	set_render_scale(render_scale)
+	_start_debug_window()
 	_begin(start_map if start_map in _maps else _maps[0], start_spawn)
+
+
+## The 3D viewport at 320 x 240 x `value`, shown at the PSX size (ISSUES.md I-3). The background
+## canvas layer, inside the viewport (field.tscn), is scaled with it; screen positions go through
+## FieldMap.unproject.
+func set_render_scale(value: int) -> void:
+	render_scale = clampi(value, 1, 4)
+	FieldMap.render_scale = render_scale
+	var container: SubViewportContainer = $World
+	var viewport: SubViewport = $World/SubViewport
+	container.stretch = false
+	viewport.size = Vector2i(FieldMap.SCREEN) * render_scale
+	container.size = Vector2(viewport.size)
+	container.scale = Vector2.ONE / render_scale
+	# Downscaling a bigger picture to the window: filtered, so the extra detail isn't lost to aliasing.
+	container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST if render_scale == 1 else CanvasItem.TEXTURE_FILTER_LINEAR
+	($World/SubViewport/Background as CanvasLayer).scale = Vector2.ONE * render_scale
+
+
+## The debugger window (DebugWindow, not part of the original).
+func _start_debug_window() -> void:
+	_debug = DebugWindow.new()
+	_debug.maps = _maps
+	_debug.map_label = func(map_name: String) -> String: return _map_list_label(map_name)
+	_debug.teleport = func(map_name: String, exit: int) -> void: _debug_change_map(map_name, exit)
+	_debug.render_scale = render_scale
+	_debug.render_scale_changed.connect(set_render_scale)
+	_debug.visible = debug_window
+	add_child(_debug)
+
+
+## A map's line in the debugger's list: file name and area name.
+func _map_list_label(map_name: String) -> String:
+	var id := GameData.map_id(map_name) if GameData.available() else -1
+	var area := GameData.localize(GameData.map(id).get("name")).strip_edges() if id >= 0 else ""
+	return "%s  %s" % [map_name, area]
 
 
 ## initializePartner's model part: the partner of the game state follows the tamer
@@ -165,7 +211,7 @@ func _start_text() -> void:
 		_text_area.set_language(GameData, GameData.language)
 		_textboxes.set_language(GameData.language))
 	_script_ctx.world_screen_position = func(p: Array):
-		var s := _camera.unproject_position(Content.psx_to_godot(p))
+		var s := FieldMap.unproject(_camera, Content.psx_to_godot(p))
 		return Vector2i(roundi(s.x) - 160, roundi(s.y) - 120)
 	# The interpreter (specs/script.md) ticks where gameLoop calls tickScript: before the objects,
 	# so before the UI boxes' frame.
@@ -227,7 +273,7 @@ func _entity_screen_position(script_id: int):
 	if script_id == ScriptContext.OWNER_TAMER:
 		return _tamer.screen_position()
 	if script_id == ScriptContext.OWNER_PARTNER and _partner != null:
-		var p := _camera.unproject_position(_partner.global_position)
+		var p := FieldMap.unproject(_camera, _partner.global_position)
 		return Vector2i(roundi(p.x) - 160, roundi(p.y) - 120)
 	var npc := _entities.entity_from_script_id(script_id) if _entities != null else null
 	if npc is Npc:
@@ -550,14 +596,14 @@ func _tick_script_map_change(map_id: int, exit: int, show_name: int) -> bool:
 
 
 ## The debug keys [ / ]: a map change like a warp cell's, to the map's exit 0.
-func _debug_change_map(map_name: String) -> void:
+func _debug_change_map(map_name: String, exit := 0) -> void:
 	var id := GameData.map_id(map_name) if GameData.available() else -1
 	if id < 0 or _tamer.state != Tamer.STATE_FREE or _interpreter == null:
-		_enter(map_name, 0)
+		_enter(map_name, exit)
 		return
 	_tamer.target_map = id
-	_tamer.target_exit = 0
-	GameState.state["world"]["exit"] = 0
+	_tamer.target_exit = exit
+	GameState.state["world"]["exit"] = exit
 	_tamer.set_state(Tamer.STATE_CHANGE_MAP)
 	_tamer.camera_follow = false
 	_clock.running = false
@@ -589,6 +635,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_D:
 			if _script_debug != null:
 				_show_message(_script_debug.play_next())
+		KEY_F1:
+			if _debug != null:
+				_debug.visible = not _debug.visible
 
 
 ## The menu's "Sleep" (handleGameMenuSelection case 6, game_menu.c:2178): only while it is enabled
@@ -611,6 +660,8 @@ func _update_label() -> void:
 		time = "year %d day %d %02d:%02d (%s)" % [clock["year"], clock["day"], clock["hour"], clock["minute"], time]
 	var help := _message if _message != "" else "arrows move, shift run, [ ] map, T +1 hour, Z sleep, C care, D script, L language, H hide"
 	_label.text = "%s\n%s\n%s" % [_map_label(), time, help]
+	if _debug != null:
+		_debug.set_status("%s\n%s\n%s" % [_map_label(), time, _message])
 
 
 ## Map name from the data porter (MAP_ENTRIES + map.yaml) in the GameData language; the asset

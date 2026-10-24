@@ -11,7 +11,14 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 ### I-3. The models look too pixelated from far away
 - **Seen:** small, distant models look blocky.
 - **Evidence:** `issues/evidence/dw_issue_top_of_tree_and_too_light_texture.png`; `issues/evidence/dw_night_real_game.png`.
-- **Notes:** the PSX also draws at 320 × 240 with no texture filtering; the reference screenshot looks like an emulator at a higher internal resolution (smooth edges). To decide: keep the PSX look, or render the 3D at 2× / 4× like an emulator's upscaling, while the background stays at its own resolution.
+- **Notes:** the PSX also draws at 320 × 240 with no texture filtering; the reference screenshot looks like an emulator at a higher internal resolution (smooth edges).
+- **Status:** to check in the game (2026-10-24). Decided: render the 3D at 4× by default, like an emulator's upscaling, with the choice in the debugger (D-1, "Render" tab: 1× the PSX's to 4×). The field's `render_scale` sets the 3D viewport to 320 × 240 × the scale, shown at the PSX size; the background canvas layer scales with it, so it keeps its exact pixels; every screen position goes through `FieldMap.unproject`. The game window is now 1280 × 960 (4×).
+
+### I-6. Palmon's texture shimmers
+- **Seen:** Palmon's body shimmers: a fine checkered pattern that changes from frame to frame while it animates. Maybe other Digimon too.
+- **Evidence:** `issues/evidence/dw_issue_palmon_texture_shimmering.mp4` (MAYO03, night).
+- **Cause (likely):** texture aliasing. A detailed texture sampled texel by texel (nearest, as the PSX) at a small size on screen: which texel lands on a pixel changes as the model moves, so the pattern crawls. The same root as I-3.
+- **Status:** to check with I-3's 4× render (the default now): at 4× each texel covers more pixels. If it still shimmers, compare with the game at 1× (Render tab): the PSX may shimmer too.
 
 ## Fixed
 
@@ -19,7 +26,7 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 - **Seen:** a dark outline around the poop model. It was there before step 5a.
 - **Evidence:** `issues/evidence/dw_issue_poop_outline.png`; the original: `issues/evidence/dw_real_poop_look.png`.
 - **Cause:** the poop model (`ETCNA/UNTI.TMD`, `PoopPiles`) has two parts: the body, and a round shadow disc under it. The disc's texels are dark greys that all carry the STP bit, on a semi-transparent polygon with blend mode `abr` 2: the PSX subtracts them from the ground, a soft darkening. The port drew every semi-transparent polygon with a plain alpha blend, so the disc showed as an opaque dark ring. The model textures also had no STP information: the asset porter dropped the bit.
-- **Status:** fixed, to check in the game (2026-10-24): the asset porter writes STP masks for model textures (`<page>.stp.png`, material `extras.stp_texture`; `asset_porter/specs/tmd.md` "STP masks"), and `PsxLit` draws a semi-transparent polygon in two passes: its non-STP texels opaque, its STP texels with the `abr` mode (half, add, subtract, quarter). `tests/test_lighting.gd` checks the poop's two materials; `tests/render_check.gd -- MAYO01 200 300 20 0 360 420 tmd_files/ETCNA/UNTI.gltf` shows it on the grass without the ring. Every model with semi-transparent polygons is drawn this way now (effects, shadows).
+- **Status:** fixed (2026-10-24, `5fdc59e`; checked in the game): the asset porter writes STP masks for model textures (`<page>.stp.png`, material `extras.stp_texture`; `asset_porter/specs/tmd.md` "STP masks"), and `PsxLit` draws a semi-transparent polygon in two passes: its non-STP texels opaque, its STP texels with the `abr` mode (half, add, subtract, quarter). `tests/test_lighting.gd` checks the poop's two materials; `tests/render_check.gd -- MAYO01 200 300 20 0 360 420 tmd_files/ETCNA/UNTI.gltf` shows it on the grass without the ring. Every model with semi-transparent polygons is drawn this way now (effects, shadows).
 
 ### I-2. The models too bright at night
 - **Seen:** at night (File City, 20:06) the tamer and Agumon keep their day colours.
@@ -46,3 +53,4 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ### D-1. The debugger: pick a map to teleport to, a bigger view
 - **Asked:** choose the map to warp to from a list (today `[` / `]` step through them), and a bigger window: the game keeps its 4:3 aspect, with the debug information readable beside it instead of inside the 320 × 240 picture.
+- **Status:** done, to check (2026-10-24): `DebugWindow` (`scripts/debug/debug_window.gd`), its own OS window (`display/window/subwindows/embed_subwindows=false`), F1 toggles it. Tabs: Status (map, clock, last message, the keys), Maps (filter, double-click or Go teleports to the exit chosen), Render (the 3D render scale, I-3). The game window is 1280 × 960. Later: the care panel (`C`) could move into a tab.

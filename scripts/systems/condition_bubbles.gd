@@ -163,7 +163,7 @@ func _draw_bubbles(additive: bool) -> void:
 		var world := Vector3(partner.global_position.x, partner.global_position.y - b["height"], partner.global_position.z)
 		if camera.is_position_behind(world):
 			continue
-		var screen := camera.unproject_position(world)
+		var screen := FieldMap.unproject(camera, world)
 		var depth := -(camera.global_transform.affine_inverse() * world).z
 		if depth <= 0.0:
 			continue

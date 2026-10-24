@@ -133,6 +133,15 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
 6. **The poop** (ISSUES.md I-5): no dark ring around it; a soft shadow darkens the ground under it instead (compare `issues/evidence/dw_real_poop_look.png`).
 7. **Other semi-transparent models** (technique effects, shadows): their glowing or darkening parts blend with what is behind them instead of covering it.
 
+## Debugger and render scale (`scripts/debug/debug_window.gd`, `field.gd`; ISSUES.md D-1, I-3)
+
+In the game (F5):
+1. **The windows:** the game opens at 1280 × 960 (4:3); a "DW debugger" window opens beside it (F1 hides / shows it, its close button hides it).
+2. **Status tab:** the map, the clock and the last message follow the game.
+3. **Maps tab:** type part of a name (`MAYO`, `File City`): the list narrows. Double-click a map (or select it and press Go): the tamer warps there with the fade, at the exit chosen (out-of-range exits are clamped).
+4. **Render tab:** 1× is the PSX's blocky 3D, 4× smooth; switching is immediate. At every scale the background is unchanged, and the text boxes, the condition bubbles and the map name sit where they did (they use the models' screen positions).
+5. **Palmon** (MAYO03, ISSUES.md I-6): at 4× its texture no longer shimmers.
+
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 
 `test_care.gd` prints `OK: Care checks`. Run the project (F5):

@@ -257,7 +257,7 @@ func screen_position() -> Vector2i:
 	if camera == null or _skeleton == null or not camera.is_inside_tree():
 		return Vector2i.ZERO
 	var world := _skeleton.global_transform * _skeleton.get_bone_global_pose(mini(SCREEN_BONE, _skeleton.get_bone_count() - 1)).origin
-	var screen := camera.unproject_position(world)
+	var screen := FieldMap.unproject(camera, world)
 	return Vector2i(roundi(screen.x) - 160, roundi(screen.y) - 120)
 
 

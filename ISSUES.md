@@ -8,6 +8,10 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Open
 
+None right now.
+
+## Fixed
+
 ### I-3. The models look too pixelated from far away
 - **Seen:** small, distant models look blocky.
 - **Evidence:** `issues/evidence/dw_issue_top_of_tree_and_too_light_texture.png`; `issues/evidence/dw_night_real_game.png`.
@@ -26,8 +30,6 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 - **Cause:** I-3's 4× render. The follow scrolls the background in whole PSX pixels (as the C, `gte_stsxy`), while the 3D now draws the tamer at a quarter of a PSX pixel: he drifts up to half a PSX pixel (2 screen pixels) against the background and snaps back when the scroll steps. At 1× both are on the same pixel grid.
 - **Status:** fixed (2026-10-24; checked in the game): above 1× the follow rounds the motion to the render's pixels (`FieldMap._pixel_round`: quarter pixels at 4×); the background, drawn at the render scale, scrolls in those steps. At 1× it is the C's whole pixels as before (`tests/test_camera.gd`). The pans still step in whole pixels.
 - **Also in the video:** the tamer's text box shows only " ! ": that is the script's line (script 63, offset 0x00F4, `SHOW_TEXTBOX " ! "`), his surprise. "Player" stands for the tamer's name until the naming is ported.
-
-## Fixed
 
 ### I-5. The poop has a black outline
 - **Seen:** a dark outline around the poop model. It was there before step 5a.

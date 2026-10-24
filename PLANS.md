@@ -36,7 +36,7 @@ Last updated: 2026-10-24
      - [x] Data porter: the §4 properties (`raise_data.first_technique`, `eats_poop`, `raises_virus_bar`; `item_data.passive`) with checks on the C text.
      - [x] `Care` (`scripts/systems/care.gd`) + partner states 1, 3, 7, tamer state / camera follow / scene animations, `Fade`; partner ticks before the clock; area response from the map setup; `tests/test_care.gd`; debug key `Z` for the menu's Sleep.
      - [x] Bubbles (`feel_ef`, STP split by `PsxTexture`), status bars (`system_w`), poop piles (`UNTI`), fade.
-     - [ ] Backlog (graphics): a black area around the poop piles (reported 2026-10-23). Probably the pile's shadow polygon, semi-transparent in the TMD, drawn opaque by the glTF import (check the UNTI.TMD primitive flags and the asset porter's material export).
+     - [x] Backlog (graphics): fixed 2026-10-24 as ISSUES.md I-5 (`5fdc59e`). Was: a black area around the poop piles (reported 2026-10-23). Probably the pile's shadow polygon, semi-transparent in the TMD, drawn opaque by the glTF import (check the UNTI.TMD primitive flags and the asset porter's material export).
      - [ ] Later: the bubble's bone offset (`CONDITION_FX_OFFSETS`, effect_common.c:307) into the data / asset porter; the butterfly (`butterfly.c`); `createCloudFX` with the effects.
      - [x] Debug panel (`C`, `scripts/debug/care_debug_panel.gd`, `GameLoop.speed`), `tests/test_care.gd`, VERIFY section.
    - How each system is ported: a short spec (C functions reproduced, state and data read) → GDScript naming each C function → headless tests with values worked out from the C code → VERIFY section → this file.

@@ -14,7 +14,11 @@ const ANIM_WALK := "anim_03"
 ## tamerGetState values ported so far: 0 walks freely, 6 stands still while a scene plays, 20 shows
 ## the award / sickness message box (tamerTickAwardSomething).
 const STATE_FREE := 0
+## A warp cell's map change (tamerTickChangeMap).
+const STATE_CHANGE_MAP := 5
 const STATE_STILL := 6
+## A script moves him (scriptSetEntityWalking, scriptStartAnimation): only his animation ticks.
+const STATE_SCRIPT := 10
 const STATE_AWARD := 20
 ## The bone getEntityScreenPos reads for the box's start point (tamer.c:1801).
 const SCREEN_BONE := 1
@@ -41,12 +45,22 @@ var partner: Partner
 var clock: Clock
 var message_box: MessageBox
 var pad: Pad
+## For the map change (state 5): the fade, TARGET_MAP / CURRENT_EXIT, and the field's changeMap,
+## the map name object (map id, -1 = remove) and checkMapInteraction.
+var fade: Fade
+var target_map := 0
+var target_exit := 0
+var change_map := Callable()
+var show_map_name := Callable()
+var map_interaction := Callable()
 
 var _player: AnimationPlayer
 var _skeleton: Skeleton3D
 ## Scene animations by id (startAnimation on the tamer), e.g. 8 in the sleep scene.
 var _scene: PsxAnimator
 var _scene_playing := false
+## The animation startAnimationTamer set for STATE_SCRIPT (0 idle, 2 run, 3 walk).
+var _script_animation := 0
 
 
 func _ready() -> void:
@@ -85,6 +99,18 @@ func _process(delta: float) -> void:
 	var motion := Vector3.ZERO
 	if _scene_playing:
 		motion = _scene.advance(delta)
+	elif (state == STATE_CHANGE_MAP and sub_state < 2) or state == STATE_SCRIPT:
+		# startAnimationTamer(2): he runs on in his direction through the fade out; in STATE_SCRIPT
+		# the script's animation (a walk turned to its point each frame). Only the walk state checks
+		# the map's walls (checkMapInteraction), so nothing stops him.
+		_play(ANIM_RUN if state == STATE_CHANGE_MAP else _animation_name(_script_animation))
+		_player.advance(delta)
+		position += _skeleton.global_basis * _player.get_root_motion_position()
+		return
+	elif state == STATE_CHANGE_MAP:
+		# setupTamerOnWarp: placed on the new map with animation 0; he stands through the fade in.
+		_play(ANIM_IDLE)
+		_player.advance(delta)
 	else:
 		var input := Vector2(Input.get_axis("ui_left", "ui_right"), Input.get_axis("ui_up", "ui_down"))
 		if input != Vector2.ZERO and state == STATE_FREE:
@@ -105,10 +131,48 @@ func set_state(value: int) -> void:
 	sub_state = 0
 
 
-## The tamer's per-frame state code that isn't walking (the walk is in _process).
+## The tamer's per-frame state code (the walk's movement is in _process): state 0 checks the map
+## (tamerTickWalkingState -> checkMapInteraction, tamer.c:588), 5 the map change, 20 the message box.
 func tick() -> void:
-	if state == STATE_AWARD:
-		tick_award_something()
+	match state:
+		STATE_FREE:
+			if map_interaction.is_valid():
+				map_interaction.call()
+		STATE_CHANGE_MAP:
+			tick_change_map()
+		STATE_AWARD:
+			tick_award_something()
+
+
+## tamerTickChangeMap (tamer.c:1367): fade out running (animation 2), the map name at frame 10,
+## changeMap at frame 20 (the new map places him standing), fade in, then free.
+func tick_change_map() -> void:
+	match sub_state:
+		0:
+			if fade != null:
+				fade.fade_to_black(0x14)
+			sub_state = 1
+		1:
+			var out := fade.out_current if fade != null else 0x14
+			if out == 10 and show_map_name.is_valid():
+				show_map_name.call(target_map)
+			if out > 0x13:
+				if change_map.is_valid():
+					change_map.call(target_map, target_exit)
+				if fade != null:
+					fade.fade_from_black(0x14)
+				if show_map_name.is_valid():
+					show_map_name.call(-1)
+				sub_state = 2
+		2:
+			if fade == null or fade.in_current > 0x13:
+				set_state(STATE_FREE)
+				if partner != null:
+					partner.set_state(Partner.STATE_NORMAL)
+				if map_interaction.is_valid():
+					map_interaction.call()
+				if clock != null:
+					clock.running = true
 
 
 ## tamerTickAwardSomething (tamer.c:1751): the message box. Its caller has drawn the text into
@@ -179,6 +243,17 @@ func look_at_psx(target_x: int, target_z: int) -> void:
 	var dz := target_z - int(-position.z)
 	if dx != 0 or dz != 0:
 		_set_direction((0x800 + roundi(atan2(dx, dz) * 0x800 / PI)) & 0xFFF)
+
+
+## startAnimationTamer(id) for the loop animations (0 idle, 2 run, 3 walk), as STATE_SCRIPT plays
+## them.
+func start_animation(id: int) -> void:
+	_script_animation = id
+
+
+func _animation_name(id: int) -> String:
+	var anim_name := "anim_%02d" % id
+	return anim_name if _player.has_animation(anim_name) else ANIM_IDLE
 
 
 func _play(anim_name: String) -> void:

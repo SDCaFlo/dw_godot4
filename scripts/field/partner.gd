@@ -32,6 +32,8 @@ const STATE_SLEEP := 3
 const STATE_WILD_POOP := 7
 ## Waits idling while the tamer is busy (e.g. his message box).
 const STATE_IDLE := 11
+## A script moves it (scriptSetEntityWalking): nothing ticks but the animation (partner.c:246).
+const STATE_SCRIPT := 12
 
 var field: FieldMap
 var tamer: Node3D

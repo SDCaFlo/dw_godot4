@@ -34,6 +34,7 @@ Last updated: 2026-10-23
 
 ## Log
 
+- 2026-10-23 — Systems: map records get `change_map_previous` (the ten previous-map fix-ups of `changeMap`, `map.c:5334-5366`) for the script interpreter's map changes. Checked against the C text. 63/63 checks.
 - 2026-10-23 — Systems: `script_stat_limits` (`STATS_LIMIT_ARRAY` with the `SCRIPT_STAT_*` names) for the script interpreter (`../specs/script.md`). Finding: stat 22 (lives) has no entry; the C reads the next symbol `MULTIPLE_OF_10` (adjacent in the symbol map), so lives cap at 1 (File City's "Life three" section sets 1). Checked. 62/62 checks; `GameData.script_stat_limit(stat)`.
 - 2026-10-23 — Font group done (`specs/font.md`): 6 tables, 52/52 checks, PNG glyph sheets; `GameData.font()`, `font_clut()`, `text_colors()`, `font_ascii()`. Findings:
   - the last table entry is the fallback for unknown codes: × in US, a crossed box in JP / EU;

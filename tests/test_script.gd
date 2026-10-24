@@ -34,6 +34,8 @@ func _process(_delta: float) -> bool:
 	_dates()
 	_ends_and_unported()
 	_delay_and_text()
+	_walk_to()
+	_map_entry()
 	_real_scripts()
 	_teardown()
 	print("%s: script checks (%d run)" % ["FAILED %d" % _failed if _failed else "OK", _checks])
@@ -239,6 +241,96 @@ func _delay_and_text() -> void:
 	clock.free()
 
 
+## ENTITY_WALK_TO (specs/script.md §2.7): the walk animation and script state, the slot turning the
+## actor to its point each frame, done on the point's tile; WAIT_FOR_ENTITY waits for it. The
+## actors have no model here, so the test moves them.
+func _walk_to() -> void:
+	var tamer := Tamer.new()
+	var partner := Partner.new()
+	interp.tamer = tamer
+	interp.partner = partner
+	unported.clear()
+	# ENTITY_WALK_TO tamer, x 1000, z 0, anim 0; WAIT_FOR_ENTITY tamer; END.
+	_run([0x4E, 0xFD, 0xE8, 0x03, 0, 0, 0, 0, 0x4A, 0xFD, 0xFE, 0])
+	_eq([tamer.state, tamer._script_animation, interp.movement[0], ctx.active_instruction],
+			[Tamer.STATE_SCRIPT, 2, ScriptInterpreter.MOVE_WALK_TO, ScriptInterpreter.OP_WAIT_FOR_ENTITY],
+			"ENTITY_WALK_TO: run animation (anim + 2), tamer state 10, slot 0 type 2; the script waits")
+	_frame()
+	_eq([tamer.direction, interp.movement[0], ctx.is_paused], [0xC00, ScriptInterpreter.MOVE_WALK_TO, false],
+			"each frame the slot turns him to the point (+x = 0xC00)")
+	tamer.position = Vector3(1050, 0, 0)
+	_frame()
+	_eq([interp.movement[0], tamer._script_animation, ctx.is_paused, tamer.state],
+			[ScriptInterpreter.FREE, 0, true, Tamer.STATE_FREE],
+			"on the point's tile: the slot is freed, animation 0, the wait ends and the script gives him back")
+	# The partner: anim 1 -> (1 + 1) << 1 = 4 (run), state 12.
+	_run([0x4E, 0xFC, 0, 0, 0xE8, 0x03, 1, 0, 0xFE, 0])
+	_eq([interp.movement[1], partner.state], [ScriptInterpreter.MOVE_WALK_TO, Partner.STATE_NORMAL],
+			"a walk the script doesn't wait for: the script ends, the field is given back, the slot stays set but isn't ticked (as in the C)")
+	_run([0x4E, 0xFC, 0, 0, 0xE8, 0x03, 1, 0, 0x67, 0, 5, 0, 0xFE, 0])
+	_eq([interp.movement[1], partner.state, interp.movement_args[1]["z"]],
+			[ScriptInterpreter.MOVE_WALK_TO, Partner.STATE_SCRIPT, 1000], "the partner: slot 1, state 12")
+	_force_end()
+	# An NPC's walk is reported (step 3) and its bytes skipped.
+	gs.set_script_value(73, 0)
+	_run([0x4E, 0x05, 0, 0, 0, 0, 0, 0, 0x1E, 0, 73, 1, 0xFE, 0])
+	_eq([gs.script_value(73), "ENTITY_WALK_TO (NPC)" in unported], [1, true], "an NPC's walk: reported, bytes skipped")
+	# Green Gym's walk-out (script 108, section 0x33): the tamer runs to (2200, -3000), then WARP_TO.
+	if Content.load_json("scripts/index.json") != null:
+		var warps := []
+		interp.tick_map_change = func(map_id: int, _exit: int, _show: int) -> bool:
+			warps.append([map_id, tamer.state, interp.movement[0], tamer.direction])
+			return false
+		tamer.position = Vector3(1800, 0, 3000)
+		interp.call_section(108, 0x33)
+		_frame()
+		_frame()
+		_eq(warps.size() > 0 and warps[0][1] == Tamer.STATE_SCRIPT and warps[0][2] == ScriptInterpreter.MOVE_WALK_TO
+				and warps[0][3] == 0xC00, true,
+				"Green Gym 0x33: during WARP_TO's fade he walks to (2200, -3000) (state 10, slot 0, facing +x): %s" % [warps])
+		interp.tick_map_change = Callable()
+		_force_end()
+	interp.tamer = null
+	interp.partner = null
+	tamer.free()
+	partner.free()
+
+
+## Map entry through MAPHEAD and a script's map change (specs/script.md §2.4, §3): the field's
+## hooks are recorded here.
+func _map_entry() -> void:
+	if Content.load_json("scripts/index.json") == null:
+		print("SKIP map entry: asset porter output missing")
+		return
+	var calls := []
+	interp.load_map = func(map_id: int): calls.append(["load", map_id])
+	interp.setup_map = func(): calls.append(["setup"])
+	unported.clear()
+	# MAYO04A (3): MAPHEAD section 3 = SET_SCRIPT 4, map 3, ...; at its end setupMap, then script 4's
+	# section 0xFE (item spawns), then the end.
+	interp.run_map_head(3)
+	_eq([calls, ctx.current_script_id, ctx.current_screen_id], [[["load", 3], ["setup"]], 4, 3],
+			"run_map_head: SET_SCRIPT loads the map, the section's end sets it up")
+	_eq([ctx.code_id, ctx.is_paused], [4, true], "then the map's 0xFE section ran, and the script ended")
+	# WARP_TO 3, exit 0, section 0x51: the map change (the field's, here two frames) runs the new
+	# map's MAPHEAD section; the pushed type-4 entry then continues in script 4's section 0x51.
+	var frames := [0]
+	interp.tick_map_change = func(map_id: int, _exit: int, _show: int) -> bool:
+		frames[0] += 1
+		if frames[0] < 2:
+			return false
+		interp.run_map_head(map_id)
+		return true
+	calls.clear()
+	_run([0x4B, 3, 0, 0x51, 0xFE, 0], 4)
+	_eq([calls.size() > 0, ctx.code_id, ctx.active_instruction], [true, 4, ScriptContext.OP_DELAY],
+			"WARP_TO: after the map change the script goes on in the new map's section 0x51 (its first DELAY)")
+	_force_end()
+	interp.load_map = Callable()
+	interp.setup_map = Callable()
+	interp.tick_map_change = Callable()
+
+
 ## Choice pointer -> how often the player came to it.
 var _visits := {}
 
@@ -267,9 +359,12 @@ func _player_frame(frames: int) -> void:
 	_frame(Pad.CONFIRM)
 
 
-## Ends a section that didn't end, as a script end would (boxes closed), for the next one.
+## Ends a section that didn't end, as a script end would (boxes closed), for the next one; a map
+## change it was in and its stack entries are dropped.
 func _force_end() -> void:
 	ctx.is_paused = true
+	ctx.map_change = 0
+	ctx.stack.clear()
 	interp.textboxes.close_all_textboxes()
 	for i in UIBoxes.COUNT:
 		if boxes.boxes[i].registered:

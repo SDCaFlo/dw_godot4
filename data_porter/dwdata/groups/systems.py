@@ -31,6 +31,24 @@ MAP_C, TOILET_C, TRN_HUD, TRN2_HUD = "src/main/map.c", "src/main/toilet_data.c",
 FISH_C, SHOP_MENU, DOOA_C = "src/fish/fish.c", "src/shop/script_menu.c", "src/dooa/dooa.c"
 MAIN_C = "src/main/main.c"
 SCRIPT_VALUE_C, SCRIPT_H = "src/main/script_value.c", "include/dw/script.h"
+# changeMap (map.c:5326-5396): (map left, map entered, PREVIOUS_SCREEN, PREVIOUS_EXIT or None).
+CHANGE_MAP_PREVIOUS = [
+    (0xCF, 0x26, 0x58, 2), (0xCF, 0x46, 0x45, 2), (0xCF, 0x4F, 0x11, 1), (0xCF, 0x5D, 0x5A, 0),
+    (0xCF, 0x77, 0x76, 1), (0xCF, 0x69, 0x6A, 0), (0x2B, 0x2A, 0x29, 1), (6, 0x69, 0x6A, None),
+    (0x8E, 0x87, 0x84, 1), (5, 0xC, 0xD, 1),
+]
+# The C text of those rules (whitespace collapsed).
+CHANGE_MAP_EVIDENCE = [
+    "if (CURRENT_SCREEN == 0xcf) { if (mapId == 0x26) { PREVIOUS_SCREEN = 0x58; } if (mapId == 0x46) { "
+    "PREVIOUS_SCREEN = 0x45; } if (mapId == 0x4f) { PREVIOUS_SCREEN = 0x11; } if (mapId == 0x5d) { PREVIOUS_SCREEN = "
+    "0x5a; } if (mapId == 0x77) { PREVIOUS_SCREEN = 0x76; } if (mapId == 0x69) { PREVIOUS_SCREEN = 0x6a; } if ((mapId "
+    "== 0x26) || (mapId == 0x46)) { PREVIOUS_EXIT = 2; } if ((mapId == 0x4f) || (mapId == 0x77)) { PREVIOUS_EXIT = 1; "
+    "} if ((mapId == 0x5d) || (mapId == 0x69)) { PREVIOUS_EXIT = 0; } }",
+    "if ((CURRENT_SCREEN == 0x2b) && (mapId == 0x2A)) { PREVIOUS_SCREEN = 0x29; PREVIOUS_EXIT = 1; }",
+    "if ((CURRENT_SCREEN == 6) && (mapId == 0x69)) { PREVIOUS_SCREEN = 0x6a; }",
+    "if ((CURRENT_SCREEN == 0x8e) && (mapId == 0x87)) { PREVIOUS_SCREEN = 0x84; PREVIOUS_EXIT = 1; }",
+    "if ((CURRENT_SCREEN == 5) && (mapId == 0xc)) { PREVIOUS_SCREEN = 0xd; PREVIOUS_EXIT = 1; }",
+]
 
 STYLES = {0: "attack as soon as charged", 1: "wait for the technique's power", 2: "wait for a full charge, keep away"}
 TYPES = {1: "data", 2: "vaccine", 3: "virus"}
@@ -352,6 +370,14 @@ def convert(input_root, output_root) -> GroupWriter:
                      "arena": k in arena, "c": m})
     for check in ("maps: toiletId is 0 or a TOILET_DATA index + 1", "maps: loadingName is a MAP_NAME_PTR index"):
         out.check(check, not bad[check], "; ".join(bad[check][:10]) or f"{len(maps)} maps")
+    # changeMap's literal map ids (map.c:5326-5396) as a property of the map being left.
+    map_c = " ".join((decomp.root / MAP_C).read_text(encoding="utf-8", errors="replace").split())
+    missing_rules = [needle for needle in CHANGE_MAP_EVIDENCE if needle not in map_c]
+    out.check("changeMap's previous-map rules are still in the code", not missing_rules,
+              "; ".join(missing_rules[:5]) or f"{len(CHANGE_MAP_PREVIOUS)} rules")
+    for source, target, previous, previous_exit in CHANGE_MAP_PREVIOUS:
+        maps[source].setdefault("change_map_previous", []).append(
+            {"to": target, "previous_screen": previous, "previous_exit": previous_exit})
     # Maps are keyed by file name: the area name is shared by many maps (specs/content.md §2).
     tables.keys(out, maps, "map", lambda r: r["file"].lower() if r["file"] else None)
     map_struct = index.program(MAP_C, REFERENCE).structs["MapEntry"]
@@ -368,6 +394,10 @@ def convert(input_root, output_root) -> GroupWriter:
         "toilet": {"c_name": "toiletId - 1", "ref": "systems/toilets", "meaning": "null = no toilet"},
         "name": {"c_name": "MAP_NAME_PTR[loadingName]", "meaning": "area name shown on entry / save screens"},
         "arena": {"c_name": "ARENA_MAPS", "meaning": "entering loads the tournament (dget) overlay"},
+        "change_map_previous": {"meaning": "changeMap (map.c:5326) leaving this map for `to`: PREVIOUS_SCREEN becomes "
+                                           "`previous_screen` instead of this map, and PREVIOUS_EXIT `previous_exit` "
+                                           "(null = unchanged). Fleeing a battle returns to the previous map. The "
+                                           "original tests these literal map ids; absent = no rule"},
         "_struct": {"c_type": "MapEntry", "fields": describe_type(map_struct)},
     }, maps, {"access": "GameData.map(id)", "notes": "Cross-check with the asset porter's map table."})
 

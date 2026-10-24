@@ -2,7 +2,9 @@
 
 Status (2026-10-23):
 - **done:** step 1 of §3.1, the core: `ScriptFiles`, `ScriptInterpreter`, `systems/script_stat_limits`, `tests/test_script.gd`;
-- **next:** step 2, the entry points.
+- **done:** step 2, the entry points: map entry through MAPHEAD, warp cells (tamer state 5), trigger cells 51–109, the toilet cell, `WARP_TO` / `TELEPORT` with the fade and the map name, the previous-map rules (`change_map_previous`). `SECTION_ON_EXIT` and the collapse `0x4DE` moved to step 3: they need the entity opcodes;
+- **done ahead of step 4:** `ENTITY_WALK_TO` for the tamer and the partner (movement type 2, §2.7), for the walk-out exits;
+- **next:** step 3, the NPCs.
 
 The original's bytecode interpreter: how a script section starts, how each frame runs instructions until one waits, the call stack, the conditions, and what each instruction changes. It runs the map setup (music, NPCs), every NPC talk, trigger cells, cutscenes, shops, battles and the new game. The script files and their instruction layouts are documented in `asset_porter/specs/scn.md`; the text and choice instructions in `specs/text.md` §2.6–2.7.
 
@@ -175,6 +177,20 @@ Every call clears trigger 44. An owner below `0xC8` (an NPC) is allowed to move.
 - **Ticks:** each slot with a type ticks every frame: look at, set rotation, walk to (a point or an entity, optionally with the camera), move to, move along an axis, camera to point or entity, door rotation, object move.
 - **Done:** the slot is freed (type 0xFF); the walkers (types below 8) go back to their idle animation.
 - `WAIT_FOR_ENTITY` waits on these slots.
+- **When:** `tickScript` ticks every slot (`tickScriptedMovements`, `script_interp.c:2821`) right after the text boxes and before the map change step (`:404`), only while the script runs (`IS_SCRIPT_PAUSED` returns first). So a walk started before `WARP_TO` goes on through the whole fade out. The slots are freed only by `callScriptSection` (`:2268`). After a warp, the new map's MAPHEAD section (`runMapHeadScript`) frees them, so a walk never carries over to the next map.
+- **`ENTITY_WALK_TO` id, x, z, anim, unused** (`script_interp.c:1438`, 7 bytes: u8, s16, s16, u8, u8):
+  - `scriptPauseGame(0xFF)` first;
+  - `scriptSetEntityWalking(id, anim)` (`:879`):
+    - the tamer (`0xFD`): animation `anim + 2` (0 → 2 run, 1 → 3 walk), tamer state 10;
+    - the partner (`0xFC`): animation `(anim + 1) << 1` (0 → 2 walk, 1 → 4 run), partner state 12;
+    - an NPC: its animation `(anim + 1) << 1` (step 3);
+  - slot `scriptIdToEntityId(id)` gets type 2 with the point (x, z); none if the id has no entity.
+- **The tick `tickEntityWalkTo(id, 0xFF, x, z, 0)`** (`tamer.c:991`), each frame:
+  - `entityLookAtLocation` turns the entity to the point (`rotation.vy = _atan(dz, dx)`);
+  - done when the entity's tile (`getModelTile`, `map_collision.c:148`) is the point's tile.
+  - The movement itself is the animation's root motion. Tamer state 10 and partner state 12 tick nothing but the animation (`tamer.c:454-505`; `partner.c:246`), so no walls are checked: the tamer runs straight off the map through an exit.
+  - When done, `tickScriptedMovement` starts animation 0 on it (`:2353`). The state stays 10 / 12 until the script gives the field back (`setMovementEnabled`).
+- **Where it matters:** 121 of the 159 trigger-cell sections that warp are walk-outs: `ENTITY_WALK_TO` the tamer, then `WARP_TO` (e.g. Green Gym → Jijimon's house, section 0x33 of script 108). Without the walk the tamer stands through the fade.
 
 ### 2.8 IF (`scriptIfInstruction`)
 
@@ -212,7 +228,10 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
   - This replaces the field's direct `load_map` for normal map changes. The debug keys (`[` / `]`) go through it too. The editor preview stays a plain map with no scripts.
 - **Map changes** (step 2), as in the original:
   - warp cells give the tamer state 5 (`tamerTickChangeMap`), and script warps run `scriptTickChangeMap`. Both fade to black over 20 frames, with the map name at frame 10;
-  - at frame 20 the field runs `changeMap` (unload, the previous-map fix-ups as a map property, `run_map_head`), then fades in;
+  - at frame 20 the field runs `changeMap` (unload, the previous-map fix-ups as a map property, `run_map_head`), then fades in. The tamer runs with no wall checks through the fade out (only the walk state checks walls) and stands on the new map (`setupTamerOnWarp`: animation 0);
+  - **port-only:** the screen stays black for `Fade.LOAD_FRAMES` (20) frames before the fade in. On the PSX `changeMap` blocks while the map is read from the CD; the port loads it in one frame, so without the hold the change felt too fast and the frames after the load's hitch swallowed the fade in;
+  - the fix-ups (`map.c:5334-5366`, ten `(current, target)` pairs that set another previous screen, sometimes another previous exit) are the data porter's `change_map_previous` on the source map's record (`systems/maps`: `to`, `previous_screen`, `previous_exit` or null), checked against the C's text;
+  - implemented in `field.gd`: `_begin` (the start), `_script_load_map` / `_script_setup_map` (the hooks), `_change_map`, `_check_map_interaction`, `_tick_script_map_change`; the tamer's `tick_change_map` (state 5); the name is `scripts/ui/map_name.gd` (`renderMapName` per release);
   - the field scene stays and only the map inside it is swapped, at the black frame. If loading hitches, the target map is loaded in a background thread from the start of the fade, but still swapped at frame 20.
   - **Facts behind the choice** (all 255 MAPHEAD map sections checked): each starts with `SET_SCRIPT` for its own map, with nothing before it. The script never chooses the map; it sets the music, values and triggers, and decides the NPCs (157 IFs on triggers, story values and the date). The maps' `0xFE` sections spawn items and chests, set map objects and blocked areas, and sometimes play a first-visit scene.
   - **Rejected:** loading the map in the field and running the section after it (two paths, a different order); precomputing what each section does (NPCs depend on the state).
@@ -227,16 +246,16 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
    - script values, triggers, money, merit, items, cards, stats, dates, moves, conditions;
    - text and `DELAY`; the unported reporting;
    - a debug key that runs any section of the current map's script, replacing the dialogue player.
-2. **Entry points:**
+2. **Entry points** (done):
    - map entry through MAPHEAD (`SET_SCRIPT`, section `0xFE`);
-   - trigger cells 51–109, the toilet cell 120;
-   - `WARP_TO` / `TELEPORT` with the fade and the map name;
-   - `SECTION_ON_EXIT`; the partner's collapse `0x4DE` (replaces the care stand-in).
+   - trigger cells 51–109, the toilet cell 120 (section `0x4E2` runs; its `CALL_DIGIMON_ROUTINE` 0, the partner's toilet scene, comes with step 3);
+   - `WARP_TO` / `TELEPORT` with the fade and the map name.
 3. **NPCs** (own spec `specs/npc.md`):
+   - `SECTION_ON_EXIT`; the partner's collapse `0x4DE` (replaces the care stand-in; needs `CALL_DIGIMON_ROUTINE` 7);
    - `LOAD` / `SET` / `UNLOAD_DIGIMON`, `UNLOAD_ENTITY`;
    - talking and autotalk; `SET_AUTOTALK`, `PLAY_ANIMATION`, `CALL_DIGIMON_ROUTINE`;
    - the tamer's collision with NPCs (`specs/partner.md` §5).
-4. **Scripted movement:** the 22 slots, `WAIT_FOR_ENTITY`, the camera moves.
+4. **Scripted movement:** the 22 slots, `WAIT_FOR_ENTITY`, the camera moves. Done early: the slot ticks and type 2 (`ENTITY_WALK_TO`) for the tamer and the partner.
 5. **With their systems:** the builtins (shops, naming, new game, item keeper, jukebox, Birdramon, training, tournaments, save), `START_BATTLE`, items and chests on the map, map objects, sounds and music, `DEAL_DAMAGE`'s number.
 
 ## 4. Data
@@ -247,7 +266,7 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
 
 ## 5. Verification
 
-`tests/test_script.gd` (done, 38 checks):
+`tests/test_script.gd` (done, 48 checks):
 - **Synthetic scripts:**
   - jumps and the stack (link / return; END with an empty stack pauses);
   - SWITCH clamping;
@@ -259,6 +278,8 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
   - an unported opcode skipping exactly its arguments, reported once; `WARP_TO` before step 2 ending the script;
   - `DELAY` (the next instruction on the 4th frame for 3), a text waiting for ✕;
   - `scriptPauseGame` and the end of a script (tamer 6 / partner 11 / time stopped / script value 0 = 3, then all back);
+  - `ENTITY_WALK_TO`: the tamer's run animation and state 10, the partner's state 12, the slot turning the actor each frame and freeing on the point's tile (animation 0, `WAIT_FOR_ENTITY` ends), an NPC id reported; Green Gym's walk-out walking during `WARP_TO`;
+  - map entry: `run_map_head` loads the map (`SET_SCRIPT`), sets it up at the section's end, runs the map's `0xFE` section; `WARP_TO` goes on in the new map's section after the field's map change;
 - **The real scripts** (about 15 s):
   - every section of every DG script (1269) and every MAPHEAD map setup (255, with the map's `0xFE` section after it) runs to its end;
   - it plays like a player: ✕ for texts; at a choice the options in turn on each visit, then △, so menus that come back ("let me rethink", Mr. Handy's menu) are left;
@@ -269,7 +290,8 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
 
 `VERIFY.md`, Scripts:
 - run sections of the current map (debug key) and compare the dialogue and its flow with the game;
-- the unported list shows what is still missing.
+- the unported list shows what is still missing;
+- map changes: warp cells, script warps, the fade and the map name (`VERIFY.md`, Map changes).
 
 ## 6. Open questions
 

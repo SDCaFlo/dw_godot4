@@ -48,7 +48,7 @@ Sections are added as systems are ported (`PLANS.md`).
 
 `test_script.gd` prints `OK: script checks`. Besides its synthetic checks it runs every section of every script (1269) and every map setup (255) to its end, played like a player (texts confirmed, choices tried in turn), in about 15 s; it prints the unported instructions it met.
 
-In the game (F5), `D` runs the next section of the current map's script (the help line names it: `script 4 section 0x51 (2 / 7)`). Sections are run as they are written; their entry points (stepping on a cell, talking to an NPC, entering the map) come with step 2, NPCs with step 3. Check:
+In the game (F5), `D` runs the next section of the current map's script (the help line names it: `script 4 section 0x51 (2 / 7)`). Sections are run as they are written. Entering a map and the trigger cells already start them (see Map changes below); talking to NPCs comes with step 3. Check:
 1. **On the start map (Native Forest, MAYO04A):** `D` twice. The first section (0xFE, the map entry) only spawns items, which aren't on the map yet: the help line says `script: not ported yet: SPAWN_ITEM`. The second (0x51) is the sign: "There are engraved letters here." from the tamer (his name "Player" in light blue), then "No one's here! Go home!" and "Is someone living here?" without a speaker. ✕ turns them.
 2. **While a section runs:** the tamer can't walk, the partner stands, game time stops (the clock and bars slide away). When it ends everything comes back.
 3. **Text details:**
@@ -58,6 +58,22 @@ In the game (F5), `D` runs the next section of the current map's script (the hel
 4. **Choices:** at Dragon Eye Lake (press `]` until the help line shows `MAYO06`), `D` twice runs section 0x51, the Lake Guardian's flute scene. It first checks the inventory, so what it shows depends on the items you carry. With the flute: "Will you play the Lake Guardian's **Blue Flute**?" and "I'll play / I won't play". A grey cursor bar covers the option; up and down move it and wrap; ✕ picks; △ leaves the choice.
 5. **Unported:** each instruction the port can't run yet is named once in the help line (NPCs, movement, animations, sounds, items on the map, battles, shops). The section goes on without it, as in the original with that system missing.
 6. **Compare with the game:** the order of the texts in a scene you know, the speaker colours, when the box closes. Wrong if: a section never ends, texts come in the wrong order, or the game stays frozen after a section.
+
+## Map changes (`scripts/field/field.gd`, `tamer.gd`, `scripts/ui/map_name.gd`, `specs/script.md` §2.2, §3)
+
+Every map is entered through its MAPHEAD script, as in the original. Run the project (F5).
+1. **Start:** Native Forest (MAYO04A). The help line names what its setup met and couldn't run (`SET_BGM`, `LOAD_DIGIMON`, `SET_DIGIMON`, `SPAWN_ITEM`); the tamer and Agumon stand at the map's exit 0.
+2. **Walking through an exit:**
+   - the tamer keeps running straight in his direction while the screen fades to black over 1 s (no walls stop him, as in the C); the camera stops following him;
+   - at the half the map's area name appears in the centre ("Coela Point" going to MAYO05) in white, in front of the black;
+   - at full black the name goes and the screen stays black for 1 s more (the port's stand-in for the CD load, `Fade.LOAD_FRAMES`); then it fades in over 1 s, with the tamer and Agumon standing still at the exit that matches the one you took;
+   - the clock and bars stop during the change and come back after it.
+   - Wrong if: the name is off-centre, the fade doesn't cover the tamer and Agumon, you warp back at once (a loop), or you can't move after arriving.
+3. **Coming back:** go back through the same exit: you arrive at the exit you left from. A few map changes store another map as the previous one (`change_map_previous` in the data): the Birdra Transport room (ROOM12) to its six destinations, Great Canyon (GCAN08_1 → GCAN07), Dragon Eye Lake → BETL01, Secret Beach Cave (OGRE10 → map 0x87), Coela Point → Tropical Jungle (TROP01, previous = map 13). Where the game uses the previous map (e.g. fleeing a battle), the port uses the same one.
+4. **Script walk-outs:** many exits are a script instead of a warp cell (121 of them: File City and its houses, the factory, the mountain paths, …). E.g. Green Gym (TRAI00) toward Jijimon's house: stepping on the exit, the tamer runs on toward a point past the edge (the script's `ENTITY_WALK_TO`) while the screen fades, stops there, and the map changes. Wrong if: he stands still at the exit, or keeps running on the new map. A few exits start a short scene first (GCAN08_1, YAKA24, OGRE11, TOPN01, OMOC04–07); those still lack their scene (NPCs and camera moves come later).
+5. **Trigger cells:** on MAYO04A, stand at the sign and press ✕: the sign's text (section 0x51) runs. Cells that start a scene when stepped on (51–79) run it at once, if their map has one.
+6. **Toilet:** step on a toilet while Agumon needs to go: its script (MAPHEAD 0x4E2) runs; Agumon's toilet scene itself is unported (reported), so only the texts show for now.
+7. **Debug `[` / `]`:** the previous / next map, with the same fade and name, to its exit 0.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

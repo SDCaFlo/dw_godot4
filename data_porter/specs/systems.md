@@ -119,6 +119,7 @@ Per map id:
 - `toilet` = `toiletId − 1` (`partner.c:542`)
 - `name` = `MAP_NAME_PTR[loadingName]` (area name on entry, save screens, Birdramon menu)
 - `arena`: map 208 or 223, where entering loads the tournament overlay (`checkArenaMap`, `script_common.c:3091`)
+- `change_map_previous`: the fix-ups of `changeMap` (`map.c:5334-5366`), on the map they leave from: `[{to, previous_screen, previous_exit}]` (`previous_exit` null when the C keeps the warp's). Leaving this map for `to` stores `previous_screen` as the previous map, not this one. Ten pairs, from the C's literal ids (constant `CHANGE_MAP_PREVIOUS`); a check compares them with the C text (`CHANGE_MAP_EVIDENCE`, whitespace collapsed). Used by the field's `_change_map` (`../../specs/script.md` §3)
 
 `DEATH_MAP` / `DEATH_MAP_EXIT` are runtime values (-1, set by `setDeathMap`), so they aren't output.
 

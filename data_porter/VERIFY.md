@@ -92,7 +92,7 @@ Run `python -m dwdata convert evolution`: it should print `4 tables, 21/21 check
 
 ## Systems (`output/systems/`)
 
-Run `python -m dwdata convert systems`: it should print `19 tables, 62/62 checks passed`. Then open `output/systems/report.md`.
+Run `python -m dwdata convert systems`: it should print `19 tables, 63/63 checks passed`. Then open `output/systems/report.md`.
 
 - **Tournaments:** names and grade letters (Grade D … Beetle Cup) match the arena board; Grade D is held on most days, Grade S on days 6, 13, 20, 27 of the month. If you remember the schedule, compare.
 - **Battle commands:** field battles: 3 commands below brain 100 up to 9 from brain 500; arena: one fewer (no running away). Does that match what you remember of the command menu?

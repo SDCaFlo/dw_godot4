@@ -8,6 +8,10 @@ extends ColorRect
 ## port darkens with black at alpha progress / 160, close but not the same curve.
 
 const FULL := 160
+## Not in the original: game frames the screen stays black after a map change, before the fade in.
+## The PSX reads the new map from the CD while black (changeMap blocks the game loop); the port
+## loads it in one frame. Also covers the frames that run in bursts after the load's hitch.
+const LOAD_FRAMES := 20
 
 var clock: Clock
 ## FADE_OUT_CURRENT: frames into a fade to black (1 = started), 0 when none.
@@ -21,12 +25,14 @@ var protection := false
 
 var _out_frames := 0
 var _in_target := 0
+var _hold := 0
 
 
 func _ready() -> void:
 	color = Color.BLACK
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Anchors and offsets: anchors alone keep the old (zero) size.
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_draw_progress()
 
 
@@ -47,9 +53,19 @@ func fade_from_black(frames: int) -> void:
 	in_current = 1
 
 
+## Keeps the screen fully black for `frames` game frames: a fade from black started meanwhile
+## waits (in_current stays 1, so its callers wait too).
+func hold(frames: int) -> void:
+	_hold = frames
+	progress = FULL
+	_draw_progress()
+
+
 ## renderFadeOut / renderFadeIn (fade.c:101-142), once per game frame.
 func tick() -> void:
-	if out_current > 0:
+	if _hold > 0:
+		_hold -= 1
+	elif out_current > 0:
 		progress = mini(progress + FULL / _out_frames, FULL)
 		out_current += 1
 	elif in_current > 0:

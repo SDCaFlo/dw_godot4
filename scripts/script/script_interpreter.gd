@@ -29,11 +29,14 @@ const MAP_ENTRY_SECTION := 0xFE
 ## The 22 SCRIPT_MOVEMENT slots; 0xFF = free.
 const MOVEMENT_SLOTS := 0x16
 const FREE := 0xFF
+## Movement slot type 2: walk to a point (ENTITY_WALK_TO).
+const MOVE_WALK_TO := 2
 ## setTrigger(0x2C) skips scriptPauseGame's turn to each other (TRIGGER_44 in trigger.h).
 const TRIGGER_NO_TURN := 0x2C
 const MONEY_MAX := 999999
 const MERIT_MAX := 9999
 const OP_WAIT_FOR_ENTITY := 0x4A
+const OP_ENTITY_WALK_TO := 0x4E
 ## A frame that runs this many instructions is a loop the original would hang in.
 const MAX_PER_FRAME := 20000
 
@@ -67,7 +70,7 @@ const NAMES := {
 ## the handler ends the frame (longjmp 2)].
 const UNPORTED := {
 	0x46: [1, false, false], 0x47: [3, true, false], 0x48: [1, true, false], 0x49: [1, true, false],
-	0x4C: [3, true, false], 0x4D: [3, true, false], 0x4E: [7, true, false], 0x4F: [5, true, false],
+	0x4C: [3, true, false], 0x4D: [3, true, false], 0x4F: [5, true, false],
 	0x50: [3, true, false], 0x51: [3, true, false], 0x52: [7, true, false], 0x53: [3, true, false],
 	0x54: [1, true, false], 0x56: [3, false, false], 0x57: [3, false, false], 0x5A: [3, false, false],
 	0x5D: [1, false, false], 0x5E: [1, false, false], 0x66: [1, false, false], 0x6A: [3, false, false],
@@ -96,8 +99,10 @@ var partner: Partner
 var tick_map_change := Callable()
 var load_map := Callable()
 var setup_map := Callable()
-## SCRIPT_MOVEMENT[22]: type per slot (FREE = 0xFF); the movement ticks come with step 4.
+## SCRIPT_MOVEMENT[22]: type per slot (FREE = 0xFF), and the slot's entityId / posX / posY.
+## Ticked so far: type 2 (ENTITY_WALK_TO) for the tamer and the partner; the rest with step 4.
 var movement: Array = []
+var movement_args: Array = []
 
 var _reported := {}
 ## SCRIPT_MAP_CHANGE_SHOW_NAME.
@@ -112,6 +117,8 @@ func _init(script_ctx: ScriptContext, script_files: ScriptFiles, text_boxes: Tex
 	ctx.is_paused = true
 	movement.resize(MOVEMENT_SLOTS)
 	movement.fill(FREE)
+	movement_args.resize(MOVEMENT_SLOTS)
+	movement_args.fill({})
 
 
 # --- starting a section (script_interp.c:2235-2273) --------------------------------------------------
@@ -231,9 +238,51 @@ func _wait_done() -> bool:
 	return id >= MOVEMENT_SLOTS or movement[id] == FREE
 
 
-## tickScriptedMovements (script_interp.c:2821): step 4.
+## tickScriptedMovements / tickScriptedMovement (script_interp.c:2821, :2275): every slot in use.
+## Only type 2 has its tick so far; the other types are never set (their opcodes are unported).
 func _tick_scripted_movements() -> void:
-	pass
+	for slot in MOVEMENT_SLOTS:
+		if movement[slot] == FREE:
+			continue
+		var actor := _actor(slot)
+		var done := true
+		if movement[slot] == MOVE_WALK_TO and actor != null:
+			var args: Dictionary = movement_args[slot]
+			done = tick_entity_walk_to(actor, args["x"], args["z"])
+		if done:
+			# The walkers go back to animation 0 (startAnimationTamer(0) / partnerStartAnimation(0)).
+			if slot < 10 and movement[slot] < 8 and actor != null:
+				actor.start_animation(0)
+			movement[slot] = FREE
+
+
+## tickEntityWalkTo(id, 0xFF, x, z, 0) (tamer.c:991): turn to the point; done on its tile. The
+## walk itself is the animation's root motion (the actor's script state checks no walls).
+static func tick_entity_walk_to(actor: Node3D, x: int, z: int) -> bool:
+	var from := FieldMap.model_tile(int(actor.position.x), int(-actor.position.z))
+	actor.look_at_psx(x, z)
+	return from == FieldMap.model_tile(x, z)
+
+
+## The entity a movement slot moves: 0 the tamer, 1 the partner (NPCs with step 3).
+func _actor(slot: int) -> Node3D:
+	if slot == 0:
+		return tamer
+	if slot == 1:
+		return partner
+	return null
+
+
+## scriptSetEntityWalking (script_interp.c:879): the walk animation and the script state.
+func set_entity_walking(script_id: int, anim: int) -> void:
+	if script_id == ScriptContext.OWNER_TAMER:
+		if tamer != null:
+			tamer.start_animation(anim + 2)
+			tamer.set_state(Tamer.STATE_SCRIPT)
+	elif script_id == ScriptContext.OWNER_PARTNER:
+		if partner != null:
+			partner.start_animation((anim + 1) << 1)
+			partner.set_state(Partner.STATE_SCRIPT)
 
 
 ## The end of tickScript once the script paused (script_interp.c:634-642).
@@ -524,6 +573,21 @@ func _op_46_58(op: int) -> int:
 			ctx.active_instruction = OP_WAIT_FOR_ENTITY
 			ctx.wait_for_entity_id = _wait_slot(id)
 			return STOP
+		OP_ENTITY_WALK_TO:
+			pause_game(0xFF)
+			var id := ctx.next_byte()
+			var x := _s16(_u16())
+			var z := _s16(_u16())
+			var anim := ctx.next_byte()
+			ctx.next_byte()
+			var slot := script_id_to_entity_id(id)
+			if slot == FREE:
+				# An NPC (its animation and slot come with step 3).
+				_report(op, "ENTITY_WALK_TO (NPC)")
+				return NEXT
+			set_entity_walking(id, anim)
+			movement[slot] = MOVE_WALK_TO
+			movement_args[slot] = {"id": id, "x": x, "z": z}
 		0x4B:
 			pause_game(0xFF)
 			ctx.script_param_1 = ctx.next_byte()

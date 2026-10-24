@@ -33,8 +33,6 @@ extends Node
 		_refresh_preview()
 
 var _maps: PackedStringArray
-## Triggers are ignored until the tamer leaves the cell it arrived on.
-var _arrival_trigger := 0
 var _clock: Clock
 var _partner: Partner
 var _care: Care
@@ -49,6 +47,9 @@ var _script_ctx: ScriptContext
 var _textboxes: TextBoxes
 var _interpreter: ScriptInterpreter
 var _script_debug: ScriptDebug
+## The map name during a map change, and scriptTickChangeMap's SCRIPT_MAP_CHANGE_STATE.
+var _map_name: MapName
+var _script_change_state := 0
 var _message := ""
 var _message_frames := 0
 
@@ -75,7 +76,7 @@ func _ready() -> void:
 	_start_clock()
 	_start_text()
 	_start_care()
-	_enter(start_map if start_map in _maps else _maps[0], start_spawn)
+	_begin(start_map if start_map in _maps else _maps[0], start_spawn)
 
 
 ## initializePartner's model part: the partner of the game state follows the tamer
@@ -125,7 +126,24 @@ func _start_text() -> void:
 	_interpreter.tamer = _tamer
 	_interpreter.partner = _partner
 	_interpreter.unported.connect(func(_op, what): _show_message("script: not ported yet: " + what))
+	# Map entry goes through MAPHEAD (specs/script.md §3): SET_SCRIPT loads the map, the end of
+	# the setup section sets it up, script warps run the map change.
+	_interpreter.load_map = _script_load_map
+	_interpreter.setup_map = _script_setup_map
+	_interpreter.tick_map_change = _tick_script_map_change
 	GameLoop.frame.connect(_interpreter.tick_script)
+	_map_name = MapName.new()
+	_map_name.name = "MapName"
+	_map_name.text_area = _text_area
+	_map_name.data = GameData
+	_map_name.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_tamer.change_map = _change_map
+	_tamer.show_map_name = func(map_id: int):
+		if map_id >= 0:
+			_map_name.show_name(map_id)
+		else:
+			_map_name.hide_name()
+	_tamer.map_interaction = _check_map_interaction
 	# Debug: run the map's script sections (key D) until their entry points are ported.
 	_script_debug = ScriptDebug.new()
 	_script_debug.interpreter = _interpreter
@@ -182,6 +200,10 @@ func _start_care() -> void:
 	if _boxes != null:
 		$Hud.add_child(_boxes)
 	$Hud.add_child(_fade)
+	_tamer.fade = _fade
+	# The map name of a map change shows on the black screen (renderString on layer 0).
+	if _map_name != null:
+		$Hud.add_child(_map_name)
 	GameLoop.frame.connect(_fade.tick)
 
 
@@ -274,52 +296,156 @@ func _start_clock() -> void:
 	GameLoop.frame.connect(_field.tick_daytime_transition)
 
 
+## The map without scripts: the editor preview, and maps the scripts don't know.
 func _enter(map_name: String, spawn: int) -> void:
-	if not _field.load_map(map_name):
+	if not _load_map_at_exit(map_name, spawn):
 		return
-	var spawn_point := _field.spawn(clampi(spawn, 0, _field.data["spawns"].size() - 1))
+	_field.follow(_tamer.global_position)
+	if _clock != null:
+		_script_setup_map()
+
+
+## The game's start or a loaded game: runMapHeadScript(map) with CURRENT_EXIT = the spawn
+## (main.c:3455-3483). Without the map's scripts the map is entered directly.
+func _begin(map_name: String, spawn: int) -> void:
+	var id := GameData.map_id(map_name) if GameData.available() else -1
+	if _interpreter == null or id < 0 or ScriptFiles.map_script(id) < 0:
+		_enter(map_name, spawn)
+		return
+	GameState.state["world"]["exit"] = spawn
+	_interpreter.run_map_head(id)
+
+
+## SET_SCRIPT's loadMap(map) (map.c:4020): the map, the tamer and the partner at CURRENT_EXIT
+## (loadMapEntities, tamer.c:379), the area response (loadMapSetup), CURRENT_SCREEN.
+func _script_load_map(map_id: int) -> void:
+	_load_map_at_exit(str(GameData.map(map_id).get("file", "")), int(GameState.state["world"]["exit"]))
+
+
+func _load_map_at_exit(map_name: String, exit: int) -> bool:
+	if not _field.load_map(map_name):
+		return false
+	var spawn_point := _field.spawn(clampi(exit, 0, _field.data["spawns"].size() - 1))
 	_tamer.place(spawn_point)
 	if _partner != null:
 		_partner.place_for_spawn(spawn_point)
-	_field.follow(_tamer.global_position)
-	_arrival_trigger = _field.tile_trigger(_tamer.position)
+	var id := -1 if Engine.is_editor_hint() or not GameData.available() else GameData.map_id(map_name)
 	if _clock != null:
-		_record_map(map_name, spawn)
-	if _script_debug != null:
-		_script_debug.load_map(GameData.map_id(map_name))
-	_update_label()
-
-
-## CURRENT_SCREEN / CURRENT_EXIT (and the previous ones) in the game state, then updateTimeOfDay
-## for the new map (setupMap, map.c:4244).
-func _record_map(map_name: String, spawn: int) -> void:
-	var world: Dictionary = GameState.state["world"]
-	var id := GameData.map_id(map_name)
-	if id >= 0:
-		world["previous_screen"] = world["screen"]
-		world["screen"] = GameData.key_of("systems/maps", id)
-	world["previous_exit"] = world["exit"]
-	world["exit"] = spawn
-	_clock.map_has_time_of_day = id < 0 or not GameData.map(id).get("no_time_of_day", false)
-	_clock.active = true
-	_clock.update_time_of_day()
+		var world: Dictionary = GameState.state["world"]
+		if id >= 0:
+			world["screen"] = GameData.key_of("systems/maps", id)
+		world["exit"] = exit
+		_clock.map_has_time_of_day = id < 0 or not GameData.map(id).get("no_time_of_day", false)
+		_clock.active = true
 	if _care != null:
 		var setup: Dictionary = _field.data["setup"]
 		_care.set_area_response(setup.get("liked_regions", []), setup.get("disliked_regions", []))
 	if _poop != null:
 		_poop.refresh()
+	if _script_debug != null:
+		_script_debug.load_map(id)
+	_update_label()
+	return true
 
 
-func _process(_delta: float) -> void:
-	if Engine.is_editor_hint() or _field.data.is_empty():
+## setupMap (map.c:4225), at the end of the MAPHEAD section: the time of day (updateTimeOfDay),
+## the camera follows the tamer.
+func _script_setup_map() -> void:
+	_clock.update_time_of_day()
+	_tamer.camera_follow = true
+	_field.follow(_tamer.global_position)
+
+
+## changeMap (map.c:5326): the previous map (with the map's change_map_previous rules instead of
+## the C's literal ids), CURRENT_EXIT, then the new map's MAPHEAD section.
+func _change_map(map_id: int, exit: int) -> void:
+	var world: Dictionary = GameState.state["world"]
+	world["previous_screen"] = world["screen"]
+	for rule in GameData.map(world["screen"]).get("change_map_previous", []):
+		if int(rule["to"]) == map_id:
+			world["previous_screen"] = GameData.key_of("systems/maps", int(rule["previous_screen"]))
+			if rule["previous_exit"] != null:
+				world["previous_exit"] = int(rule["previous_exit"])
+	world["exit"] = exit
+	if _fade != null:
+		_fade.hold(Fade.LOAD_FRAMES)
+	if _interpreter == null or ScriptFiles.map_script(map_id) < 0:
+		_enter(str(GameData.map(map_id).get("file", "")), exit)
+		return
+	_interpreter.run_map_head(map_id)
+
+
+## checkMapInteraction (tamer.c:660), the cells: 120 the toilet, 110-119 warps, 51-79 scripts on
+## entering, 80-109 scripts on ✕. (NPC talk and chests come with the NPCs and items.)
+func _check_map_interaction() -> void:
+	if _tamer.state != Tamer.STATE_FREE or _field.data.is_empty():
 		return
 	var trigger := _field.tile_trigger(_tamer.position)
-	if trigger == _arrival_trigger:
+	var paused := _script_ctx == null or _script_ctx.is_paused
+	if trigger == 120:
+		if GameState.has_condition(GameState.CONDITION_POOPY) and paused and _interpreter != null:
+			_interpreter.call_section(ScriptFiles.MAPHEAD, 0x4E2, 0)
+	elif trigger >= 110 and trigger < 120:
+		var warp := _field.warp_for_trigger(trigger)
+		if warp.is_empty():
+			return
+		var world: Dictionary = GameState.state["world"]
+		_tamer.target_map = GameData.map_id(warp["map_name"])
+		_tamer.target_exit = int(warp["spawn"])
+		world["exit"] = _tamer.target_exit
+		world["previous_exit"] = trigger - 110
+		_tamer.set_state(Tamer.STATE_CHANGE_MAP)
+		_tamer.camera_follow = false
+		_clock.running = false
+	elif trigger > 50 and trigger < 80:
+		if paused and _interpreter != null:
+			_interpreter.call_section(_script_ctx.current_script_id, trigger, 0)
+	elif trigger >= 80 and trigger < 110:
+		if GameLoop.pad.is_changed(Pad.CONFIRM) and paused and _interpreter != null:
+			_interpreter.call_section(_script_ctx.current_script_id, trigger, 0)
+
+
+## scriptTickChangeMap (map.c:5277): a script's WARP_TO / TELEPORT. Fade to black (the map name at
+## frame 10 if shown), changeMap at frame 20, the tamer still, fade in.
+func _tick_script_map_change(map_id: int, exit: int, show_name: int) -> bool:
+	var world: Dictionary = GameState.state["world"]
+	match _script_change_state:
+		0:
+			_fade.fade_to_black(20)
+			_script_change_state = 1
+			world["previous_exit"] = world["exit"]
+		1:
+			if show_name == 1 and _fade.out_current == 10:
+				_map_name.show_name(map_id)
+			if _fade.out_current >= 20:
+				_change_map(map_id, exit)
+				if show_name == 1:
+					_map_name.hide_name()
+				_tamer.set_state(Tamer.STATE_STILL)
+				_fade.fade_from_black(20)
+				_script_change_state = 0
+				if _script_ctx.is_paused:
+					if _partner != null:
+						_partner.set_state(Partner.STATE_NORMAL)
+					_tamer.set_state(Tamer.STATE_FREE)
+					_tamer.camera_follow = true
+				_check_map_interaction()
+				return true
+	return false
+
+
+## The debug keys [ / ]: a map change like a warp cell's, to the map's exit 0.
+func _debug_change_map(map_name: String) -> void:
+	var id := GameData.map_id(map_name) if GameData.available() else -1
+	if id < 0 or _tamer.state != Tamer.STATE_FREE or _interpreter == null:
+		_enter(map_name, 0)
 		return
-	_arrival_trigger = 0
-	var warp := _field.warp_for_trigger(trigger)
-	if not warp.is_empty():
-		_enter(warp["map_name"], int(warp["spawn"]))
+	_tamer.target_map = id
+	_tamer.target_exit = 0
+	GameState.state["world"]["exit"] = 0
+	_tamer.set_state(Tamer.STATE_CHANGE_MAP)
+	_tamer.camera_follow = false
+	_clock.running = false
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -329,7 +455,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_BRACKETLEFT, KEY_BRACKETRIGHT:
 			var step := 1 if event.keycode == KEY_BRACKETRIGHT else -1
 			var index := (_maps.find(_field.map_name) + step + _maps.size()) % _maps.size()
-			_enter(_maps[index], 0)
+			_debug_change_map(_maps[index])
 		KEY_T:
 			var clock: Dictionary = GameState.state["clock"]
 			# % 24: advanceToTime starts a new day only for an earlier hour (specs/clock.md §2.4).

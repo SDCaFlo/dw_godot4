@@ -82,3 +82,7 @@ psx_light_2_color={
 "type": "vec3",
 "value": Vector3(0, 0, 0)
 }
+psx_ui_filter={
+"type": "bool",
+"value": true
+}

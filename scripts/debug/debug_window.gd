@@ -6,9 +6,11 @@ extends Window
 ## - Status: the map, the clock, the last message, the debug keys.
 ## - Maps: every converted map, filtered by name; double-click (or Go) teleports through the
 ##   field's debug map change, to the exit chosen.
-## - Render: the 3D view's resolution (ISSUES.md I-3), 1x (the PSX's) to 4x.
+## - Render: the 3D view's resolution (ISSUES.md I-3), 1x (the PSX's) to 4x; the text and windows'
+##   upscaling filter (ISSUES.md D-3).
 
 signal render_scale_changed(value: int)
+signal ui_filter_changed(on: bool)
 
 const FONT_SIZE := 15
 const KEYS := "Keys (in the game window):\narrows move, shift run\n[ / ] previous / next map\nT +1 hour, Z sleep\nC care panel, D next script section\nL language, H help line, F1 this window"
@@ -18,6 +20,7 @@ var maps: PackedStringArray
 var map_label: Callable
 var teleport: Callable
 var render_scale := 4
+var ui_filter := true
 
 var _status: Label
 var _filter: LineEdit
@@ -102,6 +105,15 @@ func _render_tab() -> Control:
 	_scale.select(_scale.get_item_index(render_scale))
 	_scale.item_selected.connect(func(i): render_scale_changed.emit(_scale.get_item_id(i)))
 	box.add_child(_scale)
+	box.add_child(HSeparator.new())
+	var filter := CheckBox.new()
+	filter.text = "Text and windows: upscaling filter (Scale4x)"
+	filter.button_pressed = ui_filter
+	filter.toggled.connect(func(on): ui_filter_changed.emit(on))
+	box.add_child(filter)
+	var note := Label.new()
+	note.text = "Off: the PSX's square pixels. (ISSUES.md D-3)"
+	box.add_child(note)
 	return box
 
 

@@ -27,6 +27,10 @@ The buttons are `Pad.CONFIRM` (✕), `Pad.CANCEL` (△), `Pad.UP`, `Pad.DOWN`, `
 
 **Frames.** Everything advances once per game frame (`GameLoop.frame`, 20 Hz), never per Godot frame.
 
+## The upscaling filter
+
+The PSX bitmaps are drawn at the window's resolution through `PsxUiFilter` (ISSUES.md D-3): a canvas shader that upscales each texel like an emulator's 2D filter (Scale4x), switched globally (`PsxUiFilter.set_enabled`, the global shader parameter `psx_ui_filter`). A new node that draws PSX textures sets `material = PsxUiFilter.material()` in `_ready` (`PsxUiFilter.material("add")` for its additive child, instead of a `CanvasItemMaterial` with `BLEND_MODE_ADD`), as `UIBoxes`, `ClockHud`, `StatusBars`, `ConditionBubbles` and `MapName` do. Drawing on `UIBoxes` (message boxes, `TextArea`) is filtered already.
+
 ## A new message box
 
 Draw the text into rows of the text area that nobody else uses at that moment, then open a `MessageBox`:

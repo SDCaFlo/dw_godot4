@@ -13,6 +13,8 @@ var _length := 0
 func _ready() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
 	visible = false
+	# The text and windows' upscaling filter (PsxUiFilter, ISSUES.md D-3).
+	material = PsxUiFilter.material()
 
 
 ## addMapNameObject(mapId): clearTextArea, the name (MAP_NAME_PTR[loadingName]) at (0, 0).

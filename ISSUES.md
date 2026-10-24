@@ -58,8 +58,12 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Ideas (not bugs)
 
-### D-2. A CONFIG menu for the render scale
-- **Asked:** a future configuration menu where players choose the 3D render amplification (today only the debugger's Render tab and the field's `render_scale`, 4× by default).
+### D-2. A CONFIG menu for the render options
+- **Asked:** a future configuration menu where players choose the 3D render amplification (today only the debugger's Render tab and the field's `render_scale`, 4× by default) and the text and windows' filter (D-3: on by default, the player's choice).
+
+### D-3. Upscale the text and windows like the models
+- **Asked:** at 4× the text and windows should be upscaled too, with a filter as emulators do; on by default, later in the CONFIG menu (D-2).
+- **Status:** done (2026-10-24; checked in the game): `PsxUiFilter` (`scripts/ui/psx_ui_filter.gd`), a canvas shader on the UI nodes (the boxes and their text, the map name, the clock, the status bars, the condition bubbles): Scale4x (Scale2x / EPX twice) rebuilds each texel's sub-pixels from its neighbours, keeping the art's colours and rounding its stair-steps. It runs in each node's own drawing, so the boxes' and bubbles' additive texels still blend with the scene. The global shader parameter `psx_ui_filter` switches it (the field's `ui_filter`, the debugger's Render tab); off, the texels are square blocks. Not filtered: the debug help line and the care panel (Godot's own font). First version's bug (seen in the game: the clock and windows too saturated, the text grey): the shader multiplied by `COLOR`, which in a Godot 4 canvas fragment already holds the texture's colour, so every colour was squared; it now multiplies by the draw's tint only (a varying from `vertex()`).
 
 ### D-1. The debugger: pick a map to teleport to, a bigger view
 - **Asked:** choose the map to warp to from a list (today `[` / `]` step through them), and a bigger window: the game keeps its 4:3 aspect, with the debug information readable beside it instead of inside the 320 × 240 picture.

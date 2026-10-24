@@ -142,6 +142,7 @@ In the game (F5):
 4. **Render tab:** 1× is the PSX's blocky 3D, 4× smooth; switching is immediate. At every scale the background is unchanged, and the text boxes, the condition bubbles and the map name sit where they did (they use the models' screen positions).
 5. **Textures** (ISSUES.md I-6): Palmon (MAYO03) and Aruraumon (MAYO04A) without speckles or a crawling pattern, at 1× and 4×.
 6. **Running** (ISSUES.md I-7): at 4× the picture doesn't shake while the tamer runs; at 1× the scroll is in whole pixels as before.
+7. **Text and windows filter** (ISSUES.md D-3, Render tab checkbox, on by default): the text boxes' letters, the box borders, the clock and the status bars have rounded edges instead of square steps, in their own colours (no blur); the box backgrounds still blend with the scene. Off: square PSX pixels.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

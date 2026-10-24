@@ -75,7 +75,8 @@ Last updated: 2026-10-24
 
 ## Ideas (not planned yet)
 
-- A CONFIG menu for players: the 3D render scale (ISSUES.md D-2), later other options.
+- A CONFIG menu for players: the 3D render scale and the text and windows' filter (ISSUES.md D-2, D-3), later other options.
+- Try other upscaling filters for the text and windows (today Scale4x, ISSUES.md D-3): e.g. xBR / ScaleFX-style edge filters, HQx, a CRT look; compare them with the game in an emulator, and offer the good ones in the CONFIG menu.
 
 - Import original memory-card saves (`.mcr` / `.mcd`): `specs/game_state.md` maps the whole `SavegamePayload` layout.
 - Godot `.tres` resources generated from the pack data for editor use (gitignored for `dw1`).
@@ -91,6 +92,8 @@ Last updated: 2026-10-24
 - In `godot -s` mode autoload names aren't registered: tests instantiate scripts directly, or run through the main scene.
 
 ## Done
+
+- 2026-10-24 — ISSUES.md D-3: the text and windows' upscaling filter (`PsxUiFilter`, Scale4x, on by default); I-6 / I-7 (`95ee1cf`).
 
 - 2026-10-24 — ISSUES.md I-6 (texels sampled as the PSX: no speckles), I-7 (the camera's shake at 4×).
 

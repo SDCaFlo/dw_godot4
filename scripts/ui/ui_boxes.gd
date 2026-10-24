@@ -100,15 +100,15 @@ func _init() -> void:
 
 func _ready() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
+	# The text and windows' upscaling filter (PsxUiFilter, ISSUES.md D-3).
+	material = PsxUiFilter.material()
 	_corners = Content.load_texture("%s.p%d.png" % [TEXTURE, CORNER_PALETTE])
 	_arrow = PsxTexture.load_palette(TEXTURE, ARROW_PALETTE)
 	# Mode-1 texels add to the screen: a child canvas with an additive material.
 	_additive = Control.new()
 	_additive.mouse_filter = MOUSE_FILTER_IGNORE
 	_additive.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var material := CanvasItemMaterial.new()
-	material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	_additive.material = material
+	_additive.material = PsxUiFilter.material("add")
 	_additive.draw.connect(_draw_additive)
 	add_child(_additive)
 	var loop := get_node_or_null("/root/GameLoop")

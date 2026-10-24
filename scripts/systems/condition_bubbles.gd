@@ -59,6 +59,8 @@ var _additive: Control
 
 func _ready() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
+	# The text and windows' upscaling filter (PsxUiFilter, ISSUES.md D-3).
+	material = PsxUiFilter.material()
 	for palette in [1, 2, 3, 4]:
 		var texture := PsxTexture.load_palette(TEXTURE, palette)
 		if texture != null:
@@ -67,9 +69,7 @@ func _ready() -> void:
 	_additive = Control.new()
 	_additive.mouse_filter = MOUSE_FILTER_IGNORE
 	_additive.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var material := CanvasItemMaterial.new()
-	material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	_additive.material = material
+	_additive.material = PsxUiFilter.material("add")
 	_additive.draw.connect(_draw_bubbles.bind(true))
 	add_child(_additive)
 	var loop := get_node_or_null("/root/GameLoop")

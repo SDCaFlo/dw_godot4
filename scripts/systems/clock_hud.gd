@@ -30,6 +30,8 @@ var _textures := {}
 
 func _ready() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
+	# The text and windows' upscaling filter (PsxUiFilter, ISSUES.md D-3).
+	material = PsxUiFilter.material()
 	for palette in 4:
 		var texture := Content.load_texture(TEXTURE % ("" if palette == 0 else ".p%d" % palette))
 		if texture != null:

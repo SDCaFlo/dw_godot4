@@ -31,6 +31,9 @@ extends Node
 ## an emulator-like upscaling (the background and the 2D stay at the PSX resolution). The
 ## debugger changes it while playing.
 @export_range(1, 4) var render_scale := 4
+## The text and windows' upscaling filter (PsxUiFilter, ISSUES.md D-3): Scale4x like an emulator's
+## 2D filter; off, the PSX's square pixels. The debugger changes it while playing.
+@export var ui_filter := true
 ## Debug: open the debugger window (F1 toggles it).
 @export var debug_window := true
 ## Editor only: show the map in the editor viewports.
@@ -90,6 +93,7 @@ func _ready() -> void:
 	_start_text()
 	_start_care()
 	set_render_scale(render_scale)
+	PsxUiFilter.set_enabled(ui_filter)
 	_start_debug_window()
 	_begin(start_map if start_map in _maps else _maps[0], start_spawn)
 
@@ -119,6 +123,10 @@ func _start_debug_window() -> void:
 	_debug.teleport = func(map_name: String, exit: int) -> void: _debug_change_map(map_name, exit)
 	_debug.render_scale = render_scale
 	_debug.render_scale_changed.connect(set_render_scale)
+	_debug.ui_filter = ui_filter
+	_debug.ui_filter_changed.connect(func(on: bool) -> void:
+		ui_filter = on
+		PsxUiFilter.set_enabled(on))
 	_debug.visible = debug_window
 	add_child(_debug)
 

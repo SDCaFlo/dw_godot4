@@ -605,6 +605,12 @@ func training_spots(map_ref: Variant) -> Dictionary:
 	return find("systems/training_spots", "map", id)
 
 
+## enforceStatsLimits' cap of a script stat (STATS_LIMIT_ARRAY; stat 22 reads past it, see the
+## table); -1 for an unknown stat.
+func script_stat_limit(stat: int) -> int:
+	return int(record("systems/script_stat_limits", stat).get("limit", -1))
+
+
 # --- Font (data_porter/specs/font.md) --------------------------------------------------------
 
 ## The glyphs of a language's font (font.c: code, rows, width), in table order; the last is the

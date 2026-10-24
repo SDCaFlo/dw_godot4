@@ -44,9 +44,9 @@ Last updated: 2026-10-23
    - [x] Text renderer spec (`specs/text.md`): font, text area, `renderString`, UI boxes, message box, dialogue box.
    - [x] Data porter group `font` (`data_porter/specs/font.md`): glyph tables per language, `FONT_CLUT`, `TEXT_COLORS`, ASCII map, glyph sheets; 52 checks including each language's text coverage; `GameData.font()` and friends.
    - [x] `PsxFont`, `TextArea`, `PsxDraw`, `UIBoxes`, `MessageBox` in `scripts/ui/` (reusable for new windows, menus, shops: guide `docs/ui.md`); tamer state 20 shows "<name> is sick"; partner state 11; `GameLoop.pad_pressed` (`POLLED_INPUT`); `tests/test_text.gd`; VERIFY "Text and windows".
-   - [x] `TextBoxes` (all of `script_textbox.c`: `showTextbox`, `drawString2`, pages, choices, custom size; `specs/text.md` §2.6–2.7), `ScriptContext` (the interpreter's globals), `Pad` (`POLLED_INPUT` / `CHANGED_INPUT` / `isKeyDown`, §2.8; the tamer's box now closes on a held ✕ like the C), debug player `D` (the map's script texts).
+   - [x] `TextBoxes` (all of `script_textbox.c`: `showTextbox`, `drawString2`, pages, choices, custom size; `specs/text.md` §2.6–2.7), `ScriptContext` (the interpreter's globals), `Pad` (`POLLED_INPUT` / `CHANGED_INPUT` / `isKeyDown`, §2.8; the tamer's box now closes on a held ✕ like the C), debug player `D` (replaced by the interpreter's section runner).
    - [ ] Event-script interpreter (`specs/script.md`, spec written 2026-10-23). Order (§3.1):
-     - [ ] 1. core: `ScriptFiles`, `ScriptInterpreter` (flow, IF, stack, values, triggers, money, items, cards, stats, dates, text, DELAY), unported opcodes skipped and reported; debug key for any section;
+     - [x] 1. core: `ScriptFiles`, `ScriptInterpreter` (flow, IF, stack, values, triggers, money, items, cards, stats, dates, text, DELAY), unported opcodes skipped and reported; `D` runs the map's sections; data porter `systems/script_stat_limits`; `tests/test_script.gd` runs all 1269 sections and 255 map setups to their end;
      - [ ] 2. entry points: map entry through MAPHEAD (`SET_SCRIPT`, section 0xFE), trigger cells, toilet cell, `WARP_TO` / `TELEPORT`, the collapse script 0x4DE;
      - [ ] 3. NPCs (`specs/npc.md`): spawning, talking, autotalk, animations;
      - [ ] 4. scripted movement and the camera;

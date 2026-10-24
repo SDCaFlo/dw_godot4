@@ -1,8 +1,7 @@
 class_name ScriptContext
 extends RefCounted
-## The event-script interpreter's state that the text boxes read and change (script_interp.c
-## globals; specs/text.md §2.7). The interpreter (next milestone step) runs on it; until then the
-## dialogue debug player (scripts/debug/dialogue_debug.gd) does, for the text instructions only.
+## The event-script interpreter's state (script_interp.c globals; specs/script.md, specs/text.md
+## §2.7): what ScriptInterpreter runs on and what the text boxes read and change.
 
 ## SCRIPT_OP_* (include/dw/script.h).
 const OP_SET_SELECTION := 0x10
@@ -10,6 +9,7 @@ const OP_SHOW_TEXTBOX := 0x1A
 const OP_SET_DIALOG_OWNER := 0x1B
 const OP_SET_TEXTBOX_SIZE := 0x26
 const OP_CALL_ROUTINE := 0x64
+const OP_DELAY := 0x67
 const OP_SET_TEXTBOX_MODE := 0x68
 ## ACTIVE_INSTRUCTION when the script has ended (tickTextboxHandling's other branch).
 const INSTRUCTION_ENDED := 0xFF
@@ -21,8 +21,9 @@ const OWNER_SPECIAL := 0xC8
 ## setTrigger(0x31): cancel can't leave a choice.
 const TRIGGER_NO_CANCEL := 0x31
 
-## ACTIVE_SCRIPT: the script's bytes (`code`); SCRIPT_POINTER: an offset into them.
+## ACTIVE_SCRIPT: the script's bytes (`code`, script `code_id`); SCRIPT_POINTER: an offset into them.
 var code := PackedByteArray()
+var code_id := 0
 var pointer := 0
 ## ACTIVE_INSTRUCTION: the opcode waiting for something (0 = the script runs on).
 var active_instruction := 0
@@ -42,6 +43,35 @@ var is_paused := false
 ## SHOP_VARIABLE (text code 0x10).
 var shop_variable := 0
 
+# The interpreter's own globals (script_interp.c; specs/script.md §2).
+## ACTIVE_MAP_SCRIPT: the script `code` holds; CURRENT_SCRIPT_ID: the current map's DG script;
+## CURRENT_SCREEN_ID: the map SET_SCRIPT set (0xFFFF until then).
+var active_script_id := 0xFFFF
+var current_script_id := 0xFFFF
+var current_screen_id := 0
+## SCRIPT_SECTION / SCRIPT_SECTION_IS_EVENT (an NPC talk or a map entry).
+var section := 0
+var section_is_event := 0
+## MAIN_D_80134FE7: script value 0 saved by callScriptSection, restored when the script ends.
+var saved_pstat0 := 0
+## MAIN_D_80134FE9: 0x4B while a script's map change runs.
+var map_change := 0
+## MAIN_D_80134FF0: the script has taken over the field (scriptPauseGame).
+var took_over := 0
+## MAIN_D_80134FEC: SET_SCRIPT's map setup is pending.
+var map_setup_pending := 0
+## SOME_SCRIPT_SYNC_BIT.
+var sync_bit := 1
+## SCRIPT_PARAM_1 (the builtin routine, the map to change to), WAIT_FOR_ENTITY_ID.
+var script_param_1 := 0
+var wait_for_entity_id := 0
+## MAIN_D_80134F9C: TALKED_TO_ENTITY when the section started (the battle's opponent).
+var talked_to_entity := 0
+## SCRIPT_STATE.stack[8] / SCRIPT_STACK_OFFSET: {pointer, script, type, arg}.
+var stack: Array = []
+## TEXTBOX_ORIGIN_X/Y/Z (SET_TEXTBOX_ORIGIN): the next box's origin as a world point, or null.
+var textbox_origin = null
+
 var game_state: Node
 var data: Node
 ## getSpeakerName / scriptIdToEntityId: the Digimon type of the entity with a script id (-1 = none).
@@ -51,6 +81,8 @@ var entity_type := Callable()
 var entity_screen_position := Callable()
 ## scriptPauseGame(owner).
 var pause_game := Callable()
+## worldPosToScreenPos2: a PSX world point [x, y, z] on screen (Vector2i relative to the centre) or null.
+var world_screen_position := Callable()
 
 
 ## pollNextScriptUByte.

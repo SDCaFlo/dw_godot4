@@ -683,6 +683,18 @@ func set_sleep_times() -> void:
 	_put("tiredness_sleep_timer", 0)
 
 
+## scriptUpdateEnergyBoundaries (script_interp.c:846), after a script changes a stat: energy at
+## most energyCap; a hungry partner whose energy reached energyThreshold is fed (food timer set,
+## starvation timer 0).
+func update_energy_boundaries() -> void:
+	if _val("energy_level") > _raise_int("energy_cap"):
+		_put("energy_level", _raise_int("energy_cap"))
+	if _cond(HUNGRY) and _raise_int("energy_threshold") <= _val("energy_level"):
+		_flag(HUNGRY, false)
+		set_food_timer()
+		_put("starvation_timer", 0)
+
+
 ## setFoodTimer (:664), US version: the next hunger hour, and food_level = minutes until then.
 func set_food_timer() -> void:
 	var level := _level()

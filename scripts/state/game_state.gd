@@ -235,6 +235,61 @@ func has_passive_item(effect: String) -> bool:
 	return false
 
 
+# --- Inventory (item.c) --------------------------------------------------------------------------
+
+## getItemCount (item.c:2549): the amount in the first slot holding the item (within the size).
+func item_count(item: Variant) -> int:
+	var key := _key("items/item_data", item)
+	var slots: Array = state["inventory"]["slots"]
+	for i in mini(int(state["inventory"]["size"]), slots.size()):
+		if slots[i] != null and slots[i]["item"] == key:
+			return int(slots[i]["amount"])
+	return 0
+
+
+## giveItem (item.c:2562): adds to the item's slot (at most 99; a full stack of 99 fails and no other
+## slot is tried), else fills the first empty slot. False when nothing was added.
+func give_item(item: Variant, amount: int) -> bool:
+	var key := _key("items/item_data", item)
+	var slots: Array = state["inventory"]["slots"]
+	var size := mini(int(state["inventory"]["size"]), slots.size())
+	for i in size:
+		if slots[i] != null and slots[i]["item"] == key:
+			if int(slots[i]["amount"]) == 99:
+				return false
+			# A uint8 count: the sum wraps at 256 before the cap.
+			var count := (int(slots[i]["amount"]) + amount) & 0xFF
+			slots[i]["amount"] = 99 if count >= 100 else count
+			changed.emit("inventory")
+			return true
+	for i in size:
+		if slots[i] == null:
+			slots[i] = {"item": key, "amount": amount & 0xFF}
+			changed.emit("inventory")
+			return true
+	return false
+
+
+## removeItem (item.c:2616): takes `amount` from every slot holding the item; a slot that runs
+## out is emptied.
+func remove_item(item: Variant, amount: int) -> void:
+	var key := _key("items/item_data", item)
+	var slots: Array = state["inventory"]["slots"]
+	for i in mini(int(state["inventory"]["size"]), slots.size()):
+		if slots[i] != null and slots[i]["item"] == key:
+			if amount < int(slots[i]["amount"]):
+				slots[i]["amount"] = int(slots[i]["amount"]) - amount
+			else:
+				slots[i] = null
+	changed.emit("inventory")
+
+
+## setInventorySize (item.c:2388).
+func set_inventory_size(size: int) -> void:
+	state["inventory"]["size"] = size
+	changed.emit("inventory")
+
+
 func has_condition(flag: int) -> bool:
 	return state["partner"]["care"]["condition"] & flag != 0
 

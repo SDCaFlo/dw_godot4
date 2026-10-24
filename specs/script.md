@@ -1,6 +1,8 @@
 # Event-script interpreter (port spec)
 
-Status: spec 2026-10-23, not implemented yet.
+Status (2026-10-23):
+- **done:** step 1 of §3.1, the core: `ScriptFiles`, `ScriptInterpreter`, `systems/script_stat_limits`, `tests/test_script.gd`;
+- **next:** step 2, the entry points.
 
 The original's bytecode interpreter: how a script section starts, how each frame runs instructions until one waits, the call stack, the conditions, and what each instruction changes. It runs the map setup (music, NPCs), every NPC talk, trigger cells, cutscenes, shops, battles and the new game. The script files and their instruction layouts are documented in `asset_porter/specs/scn.md`; the text and choice instructions in `specs/text.md` §2.6–2.7.
 
@@ -120,7 +122,7 @@ The argument layouts are in `include/dw/script.h` (and `asset_porter/specs/scn.m
 - `LEARN_MOVE m` (`learnMove`, with its shared pairs); `REMOVE_CONDITION mask`;
 - `SET_STAT s, v`, `ADD_STAT`, `REDUCE_STAT`, on the stat of `getStatsPointer`:
   - stats 0–22: offense, defense, speed, brains, max HP, max MP, HP, MP, tiredness, happiness, discipline, energy, virus bar, lifetime, merit, battles started, battles fled, tournaments won, tournament wins, tournaments lost, weight, tamer level, lives;
-  - `SET` and `ADD` cap at `STATS_LIMIT_ARRAY[s]` (`script_value.c:36`), or max HP / MP for HP and MP. **Quirk:** the array has 22 entries, so stat 22 (lives) reads past it;
+  - `SET` and `ADD` cap at `STATS_LIMIT_ARRAY[s]` (`script_value.c:36`), or max HP / MP for HP and MP. **Quirk kept:** the array has 22 entries, so stat 22 (lives) reads past it, into the next symbol `MULTIPLE_OF_10` (right after it in RAM, `config/us/symbols.txt`): the low half of its first value, **1**. File City's "Life three" section (script 164) sets lives to 3 and gets 1;
   - `REDUCE` stops at 0, or −100 for happiness (stat 9), and doesn't cap;
   - after each: `scriptUpdateEnergyBoundaries` (energy at most `energyCap`; a hungry partner whose energy reaches `energyThreshold` stops being hungry: food timer set, starvation timer 0); tamer level and lives are written back;
 - `DEAL_DAMAGE p`: pause; HP −= max HP × value / 100, leaving at least 1 HP; the damage number shows over the partner.
@@ -160,7 +162,8 @@ The argument layouts are in `include/dw/script.h` (and `asset_porter/specs/scn.m
 ### 2.6 A script takes over the field (`scriptPauseGame(owner)`)
 
 The first time in a section:
-- the tamer and the partner can't move, the camera stops following, game time stops;
+- the tamer and the partner can't move: `setMovementEnabled(0, 1)` / `(1, 1)` (`overworld.c:1869`) set the tamer to state 6 and the partner to state 11; at the end of the script `setMovementEnabled(−1, 0)` sets them back to 0 and 1 (and frees the NPCs' animations);
+- the camera stops following, game time stops;
 - script value 0 = 3, the text area is cleared;
 - for an event section (an NPC talk) unless trigger 44 is set, the NPC and the tamer turn to each other (movement slots type 0).
 
@@ -195,14 +198,27 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
 - **`ScriptInterpreter`** (`scripts/script/script_interpreter.gd`): `tickScript` on a `ScriptContext` (the class the text boxes already use, extended with the stack, `CURRENT_SCRIPT_ID`, the section and its flags, the map-change state).
   - One method per opcode, named after `script.h`, reading its arguments as the C does.
   - The `longjmp` codes become return values of the opcode methods: `NEXT`, `STOP`, `MAP_CHANGE`.
-  - It owns the `TextBoxes` call (`tick_textbox_handling` at the start of `tick_script`), replacing the dialogue debug player.
-- **Not yet ported opcodes** read their arguments exactly as the C does and then do nothing, so the script goes on as in the original with that system missing. Each such call is reported once per opcode (signal `unported(op, name)`; the help line / a log shows it). Waits whose system is missing finish at once: movement slots are free, builtin routines end.
-- **Actors** (the tamer, the partner, later the NPCs) are reached through one interface (`ScriptActors`: entity of a script id, its screen position, start animation, movement ticks), so the NPC step plugs in without changing the interpreter.
+  - It owns the `TextBoxes` call (`tick_textbox_handling` at the start of `tick_script`).
+  - Field hooks for step 2: `load_map` (`SET_SCRIPT`), `setup_map` (the type-3 return), `tick_map_change` (`scriptTickChangeMap`). Without `tick_map_change`, a map change is reported and ends the script, since it can't go on on the old map.
+- **Not yet ported opcodes** read their arguments exactly as the C does, call `scriptPauseGame` first where the C does, and then do nothing, so the script goes on as in the original with that system missing.
+  - Each is reported once (signal `unported(op, name)`; the field's help line shows it, `reported()` lists them).
+  - Waits whose system is missing finish at once: movement slots are free, builtin routines end, and the sync-bit wait (set again by partner and tamer scenes, `partner.c:586` …) ends with a report.
+  - `UNPORTED` in the interpreter holds, per opcode, the bytes the C reads; the real-script test checks them against the asset porter's instruction sizes.
+  - Ported builtins: `0x03`–`0x05`, `0x11` (nothing), `0x0C` / `0x0D` (remove the item in script value 0xFE), `0x10`, `0x19`, `0x1E` / `0x1F` / `0x38` (shop value), `0x21` (the arena's daily values).
+- **Actors:** in step 1 the interpreter reaches the tamer and the partner directly (`tamer`, `partner`: `setMovementEnabled`, `scriptIdToEntityId`). The NPC step adds one interface for every entity (screen position, start animation, movement ticks).
+- **Debug** (`scripts/debug/script_debug.gd`, key `D`): runs the current map's script sections one after another (NPC sections below 0x33 as events), until their entry points exist.
 - **The field:** `field.gd` creates the interpreter, ticks it on `GameLoop.frame` before the objects (where the text boxes' tick runs now), and starts sections from the events of §2.2 as their systems exist.
-  - **Map entry** goes through MAPHEAD, as in the original: `_enter(map, exit)` becomes `run_map_head(map)`. `SET_SCRIPT` calls back into the field to load the map, and the type-3 return places the tamer and runs section `0xFE`.
-  - This replaces the field's direct `load_map` for normal map changes. The debug keys (`[` / `]`) go through it too.
+  - **Map entry** goes through MAPHEAD, as in the original (decided 2026-10-23, option A of the discussion below): `_enter(map, exit)` becomes `run_map_head(map)`. `SET_SCRIPT` calls back into the field to load the map, and the type-3 return places the tamer and runs section `0xFE`.
+  - This replaces the field's direct `load_map` for normal map changes. The debug keys (`[` / `]`) go through it too. The editor preview stays a plain map with no scripts.
+- **Map changes** (step 2), as in the original:
+  - warp cells give the tamer state 5 (`tamerTickChangeMap`), and script warps run `scriptTickChangeMap`. Both fade to black over 20 frames, with the map name at frame 10;
+  - at frame 20 the field runs `changeMap` (unload, the previous-map fix-ups as a map property, `run_map_head`), then fades in;
+  - the field scene stays and only the map inside it is swapped, at the black frame. If loading hitches, the target map is loaded in a background thread from the start of the fade, but still swapped at frame 20.
+  - **Facts behind the choice** (all 255 MAPHEAD map sections checked): each starts with `SET_SCRIPT` for its own map, with nothing before it. The script never chooses the map; it sets the music, values and triggers, and decides the NPCs (157 IFs on triggers, story values and the date). The maps' `0xFE` sections spawn items and chests, set map objects and blocked areas, and sometimes play a first-visit scene.
+  - **Rejected:** loading the map in the field and running the section after it (two paths, a different order); precomputing what each section does (NPCs depend on the state).
 - **Care stand-in:** the collapse script `0x4DE` (`specs/care.md` §3.3) runs for real once its opcodes are ported. Until then the current stand-in stays.
-- **Data:** `STATS_LIMIT_ARRAY` (`script_value.c:36`) becomes a data porter table (`systems/script_stat_limits`, with the out-of-range read documented), and the trigger names of `include/dw/trigger.h` a table for the debug views (`systems/triggers`).
+- **Data:** `STATS_LIMIT_ARRAY` (`script_value.c:36`) is the data porter table `systems/script_stat_limits` (done), with the out-of-range read documented. Later, for the debug views: the trigger names of `include/dw/trigger.h` as `systems/triggers`.
+- **Daily values** (§2.9) are `Clock.daily_update` (already ported with the clock); `ADVANCE_TO_DATE_AT` calls it.
 
 ### 3.1 Order of work
 
@@ -231,7 +247,7 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
 
 ## 5. Verification
 
-`tests/test_script.gd`:
+`tests/test_script.gd` (done, 38 checks):
 - **Synthetic scripts:**
   - jumps and the stack (link / return; END with an empty stack pauses);
   - SWITCH clamping;
@@ -240,9 +256,16 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
   - `GIVE_ITEM` stacking, a full stack, trigger 0;
   - dates (`COMPARE_DATE`, `ADD_MINUTES`, the cap);
   - `UNUSED_12` ending the script;
-  - an unported opcode skipping exactly its arguments;
-- **The real scripts:** every section of MAPHEAD and of every DG script runs to an end, a pause or a wait, without the pointer leaving the script, with waits finishing at once and choices taking option 0. It also checks that the opcode sizes the interpreter reads equal the asset porter's instruction sizes;
-- **Text:** a section with dialogue drives `TextBoxes` like the debug player did.
+  - an unported opcode skipping exactly its arguments, reported once; `WARP_TO` before step 2 ending the script;
+  - `DELAY` (the next instruction on the 4th frame for 3), a text waiting for ✕;
+  - `scriptPauseGame` and the end of a script (tamer 6 / partner 11 / time stopped / script value 0 = 3, then all back);
+- **The real scripts** (about 15 s):
+  - every section of every DG script (1269) and every MAPHEAD map setup (255, with the map's `0xFE` section after it) runs to its end;
+  - it plays like a player: ✕ for texts; at a choice the options in turn on each visit, then △, so menus that come back ("let me rethink", Mr. Handy's menu) are left;
+  - no pointer leaves its script;
+  - the opcode sizes the interpreter reads equal the asset porter's instruction sizes;
+  - the only sections that need their caller's dialogue box are the arena registration jump tables (section 0xA of scripts 102, 168, 209, 213). They start with a text and no `SET_DIALOG_OWNER`; called on their own they would wait forever in the original too.
+- **Findings:** the unported instructions of the real scripts are, besides the entity, movement, sound and battle opcodes, about 30 builtin routines (the test prints the list) and the sync-bit wait.
 
 `VERIFY.md`, Scripts:
 - run sections of the current map (debug key) and compare the dialogue and its flow with the game;
@@ -252,6 +275,6 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
 
 - **`MAIN_D_80134FEC`** (set by `SET_SCRIPT`, cleared after the map setup) and **`SOME_SCRIPT_SYNC_BIT`**: what else reads them isn't traced yet.
 - **Duplicate section ids** (e.g. script 4 lists 0x6 twice): the second can never be reached; whether they mean something isn't known.
-- **The stack** isn't reset by `callScriptSection` and isn't bounded. A script that pauses through `UNUSED_12` with entries still on the stack would leave them for the next section. Whether that happens isn't checked; the real-script test will report it.
-- **`setMovementEnabled(id, flag)`** (`overworld.c:1869`): `scriptPauseGame` calls it with 1 for the tamer and partner, and the end of a script with (−1, 0). Read here as "1 = moved by the script", not checked in `overworld.c` yet.
+- **The stack** isn't reset by `callScriptSection` and isn't bounded. A script that pauses through `UNUSED_12` with entries still on the stack leaves them for the next section (kept as in the C; the interpreter warns above 8 entries). There are 136 `JUMP_AND_LINK` against 14 `JUMP_RETURN`: most links are unwound by `END_SECTION`.
+- **`START_BATTLE` unported:** the script goes on as if nothing happened, without writing the outcome (script value 0xFF). Sections that read it take whatever value it had.
 - **Builtin routines** that finish at once but set up UI (`0x0F` the shop's bits box, `0x1C` Monochromon's mood bubble, …) are documented with their systems.

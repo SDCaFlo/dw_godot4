@@ -1,0 +1,984 @@
+class_name ScriptInterpreter
+extends RefCounted
+## The event-script interpreter (script_interp.c, script_value.c; specs/script.md): sections start
+## with call_section (callScriptSection), and tick_script (tickScript) runs once per game frame
+## before the objects: the text boxes' frame, the waiting instruction, then instructions until one
+## waits or the script ends.
+##
+## Each opcode reads its arguments exactly as the C does. Opcodes whose system isn't ported yet
+## read their bytes, do what can be done without that system (scriptPauseGame, ...), and are
+## reported once through `unported`; their waits finish at once (specs/script.md §3).
+
+## An opcode (or builtin routine) the port can't execute yet; reported once per name.
+signal unported(op: int, name: String)
+## The script has ended (IS_SCRIPT_PAUSED set and cleaned up).
+signal ended
+
+## The longjmp codes of the instruction handlers (tickScript, script_interp.c:600-632).
+const NEXT := 1
+const STOP := 2
+const MAP_CHANGE := 3
+
+## StackEntry.smth[0] (returnFromScriptFile).
+const LINK := 1
+const MAP_SETUP := 3
+const AFTER_MAP_CHANGE := 4
+## SCRIPT_STATE.stack[8].
+const STACK_SIZE := 8
+const MAP_ENTRY_SECTION := 0xFE
+## The 22 SCRIPT_MOVEMENT slots; 0xFF = free.
+const MOVEMENT_SLOTS := 0x16
+const FREE := 0xFF
+## setTrigger(0x2C) skips scriptPauseGame's turn to each other (TRIGGER_44 in trigger.h).
+const TRIGGER_NO_TURN := 0x2C
+const MONEY_MAX := 999999
+const MERIT_MAX := 9999
+const OP_WAIT_FOR_ENTITY := 0x4A
+## A frame that runs this many instructions is a loop the original would hang in.
+const MAX_PER_FRAME := 20000
+
+## SCRIPT_OP_* names (include/dw/script.h:21-125).
+const NAMES := {
+	0x10: "SET_SELECTION", 0x11: "UNUSED_11", 0x12: "UNUSED_12", 0x13: "JUMP_AND_LINK", 0x14: "JUMP_TO_FILE_AND_LINK",
+	0x15: "JUMP_RETURN", 0x16: "JUMP_TO", 0x17: "JUMP_TO_FILE", 0x18: "SWITCH", 0x19: "IF", 0x1A: "SHOW_TEXTBOX",
+	0x1B: "SET_DIALOG_OWNER", 0x1C: "SET_TRIGGER", 0x1D: "UNSET_TRIGGER", 0x1E: "SET_PSTAT", 0x1F: "ADD_TO_PSTAT",
+	0x20: "REDUCE_PSTAT", 0x21: "STORE_MAP_ID", 0x22: "STORE_DIGIMON_TYPE", 0x23: "SET_INVENTORY_SIZE",
+	0x24: "STORE_RANDOM", 0x25: "STORE_DATE", 0x26: "SET_TEXTBOX_SIZE", 0x27: "FADEOUT_HUD", 0x28: "GIVE_ITEM",
+	0x29: "REMOVE_ITEM", 0x2A: "ADD_MONEY", 0x2B: "REDUCE_MONEY", 0x2C: "COMPARE_DATE", 0x2D: "LEARN_MOVE",
+	0x2E: "UNUSED_2E", 0x2F: "GIVE_CARD", 0x30: "TAKE_CARD", 0x31: "SET_MERIT", 0x32: "ADD_MERIT", 0x33: "REDUCE_MERIT",
+	0x34: "SET_STAT", 0x35: "ADD_STAT", 0x36: "REDUCE_STAT", 0x37: "ADVANCE_TO_DATE_AT", 0x38: "ADD_MINUTES_TO_DATE_AT",
+	0x39: "ADD_MINUTES_TO_DATE_AT_2", 0x3A: "UNUSED_3A", 0x3B: "UNUSED_3B", 0x3C: "UNUSED_3C", 0x3D: "UNUSED_3D",
+	0x3E: "UNUSED_3E", 0x3F: "STORE_DIGIMON_VALUE", 0x46: "LOAD_DIGIMON", 0x47: "SET_DIGIMON", 0x48: "UNLOAD_ENTITY",
+	0x49: "CALL_DIGIMON_ROUTINE", 0x4A: "WAIT_FOR_ENTITY", 0x4B: "WARP_TO", 0x4C: "ENTITY_LOOK_AT_ENTITY",
+	0x4D: "ENTITY_SET_ROTATION", 0x4E: "ENTITY_WALK_TO", 0x4F: "MOVE_CAMERA_TO", 0x50: "MOVE_CAMERA_TO_ENTITY",
+	0x51: "ENTITY_WALK_TO_ENTITY", 0x52: "ENTITY_WALK_TO_WITH_CAMERA", 0x53: "ENTITY_WALK_TO_ENTITY_WITH_CAMERA",
+	0x54: "RESET_ENTITY_ORIGIN", 0x55: "SET_TEXTBOX_ORIGIN", 0x56: "PLAY_ANIMATION", 0x57: "SET_OBJ_VISIBILITY",
+	0x58: "TELEPORT", 0x5A: "PLAY_SOUND", 0x5B: "UNUSED_5B", 0x5C: "UNUSED_5C", 0x5D: "SET_BGM", 0x5E: "STOP_BGM",
+	0x5F: "UNUSED_5F", 0x64: "CALL_ROUTINE", 0x65: "REMOVE_CONDITION", 0x66: "START_BATTLE", 0x67: "DELAY",
+	0x68: "SET_TEXTBOX_MODE", 0x69: "DEAL_DAMAGE", 0x6A: "SET_AUTOTALK", 0x6B: "DATA", 0x6C: "ENTITY_MOVE_TO",
+	0x6D: "ENTITY_MOVE_TO_ENTITY", 0x6E: "ENTITY_MOVE_TO_WITH_CAMERA", 0x6F: "ENTITY_MOVE_TO_ENTITY_WITH_CAMERA",
+	0x70: "ROTATE_3D_OBJECT", 0x71: "MOVE_OBJECT_TO", 0x72: "ENTITY_MOVE_TO_AXIS", 0x73: "ENTITY_MOVE_TO_AXIS_WITH_CAMERA",
+	0x74: "SPAWN_ITEM", 0x75: "SPAWN_CHEST", 0x76: "SPAWN_BOULDER", 0x77: "MOVE_BOULDER", 0x78: "DESPAWN_BOULDER",
+	0x79: "UNLOAD_DIGIMON", 0x7A: "COPY_PSTAT", 0x7B: "SECTION_ON_EXIT", 0x7C: "SET_RECT_IMPASSABLE",
+	0x7D: "SPAWN_SPRITE_AT_LOCATION", 0x7E: "SPAWN_SPRITE_AT_ENTITY", 0xFB: "SET_SCRIPT", 0xFC: "UNUSED_FC",
+	0xFD: "UNUSED_FD", 0xFE: "END_SECTION", 0xFF: "END_SCRIPT",
+}
+## Opcodes whose system isn't ported: [bytes the C reads after the opcode, scriptPauseGame first,
+## the handler ends the frame (longjmp 2)].
+const UNPORTED := {
+	0x46: [1, false, false], 0x47: [3, true, false], 0x48: [1, true, false], 0x49: [1, true, false],
+	0x4C: [3, true, false], 0x4D: [3, true, false], 0x4E: [7, true, false], 0x4F: [5, true, false],
+	0x50: [3, true, false], 0x51: [3, true, false], 0x52: [7, true, false], 0x53: [3, true, false],
+	0x54: [1, true, false], 0x56: [3, false, false], 0x57: [3, false, false], 0x5A: [3, false, false],
+	0x5D: [1, false, false], 0x5E: [1, false, false], 0x66: [1, false, false], 0x6A: [3, false, false],
+	0x6C: [7, true, false], 0x6D: [3, true, false], 0x6E: [7, true, false], 0x6F: [3, true, false],
+	0x70: [3, true, false], 0x71: [9, true, false], 0x72: [5, true, false], 0x73: [5, true, false],
+	0x74: [5, false, false], 0x75: [11, false, false], 0x76: [1, false, false], 0x77: [5, false, true],
+	0x78: [1, false, false], 0x79: [1, false, false], 0x7C: [7, false, false], 0x7D: [9, false, false],
+	0x7E: [3, false, false],
+}
+## CALL_ROUTINE builtins whose system isn't ported, and whether the C ends the frame after
+## setting them up (script_interp.c:1661-1891). Ported ones are in _call_routine.
+const ROUTINE_WAITS := [0x00, 0x01, 0x02, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0E, 0x12, 0x13, 0x14, 0x15, 0x16,
+		0x17, 0x18, 0x1D, 0x20, 0x25, 0x2F, 0x30, 0x32, 0x35, 0x36, 0x37]
+
+var ctx: ScriptContext
+var files: ScriptFiles
+var textboxes: TextBoxes
+var game_state: Node
+var data: Node
+var clock: Clock
+var care: Care
+var tamer: Tamer
+var partner: Partner
+## Field hooks for the map change (step 2): func(map, exit, show_name) -> bool done, called every
+## frame of scriptTickChangeMap; SET_SCRIPT's loadMap(map); returnFromScriptFile's setupMap().
+var tick_map_change := Callable()
+var load_map := Callable()
+var setup_map := Callable()
+## SCRIPT_MOVEMENT[22]: type per slot (FREE = 0xFF); the movement ticks come with step 4.
+var movement: Array = []
+
+var _reported := {}
+## SCRIPT_MAP_CHANGE_SHOW_NAME.
+var _show_map_name := 1
+
+
+func _init(script_ctx: ScriptContext, script_files: ScriptFiles, text_boxes: TextBoxes) -> void:
+	ctx = script_ctx
+	files = script_files
+	textboxes = text_boxes
+	ctx.pause_game = pause_game
+	ctx.is_paused = true
+	movement.resize(MOVEMENT_SLOTS)
+	movement.fill(FREE)
+
+
+# --- starting a section (script_interp.c:2235-2273) --------------------------------------------------
+
+## getScript(id): the script becomes the loaded one (MAPHEAD stays separate).
+func load_script(id: int) -> PackedByteArray:
+	if id != ScriptFiles.MAPHEAD:
+		ctx.active_script_id = id
+	return files.script(id)
+
+
+## callScriptSection(script, section, isEvent). Returns false if the section doesn't exist (the C
+## would run from a NULL pointer).
+func call_section(script_id: int, section: int, is_event := 0) -> bool:
+	ctx.code = load_script(script_id)
+	ctx.code_id = script_id
+	var at := ScriptFiles.section(ctx.code, section)
+	ctx.section_is_event = is_event
+	ctx.section = section
+	ctx.textbox_close_mode = 0
+	ctx.dialogue_owner = ScriptContext.OWNER_TAMER
+	ctx.saved_pstat0 = ctx.read_pstat(0)
+	ctx.active_instruction = 0
+	ctx.map_change = 0
+	ctx.map_setup_pending = 0
+	ctx.took_over = 0
+	ctx.is_paused = false
+	ctx.sync_bit = 1
+	movement.fill(FREE)
+	textboxes.initialize_textbox()
+	if at < 0:
+		push_warning("ScriptInterpreter: script %d has no section 0x%X" % [script_id, section])
+		ctx.is_paused = true
+		return false
+	ctx.pointer = at
+	return true
+
+
+## runMapHeadScript (script_interp.c:2235): the map's MAPHEAD section, and one tickScript at once.
+func run_map_head(map_id: int) -> void:
+	if call_section(ScriptFiles.MAPHEAD, map_id, 1):
+		tick_script()
+
+
+# --- one frame (script_interp.c:390) -------------------------------------------------------------------
+
+## tickScript. Returns IS_SCRIPT_PAUSED.
+func tick_script() -> bool:
+	if ctx.is_paused:
+		return true
+	textboxes.tick_textbox_handling()
+	_tick_scripted_movements()
+	if ctx.map_change == 0x4B:
+		var done := true
+		if tick_map_change.is_valid():
+			done = tick_map_change.call(ctx.script_param_1, ctx.state_2, _show_map_name)
+		if done:
+			ctx.took_over = 0
+			pause_game(0xFF)
+			ctx.map_change = 0
+	_tick_waiting_instruction()
+	if ctx.map_change != 0 or ctx.active_instruction != 0:
+		return ctx.is_paused
+	var count := 0
+	while true:
+		var op := ctx.next_byte()
+		var result := execute(op)
+		count += 1
+		if result == MAP_CHANGE:
+			textboxes.close_all_textboxes()
+			game_state.set_script_value(0, ctx.saved_pstat0)
+			if not tick_map_change.is_valid():
+				# The field's map change comes with step 2: the script can't go on on this map.
+				_report(op, "map change (%s)" % NAMES.get(op, "?"))
+				ctx.stack.clear()
+				ctx.is_paused = true
+				break
+			ctx.map_change = 0x4B
+			return ctx.is_paused
+		if result != NEXT:
+			break
+		if count >= MAX_PER_FRAME:
+			push_error("ScriptInterpreter: %d instructions in one frame (script %d, offset %d): a loop" % [count, ctx.code_id, ctx.pointer])
+			break
+	if ctx.is_paused:
+		_end()
+	return ctx.is_paused
+
+
+## The waiting instruction's part of tickScript (script_interp.c:415-591).
+func _tick_waiting_instruction() -> void:
+	match ctx.active_instruction:
+		ScriptContext.OP_DELAY:
+			if textboxes.delay_frames == 0:
+				ctx.active_instruction = 0
+		ScriptContext.OP_CALL_ROUTINE:
+			# The builtins' ticks (shops, menus, ...) come with their systems: they end at once.
+			ctx.active_instruction = 0
+		OP_WAIT_FOR_ENTITY:
+			if _wait_done():
+				ctx.active_instruction = 0
+
+
+func _wait_done() -> bool:
+	var id := ctx.wait_for_entity_id
+	if id == 0x19:
+		# SOME_SCRIPT_SYNC_BIT is set again by the partner's and tamer's scene states (partner.c:586,
+		# :679, :783, :817; tamer.c:1676, :1692), not ported yet: the wait ends at once.
+		if ctx.sync_bit == 0:
+			_report(OP_WAIT_FOR_ENTITY, "WAIT_FOR_ENTITY on the sync bit (partner / tamer scenes)")
+			ctx.sync_bit = 1
+		return true
+	if id == 0x1A:
+		return true   # TRN_LOADING_COMPLETE: no training loader yet
+	if id == 0xFF:
+		return ctx.sync_bit != 0 and movement.all(func(t): return t == FREE)
+	return id >= MOVEMENT_SLOTS or movement[id] == FREE
+
+
+## tickScriptedMovements (script_interp.c:2821): step 4.
+func _tick_scripted_movements() -> void:
+	pass
+
+
+## The end of tickScript once the script paused (script_interp.c:634-642).
+func _end() -> void:
+	textboxes.close_all_textboxes()
+	game_state.set_script_value(0, ctx.saved_pstat0)
+	if ctx.took_over == 1:
+		set_movement_enabled(-1, false)
+		if tamer != null:
+			tamer.camera_follow = true
+		if clock != null:
+			clock.running = true
+	ended.emit()
+
+
+# --- the field (script_interp.c:2727, overworld.c:1869) ------------------------------------------------
+
+## scriptPauseGame(owner): the first time in a section the script takes over the field.
+func pause_game(owner: int) -> void:
+	if ctx.took_over == 0:
+		ctx.took_over = 1
+		set_movement_enabled(0, true)
+		set_movement_enabled(1, true)
+		if tamer != null:
+			tamer.camera_follow = false
+		game_state.set_script_value(0, 3)
+		textboxes.text_area.clear_all()
+		if clock != null:
+			clock.running = false
+		# An event section's NPC and the tamer turn to each other (movement slots type 0): step 4.
+	game_state.clear_trigger(TRIGGER_NO_TURN)
+	if owner < ScriptContext.OWNER_SPECIAL:
+		var entity := script_id_to_entity_id(owner)
+		if entity != FREE:
+			set_movement_enabled(entity, true)
+
+
+## setMovementEnabled(id, enabled): enabled = the script moves it (tamer state 6, partner 11);
+## -1 = the tamer, the partner and the NPCs.
+func set_movement_enabled(id: int, enabled: bool) -> void:
+	if (id == 0 or id == -1) and tamer != null:
+		tamer.set_state(Tamer.STATE_STILL if enabled else Tamer.STATE_FREE)
+	if (id == 1 or id == -1) and partner != null:
+		partner.set_state(Partner.STATE_IDLE if enabled else Partner.STATE_NORMAL)
+	# NPCs (MAP_DIGIMON_TABLE[].stopAnim): step 3.
+
+
+## scriptIdToEntityId (script_value.c:131): 0 the tamer, 1 the partner, 2-9 NPCs (step 3), 0xFF none.
+func script_id_to_entity_id(script_id: int) -> int:
+	if script_id == ScriptContext.OWNER_TAMER:
+		return 0
+	if script_id == ScriptContext.OWNER_PARTNER:
+		return 1
+	return FREE
+
+
+# --- instructions --------------------------------------------------------------------------------------
+
+## One instruction (the opcode is read): its handler's longjmp code.
+func execute(op: int) -> int:
+	if op >= 0xFB and op <= 0xFF:
+		return _op_fb_ff(op)
+	if op >= 0x10 and op < 0x28:
+		return _op_10_27(op)
+	if op >= 0x28 and op < 0x40:
+		return _op_28_3f(op)
+	if op >= 0x46 and op < 0x59:
+		return _op_46_58(op)
+	if op >= 0x5A and op < 0x60:
+		return _op_5a_5f(op)
+	if op >= 0x64 and op < 0x7F:
+		return _op_64_7e(op)
+	# Outside every range: the script pauses (UNUSED_11 / 12's alignment byte gets here).
+	ctx.is_paused = true
+	return STOP
+
+
+func _op_fb_ff(op: int) -> int:
+	match op:
+		0xFF, 0xFE:
+			return return_from_script_file()
+		0xFB:
+			ctx.pointer += 1
+			ctx.current_script_id = _u16()
+			ctx.current_screen_id = _u16()
+			ctx.stack.append({"type": MAP_SETUP})
+			ctx.map_setup_pending = 1
+			# resetBGM: with audio.
+			if load_map.is_valid():
+				load_map.call(ctx.current_screen_id)
+			return NEXT
+	# UNUSED_FC / FD: no case, the function returns without a longjmp: the frame ends.
+	return STOP
+
+
+func _op_10_27(op: int) -> int:
+	match op:
+		ScriptContext.OP_SET_SELECTION:
+			ctx.text_owner_mode = 1
+			textboxes.script_show_selection()
+			return STOP
+		0x11, 0x12:
+			pass
+		0x13:
+			ctx.pointer += 1
+			var target := _u16()
+			_push({"type": LINK, "pointer": ctx.pointer, "script": ctx.code_id})
+			ctx.pointer = target
+		0x14:
+			ctx.pointer += 1
+			var script := _u16()
+			var section := _u16()
+			_push({"type": LINK, "pointer": ctx.pointer, "script": ctx.code_id})
+			_jump_to_file(script, section)
+		0x15:
+			ctx.pointer += 1
+			var entry := _pop()
+			_use_script(int(entry.get("script", ctx.code_id)))
+			ctx.pointer = int(entry.get("pointer", ctx.pointer))
+		0x16:
+			ctx.pointer += 1
+			ctx.pointer = _u16()
+		0x17:
+			ctx.pointer += 1
+			var script := _u16()
+			var section := _u16()
+			_jump_to_file(script, section)
+		0x18:
+			var value := ctx.read_pstat(ctx.next_byte())
+			var count := _u16()
+			if value >= count:
+				value = (count - 1) & 0xFF
+			ctx.pointer = ctx.u16_at(ctx.pointer + (value << 1))
+		0x19:
+			ctx.pointer += 1
+			return script_if()
+		ScriptContext.OP_SHOW_TEXTBOX:
+			ctx.pointer += 1
+			textboxes.show_textbox(0, ScriptContext.OWNER_NONE if ctx.text_owner_mode == 2 else ctx.dialogue_owner)
+			return STOP
+		ScriptContext.OP_SET_DIALOG_OWNER:
+			var owner := ctx.next_byte()
+			ctx.text_owner_mode = 0
+			if textboxes.boxes.boxes[0].state != UIBoxes.STATE_OPEN:
+				ctx.dialogue_owner = (owner - 1) & 0xFF
+			textboxes.set_dialogue_owner(owner)
+		0x1C:
+			ctx.pointer += 1
+			game_state.set_trigger(_u16())
+		0x1D:
+			ctx.pointer += 1
+			game_state.clear_trigger(_u16())
+		0x1E, 0x1F, 0x20:
+			ctx.pointer += 1
+			var pstat := ctx.next_byte()
+			var value := ctx.next_byte()
+			if op == 0x1F:
+				value = mini(ctx.read_pstat(pstat) + value, 0xFF)
+			elif op == 0x20:
+				value = maxi(ctx.read_pstat(pstat) - value, 0)
+			game_state.set_script_value(pstat, value)
+		0x21:
+			game_state.set_script_value(ctx.next_byte(), ctx.current_screen_id)
+		0x22:
+			game_state.set_script_value(ctx.next_byte(), _partner_type())
+		0x23:
+			game_state.set_inventory_size(ctx.next_byte())
+		0x24:
+			ctx.pointer += 1
+			var pstat := ctx.next_byte()
+			var max_value := ctx.next_byte()
+			game_state.set_script_value(pstat, Rng.random_limit(max_value + 1))
+		0x25:
+			var pstat := ctx.next_byte()
+			var c: Dictionary = game_state.state["clock"]
+			for i in 4:
+				game_state.set_script_value((pstat + i) & 0xFF, int(c[["year", "day", "hour", "minute"][i]]))
+		ScriptContext.OP_SET_TEXTBOX_SIZE:
+			pause_game(0xFF)
+			ctx.text_owner_mode = 2
+			textboxes.script_set_textbox_size()
+		0x27:
+			textboxes.close_box(ctx.next_byte())
+			return STOP
+	return NEXT
+
+
+func _op_28_3f(op: int) -> int:
+	match op:
+		0x28:
+			ctx.pointer += 1
+			var item := ctx.next_byte()
+			var amount := ctx.next_byte()
+			# giveItem's failure sets trigger 0 (the script then says the bag is full).
+			if game_state.give_item(item, amount):
+				game_state.clear_trigger(0)
+			else:
+				game_state.set_trigger(0)
+		0x29:
+			ctx.pointer += 1
+			var item := ctx.next_byte()
+			var amount := ctx.next_byte()
+			if item != 0xFF:
+				game_state.remove_item(item, amount)
+		0x2A, 0x2B:
+			ctx.pointer += 1
+			var amount := _s32()
+			var money := int(game_state.state["money"]) + (amount if op == 0x2A else -amount)
+			game_state.state["money"] = clampi(money, 0, MONEY_MAX)
+			game_state.changed.emit("money")
+		0x2C:
+			script_compare_date()
+		0x2D:
+			game_state.learn_move(ctx.next_byte())
+		0x2E:
+			ctx.next_byte()
+		0x2F, 0x30:
+			var card := ctx.next_byte()
+			var count: int = game_state.card_count(card)
+			if op == 0x2F and count < 9:
+				game_state.set_card_count(card, count + 1)
+			elif op == 0x30 and count != 0:
+				game_state.set_card_count(card, count - 1)
+		0x31, 0x32, 0x33:
+			ctx.pointer += 1
+			var value := _u16()
+			var merit := int(game_state.state["merit"])
+			match op:
+				0x31:
+					merit = _s16(value)
+				0x32:
+					merit = _s16(merit + value)
+				0x33:
+					# Quirk kept: MERIT = -value, which the check then clears (script_interp.c:1175).
+					merit = _s16(-value)
+			if op == 0x33:
+				merit = maxi(merit, 0)
+			elif merit >= MERIT_MAX + 1:
+				merit = MERIT_MAX
+			game_state.state["merit"] = merit
+			game_state.changed.emit("merit")
+		0x34, 0x35, 0x36:
+			var stat := ctx.next_byte()
+			var value := _u16()
+			var current := get_stat(stat)
+			var result := 0
+			match op:
+				0x34:
+					result = enforce_stats_limits(stat, _s16(value))
+				0x35:
+					result = enforce_stats_limits(stat, _s16(current + value))
+				0x36:
+					result = current - _s16(value)
+					result = maxi(result, -100 if stat == 9 else 0)
+			set_stat(stat, _s16(result))
+			if care != null:
+				care.update_energy_boundaries()
+		0x37:
+			advance_to_date_at(ctx.next_byte())
+		0x38, 0x39:
+			var pstat := ctx.next_byte()
+			var minutes := _u16() | (_u16() << 16)
+			minutes = minutes - 0x100000000 if minutes >= 0x80000000 else minutes
+			var date := date_to_minutes(ctx.read_pstat(pstat), ctx.read_pstat(pstat + 1), ctx.read_pstat(pstat + 2), ctx.read_pstat(pstat + 3))
+			var total := date + minutes if op == 0x38 else maxi(date - minutes, 0)
+			if total < 0:
+				total += 0x100000000   # secondsToDate takes a uint32: the cap applies
+			var parts := minutes_to_date(total)
+			for i in 4:
+				game_state.set_script_value((pstat + i) & 0xFF, parts[i])
+		0x3A, 0x3B, 0x3C:
+			ctx.pointer += 3
+		0x3D, 0x3E:
+			ctx.next_byte()
+		0x3F:
+			ctx.pointer += 1
+			var digimon := ctx.read_pstat(ctx.next_byte())
+			var out := ctx.next_byte()
+			var type = data.digimon(digimon).get("type", {})
+			game_state.set_script_value(out, int(type.get("id", 0)) if type is Dictionary else int(type))
+	return NEXT
+
+
+func _op_46_58(op: int) -> int:
+	match op:
+		OP_WAIT_FOR_ENTITY:
+			var id := ctx.next_byte()
+			ctx.active_instruction = OP_WAIT_FOR_ENTITY
+			ctx.wait_for_entity_id = _wait_slot(id)
+			return STOP
+		0x4B:
+			pause_game(0xFF)
+			ctx.script_param_1 = ctx.next_byte()
+			ctx.state_2 = ctx.next_byte()
+			var section := ctx.next_byte()
+			consume_map_change_show_name()
+			_push({"type": AFTER_MAP_CHANGE, "arg": section})
+			return MAP_CHANGE
+		0x55:
+			ctx.pointer += 1
+			ctx.textbox_origin = [_s16(_u16()), _s16(_u16()), _s16(_u16())]
+		0x58:
+			pause_game(0xFF)
+			var pstat := ctx.next_byte()
+			ctx.script_param_1 = ctx.read_pstat(pstat)
+			ctx.state_2 = ctx.read_pstat(pstat + 1)
+			consume_map_change_show_name()
+			_push({"type": AFTER_MAP_CHANGE, "arg": 0xFF})
+			return MAP_CHANGE
+		_:
+			return _unported_op(op)
+	return NEXT
+
+
+func _op_5a_5f(op: int) -> int:
+	match op:
+		0x5B, 0x5C, 0x5F:
+			ctx.next_byte()
+		_:
+			return _unported_op(op)
+	return NEXT
+
+
+func _op_64_7e(op: int) -> int:
+	match op:
+		ScriptContext.OP_CALL_ROUTINE:
+			return _call_routine(ctx.next_byte())
+		0x65:
+			game_state.set_condition(ctx.next_byte(), false)
+		ScriptContext.OP_DELAY:
+			ctx.pointer += 1
+			textboxes.delay_frames = _u16()
+			ctx.active_instruction = ScriptContext.OP_DELAY
+			return STOP
+		ScriptContext.OP_SET_TEXTBOX_MODE:
+			ctx.pointer += 1
+			var mode := ctx.next_byte()
+			var frames := ctx.next_byte()
+			ctx.textbox_close_mode = mode
+			if mode == 2:
+				textboxes.autoclose_frames = frames
+		0x69:
+			pause_game(0xFF)
+			deal_damage(ctx.read_pstat(ctx.next_byte()))
+		0x6B:
+			pass
+		0x7A:
+			ctx.pointer += 1
+			var value := ctx.read_pstat(ctx.next_byte())
+			game_state.set_script_value(ctx.next_byte(), value)
+		0x7B:
+			_push({"type": AFTER_MAP_CHANGE, "arg": ctx.next_byte()})
+			game_state.set_script_value(0, ctx.saved_pstat0)
+		_:
+			return _unported_op(op)
+	return NEXT
+
+
+## An opcode whose system isn't ported: its bytes, scriptPauseGame if the C does it, reported.
+func _unported_op(op: int) -> int:
+	var spec: Array = UNPORTED.get(op, [0, false, false])
+	if spec[1]:
+		pause_game(0xFF)
+	ctx.pointer += spec[0]
+	_report(op, NAMES.get(op, "0x%02X" % op))
+	return STOP if spec[2] else NEXT
+
+
+func _report(op: int, report_name: String) -> void:
+	if not _reported.has(report_name):
+		_reported[report_name] = true
+		unported.emit(op, report_name)
+
+
+## The unported reports so far.
+func reported() -> PackedStringArray:
+	return PackedStringArray(_reported.keys())
+
+
+## WAIT_FOR_ENTITY's id -> movement slot (script_interp.c:1331-1400).
+func _wait_slot(id: int) -> int:
+	if id == 0xFF:
+		return 0xFF
+	if id >= 0xC8 and id <= 0xD4 and id != 0xC9:
+		return {0xC8: 0xA, 0xCA: 0xB, 0xCB: 0xC, 0xCC: 0xD, 0xCD: 0xE, 0xCE: 0xF, 0xCF: 0x10, 0xD0: 0x11,
+				0xD1: 0x12, 0xD2: 0x13, 0xD3: 0x14, 0xD4: 0x15}[id]
+	if id == 0xC9:
+		return 0x19
+	if id == 0xD5:
+		ctx.sync_bit = 0
+		return 0x19
+	if id == 0xD6:
+		return 0x1A
+	return script_id_to_entity_id(id)
+
+
+# --- CALL_ROUTINE (script_interp.c:1658-1891) -------------------------------------------------------
+
+func _call_routine(routine: int) -> int:
+	ctx.script_param_1 = routine
+	match routine:
+		0x03, 0x04, 0x05, 0x11:
+			pass
+		0x0C:
+			var item := ctx.read_pstat(0xFE)
+			if item != 0xFF:
+				game_state.remove_item(item, 1)
+		0x0D:
+			var item := ctx.read_pstat(0xFE)
+			if item != 0xFF:
+				game_state.remove_item(item, 0x63)
+		0x10:
+			textboxes.trigger_box_close_flag(2)
+			return STOP
+		0x19:
+			ctx.saved_pstat0 = ctx.read_pstat(0xFE)
+		0x1E:
+			ctx.shop_variable = 0
+		0x1F:
+			ctx.shop_variable += ctx.read_pstat(0xF4) + (ctx.read_pstat(0xF3) << 8)
+		0x38:
+			game_state.set_script_value(0xF3, (ctx.shop_variable / 256) & 0xFF)
+			game_state.set_script_value(0xF4, ctx.shop_variable & 0xFF)
+		0x21:
+			# The arena's daily setup (tournament day, partner).
+			for t in [0x25, 0x26, 0x27]:
+				game_state.set_trigger(t)
+			game_state.set_script_value(2, 0x16 if int(game_state.state["clock"]["day"]) == 0x16 else 0x95)
+			game_state.set_script_value(3, 0x16)
+			game_state.set_script_value(4, _partner_type())
+		_:
+			_report(ScriptContext.OP_CALL_ROUTINE, "CALL_ROUTINE 0x%02X" % routine)
+			# A waiting builtin ends the frame; with its system missing it doesn't wait.
+			return STOP if routine in ROUTINE_WAITS else NEXT
+	return NEXT
+
+
+# --- the stack and the end of a section (script_interp.c:2368-2720) ------------------------------------
+
+func _push(entry: Dictionary) -> void:
+	if ctx.stack.size() >= STACK_SIZE:
+		push_warning("ScriptInterpreter: the script stack has more than %d entries (the C writes past it)" % STACK_SIZE)
+	ctx.stack.append(entry)
+
+
+## popScriptStack: an empty stack gives type 0.
+func _pop() -> Dictionary:
+	return ctx.stack.pop_back() if not ctx.stack.is_empty() else {"type": 0}
+
+
+## returnFromScriptFile (script_interp.c:2684): END_SECTION / END_SCRIPT.
+func return_from_script_file() -> int:
+	while true:
+		var entry := _pop()
+		var type := int(entry.get("type", 0))
+		if type == 0:
+			break
+		if type == MAP_SETUP:
+			if setup_map.is_valid():
+				setup_map.call()
+			ctx.map_setup_pending = 0
+			var script := load_script(ctx.current_script_id)
+			var at := ScriptFiles.section(script, MAP_ENTRY_SECTION)
+			if at >= 0:
+				ctx.code = script
+				ctx.code_id = ctx.current_script_id
+				ctx.pointer = at
+				return NEXT
+		elif type == AFTER_MAP_CHANGE:
+			var arg := int(entry.get("arg", 0xFF))
+			if arg != 0xFF:
+				_use_script(ctx.current_script_id)
+				ctx.pointer = ScriptFiles.section(ctx.code, arg)
+				if ctx.pointer < 0:
+					ctx.is_paused = true
+			else:
+				_set_map_head_active()
+			return STOP
+	ctx.is_paused = true
+	return STOP
+
+
+## setMapHeadActive (script_interp.c:2181): MAPHEAD at code_start - 2 (its last table entry).
+func _set_map_head_active() -> void:
+	_use_script(ScriptFiles.MAPHEAD)
+	ctx.pointer = ctx.code.decode_u16(0) - 2 if ctx.code.size() >= 2 else 0
+
+
+func _use_script(id: int) -> void:
+	ctx.code = load_script(id)
+	ctx.code_id = id
+
+
+func _jump_to_file(script: int, section: int) -> void:
+	_use_script(script)
+	ctx.pointer = ScriptFiles.section(ctx.code, section)
+	if ctx.pointer < 0:
+		push_warning("ScriptInterpreter: JUMP_TO_FILE to a missing section %d:0x%X" % [script, section])
+		ctx.is_paused = true
+
+
+# --- IF (script_interp.c:907) ---------------------------------------------------------------------------
+
+func script_if() -> int:
+	var result := 0
+	while true:
+		var cond_op := ctx.next_byte()
+		ctx.pointer += 1
+		if cond_op == 0x19:
+			return NEXT
+		var cond := 0
+		match cond_op & 0x38:
+			0x00:
+				var trigger_set := 1 if game_state.is_trigger_set(_u16()) else 0
+				cond = int(trigger_set == 1) if cond_op & 7 == 0 else int(trigger_set == 0)
+			0x08:
+				var value := ctx.read_pstat(ctx.next_byte())
+				cond = compare(cond_op, value, ctx.next_byte())
+			0x10:
+				var target := _u16()
+				if result != 1:
+					continue
+				ctx.pointer = target
+				return NEXT
+			0x18:
+				var target := _u16()
+				if result != 0:
+					continue
+				ctx.pointer = target
+				return NEXT
+			0x20:
+				match cond_op & 7:
+					0:
+						cond = _compare_stat()
+					1:
+						var card := ctx.next_byte()
+						var cmp := ctx.next_byte()
+						cond = compare(cmp, game_state.card_count(card), _u16())
+					2:
+						var move := ctx.next_byte()
+						var negate := ctx.next_byte()
+						var has := 1 if game_state.has_move(move) else 0
+						cond = has if negate == 0 else int(has == 0)
+					3:
+						var mask := ctx.next_byte()
+						var negate := ctx.next_byte()
+						var any := int(game_state.state["partner"]["care"]["condition"]) & mask != 0
+						cond = int(any) if negate == 0 else int(not any)
+					4:
+						var item := ctx.next_byte()
+						var cmp := ctx.next_byte()
+						cond = compare(cmp, game_state.item_count(item), _u16())
+					5:
+						ctx.pointer += 1
+						var cmp := ctx.next_byte()
+						cond = compare(cmp, int(game_state.state["money"]), _s32())
+		if cond_op & 0x80:
+			result = 1 if result == 1 and cond == 1 else 0
+		elif cond_op & 0x40:
+			result = 0 if result != 1 and cond != 1 else 1
+		else:
+			result = cond
+	return NEXT
+
+
+## scriptCompareStat (script_value.c:183): stat 9 (happiness) signed.
+func _compare_stat() -> int:
+	var stat := ctx.next_byte()
+	var cmp := ctx.next_byte()
+	var value := _u16()
+	if stat != 9:
+		return compare(cmp, get_stat(stat) & 0xFFFF, value)
+	return compare(cmp, get_stat(stat), _s16(value))
+
+
+## scriptCompareValue / scriptCompareSignedValue (script_interp.c:1001, :1030).
+static func compare(op: int, lhs: int, rhs: int) -> int:
+	match op & 7:
+		0:
+			return int(lhs == rhs)
+		1:
+			return int(lhs != rhs)
+		2:
+			return int(lhs >= rhs)
+		3:
+			return int(lhs <= rhs)
+		4:
+			return int(lhs > rhs)
+		5:
+			return int(lhs < rhs)
+	return 0
+
+
+# --- stats (script_value.c:208-373) ---------------------------------------------------------------------
+
+## getStatsPointer: where each SCRIPT_STAT_* lives in the game state.
+const STAT_PATHS := [
+	["partner", "stats", "base", "offense"], ["partner", "stats", "base", "defense"],
+	["partner", "stats", "base", "speed"], ["partner", "stats", "base", "brains"],
+	["partner", "stats", "base", "max_hp"], ["partner", "stats", "base", "max_mp"],
+	["partner", "stats", "current", "hp"], ["partner", "stats", "current", "mp"],
+	["partner", "care", "tiredness"], ["partner", "care", "happiness"], ["partner", "care", "discipline"],
+	["partner", "care", "energy_level"], ["partner", "care", "virus_bar"], ["partner", "care", "remaining_lifetime"],
+	["merit"], ["counters", "battles_started"], ["counters", "battles_fled"], ["counters", "tournaments_won"],
+	["counters", "tournament_wins"], ["counters", "tournaments_lost"], ["partner", "care", "weight"],
+	["tamer", "level"], ["partner", "lives"],
+]
+
+
+func get_stat(stat: int) -> int:
+	var node = _stat_parent(stat)
+	return _s16(int(node[STAT_PATHS[stat].back()])) if node != null else 0
+
+
+func set_stat(stat: int, value: int) -> void:
+	var node = _stat_parent(stat)
+	if node == null:
+		return
+	var path: Array = STAT_PATHS[stat]
+	# Tamer level and lives go through a 16-bit copy into a byte (TMP_TAMER_LEVEL, TMP_LIVES).
+	node[path.back()] = value & 0xFF if stat >= 21 else value
+	game_state.changed.emit(path[0])
+
+
+func _stat_parent(stat: int):
+	if stat < 0 or stat >= STAT_PATHS.size():
+		return null
+	var node = game_state.state
+	var path: Array = STAT_PATHS[stat]
+	for i in path.size() - 1:
+		node = node[path[i]]
+	return node
+
+
+## enforceStatsLimits (script_value.c:356): HP / MP at most their max, others at their table cap.
+func enforce_stats_limits(stat: int, value: int) -> int:
+	var cap := 0
+	if stat == 6:
+		cap = get_stat(4)
+	elif stat == 7:
+		cap = get_stat(5)
+	else:
+		cap = data.script_stat_limit(stat)
+	return cap if cap < value else value
+
+
+## DEAL_DAMAGE: HP -= max HP * percent / 100, keeping at least 1. The damage number over the
+## partner (addEntityText) comes with the entity texts.
+func deal_damage(percent: int) -> void:
+	var damage := get_stat(4) * percent / 100
+	var hp := get_stat(6)
+	if hp - _s16(damage) < 1:
+		damage = hp - 1
+	set_stat(6, _s16(hp - damage))
+
+
+# --- dates (script_interp.c:2514-2560, script_value.c:152) ---------------------------------------------
+
+## dateToSeconds: minutes, with 30-day years.
+static func date_to_minutes(year: int, day: int, hour: int, minute: int) -> int:
+	return minute + hour * 60 + day * 24 * 60 + year * 30 * 24 * 60
+
+
+## secondsToDate: [year, day, hour, minute], capped at year 25, day 14, 23:59.
+static func minutes_to_date(total: int) -> Array:
+	if total >= 255 * 43200:
+		total = 59 + 23 * 60 + 14 * 1440 + 25 * 43200
+	var minute := total % 60
+	total /= 60
+	var hour := total % 24
+	total /= 24
+	return [(total / 30) & 0xFF, total % 30, hour, minute]
+
+
+## scriptCompareDate (script_value.c:152): sets the trigger when the stored date compares true.
+func script_compare_date() -> void:
+	var pstat := ctx.next_byte()
+	var trigger := _u16()
+	var cmp := ctx.next_byte()
+	var year := ctx.next_byte()
+	var day := ctx.next_byte()
+	var hour := ctx.next_byte()
+	var minute := ctx.next_byte()
+	ctx.pointer += 1
+	var now := date_to_minutes(ctx.read_pstat(pstat), ctx.read_pstat(pstat + 1), ctx.read_pstat(pstat + 2), ctx.read_pstat(pstat + 3))
+	if compare(cmp, now, date_to_minutes(year, day, hour, minute)) != 0:
+		game_state.set_trigger(trigger)
+	else:
+		game_state.clear_trigger(trigger)
+
+
+## ADVANCE_TO_DATE_AT (script_interp.c:1227): the hours up to the stored date pass (skipHours),
+## then the clock is set to it; a new day runs dailyPStatTrigger.
+func advance_to_date_at(pstat: int) -> void:
+	var y := ctx.read_pstat(pstat)
+	var d := ctx.read_pstat(pstat + 1)
+	var h := ctx.read_pstat(pstat + 2)
+	var m := ctx.read_pstat(pstat + 3)
+	var c: Dictionary = game_state.state["clock"]
+	var target := date_to_minutes(y, d, h, m)
+	var now := date_to_minutes(int(c["year"]) & 0xFF, int(c["day"]) & 0xFF, int(c["hour"]) & 0xFF, int(c["minute"]) & 0xFF)
+	if now < target and care != null:
+		care.skip_hours((target - now) / 60)
+	var previous_day := int(c["day"])
+	c["year"] = y
+	c["day"] = d
+	c["hour"] = h
+	c["minute"] = m
+	c["frame"] = h * 1200 + m * 20
+	if d != previous_day and clock != null:
+		clock.daily_update()
+	game_state.changed.emit("clock")
+
+
+## consumeMapChangeShowName (script_interp.c:860): script value 6 says whether the next script map
+## change shows the map name, then is cleared.
+func consume_map_change_show_name() -> void:
+	match ctx.read_pstat(6):
+		0:
+			_show_map_name = 1 if ctx.section_is_event == 0 else 0
+		1:
+			_show_map_name = 1
+		2:
+			_show_map_name = 0
+	game_state.set_script_value(6, 0)
+
+
+# --- reading ---------------------------------------------------------------------------------------------
+
+func _u16() -> int:
+	var v := ctx.u16_at(ctx.pointer)
+	ctx.pointer += 2
+	return v
+
+
+## skipOneReadInteger / pollNextInt: lo + (hi << 16), as an int32.
+func _s32() -> int:
+	var v := _u16() | (_u16() << 16)
+	return v - 0x100000000 if v >= 0x80000000 else v
+
+
+static func _s16(v: int) -> int:
+	v &= 0xFFFF
+	return v - 0x10000 if v >= 0x8000 else v
+
+
+func _partner_type() -> int:
+	return data.id_of("digimon/digimon_data", game_state.state["partner"]["digimon"]) if game_state != null else 0

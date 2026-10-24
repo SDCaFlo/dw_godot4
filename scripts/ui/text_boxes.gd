@@ -637,10 +637,20 @@ func setup_dialogue_box(owner: int) -> void:
 	register_textbox(0, 0, 4, 1, 0)
 
 
-## setupBoxOrigin (script_textbox.c:929): a 10 x 10 rect at the owner's bone 1 on screen, or null.
-## (TEXTBOX_ORIGIN_X, a world position set by some scripts, comes with the interpreter.)
+## setupBoxOrigin (script_textbox.c:929): a 10 x 10 rect at SET_TEXTBOX_ORIGIN's world point (used
+## once, 5 px up-left), else at the owner's bone 1 on screen; null without one.
 func setup_box_origin(owner: int):
-	if owner == ScriptContext.OWNER_NONE or not ctx.entity_screen_position.is_valid():
+	if owner == ScriptContext.OWNER_NONE:
+		return null
+	if ctx.textbox_origin != null:
+		var origin: Array = ctx.textbox_origin
+		ctx.textbox_origin = null
+		if ctx.world_screen_position.is_valid():
+			var s = ctx.world_screen_position.call(origin)
+			if s != null:
+				return Rect2i(s.x - 5, s.y - 5, 10, 10)
+		return null
+	if not ctx.entity_screen_position.is_valid():
 		return null
 	var p = ctx.entity_screen_position.call(owner)
 	if p == null:

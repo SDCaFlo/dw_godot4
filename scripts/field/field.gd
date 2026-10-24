@@ -4,7 +4,7 @@ extends Node
 ## (specs/clock.md) with its HUD and the day / evening / night fades.
 ##
 ## Debug keys: [ / ] previous / next map, T one hour later, Z the menu's Sleep, C the care panel,
-## D the map's script texts in the dialogue box, L text language, H toggle the help line.
+## D the next section of the map's script, L text language, H toggle the help line.
 ##
 ## In the editor the scene previews start_map / start_spawn / time_of_day from the porter output
 ## (pick them in the Inspector). The preview is only in memory: before each save it is cleared
@@ -44,10 +44,11 @@ var _panel: CareDebugPanel
 ## The text area and the six UI boxes everything that shows text shares (specs/text.md).
 var _text_area: TextArea
 var _boxes: UIBoxes
-## The script state the text boxes share with the interpreter, the text boxes, the debug player.
+## The script state, the text boxes, the interpreter and its debug runner (specs/script.md).
 var _script_ctx: ScriptContext
 var _textboxes: TextBoxes
-var _dialogue: DialogueDebug
+var _interpreter: ScriptInterpreter
+var _script_debug: ScriptDebug
 var _message := ""
 var _message_frames := 0
 
@@ -112,17 +113,22 @@ func _start_text() -> void:
 	GameData.language_changed.connect(func(_lang):
 		_text_area.set_language(GameData, GameData.language)
 		_textboxes.set_language(GameData.language))
-	# Debug: the map's script texts (key D) until the interpreter exists. It runs where tickScript
-	# does: before the objects, so before the UI boxes' frame.
-	_dialogue = DialogueDebug.new()
-	_dialogue.name = "DialogueDebug"
-	_dialogue.textboxes = _textboxes
-	_dialogue.ctx = _script_ctx
-	_dialogue.tamer = _tamer
-	_dialogue.clock = _clock
-	_dialogue.finished.connect(_show_message)
-	add_child(_dialogue)
-	GameLoop.frame.connect(_dialogue.tick)
+	_script_ctx.world_screen_position = func(p: Array):
+		var s := _camera.unproject_position(Content.psx_to_godot(p))
+		return Vector2i(roundi(s.x) - 160, roundi(s.y) - 120)
+	# The interpreter (specs/script.md) ticks where gameLoop calls tickScript: before the objects,
+	# so before the UI boxes' frame.
+	_interpreter = ScriptInterpreter.new(_script_ctx, ScriptFiles.new(), _textboxes)
+	_interpreter.game_state = GameState
+	_interpreter.data = GameData
+	_interpreter.clock = _clock
+	_interpreter.tamer = _tamer
+	_interpreter.partner = _partner
+	_interpreter.unported.connect(func(_op, what): _show_message("script: not ported yet: " + what))
+	GameLoop.frame.connect(_interpreter.tick_script)
+	# Debug: run the map's script sections (key D) until their entry points are ported.
+	_script_debug = ScriptDebug.new()
+	_script_debug.interpreter = _interpreter
 	_boxes.name = "UIBoxes"
 	_boxes.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_tamer.camera = _camera
@@ -162,6 +168,8 @@ func _start_care() -> void:
 		_care.tamer = _tamer
 		_care.fade = _fade
 		_care.text_area = _text_area
+		if _interpreter != null:
+			_interpreter.care = _care
 		_care.script_requested.connect(_on_script_requested)
 		_partner.care = _care
 		_partner.clock = _clock
@@ -277,8 +285,8 @@ func _enter(map_name: String, spawn: int) -> void:
 	_arrival_trigger = _field.tile_trigger(_tamer.position)
 	if _clock != null:
 		_record_map(map_name, spawn)
-	if _dialogue != null:
-		_dialogue.load_map(map_name, _field.data)
+	if _script_debug != null:
+		_script_debug.load_map(GameData.map_id(map_name))
 	_update_label()
 
 
@@ -338,8 +346,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			if _panel != null:
 				_panel.visible = not _panel.visible
 		KEY_D:
-			if _dialogue != null:
-				_show_message(_dialogue.play_next())
+			if _script_debug != null:
+				_show_message(_script_debug.play_next())
 
 
 ## The menu's "Sleep" (handleGameMenuSelection case 6, game_menu.c:2178): only while it is enabled
@@ -360,7 +368,7 @@ func _update_label() -> void:
 		if _clock.map_has_time_of_day:
 			time = {Clock.TIME_DAY: "day", Clock.TIME_EVENING: "evening", Clock.TIME_NIGHT: "night"}[_clock.current_time_of_day]
 		time = "year %d day %d %02d:%02d (%s)" % [clock["year"], clock["day"], clock["hour"], clock["minute"], time]
-	var help := _message if _message != "" else "arrows move, shift run, [ ] map, T +1 hour, Z sleep, C care, D dialogue, L language, H hide"
+	var help := _message if _message != "" else "arrows move, shift run, [ ] map, T +1 hour, Z sleep, C care, D script, L language, H hide"
 	_label.text = "%s\n%s\n%s" % [_map_label(), time, help]
 
 

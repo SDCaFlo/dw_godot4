@@ -28,7 +28,6 @@ func _process(_delta: float) -> bool:
 		_show_textbox()
 		_dialogue_pages()
 		_dialogue_choice()
-		_dialogue_debug()
 		# Drawn by the engine in the next frames: the frame, the text and the arrow must not error.
 		boxes = UIBoxes.new()
 		root.add_child(boxes)
@@ -396,33 +395,6 @@ func _dialogue_choice() -> void:
 		_frame(parts)
 	_frame(parts, Pad.CANCEL)
 	_eq([ctx.pointer, sounds.back()], [tb.selection["end_pointer"], 4], "cancel: after the text (sound 4)")
-	_free(parts)
-
-
-func _dialogue_debug() -> void:
-	var map = Content.load_json("maps/MAYO04A/map.json")
-	if not map is Dictionary or Content.load_json("scripts/index.json") == null:
-		print("SKIP dialogue debug: asset porter output missing")
-		return
-	var parts := _text_boxes()
-	var tb: TextBoxes = parts[0]
-	var debug := DialogueDebug.new()
-	debug.textboxes = tb
-	debug.ctx = parts[3]
-	var summaries := []
-	debug.finished.connect(func(s): summaries.append(s))
-	debug.load_map("MAYO04A", map)
-	_eq(debug.starts.size() > 0, true, "MAYO04A has script texts")
-	debug.play_next()
-	var frames := 0
-	while debug.running and frames < 200:
-		parts[4].poll(Pad.CONFIRM if frames % 10 == 9 else 0)
-		parts[4].process()
-		debug.tick()
-		parts[1].step()
-		frames += 1
-	_eq([debug.running, summaries.size()], [false, 1], "the first text of MAYO04A plays and ends (%d frames)" % frames)
-	debug.free()
 	_free(parts)
 
 

@@ -3,6 +3,7 @@
 The porters have their own checklists (`asset_porter/VERIFY.md`, `data_porter/VERIFY.md`); this file covers the game systems ported to GDScript. Every system has a headless test that must print `OK` (run from `dw_godot/`, Godot 4.7, after both porters):
 
 ```
+godot --headless --path . -s res://tests/test_script.gd
 godot --headless --path . -s res://tests/test_text.gd
 godot --headless --path . -s res://tests/test_care.gd
 godot --headless --path . -s res://tests/test_partner.gd
@@ -40,15 +41,23 @@ Sections are added as systems are ported (`PLANS.md`).
 4. **Language (`L`):** press `L` before "injured 12h":
    - `ja`: the name in the JP font's full-width Latin letters, then the Japanese text;
    - `en_eu`: the EU font, all letters 8 px apart, so the gap after the name is smaller (8 px per letter).
-5. **Dialogue (`D`):** `D` plays the next run of the current map's script texts (the help line names it, e.g. `dialogue 1 / 13 (script_004 @142)`); ✕ turns the pages. This is a debug player of the texts only: what the script does between them (animations, walking, battles) comes with the interpreter. Check:
-   - **Speaker line:** the name on the first row, in light blue for the tamer ("Player" on a new game) and orange for the partner. NPC names (yellow) show only on maps whose Digimon have a script id. The text follows on 3 rows. A text without a speaker uses all 4 rows.
-   - **Colour codes:** words in another colour, e.g. at Dragon Eye Lake (press `]` until the help line shows `MAYO06`; then `D` until it shows `@54`) the second text: "Will you play the Lake Guardian's **Blue Flute**?".
-   - **Pages:** the "next" sprite blinks while it waits. Longer texts continue on the next page with ✕.
-   - **Holding ✕ doesn't skip:** a new box waits until ✕ was released once.
-   - **Choices:** MAYO06's third text "I'll play / I won't play". A grey cursor bar covers the option. Up and down move it and wrap around; ✕ picks (the help line names the option); △ leaves the choice.
-   - **While it plays:** game time stops (the clock and bars slide away), the tamer can't walk. After the run you can walk again.
-   - **Compare with the game:** the box, the text placement (5 px in, rows 13 px apart), the shadow, the cursor. Wrong if: a row is cut, the name is missing or in the wrong colour, or letters overlap.
-6. **Not there yet:** the interpreter (what happens between the texts), the medal and tamer-level messages, the sounds.
+5. **Dialogue:** see the Scripts section: the dialogue box is checked with the script sections that use it.
+6. **Not there yet:** the medal and tamer-level messages, the sounds.
+
+## Scripts (`scripts/script/`, `specs/script.md`)
+
+`test_script.gd` prints `OK: script checks`. Besides its synthetic checks it runs every section of every script (1269) and every map setup (255) to its end, played like a player (texts confirmed, choices tried in turn), in about 15 s; it prints the unported instructions it met.
+
+In the game (F5), `D` runs the next section of the current map's script (the help line names it: `script 4 section 0x51 (2 / 7)`). Sections are run as they are written; their entry points (stepping on a cell, talking to an NPC, entering the map) come with step 2, NPCs with step 3. Check:
+1. **On the start map (Native Forest, MAYO04A):** `D` twice. The first section (0xFE, the map entry) only spawns items, which aren't on the map yet: the help line says `script: not ported yet: SPAWN_ITEM`. The second (0x51) is the sign: "There are engraved letters here." from the tamer (his name "Player" in light blue), then "No one's here! Go home!" and "Is someone living here?" without a speaker. ✕ turns them.
+2. **While a section runs:** the tamer can't walk, the partner stands, game time stops (the clock and bars slide away). When it ends everything comes back.
+3. **Text details:**
+   - the speaker's name on the first row, the text on 3 rows; a text without a speaker uses all 4;
+   - words in another colour, the blinking "next" sprite, texts going on to a second page;
+   - holding ✕ doesn't skip a new box: it waits until ✕ was released once.
+4. **Choices:** at Dragon Eye Lake (press `]` until the help line shows `MAYO06`), `D` twice runs section 0x51, the Lake Guardian's flute scene. It first checks the inventory, so what it shows depends on the items you carry. With the flute: "Will you play the Lake Guardian's **Blue Flute**?" and "I'll play / I won't play". A grey cursor bar covers the option; up and down move it and wrap; ✕ picks; △ leaves the choice.
+5. **Unported:** each instruction the port can't run yet is named once in the help line (NPCs, movement, animations, sounds, items on the map, battles, shops). The section goes on without it, as in the original with that system missing.
+6. **Compare with the game:** the order of the texts in a scene you know, the speaker colours, when the box closes. Wrong if: a section never ends, texts come in the wrong order, or the game stays frozen after a section.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

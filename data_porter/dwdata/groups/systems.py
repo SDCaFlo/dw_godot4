@@ -30,6 +30,7 @@ SCRIPT_C, TOURNAMENT_C, GAME_MENU = "src/main/script_common.c", "src/main/tourna
 MAP_C, TOILET_C, TRN_HUD, TRN2_HUD = "src/main/map.c", "src/main/toilet_data.c", "src/trn/trn_hud.c", "src/trn2/trn2_hud.c"
 FISH_C, SHOP_MENU, DOOA_C = "src/fish/fish.c", "src/shop/script_menu.c", "src/dooa/dooa.c"
 MAIN_C = "src/main/main.c"
+SCRIPT_VALUE_C, SCRIPT_H = "src/main/script_value.c", "include/dw/script.h"
 
 STYLES = {0: "attack as soon as charged", 1: "wait for the technique's power", 2: "wait for a full charge, keep away"}
 TYPES = {1: "data", 2: "vaccine", 3: "virus"}
@@ -72,6 +73,7 @@ EVIDENCE = [
     ("src/main/overworld.c", "if (MAP_ENTRIES[mapId].flags & 0x80) {"),
     (FISH_C, "if (FISHING_DATA_PTR->rod.bait != FISH_KIND_INFO[f->kind].bait) {"),
     (SHOP_MENU, "ITEM_MENU_TYPE = readPStat(PSTAT_249) * 3;"),
+    (SCRIPT_VALUE_C, "cap = STATS_LIMIT_ARRAY[stat];"),
 ]
 
 TABLE_PURPOSES = {
@@ -93,6 +95,7 @@ TABLE_PURPOSES = {
     "babies": "Baby Digimon ids (Fresh / In-Training) and the baby each reincarnation egg gives",
     "jukebox": "Jukebox track list (index = track id)",
     "versus": "Versus mode: demo fighters, battle counts, stat bar limits",
+    "script_stat_limits": "The stats event scripts change (SET_STAT / ADD_STAT) and their caps (STATS_LIMIT_ARRAY)",
 }
 
 
@@ -106,7 +109,7 @@ def convert(input_root, output_root) -> GroupWriter:
     index = CIndex(decomp)
     files = sorted({BTL_MAIN, BTL_SETUP, BTL_C, BATTLE_UI, STD_MAIN, STD_SETUP, VS_MAIN, VS_SELECT, VS_DEMO,
                     VS_INTRO, SCRIPT_C, TOURNAMENT_C, GAME_MENU, MAP_C, TOILET_C, TRN_HUD, TRN2_HUD, FISH_C,
-                    SHOP_MENU, DOOA_C})
+                    SHOP_MENU, DOOA_C, SCRIPT_VALUE_C, SCRIPT_H})
     sources = [SourceText(decomp.root, p).identity() for p in files]
 
     missing = [f"{p}: {needle}" for p, needle in EVIDENCE
@@ -132,7 +135,8 @@ def convert(input_root, output_root) -> GroupWriter:
             (TRN_HUD, "TRN_TRAINING_SPOTS"), (FISH_C, "FISH_KIND_INFO"), (FISH_C, "FISH_BITE_CHANCE"),
             (FISH_C, "FISH_BAIT_CHANCES"), (FISH_C, "FISHING_MAP_DATA"), (SHOP_MENU, "MOJYAMON_ITEMS_GIVE"),
             (SHOP_MENU, "MOJYAMON_ITEMS_GET"), (SCRIPT_C, "BABY_IDS"), (DOOA_C, "REINCARNATE_BABY_TYPE"),
-            (SCRIPT_C, "BGM_TRACK_NAMES"), (VS_DEMO, "VS_DEMO_DIGIMON"), (VS_SELECT, "VS__BATTLE_COUNTS")]:
+            (SCRIPT_C, "BGM_TRACK_NAMES"), (VS_DEMO, "VS_DEMO_DIGIMON"), (VS_SELECT, "VS__BATTLE_COUNTS"),
+            (SCRIPT_VALUE_C, "STATS_LIMIT_ARRAY"), (SCRIPT_VALUE_C, "MULTIPLE_OF_10")]:
         load(c_file, name)
     digimon_l = tables.load(out, index, MAIN_C, "DIGIMON_DATA",
                             {"DIGIMON_PARA_NAME": lambda a, r, t: [] if r == "eu" else [Value(a[0], t.line)]})
@@ -470,9 +474,47 @@ def convert(input_root, output_root) -> GroupWriter:
     out.check("FLEE_CHANCES padding (entries 9-11) is 0", not bad["flee"], "; ".join(bad["flee"]) or "ok")
     out.check("every tournament grade image resolves to a path", not bad["grade images"],
               ", ".join(bad["grade images"]) or f"{len(image_paths)} paths")
+    _stat_limits(out, decomp, us, write)
     out.write_report("report.md", _report(maps, us, sref, dref, days_of))
     out.finish(sources, extra={"counts": {"maps": len(maps), "tournaments": len(names_l), "tables": len(out.tables)}})
     return out
+
+
+def _stat_limits(out, decomp, us, write) -> None:
+    """STATS_LIMIT_ARRAY with the stat ids of script.h. The array has 22 entries for 23 stats: the last
+    (lives) reads past it, into the next symbol (MULTIPLE_OF_10), whose first int32's low half it gets."""
+    import re
+    header = (decomp.root / SCRIPT_H).read_text(encoding="utf-8", errors="replace")
+    stats = {int(v, 16): n.lower() for n, v in re.findall(r"#define SCRIPT_STAT_(\w+)\s+(0x[0-9A-Fa-f]+)", header)}
+    limits = us["STATS_LIMIT_ARRAY"]
+    syms = decomp.symbols("main")
+    a = int(syms.get("STATS_LIMIT_ARRAY", {}).get("address", "0"), 16)
+    b = int(syms.get("MULTIPLE_OF_10", {}).get("address", "0"), 16)
+    pow10 = us["MULTIPLE_OF_10"]
+    first = (pow10.get("v") if isinstance(pow10, dict) else pow10)[0]
+    ids = sorted(stats)
+    out.check("script stats: ids 0..n-1, one more than STATS_LIMIT_ARRAY has, the next symbol right after it",
+              ids == list(range(len(ids))) and len(ids) == len(limits) + 1 and b == a + 2 * len(limits),
+              f"{len(ids)} stats, {len(limits)} limits, STATS_LIMIT_ARRAY {a:#x}, MULTIPLE_OF_10 {b:#x}")
+    records = []
+    for i in ids:
+        rec = {"stat": i, "name": stats[i]}
+        if i < len(limits):
+            rec["limit"] = limits[i]
+        else:
+            rec["limit"] = first & 0xFFFF
+            rec["read_past_the_array"] = "STATS_LIMIT_ARRAY[%d] is the low half of MULTIPLE_OF_10[0] (%d)" % (i, first)
+        records.append(rec)
+    write("script_stat_limits", ["STATS_LIMIT_ARRAY"], {
+        "stat": {"meaning": "SCRIPT_STAT_* id (include/dw/script.h:128-150), the argument of SET_STAT / ADD_STAT / "
+                            "REDUCE_STAT and of IF's stat condition (getStatsPointer, script_value.c:208)"},
+        "name": {"meaning": "the SCRIPT_STAT_* name, lower case"},
+        "limit": {"meaning": "enforceStatsLimits (script_value.c:356): SET_STAT / ADD_STAT keep the value at most this "
+                             "(current HP / MP: the max HP / MP instead). REDUCE_STAT doesn't cap"},
+        "read_past_the_array": {"meaning": "quirk: the stat has no entry; the C reads the next symbol"},
+    }, records, {"access": "GameData.script_stat_limit(stat)",
+                 "notes": "Stat 22 (lives) is capped at 1 by the read past the array: File City's 'Life three' "
+                          "section (script 164) sets 3 and gets 1."})
 
 
 def _report(maps, us, sref, dref, days_of) -> str:

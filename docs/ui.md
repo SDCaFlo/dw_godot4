@@ -103,7 +103,7 @@ textboxes.script_show_selection()               # SET_SELECTION: ctx.pointer jum
 textboxes.tick_textbox_handling()               # once per game frame, before the UI boxes' frame
 ```
 
-Until the interpreter exists, `D` in the field plays the map's script texts this way (`scripts/debug/dialogue_debug.gd`).
+The interpreter (`scripts/script/script_interpreter.gd`, `specs/script.md`) does all of this for the event scripts; `D` in the field runs the current map's script sections through it (`scripts/debug/script_debug.gd`).
 
 ## Text
 

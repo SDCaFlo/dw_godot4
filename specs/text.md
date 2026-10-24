@@ -1,8 +1,8 @@
 # Text renderer (port spec)
 
 Status (2026-10-23):
-- **done:** the font, the text area, `renderString`, the UI boxes, the message box (the care's "<name> is sick" uses it), the text boxes and the dialogue box with pages and choices, the pad as the original reads it. A debug player (`D`) shows the map's script texts.
-- **next:** the event-script interpreter, which drives the dialogue box through `ScriptContext`.
+- **done:** the font, the text area, `renderString`, the UI boxes, the message box (the care's "<name> is sick" uses it), the text boxes and the dialogue box with pages and choices, the pad as the original reads it.
+- The event-script interpreter (`specs/script.md`) drives the dialogue box through `ScriptContext`.
 
 How the original puts text on screen:
 - the font (glyph bitmaps in the C code);
@@ -296,9 +296,7 @@ Everything is in `scripts/ui/`, built to be reused by every window that comes la
   - callables for the entity type and screen position of a script id, and `scriptPauseGame`.
   
   The interpreter will own it.
-- **Debug player** (`scripts/debug/dialogue_debug.gd`, key `D`): plays the current map's script texts on the real script bytes, one run of text instructions at a time, and stops game time while it plays.
-  - It executes `SET_DIALOG_OWNER`, `SHOW_TEXTBOX`, `SET_SELECTION`, `SET_TEXTBOX_SIZE` and `SET_TEXTBOX_MODE` as the interpreter does. Any other instruction ends the run and closes the boxes.
-  - Speakers are named from the map's Digimon (`script_id` → type). Map NPCs aren't spawned, so their boxes open without growing.
+- **The interpreter** (`specs/script.md`) runs the text instructions. Until the NPCs exist, NPC speakers have no name and their boxes open without growing.
 - **Sounds** (0, 1, 2, 3, 4, 7, 11): `UIBoxes.sound` and comments at the C calls; silent until audio.
 - **Not 1:1:**
   - the PSX ordering table becomes draw order within `UIBoxes._draw`; other HUD nodes (clock, bars) keep their node order;
@@ -372,7 +370,6 @@ The checks (`data_porter/specs/font.md` §5) include the coverage of each langua
   - down / down (wrap) / up (wrap) with sound 2;
   - confirm jumps to the option's target;
   - cancel continues after the text (sound 4);
-- **Debug player:** the first text of MAYO04A plays and ends;
 - **Drawing:** a box drawn by the engine without errors;
 - the test prints how many checks ran (a script error would stop a test function early);
 - `tests/test_care.gd`: the sickness message in the text area (colour 10 from x 0, colour 1 from `len × 12`).

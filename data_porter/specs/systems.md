@@ -175,13 +175,19 @@ The jukebox list. US shows the Mt. Panorama theme at index 45, where the other r
 - Matches can be 1, 3 or 5.
 - Stat bars max out at 9999 / 9999 / 999 / 999 / 999 / 999 (the arena and versus copies are checked equal).
 
+### `script_stat_limits` (`STATS_LIMIT_ARRAY[22]`, `script_value.c:36`; the `SCRIPT_STAT_*` ids, `include/dw/script.h:128–150`)
+
+- **The stats** scripts change with `SET_STAT` / `ADD_STAT` / `REDUCE_STAT` and compare in `IF` (`getStatsPointer`, `script_value.c:208`): 23 ids, named from `script.h`.
+- **The caps** (`enforceStatsLimits`, `script_value.c:356`): `SET` / `ADD` keep the value at most `limit`; HP / MP use the max HP / MP instead; `REDUCE` doesn't cap (`../../specs/script.md` §2.5).
+- **Quirk kept:** the array has 22 entries for 23 stats. Stat 22 (lives) reads past it, into `MULTIPLE_OF_10`, the next symbol in RAM. Its first value is 1, so the record has limit 1 and `read_past_the_array`. The converter checks that the two symbols are adjacent in `config/us/symbols.txt`.
+
 ## Mapping
 
 Every table is in the common shape. Ids are resolved to names: Digimon, items, text strings (`{string_id, text, file}`) and maps. Raw C records are kept in `c` where the record isn't the raw value itself. Records hold the US values; release differences are under `release_values`.
 
 ## Godot usage
 
-`GameData.system(name)` returns the records of any of these tables (one-record tables: `system("fishing")[0]`), with helpers where an index is computed: `flee_chance(partner_type, enemy_type)`, `battle_commands(brain, arena)`, `enemy_music(digimon_id)`, `tournament(id)`, `tournaments_on_day(day)` (day % 30, before `isTournamentEnabled`), `tournament_win_chance(level_a, level_b)`, `map(id)`, `map_id(file)`, `toilet(id)`, `training_spots(map)`. Lookups that find nothing return `-1` or `{}`. The formulas above are ported with the system that uses them (battle, arena, care, fishing, menus).
+`GameData.system(name)` returns the records of any of these tables (one-record tables: `system("fishing")[0]`), with helpers where an index is computed: `flee_chance(partner_type, enemy_type)`, `battle_commands(brain, arena)`, `enemy_music(digimon_id)`, `tournament(id)`, `tournaments_on_day(day)` (day % 30, before `isTournamentEnabled`), `tournament_win_chance(level_a, level_b)`, `map(id)`, `map_id(file)`, `toilet(id)`, `training_spots(map)`, `script_stat_limit(stat)`. Lookups that find nothing return `-1` or `{}`. The formulas above are ported with the system that uses them (battle, arena, care, fishing, menus).
 
 ## Verification
 
@@ -193,7 +199,8 @@ The converter checks:
 - every string id resolves to text, and every grade image to a path;
 - maps: the toilet and name indexes are in range;
 - babies are Fresh / In-Training, and the reincarnation eggs give Fresh Digimon;
-- the `FLEE_CHANCES` padding is 0.
+- the `FLEE_CHANCES` padding is 0;
+- the script stats are ids 0 … n − 1, one more than `STATS_LIMIT_ARRAY` has, and `MULTIPLE_OF_10` follows the array directly.
 
 Tests: `tests/test_systems.py` (real data), `tests/test_cross_asset_porter.py` (maps and toilets equal the US executable bytes).
 

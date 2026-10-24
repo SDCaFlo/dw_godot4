@@ -1,6 +1,6 @@
 # Plans and ideas
 
-Working list of what comes next and ideas not started yet. Keep it current: when something is done, move it to "Done" with the commit and drop the details that now live in the code / docs. Per-tool progress stays in `asset_porter/PROGRESS.md` and `data_porter/PROGRESS.md`; the high-level roadmap is in `README.md`.
+Working list of what comes next and ideas not started yet. Bugs found while playing are in `ISSUES.md` (with their evidence). Keep it current: when something is done, move it to "Done" with the commit and drop the details that now live in the code / docs. Per-tool progress stays in `asset_porter/PROGRESS.md` and `data_porter/PROGRESS.md`; the high-level roadmap is in `README.md`.
 
 Last updated: 2026-10-24
 
@@ -89,6 +89,9 @@ Last updated: 2026-10-24
 - In `godot -s` mode autoload names aren't registered: tests instantiate scripts directly, or run through the main scene.
 
 ## Done
+
+- 2026-10-24 — ISSUES.md I-2: the field lighting (`specs/lighting.md`: the map's lights and the ambient per vertex, by the time of day; `PsxLit`, `FieldLighting`, `tests/test_lighting.gd`).
+- 2026-10-24 — ISSUES.md (new) with I-1 (sprites in front of the tamer) and I-4 (night holes) fixed (`fbcf612`).
 
 - 2026-10-23 — Partner follows the tamer (`165d61a`), clock (`2f3f505`), GameState (`90effc9`).
 - 2026-10-23 — DW Data dock and its guide; its asset check found the data porter's wrong model folders (Digimon 30–179), fixed. Editor mirror and `Content` loader (`9eb9172`).

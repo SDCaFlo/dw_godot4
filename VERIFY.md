@@ -7,6 +7,7 @@ godot --headless --path . -s res://tests/test_script.gd
 godot --headless --path . -s res://tests/test_npc.gd
 godot --headless --path . -s res://tests/test_camera.gd
 godot --headless --path . -s res://tests/test_map_objects.gd
+godot --headless --path . -s res://tests/test_lighting.gd
 godot --path . -s res://tests/render_check.gd -- MAYO01 0 260 140   # not headless: renders a frame
 godot --headless --path . -s res://tests/test_text.gd
 godot --headless --path . -s res://tests/test_care.gd
@@ -120,6 +121,15 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
 7. **Snow** on Freezeland (FRZL01–16): flakes falling over everything, drifting, melting at the bottom.
 8. **Day / evening / night:** the sprites change palette with the background, at the end of its fade.
 9. **No grey dots at night:** the background's transparent texels show black (ISSUES.md I-4), e.g. the rocks of Native Forest at night.
+
+## Field lighting (`scripts/content/psx_lit.gd`, `scripts/field/field_lighting.gd`, `specs/lighting.md`)
+
+`test_lighting.gd` prints `OK: lighting checks`. The models are now lit by the map's light and a fixed ambient, as the original. In the game (F5), check against the original:
+1. **By day:** the tamer and the Digimon lit from above: heads and shoulders lighter, sides and the parts facing down darker. Wrong if: lit from below (the light's direction, `specs/lighting.md` §5), or much darker / brighter overall than the game.
+2. **Evening (16:00, `T` to advance):** warmer, less green and blue.
+3. **Night (20:00):** clearly darker (ISSUES.md I-2, `issues/evidence/dw_night_real_game.png`).
+4. **The change:** the models change at the end of the hour's 25-frame fade, with the palette sprites, not during it.
+5. **Doors and props** (Grey Lord's Mansion doors, the poop) are lit the same way.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

@@ -97,8 +97,8 @@ static func load_texture(rel: String) -> Texture2D:
 	return ImageTexture.create_from_image(image)
 
 
-## Loads a model as a node tree. Materials get the PSX look: nearest filtering, unshaded (the
-## game's field lighting is not reproduced yet). Materials and animations are per-instance
+## Loads a model as a node tree. Materials get the PSX look: nearest filtering; the lit polygons
+## take the field lighting (PsxLit, specs/lighting.md), the unlit ones stay unshaded. Materials and animations are per-instance
 ## copies, so code may change them (e.g. loop modes) without touching imported resources.
 static func load_model(rel: String) -> Node3D:
 	var scene: Node3D
@@ -158,11 +158,17 @@ static func _psx_materials(node: Node) -> void:
 	if node is MeshInstance3D and node.mesh != null:
 		for i in node.mesh.get_surface_count():
 			var material := node.mesh.surface_get_material(i) as BaseMaterial3D
-			if material != null:
-				material = material.duplicate()
-				material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-				material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-				node.set_surface_override_material(i, material)
+			if material == null:
+				continue
+			if material.shading_mode != BaseMaterial3D.SHADING_MODE_UNSHADED:
+				# A lit TMD polygon (no KHR_materials_unlit): the field lighting (specs/lighting.md).
+				node.set_surface_override_material(i, PsxLit.material(material.albedo_texture,
+						material.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA,
+						material.cull_mode == BaseMaterial3D.CULL_DISABLED, material.alpha_scissor_threshold))
+				continue
+			material = material.duplicate()
+			material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+			node.set_surface_override_material(i, material)
 	for child in node.get_children():
 		_psx_materials(child)
 

@@ -70,7 +70,7 @@ The game clock: time passing on the field, its effects on the partner and the da
   - maps with the "no time of day" flag (`MAP_ENTRIES.flags & 0x40`, `systems/maps.no_time_of_day`) always use palette 0;
   - otherwise: hours 16–19 evening (palette 1), hours 20–5 night (palette 2), else day (palette 0).
   
-  `CURRENT_TIME_OF_DAY` is 0 for evening, 1 for night, 2 for day (the transition targets below). Map lights are scaled too (evening: green / blue × 0.7; night: × 0.5); the port has no map lighting yet.
+  `CURRENT_TIME_OF_DAY` is 0 for evening, 1 for night, 2 for day (the transition targets below). Map lights are scaled too (evening: green / blue × 0.7; night: × 0.5): `specs/lighting.md`.
 - **On the hour** (`renderMap`), on maps with a time of day, at the first frame of an hour (`CURRENT_FRAME % 1200 == 0`):
   - hour 16 starts the fade day → evening;
   - hour 20 starts evening → night;
@@ -132,4 +132,4 @@ The game clock: time passing on the field, its effects on the partner and the da
 
 - `updateBGM` (music by time and map) comes with audio.
 - The partner / tamer states that block a fade come with the partner port.
-- Map lights scale with the time of day (§2.5); the port has no field lighting yet.
+- Map lights scale with the time of day (§2.5): ported with the field lighting (`specs/lighting.md`, 2026-10-24).

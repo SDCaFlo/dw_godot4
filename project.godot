@@ -50,3 +50,34 @@ texture={
 rendering_device/driver.windows="d3d12"
 
 environment/defaults/default_clear_color=Color(0, 0, 0, 1)
+
+[shader_globals]
+
+psx_ambient={
+"type": "vec3",
+"value": Vector3(0.5, 0.5, 0.5)
+}
+psx_light_0_dir={
+"type": "vec3",
+"value": Vector3(0, -0.984784, 0.173785)
+}
+psx_light_0_color={
+"type": "vec3",
+"value": Vector3(0.695313, 0.695313, 0.695313)
+}
+psx_light_1_dir={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
+psx_light_1_color={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
+psx_light_2_dir={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
+psx_light_2_color={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}

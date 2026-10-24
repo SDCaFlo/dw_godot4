@@ -42,13 +42,22 @@ func _init() -> void:
 	quit(1 if _failed else 0)
 
 
+## A surface material's texture: the lit ones are PsxLit shader materials (specs/lighting.md).
+func _texture(material: Material) -> Texture2D:
+	if material is ShaderMaterial:
+		return (material as ShaderMaterial).get_shader_parameter("albedo_texture")
+	if material is BaseMaterial3D:
+		return (material as BaseMaterial3D).albedo_texture
+	return null
+
+
 ## Every position / rotation / scale track of every animation, sampled at the 20 fps frames:
 ## the imported copy must play like the runtime-loaded file.
 func _compare(content: Script, rel: String) -> void:
 	var imported: Node3D = content.load_model(rel)
 	var raw: Node3D = content._load_gltf(content.path(rel))
 	var untextured := imported.find_children("*", "MeshInstance3D", true, false).filter(
-		func(m): return m.get_surface_override_material(0) == null or m.get_surface_override_material(0).albedo_texture == null)
+		func(m): return _texture(m.get_surface_override_material(0)) == null)
 	_eq(untextured.size(), 0, rel + ": every imported mesh has its texture")
 	var pa := _player(imported)
 	var pb := _player(raw)

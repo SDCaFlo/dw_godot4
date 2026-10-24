@@ -117,6 +117,11 @@ func display_name() -> String:
 func set_time_of_day(value: int) -> void:
 	time_of_day = value
 	_end_transition()
+	# The lights change with the palette (specs/lighting.md §2.1); maps without a time of day (flag
+	# 0x40) keep the map's.
+	if not data.is_empty():
+		var no_time: bool = data.get("map_entry", {}).get("no_time_cycle", false)
+		FieldLighting.apply(data["setup"].get("lights", []), FieldLighting.DAY if no_time else value)
 	if _backgrounds.is_empty():
 		background.texture = null
 		return

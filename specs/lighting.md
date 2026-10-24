@@ -41,14 +41,21 @@ For the lit polygons of a TMD (flag bit 0 clear; the asset porter's `lit` materi
 - **Unlit polygons** (the porter's `KHR_materials_unlit`) and those with the brightness bit off (TGE) aren't lit.
 - **No fog or depth cue** on the field (no `GsSetLightMode`).
 
+### 2.3 Semi-transparent polygons
+
+- A semi-transparent polygon (TMD mode bit 1, ABE) blends only the texels whose colour has the STP bit (bit 15), with its tpage's mode `abr`: 0 half background + half texel, 1 background + texel, 2 background − texel, 3 background + texel / 4. Its other texels are drawn opaque. The texel is lit (or not) first, as any other.
+- E.g. the poop (`ETCNA/UNTI`): its body has no STP texels; its shadow disc has them all, subtracted from the ground (ISSUES.md I-5).
+
 ## 3. Godot design
 
 - **`PsxLit`** (`scripts/content/psx_lit.gd`): the shader's code is built there, one variant per blend / culling mode (Godot can't switch render modes per material). Unshaded spatial, lighting in `vertex()` (gouraud, as the GTE):
   - `I = psx_ambient + Σ psx_light_i_color × max(0, dot(N_world, -psx_light_i_dir))`;
   - `fragment()`: the texel (and the vertex colour, white when the mesh has none) × I, clamped to 1, computed on the sRGB values as the PSX does on its 5-bit ones, then converted to linear for Godot.
-  - Alpha as the glTF material: MASK discards below 0.5, BLEND blends; double-sided materials don't cull.
+  - Texels with alpha 0 (colour 0x0000) are discarded; double-sided materials don't cull.
+  - **Semi-transparency** (§2.3): a semi-transparent material with an STP mask (`extras.stp_texture`) gets a second pass (`next_pass`): the first draws the non-STP texels opaque, the second only the STP ones, with `blend_mix` at alpha 0.5, `blend_add`, `blend_sub` or `blend_add` at a quarter. Without a mask every texel is opaque, as on the PSX. Unlit semi-transparent materials take the same passes with the lighting off.
+  - Godot blends in linear colour, the PSX in its 5-bit space: the blended texels may look slightly different (as the map sprites, `specs/map_objects.md` §6).
 - **Global shader parameters** (`project.godot` `[shader_globals]`): `psx_ambient`, `psx_light_0_dir` … `psx_light_2_dir`, `psx_light_0_color` … `_2_color`. Their defaults are a typical map's (one light from above at 0.7), so models outside the field look as on a map by day. `FieldLighting.current` keeps the values last set (the headless renderer can't read globals back).
-- **`Content._psx_materials`:** a lit material becomes a `PsxLit` `ShaderMaterial` with its texture; an unlit one stays unshaded as before.
+- **`Content._psx_materials`:** a lit material, or a semi-transparent one with an STP mask, becomes a `PsxLit` `ShaderMaterial` with its texture; the other unlit ones stay unshaded as before. It reads the porter's material extras from the glTF (`abr`, `semi_transparent`, `stp_texture`) by material name.
 - **`FieldLighting`** (`scripts/field/field_lighting.gd`, static): `apply(lights, time_of_day)` converts the map's PSX lights (direction to Godot axes, colour / 256, the time-of-day scale with the C's integer maths) and sets the globals.
   - `FieldMap.load_map` keeps the map's lights; `set_time_of_day` applies them (it runs on map entry and at the end of the fade, as the C).
 

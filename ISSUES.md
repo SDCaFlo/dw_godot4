@@ -8,24 +8,25 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Open
 
-### I-2. The models too bright at night
-- **Seen:** at night (File City, 20:06) the tamer and Agumon keep their day colours.
-- **Evidence:** `issues/evidence/dw_issue_top_of_tree_and_too_light_texture.png`; the original at night: `issues/evidence/dw_night_real_game.png`.
-- **Expected:** the original lights the models with the map's 3 lights, scaled by the time of day (`updateTimeOfDay`, map.c:4301: × 1.0 day, red 1.0 / green, blue 0.7 evening, × 0.5 night; `asset_porter/specs/map.md` "TFS").
-- **Cause:** the port drew every model unshaded, so the field lighting wasn't reproduced at all (`Content._psx_materials`).
-- **Status:** fixed, to check in the game (2026-10-24, `specs/lighting.md`): lit models take the map's lights and the 0.5 ambient per vertex, scaled by the time of day at the end of the hour's fade. Rendered on TWNB01 (`tests/render_check.gd -- TWNB01 200 200 20 2 360 330`): Agumon lit from above, sides darker; at night his brightest pixels go from 255 to 213. Left to check against the game: the light's direction (open question in the spec) and the overall brightness.
-
 ### I-3. The models look too pixelated from far away
 - **Seen:** small, distant models look blocky.
 - **Evidence:** `issues/evidence/dw_issue_top_of_tree_and_too_light_texture.png`; `issues/evidence/dw_night_real_game.png`.
 - **Notes:** the PSX also draws at 320 × 240 with no texture filtering; the reference screenshot looks like an emulator at a higher internal resolution (smooth edges). To decide: keep the PSX look, or render the 3D at 2× / 4× like an emulator's upscaling, while the background stays at its own resolution.
 
+## Fixed
+
 ### I-5. The poop has a black outline
 - **Seen:** a dark outline around the poop model. It was there before step 5a.
 - **Evidence:** `issues/evidence/dw_issue_poop_outline.png`; the original: `issues/evidence/dw_real_poop_look.png`.
-- **Cause:** not known yet. The model is `ETCNA/UNTI.TMD` (`PoopPiles`); the outline may be texels that should be transparent or semi-transparent.
+- **Cause:** the poop model (`ETCNA/UNTI.TMD`, `PoopPiles`) has two parts: the body, and a round shadow disc under it. The disc's texels are dark greys that all carry the STP bit, on a semi-transparent polygon with blend mode `abr` 2: the PSX subtracts them from the ground, a soft darkening. The port drew every semi-transparent polygon with a plain alpha blend, so the disc showed as an opaque dark ring. The model textures also had no STP information: the asset porter dropped the bit.
+- **Status:** fixed, to check in the game (2026-10-24): the asset porter writes STP masks for model textures (`<page>.stp.png`, material `extras.stp_texture`; `asset_porter/specs/tmd.md` "STP masks"), and `PsxLit` draws a semi-transparent polygon in two passes: its non-STP texels opaque, its STP texels with the `abr` mode (half, add, subtract, quarter). `tests/test_lighting.gd` checks the poop's two materials; `tests/render_check.gd -- MAYO01 200 300 20 0 360 420 tmd_files/ETCNA/UNTI.gltf` shows it on the grass without the ring. Every model with semi-transparent polygons is drawn this way now (effects, shadows).
 
-## Fixed
+### I-2. The models too bright at night
+- **Seen:** at night (File City, 20:06) the tamer and Agumon keep their day colours.
+- **Evidence:** `issues/evidence/dw_issue_top_of_tree_and_too_light_texture.png`; the original at night: `issues/evidence/dw_night_real_game.png`.
+- **Expected:** the original lights the models with the map's 3 lights, scaled by the time of day (`updateTimeOfDay`, map.c:4301: × 1.0 day, red 1.0 / green, blue 0.7 evening, × 0.5 night; `asset_porter/specs/map.md` "TFS").
+- **Cause:** the port drew every model unshaded, so the field lighting wasn't reproduced at all (`Content._psx_materials`).
+- **Status:** fixed (2026-10-24, `19fd5b8`, `specs/lighting.md`; checked in the game): lit models take the map's lights and the 0.5 ambient per vertex, scaled by the time of day at the end of the hour's fade. Rendered on TWNB01 (`tests/render_check.gd -- TWNB01 200 200 20 2 360 330`): Agumon lit from above, sides darker; at night his brightest pixels go from 255 to 213.
 
 ### I-1. The tamer drawn over trees (draw order)
 - **Seen:** on MAYO01 the tamer walks on top of trees; on other maps too (TWNB01, the bush on the right).

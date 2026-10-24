@@ -130,6 +130,8 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
 3. **Night (20:00):** clearly darker (ISSUES.md I-2, `issues/evidence/dw_night_real_game.png`).
 4. **The change:** the models change at the end of the hour's 25-frame fade, with the palette sprites, not during it.
 5. **Doors and props** (Grey Lord's Mansion doors, the poop) are lit the same way.
+6. **The poop** (ISSUES.md I-5): no dark ring around it; a soft shadow darkens the ground under it instead (compare `issues/evidence/dw_real_poop_look.png`).
+7. **Other semi-transparent models** (technique effects, shadows): their glowing or darkening parts blend with what is behind them instead of covering it.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

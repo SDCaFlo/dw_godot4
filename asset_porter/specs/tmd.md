@@ -60,6 +60,7 @@ The parser computes the layout from the bits and **rejects any packet whose layo
 - One glTF node + mesh per TMD object (`object_<i>`), mesh primitives grouped by material.
 - Axes `(x, -y, -z)` (PSX +Y down → glTF +Y up), units = raw PSX units × 2^scale, triangles emitted as (0,2,1) / quads (0,2,1)+(1,2,3) so glTF counter-clockwise = PSX front face.
 - Textures are full 256×256 texture pages sampled through the polygon's CLUT exactly like the GPU (4/8bpp index → CLUT colour; `0x0000` → alpha 0). UV = page pixel / 256. Nearest filtering.
+- **STP masks:** a page with texels whose colour has the STP bit gets `<page>.stp.png` (grey, 255 = bit set; the sidecar's `textures[].stp_path`). A semi-transparent polygon blends only those texels with its `abr` mode; the others are opaque (`tim.md`). Its material's `extras.stp_texture` names the mask (relative to the glTF). E.g. the poop's shadow disc (`ETCNA/UNTI`, CLUT 96,502): all its texels have the bit, drawn subtractively (`abr` 2): `../../specs/lighting.md`, ISSUES.md I-5.
 - Materials: one per (TSB, CBA, semi-transparent, double-sided, lit, TGE). `alphaMode` MASK (BLEND when semi-transparent), `doubleSided` from the flag, `KHR_materials_unlit` when unlit. Vertex colours (`COLOR_0`) for coloured polygons: untextured `c/255`, textured `min(c/128, 1)` (128 = neutral).
 - Unbound (map) models: geometry and UVs are exported, materials are untextured; TSB/CBA stay in `extras`.
 
@@ -90,5 +91,5 @@ Current result: 66 assets, 221/221 checks. Renders checked by eye: TAKA (item bo
 - Map-textured models need the map texture format (`.TFS`) to be bound; then they can be exported per map.
 - `ETCNA/TAKA.TIM` covers the same VRAM as ETCTIM's `FEEL_EF` part but differs and has no loader; the game draws the item box with `FEEL_EF`.
 - `E_DAI.TMD` and `ETCNA/DOOR.TMD`, `MAHI.TMD`, `DEFEFF.TMD` have no loader found in the decomp (bindings from UVs only).
-- Semi-transparency modes (`abr` 0-3) are approximated as alpha blend; a faithful port needs custom blend modes.
+- Semi-transparency modes (`abr` 0-3): the glTF material keeps `alphaMode` BLEND as an approximation; the game's `PsxLit` shader reads `extras.tpage.abr` and `extras.stp_texture` for the PSX blending.
 - `SEA.TMD` is a flat shadow; the fishing Seadramon itself may be another model.

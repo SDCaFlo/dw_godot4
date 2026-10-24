@@ -97,9 +97,11 @@ static func load_texture(rel: String) -> Texture2D:
 	return ImageTexture.create_from_image(image)
 
 
-## Loads a model as a node tree. Materials get the PSX look: nearest filtering; the lit polygons
-## take the field lighting (PsxLit, specs/lighting.md), the unlit ones stay unshaded. Materials and animations are per-instance
-## copies, so code may change them (e.g. loop modes) without touching imported resources.
+## Loads a model as a node tree. Materials get the PSX look (PsxLit): nearest filtering, the field
+## lighting on the lit polygons (specs/lighting.md), the semi-transparency of the STP texels
+## (asset_porter/specs/tmd.md "STP masks"); unlit opaque ones stay unshaded. Materials and
+## animations are per-instance copies, so code may change them (e.g. loop modes) without touching
+## imported resources.
 static func load_model(rel: String) -> Node3D:
 	var scene: Node3D
 	if imported(rel) != "":
@@ -108,7 +110,7 @@ static func load_model(rel: String) -> Node3D:
 	else:
 		scene = _load_gltf(path(rel))
 	if scene != null:
-		_psx_materials(scene)
+		_psx_materials(scene, _material_extras(rel))
 	return scene
 
 
@@ -154,23 +156,43 @@ static func _own_animations(scene: Node) -> void:
 			player.add_animation_library(lib_name, library)
 
 
-static func _psx_materials(node: Node) -> void:
+## The porter's material extras by material name (the glTF's `materials[].extras`: lit, semi-
+## transparent, tpage.abr, stp_texture relative to the glTF), with the STP mask loaded as `stp`.
+static func _material_extras(rel: String) -> Dictionary:
+	var out := {}
+	if not FileAccess.file_exists(path(rel)):
+		return out
+	var gltf = load_json(rel)
+	if not gltf is Dictionary:
+		return out
+	for m in gltf.get("materials", []):
+		var extras: Dictionary = (m.get("extras", {}) as Dictionary).duplicate()
+		if extras.has("stp_texture"):
+			extras["stp"] = load_texture(rel.get_base_dir().path_join(str(extras["stp_texture"])))
+		out[str(m.get("name", ""))] = extras
+	return out
+
+
+static func _psx_materials(node: Node, extras: Dictionary) -> void:
 	if node is MeshInstance3D and node.mesh != null:
 		for i in node.mesh.get_surface_count():
 			var material := node.mesh.surface_get_material(i) as BaseMaterial3D
 			if material == null:
 				continue
-			if material.shading_mode != BaseMaterial3D.SHADING_MODE_UNSHADED:
-				# A lit TMD polygon (no KHR_materials_unlit): the field lighting (specs/lighting.md).
+			var e: Dictionary = extras.get(material.resource_name, {})
+			var lit := material.shading_mode != BaseMaterial3D.SHADING_MODE_UNSHADED
+			var stp: Texture2D = e.get("stp")
+			var abr := int(e.get("tpage", {}).get("abr", 0)) if e.get("semi_transparent", false) else -1
+			if lit or (abr >= 0 and stp != null):
+				# A lit TMD polygon (no KHR_materials_unlit), or a semi-transparent one with STP texels.
 				node.set_surface_override_material(i, PsxLit.material(material.albedo_texture,
-						material.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA,
-						material.cull_mode == BaseMaterial3D.CULL_DISABLED, material.alpha_scissor_threshold))
+						material.cull_mode == BaseMaterial3D.CULL_DISABLED, 0.5, abr, stp, lit))
 				continue
 			material = material.duplicate()
 			material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 			node.set_surface_override_material(i, material)
 	for child in node.get_children():
-		_psx_materials(child)
+		_psx_materials(child, extras)
 
 
 ## PSX world position (+Y down) to Godot (+Y up): (x, -y, -z), as in the porter's glTF files.

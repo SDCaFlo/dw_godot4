@@ -65,12 +65,19 @@ def _build_textures(tmd, vram: Vram, tex_dir: Path) -> dict:
     textures = {}
     for key, (u0, v0, u1, v1) in sorted(used.items()):
         info = {"page": {"x": key[0], "y": key[1], "bpp": key[2]}, "clut": {"x": key[3], "y": key[4]},
-                "uv_box": [u0, v0, u1, v1], "path": None, "missing_texels_in_uv_box": None, "vram_sources": None}
+                "uv_box": [u0, v0, u1, v1], "path": None, "stp_path": None, "missing_texels_in_uv_box": None,
+                "vram_sources": None}
         if vram is not None:
-            rgba, loaded = vram.sample_page(*key)
+            rgba, loaded, stp = vram.sample_page_stp(*key)
             path = tex_dir / _texture_name(key)
             png.write(path, png.encode_rgba(PAGE_SIZE, PAGE_SIZE, rgba))
             info["path"] = path
+            # STP mask (255 = bit set), only when a texel has it: a semi-transparent polygon blends
+            # only those texels, the others are opaque (tmd.md "Godot representation").
+            if any(stp):
+                stp_path = path.with_name(path.stem + ".stp.png")
+                png.write(stp_path, png.encode_gray(PAGE_SIZE, PAGE_SIZE, bytes(255 if b else 0 for b in stp)))
+                info["stp_path"] = stp_path
             info["missing_texels_in_uv_box"] = sum(1 for v in range(v0, v1 + 1) for u in range(u0, u1 + 1)
                                                    if not loaded[v * PAGE_SIZE + u])
             width = {4: 64, 8: 128, 16: 256}[key[2]]
@@ -90,12 +97,16 @@ class _Materials:
         mkey = _material_key(p)
         if mkey not in self.cache:
             uri = None
+            extras = _material_extras(p)
             if p.textured and self.textures[_texture_key(p)]["path"] is not None:
                 uri = f"{self.tex_dir.name}/{self.textures[_texture_key(p)]['path'].name}"
+                stp_path = self.textures[_texture_key(p)]["stp_path"]
+                if p.semi_transparent and stp_path is not None:
+                    extras["stp_texture"] = f"{self.tex_dir.name}/{stp_path.name}"
             name = f"tsb{p.tsb}_cba{p.cba}" if p.textured else "untextured"
             name += f"_{'lit' if p.lit else 'unlit'}{'_semi' if p.semi_transparent else ''}{'_2side' if p.double_sided else ''}"
             self.cache[mkey] = self.builder.material(name, uri, p.double_sided, p.semi_transparent, not p.lit,
-                                                     _material_extras(p))
+                                                     extras)
         return self.cache[mkey]
 
 

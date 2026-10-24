@@ -96,6 +96,16 @@ func _materials() -> void:
 			kinds["unlit"] += 1
 	_eq(kinds["unlit"] >= 1 and kinds["lit"] >= 1, true, "an unlit material stays unshaded, the others are lit: %s" % kinds)
 	hyog.free()
+	# ISSUES.md I-5: the poop (ETCNA/UNTI): its body has no STP texels (opaque); its shadow disc has
+	# them all, drawn subtractively (abr 2) in a blended pass.
+	var poop := Content.load_model("tmd_files/ETCNA/UNTI.gltf")
+	var passes := []
+	for m in _surfaces(poop):
+		var next: ShaderMaterial = (m as ShaderMaterial).next_pass
+		passes.append("sub" if next != null and next.shader.code.contains("blend_sub") else ("other" if next != null else "opaque"))
+	passes.sort()
+	_eq(passes, ["opaque", "sub"], "the poop: an opaque body, a shadow with a subtractive pass on its STP texels")
+	poop.free()
 
 
 func _eq(actual: Variant, expected: Variant, what: String) -> void:

@@ -1,11 +1,11 @@
 extends SceneTree
 ## Renders a map as the field scene composes it (not headless:
-##   godot --path . -s res://tests/render_check.gd -- [MAP] [SCROLL_X SCROLL_Y [FRAMES [PALETTE [FEET_X FEET_Y]]]]):
+##   godot --path . -s res://tests/render_check.gd -- [MAP] [SCROLL_X SCROLL_Y [FRAMES [PALETTE [FEET_X FEET_Y [MODEL]]]]]):
 ## a SubViewport whose environment draws the background canvas layer behind the 3D (field.tscn,
 ## specs/map_objects.md §3). Two frames: without the overlay sprites the screen must be the
 ## background PNG exactly (the canvas background reaches the screen unchanged); with them, the
 ## frame is saved to user://render_check_<MAP>.png to look at. Exits 1 if the first differs.
-## FEET_X / Y: Agumon stands on the ground (PSX y 0) whose background pixel that is, in both frames:
+## FEET_X / Y: a model (MODEL, the porter path; Agumon by default) stands on the ground (PSX y 0) whose background pixel that is, in both frames:
 ## to look at the draw order against the sprites (ISSUES.md I-1).
 
 var _viewport: SubViewport
@@ -15,6 +15,7 @@ var _plain: Image
 var _map_name := ""
 var _scroll := Vector2.ZERO
 var _feet := Vector2(-1, -1)
+var _model := "mmd_files/MMD0/AGUM.gltf"
 ## The frame the shot with the overlays is taken (they animate 20 a second).
 var _shot_frame := 20
 
@@ -56,6 +57,8 @@ func _init() -> void:
 		_map.time_of_day = int(args[4])
 	if args.size() > 6:
 		_feet = Vector2(int(args[5]), int(args[6]))
+	if args.size() > 7:
+		_model = args[7]
 
 
 func _environment() -> Environment:
@@ -126,7 +129,7 @@ func _place_model() -> void:
 	var a := _map.world_at_pixel(_feet, 1000.0)
 	var b := _map.world_at_pixel(_feet, 2000.0)
 	var ground := a + (b - a) * (-a.y / (b.y - a.y))
-	var model := Content.load_model("mmd_files/MMD0/AGUM.gltf")
+	var model := Content.load_model(_model)
 	_map.add_child(model)
 	model.position = ground
 	var inst := _map.overlays.instance(0)

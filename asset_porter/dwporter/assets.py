@@ -52,6 +52,9 @@ def _model_outputs(writer, result: dict) -> tuple:
         if t["path"] is not None:
             t["path"] = writer._rel(t["path"])
             outputs.append({"path": t["path"], "kind": "texture_page", "encoding": "rgba8"})
+        if t.get("stp_path") is not None:
+            t["stp_path"] = writer._rel(t["stp_path"])
+            outputs.append({"path": t["stp_path"], "kind": "stp_mask", "encoding": "gray8"})
         textures.append(t)
     return outputs, textures
 

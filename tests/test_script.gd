@@ -35,6 +35,7 @@ func _process(_delta: float) -> bool:
 	_ends_and_unported()
 	_delay_and_text()
 	_walk_to()
+	_step4()
 	_map_entry()
 	_real_scripts()
 	_teardown()
@@ -290,6 +291,87 @@ func _walk_to() -> void:
 				"Green Gym 0x33: during WARP_TO's fade he walks to (2200, -3000) (state 10, slot 0, facing +x): %s" % [warps])
 		interp.tick_map_change = Callable()
 		_force_end()
+	interp.tamer = null
+	interp.partner = null
+	tamer.free()
+	partner.free()
+
+
+## Step 4's slot types without the camera (specs/script.md §2.7 "Step 4"): the moves slide by
+## (target - position) / speed and keep the animation, the axis moves, a walk to an entity, the
+## shared delta, the sync bit. The camera's (types 4-7, 15) are in tests/test_camera.gd.
+func _step4() -> void:
+	var tamer := Tamer.new()
+	var partner := Partner.new()
+	interp.tamer = tamer
+	interp.partner = partner
+	unported.clear()
+	# ENTITY_MOVE_TO tamer, x 1005, z 0, speed 10, _; WAIT_FOR_ENTITY tamer; END.
+	tamer._script_animation = 3
+	_run([0x6C, 0xFD, 0xED, 0x03, 0, 0, 10, 0, 0x4A, 0xFD, 0xFE, 0])
+	_frame()
+	_eq([interp.movement[0], tamer.position.x], [ScriptInterpreter.MOVE_TO, 0.0],
+			"ENTITY_MOVE_TO: slot 0 type 8; its first frame takes the delta (1005 / 10 = 100), nothing moves")
+	var xs := []
+	for f in 11:
+		_frame()
+		xs.append(int(tamer.position.x))
+	_eq(xs, [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1005],
+			"then 100 a frame; done past the point after 11 frames (the rounding's +1), set to it")
+	_eq([interp.movement[0], ctx.is_paused, tamer._script_animation], [ScriptInterpreter.FREE, true, 3],
+			"the slot is freed, the wait ends; a move keeps the animation (no startAnimation(0))")
+	# ENTITY_MOVE_TO_AXIS tamer, -300, axis 1 (y), speed 3; WAIT; END: PSX y -100, -200, -300.
+	tamer.position = Vector3.ZERO
+	_run([0x72, 0xFD, 0xD4, 0xFE, 1, 3, 0x4A, 0xFD, 0xFE, 0])
+	_frame()
+	var ys := []
+	for f in 3:
+		_frame()
+		ys.append(int(tamer.position.y))
+	_eq([ys, ctx.is_paused], [[100, 200, 300], true], "ENTITY_MOVE_TO_AXIS on y: 3 steps of -100 (PSX y up), done on the value")
+	# Two moves at once: slot 0 takes the delta and sets the shared "started" flag, so slot 1
+	# skips its own first frame and moves by the tamer's delta (MOVE_TO_DELTA_X / Z).
+	tamer.position = Vector3.ZERO
+	partner.position = Vector3.ZERO
+	_run([0x6C, 0xFD, 0xE8, 0x03, 0, 0, 10, 0, 0x6C, 0xFC, 0xD0, 0x07, 0, 0, 1, 0, 0x67, 0, 30, 0, 0xFE, 0])
+	_frame()
+	_eq([tamer.position.x, partner.position.x], [0.0, 100.0],
+			"quirk: one MOVE_TO_DELTA for every slot: the partner's move (speed 1) starts with the tamer's 100")
+	_force_end()
+	interp._previous_camera_pos_initialized = false
+	# ENTITY_WALK_TO_ENTITY tamer, anim 0, the partner; WAIT tamer; END. The target is taken every
+	# frame; done on its tile.
+	tamer.position = Vector3.ZERO
+	partner.position = Vector3(1000, 0, 0)
+	_run([0x51, 0xFD, 0, 0xFC, 0x4A, 0xFD, 0xFE, 0])
+	_eq([interp.movement[0], tamer.state, tamer._script_animation], [ScriptInterpreter.MOVE_WALK_TO_ENTITY, Tamer.STATE_SCRIPT, 2],
+			"ENTITY_WALK_TO_ENTITY: slot 0 type 3, the walk animation and script state")
+	_frame()
+	_eq(tamer.direction, 0xC00, "he faces the partner (+x)")
+	partner.position = Vector3(-1000, 0, 0)
+	_frame()
+	_eq([tamer.direction, ctx.is_paused], [0x400, false], "the partner moved behind him: he turns to it (-x)")
+	tamer.position = Vector3(-1020, 0, 0)
+	_frame()
+	_eq([interp.movement[0], tamer._script_animation, ctx.is_paused], [ScriptInterpreter.FREE, 0, true],
+			"on the partner's tile: done, animation 0")
+	# CALL_DIGIMON_ROUTINE 0 (the toilet): partner state 6, the sync bit cleared; WAIT_FOR_ENTITY
+	# 0xC9 waits until the scene sets it (the partner has no model here, so the scene doesn't run).
+	_run([0x49, 0, 0x4A, 0xC9, 0xFE, 0])
+	_eq([partner.state, ctx.sync_bit, ctx.active_instruction], [Partner.STATE_TOILET, 0, ScriptInterpreter.OP_WAIT_FOR_ENTITY],
+			"CALL_DIGIMON_ROUTINE 0: partner state 6, the sync bit 0, the wait")
+	for f in 3:
+		_frame()
+	_eq(ctx.is_paused, false, "the wait holds while the bit is clear")
+	ctx.sync_bit = 1
+	_frame()
+	_eq([ctx.is_paused, partner.state], [true, Partner.STATE_NORMAL], "the scene set the bit: the script ends, the partner is given back")
+	# Another routine: reported, the bit stays set, the wait ends at once.
+	gs.set_script_value(74, 0)
+	_run([0x49, 3, 0x4A, 0xC9, 0x1E, 0, 74, 1, 0xFE, 0])
+	_frame()
+	_eq([gs.script_value(74), unported.has("CALL_DIGIMON_ROUTINE 3")], [1, true],
+			"CALL_DIGIMON_ROUTINE 3 (not ported): reported, the wait on the bit ends at once")
 	interp.tamer = null
 	interp.partner = null
 	tamer.free()

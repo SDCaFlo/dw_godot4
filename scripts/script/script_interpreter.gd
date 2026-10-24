@@ -29,11 +29,31 @@ const MAP_ENTRY_SECTION := 0xFE
 ## The 22 SCRIPT_MOVEMENT slots; 0xFF = free.
 const MOVEMENT_SLOTS := 0x16
 const FREE := 0xFF
-## Movement slot types: 0 turn to an entity (ENTITY_LOOK_AT_ENTITY, a talk's turn), 1 set the
-## rotation (ENTITY_SET_ROTATION), 2 walk to a point (ENTITY_WALK_TO).
+## Movement slot types (tickScriptedMovement, specs/script.md §2.7): 0 turn to an entity
+## (ENTITY_LOOK_AT_ENTITY, a talk's turn), 1 set the rotation (ENTITY_SET_ROTATION), 2-5 walk to a
+## point or an entity, without or with the camera, 6-7 the camera slot's pans to a point or an
+## entity, 8-11 moves (slides) to a point or an entity, 14-15 moves on one axis. 12-13 (doors,
+## objects) come with the map objects.
 const MOVE_LOOK_AT := 0
 const MOVE_SET_ROTATION := 1
 const MOVE_WALK_TO := 2
+const MOVE_WALK_TO_ENTITY := 3
+const MOVE_WALK_TO_WITH_CAMERA := 4
+const MOVE_WALK_TO_ENTITY_WITH_CAMERA := 5
+const MOVE_CAMERA_TO := 6
+const MOVE_CAMERA_TO_ENTITY := 7
+const MOVE_TO := 8
+const MOVE_TO_ENTITY := 9
+const MOVE_TO_WITH_CAMERA := 10
+const MOVE_TO_ENTITY_WITH_CAMERA := 11
+const MOVE_TO_AXIS := 14
+const MOVE_TO_AXIS_WITH_CAMERA := 15
+## The camera's movement slot (WAIT_FOR_ENTITY 0xC8).
+const CAMERA_SLOT := 10
+## entityCheckCollision results that end a walk to an entity: entities 0-8 (col < 9).
+const WALK_HIT_LIMIT := 9
+## CALL_DIGIMON_ROUTINE 0: the toilet scene (partner state 6).
+const ROUTINE_TOILET := 0
 ## tickLookAtEntity's turn per frame (rotateEntity speed).
 const LOOK_AT_SPEED := 0x200
 ## setTrigger(0x2C) skips scriptPauseGame's turn to each other (TRIGGER_44 in trigger.h).
@@ -76,13 +96,11 @@ const NPC_OPS := [0x46, 0x47, 0x48, 0x4C, 0x4D, 0x54, 0x56, 0x6A, 0x79]
 ## Opcodes whose system isn't ported (and NPC_OPS without an entity table): [bytes the C reads
 ## after the opcode, scriptPauseGame first, the handler ends the frame (longjmp 2)].
 const UNPORTED := {
-	0x46: [1, false, false], 0x47: [3, true, false], 0x48: [1, true, false], 0x49: [1, true, false],
-	0x4C: [3, true, false], 0x4D: [3, true, false], 0x4F: [5, true, false],
-	0x50: [3, true, false], 0x51: [3, true, false], 0x52: [7, true, false], 0x53: [3, true, false],
+	0x46: [1, false, false], 0x47: [3, true, false], 0x48: [1, true, false],
+	0x4C: [3, true, false], 0x4D: [3, true, false],
 	0x54: [1, true, false], 0x56: [3, false, false], 0x57: [3, false, false], 0x5A: [3, false, false],
 	0x5D: [1, false, false], 0x5E: [1, false, false], 0x66: [1, false, false], 0x6A: [3, false, false],
-	0x6C: [7, true, false], 0x6D: [3, true, false], 0x6E: [7, true, false], 0x6F: [3, true, false],
-	0x70: [3, true, false], 0x71: [9, true, false], 0x72: [5, true, false], 0x73: [5, true, false],
+	0x70: [3, true, false], 0x71: [9, true, false],
 	0x74: [5, false, false], 0x75: [11, false, false], 0x76: [1, false, false], 0x77: [5, false, true],
 	0x78: [1, false, false], 0x79: [1, false, false], 0x7C: [7, false, false], 0x7D: [9, false, false],
 	0x7E: [3, false, false],
@@ -101,6 +119,11 @@ var clock: Clock
 var care: Care
 var tamer: Tamer
 var partner: Partner
+## The camera (specs/camera.md): the camera slot's pans and the "with camera" moves; null: the pans
+## end at once, the moves move no camera.
+var field: FieldMap
+## POLLED_INPUT for moveCameraByDiff's updateDrawingOffsets.
+var pad: Pad
 ## The entity table (the NPCs, specs/npc.md); null: only the tamer and the partner.
 var entities: FieldEntities
 ## Field hooks for the map change (step 2): func(map, exit, show_name) -> bool done, called every
@@ -108,10 +131,18 @@ var entities: FieldEntities
 var tick_map_change := Callable()
 var load_map := Callable()
 var setup_map := Callable()
-## SCRIPT_MOVEMENT[22]: type per slot (FREE = 0xFF), and the slot's entityId / posX / posY.
-## Ticked so far: type 2 (ENTITY_WALK_TO) for the tamer and the partner; the rest with step 4.
+## SCRIPT_MOVEMENT[22]: type per slot (FREE = 0xFF), and the slot's fields (id, target, x, z,
+## speed): an opcode sets some of them, the others keep what the slot had (the C's struct).
 var movement: Array = []
 var movement_args: Array = []
+## PREVIOUS_CAMERA_POS, PREVIOUS_CAMERA_POS_INITIALIZED and MOVE_TO_DELTA_X / Z: one set for every
+## slot (specs/script.md §2.7, kept): the walks with the camera, the moves' "started" and delta.
+var _previous_camera_pos := Vector3.ZERO
+var _previous_camera_pos_initialized := false
+var _move_to_delta := Vector2i.ZERO
+## A ported scene (CALL_DIGIMON_ROUTINE 0) cleared the sync bit and will set it again; any other
+## clear is a scene not ported yet, whose waits end at once.
+var _sync_scene := false
 ## tickLookAtEntity's HAS_ROTATION_DATA / ROTATION_DATA per entity (0-9): the target point taken
 ## on the first frame of a turn.
 var _has_rotation_data: Array = []
@@ -164,6 +195,7 @@ func call_section(script_id: int, section: int, is_event := 0) -> bool:
 	ctx.took_over = 0
 	ctx.is_paused = false
 	ctx.sync_bit = 1
+	_sync_scene = false
 	movement.fill(FREE)
 	textboxes.initialize_textbox()
 	if at < 0:
@@ -242,59 +274,234 @@ func _tick_waiting_instruction() -> void:
 func _wait_done() -> bool:
 	var id := ctx.wait_for_entity_id
 	if id == 0x19:
-		# SOME_SCRIPT_SYNC_BIT is set again by the partner's and tamer's scene states (partner.c:586,
-		# :679, :783, :817; tamer.c:1676, :1692), not ported yet: the wait ends at once.
-		if ctx.sync_bit == 0:
-			_report(OP_WAIT_FOR_ENTITY, "WAIT_FOR_ENTITY on the sync bit (partner / tamer scenes)")
-			ctx.sync_bit = 1
-		return true
+		return _sync_bit_set()
 	if id == 0x1A:
 		return true   # TRN_LOADING_COMPLETE: no training loader yet
 	if id == 0xFF:
-		return ctx.sync_bit != 0 and movement.all(func(t): return t == FREE)
+		return _sync_bit_set() and movement.all(func(t): return t == FREE)
 	return id >= MOVEMENT_SLOTS or movement[id] == FREE
 
 
+## getScriptSyncBit. SOME_SCRIPT_SYNC_BIT is set again by the scene a CALL_DIGIMON_ROUTINE starts
+## (partner.c:586, :679, :783, :817; tamer.c:1676, :1692): the toilet (routine 0) is ported; for the
+## others the bit is set at once, reported.
+func _sync_bit_set() -> bool:
+	if ctx.sync_bit == 0 and not _sync_scene:
+		_report(OP_WAIT_FOR_ENTITY, "WAIT_FOR_ENTITY on the sync bit (partner / tamer scenes)")
+		ctx.sync_bit = 1
+	return ctx.sync_bit != 0
+
+
 ## tickScriptedMovements / tickScriptedMovement (script_interp.c:2821, :2275): every slot in use.
-## Types 0-2 have their ticks; the others are never set (their opcodes are unported). A slot whose
-## entity is gone ends at once.
+## Types 12-13 (doors, objects) come with the map objects and end at once; a slot whose entity is
+## gone ends at once.
 func _tick_scripted_movements() -> void:
 	for slot in MOVEMENT_SLOTS:
 		if movement[slot] == FREE:
 			continue
+		var type: int = movement[slot]
 		var actor := _actor(slot)
 		var args: Dictionary = movement_args[slot]
 		var done := true
-		if actor != null:
-			match movement[slot]:
+		if type == MOVE_CAMERA_TO or type == MOVE_CAMERA_TO_ENTITY:
+			done = _tick_camera_slot(type, args)
+		elif actor != null:
+			match type:
 				MOVE_LOOK_AT:
 					done = tick_look_at_entity(slot, int(args["target"]))
 				MOVE_SET_ROTATION:
 					actor.set_direction(int(args["angle"]))
-				MOVE_WALK_TO:
-					done = tick_entity_walk_to(actor, args["x"], args["z"])
-					if slot >= 2 and entities != null:
-						# NPC_IS_WALKING_TOWARDS while it walks (tamer.c:1012, :1048).
-						entities.walking_towards[slot - 2] = 0 if done else 1
+				MOVE_WALK_TO, MOVE_WALK_TO_WITH_CAMERA:
+					done = _tick_walk_to(slot, actor, FREE, args["x"], args["z"], type == MOVE_WALK_TO_WITH_CAMERA)
+				MOVE_WALK_TO_ENTITY, MOVE_WALK_TO_ENTITY_WITH_CAMERA:
+					done = _tick_walk_to(slot, actor, int(args.get("target", 0)), 0, 0,
+							type == MOVE_WALK_TO_ENTITY_WITH_CAMERA)
+				MOVE_TO, MOVE_TO_WITH_CAMERA:
+					done = _tick_move_to(actor, FREE, args["x"], args["z"], args["speed"], type == MOVE_TO_WITH_CAMERA)
+				MOVE_TO_ENTITY, MOVE_TO_ENTITY_WITH_CAMERA:
+					done = _tick_move_to(actor, int(args.get("target", 0)), 0, 0, args["speed"],
+							type == MOVE_TO_ENTITY_WITH_CAMERA)
+				MOVE_TO_AXIS, MOVE_TO_AXIS_WITH_CAMERA:
+					done = _tick_move_to_axis(actor, args["x"], args["target"], args["speed"],
+							type == MOVE_TO_AXIS_WITH_CAMERA)
 		if done:
 			# The walkers go back to animation 0 (startAnimationTamer(0) / partnerStartAnimation(0)
-			# / scriptNPCStartAnimation(id, 0)).
-			if slot < 10 and movement[slot] < 8 and actor != null:
+			# / scriptNPCStartAnimation(id, 0)); the moves keep theirs.
+			if slot < 10 and type < MOVE_TO and actor != null:
 				actor.start_animation(0)
 			movement[slot] = FREE
 
 
+## Sets a slot's type and some of its fields; the others keep their values (the C's struct).
 func _set_movement(slot: int, type: int, args: Dictionary) -> void:
 	movement[slot] = type
-	movement_args[slot] = args
+	movement_args[slot] = movement_args[slot].merged(args, true)
 
 
-## tickEntityWalkTo(id, 0xFF, x, z, 0) (tamer.c:991): turn to the point; done on its tile. The
-## walk itself is the animation's root motion (the actor's script state checks no walls).
+## tickEntityWalkTo(id, 0xFF, x, z, 0) (tamer.c:991) as the scenes call it: turn to the point; done
+## on its tile. The walk itself is the animation's root motion (the actor's script state checks no
+## walls).
 static func tick_entity_walk_to(actor: Node3D, x: int, z: int) -> bool:
 	var from := FieldMap.model_tile(int(actor.position.x), int(-actor.position.z))
 	actor.look_at_psx(x, z)
 	return from == FieldMap.model_tile(x, z)
+
+
+## tickEntityWalkTo(id, target, x, z, useCamera) for a slot: to the point, or to the target entity's
+## location (taken every frame), ending on its tile or when the walker's next step hits an entity
+## 0-8. With the camera, the camera moves by the walker's motion since the previous tick.
+func _tick_walk_to(slot: int, actor: Node3D, target_id: int, x: int, z: int, use_camera: bool) -> bool:
+	if slot >= 2 and entities != null:
+		# NPC_IS_WALKING_TOWARDS while it walks (tamer.c:1012, :1048).
+		entities.walking_towards[slot - 2] = 1
+	var from := actor.position
+	var to := Vector2i(x, z)
+	if target_id != FREE:
+		var target := _entity_for_script_id(target_id)
+		if target == null:
+			return true
+		to = Vector2i(int(target.position.x), int(-target.position.z))
+	if not _previous_camera_pos_initialized and use_camera:
+		_previous_camera_pos = from
+		_previous_camera_pos_initialized = true
+	var from_tile := FieldMap.model_tile(int(from.x), int(-from.z))
+	actor.look_at_psx(to.x, to.y)
+	if use_camera:
+		_move_camera_by_diff(_previous_camera_pos, from)
+		_previous_camera_pos = from
+	var col := -1
+	if target_id != FREE:
+		col = _walker_collision(actor)
+	if from_tile == FieldMap.model_tile(to.x, to.y) or (col != -1 and col < WALK_HIT_LIMIT):
+		_previous_camera_pos_initialized = false
+		if slot >= 2 and entities != null:
+			entities.walking_towards[slot - 2] = 0
+		return true
+	return false
+
+
+## entityCheckCollision(NULL, walker, 0, 0): the entity (0-9) or the map (10) the walker's next
+## step hits, -1 none.
+func _walker_collision(actor: Node3D) -> int:
+	if actor is FieldDigimon:
+		return actor.check_collision()
+	if actor == tamer and entities != null:
+		return entities.tamer_collision(false, false, false)
+	return -1
+
+
+## tickEntityMoveTo (tamer.c:1114): the first frame (PREVIOUS_CAMERA_POS_INITIALIZED clear) takes
+## the delta, (target - position) / speed per axis; then the entity slides by it through walls, each
+## axis done when it reached or passed (x, z), and set to it. The entity-target forms take the delta
+## from the target but compare with (x, z) = (0, 0) (the C's quirk; no uses).
+func _tick_move_to(actor: Node3D, target_id: int, x: int, z: int, speed: int, use_camera: bool) -> bool:
+	speed = _speed(speed)
+	if not _previous_camera_pos_initialized:
+		var to := Vector2i(x, z)
+		if target_id != FREE:
+			var target := _entity_for_script_id(target_id)
+			if target == null:
+				return true
+			to = Vector2i(int(target.position.x), int(-target.position.z))
+		_move_to_delta = Vector2i((to.x - int(actor.position.x)) / speed, (to.y - int(-actor.position.z)) / speed)
+		_previous_camera_pos_initialized = true
+		_previous_camera_pos = actor.position
+	else:
+		actor.position.x += _move_to_delta.x
+		actor.position.z -= _move_to_delta.y
+		var done_x := false
+		var done_z := false
+		if _move_to_delta.x < 0:
+			if x >= int(actor.position.x):
+				actor.position.x = x
+				done_x = true
+		elif x <= int(actor.position.x):
+			actor.position.x = x
+			done_x = true
+		if _move_to_delta.y < 0:
+			if int(-actor.position.z) <= z:
+				actor.position.z = -z
+				done_z = true
+		elif int(-actor.position.z) >= z:
+			actor.position.z = -z
+			done_z = true
+		if done_x and done_z:
+			_previous_camera_pos_initialized = false
+			return true
+	if use_camera:
+		_move_camera_by_diff(_previous_camera_pos, actor.position)
+		_previous_camera_pos = actor.position
+	return false
+
+
+## tickEntityMoveToAxis (tamer.c:1192): the same on one PSX axis (0 x, 1 y, 2 z) to `value`, with
+## the delta in MOVE_TO_DELTA_X.
+func _tick_move_to_axis(actor: Node3D, value: int, axis: int, speed: int, use_camera: bool) -> bool:
+	speed = _speed(speed)
+	if not _previous_camera_pos_initialized:
+		_move_to_delta.x = (value - _psx_axis(actor, axis)) / speed
+		_previous_camera_pos = actor.position
+		_previous_camera_pos_initialized = true
+	else:
+		_set_psx_axis(actor, axis, _psx_axis_exact(actor, axis) + _move_to_delta.x)
+		var now := _psx_axis(actor, axis)
+		if (_move_to_delta.x < 0 and now <= value) or (_move_to_delta.x >= 0 and now >= value):
+			_set_psx_axis(actor, axis, value)
+			_previous_camera_pos_initialized = false
+			return true
+	if use_camera:
+		_move_camera_by_diff(_previous_camera_pos, actor.position)
+		_previous_camera_pos = actor.position
+	return false
+
+
+## The moves' int8 speed; the scripts use 1-99 (a 0 would divide by zero in the C).
+static func _speed(speed: int) -> int:
+	speed = ((speed & 0xFF) ^ 0x80) - 0x80
+	return speed if speed != 0 else 1
+
+
+## A PSX axis (0 x, 1 y, 2 z) of an entity's Godot position (x, -y, -z).
+static func _psx_axis_exact(actor: Node3D, axis: int) -> float:
+	if axis == 0:
+		return actor.position.x
+	return -actor.position.y if axis == 1 else -actor.position.z
+
+
+static func _psx_axis(actor: Node3D, axis: int) -> int:
+	return int(_psx_axis_exact(actor, axis))
+
+
+static func _set_psx_axis(actor: Node3D, axis: int, value: float) -> void:
+	if axis == 0:
+		actor.position.x = value
+	elif axis == 1:
+		actor.position.y = -value
+	else:
+		actor.position.z = -value
+
+
+## moveCameraByDiff (map.c:5124): the camera moves by the screen motion between two Godot points,
+## with the pad as it is.
+func _move_camera_by_diff(from: Vector3, to: Vector3) -> void:
+	if field != null:
+		field.scroll_by(field.screen_motion(from, to), pad.polled if pad != null else 0)
+
+
+## tickCameraMoveTo / tickCameraMoveToEntity (map.c:5100, :5114): CAMERA_TARGET set every frame (the
+## point at the tamer's height, or the entity's location; an id with no entity keeps the old one),
+## then checkCameraMovement. Without a field the pan ends at once.
+func _tick_camera_slot(type: int, args: Dictionary) -> bool:
+	if field == null:
+		return true
+	if type == MOVE_CAMERA_TO:
+		var y := tamer.position.y if tamer != null else 0.0
+		field.pan_target = Vector3(int(args["x"]), y, -int(args["z"]))
+	else:
+		var entity := _entity_for_script_id(int(args["id"]))
+		if entity != null:
+			field.pan_target = entity.position
+	return field.check_pan(int(args["speed"]))
 
 
 ## tickLookAtEntity (tamer.c:1058): the first frame takes the target's position, then the entity
@@ -704,6 +911,42 @@ func _op_46_58(op: int) -> int:
 			var slot := script_id_to_entity_id(id)
 			if slot != FREE:
 				_set_movement(slot, MOVE_SET_ROTATION, {"id": id, "angle": angle})
+		0x49:
+			pause_game(0xFF)
+			call_digimon_routine(ctx.next_byte())
+		0x4F:
+			pause_game(0xFF)
+			var speed := ctx.next_byte()
+			var x := _s16(_u16())
+			var z := _s16(_u16())
+			_set_movement(CAMERA_SLOT, MOVE_CAMERA_TO, {"x": x, "z": z, "speed": speed})
+		0x50:
+			pause_game(0xFF)
+			ctx.pointer += 1
+			var id := ctx.next_byte()
+			_set_movement(CAMERA_SLOT, MOVE_CAMERA_TO_ENTITY, {"id": id, "speed": ctx.next_byte()})
+		0x51, 0x53:
+			# ENTITY_WALK_TO_ENTITY and its camera form.
+			pause_game(0xFF)
+			var id := ctx.next_byte()
+			var anim := ctx.next_byte()
+			var target := ctx.next_byte()
+			set_entity_walking(id, anim)
+			var slot := script_id_to_entity_id(id)
+			if slot != FREE:
+				_set_movement(slot, MOVE_WALK_TO_ENTITY if op == 0x51 else MOVE_WALK_TO_ENTITY_WITH_CAMERA,
+						{"id": id, "target": target})
+		0x52:
+			pause_game(0xFF)
+			var id := ctx.next_byte()
+			var x := _s16(_u16())
+			var z := _s16(_u16())
+			var anim := ctx.next_byte()
+			ctx.next_byte()
+			set_entity_walking(id, anim)
+			var slot := script_id_to_entity_id(id)
+			if slot != FREE:
+				_set_movement(slot, MOVE_WALK_TO_WITH_CAMERA, {"id": id, "x": x, "z": z})
 		0x54:
 			pause_game(0xFF)
 			entities.reset_entity_origin(ctx.next_byte())
@@ -772,6 +1015,39 @@ func _op_64_7e(op: int) -> int:
 				entities.slots[slot - 2]["autotalk"] = value
 		0x79:
 			entities.unload_model(ctx.next_byte())
+		0x6C, 0x6E:
+			# ENTITY_MOVE_TO and its camera form; the C sets type 0xB (an entity target) for the camera
+			# form, not 10 (no uses).
+			pause_game(0xFF)
+			var id := ctx.next_byte()
+			var x := _s16(_u16())
+			var z := _s16(_u16())
+			var speed := ctx.next_byte()
+			ctx.next_byte()
+			var slot := script_id_to_entity_id(id)
+			if slot != FREE:
+				_set_movement(slot, MOVE_TO if op == 0x6C else MOVE_TO_ENTITY_WITH_CAMERA,
+						{"id": id, "x": x, "z": z, "speed": speed})
+		0x6D, 0x6F:
+			pause_game(0xFF)
+			var id := ctx.next_byte()
+			var target := ctx.next_byte()
+			var speed := ctx.next_byte()
+			var slot := script_id_to_entity_id(id)
+			if slot != FREE:
+				_set_movement(slot, MOVE_TO_ENTITY if op == 0x6D else MOVE_TO_ENTITY_WITH_CAMERA,
+						{"id": id, "target": target, "speed": speed})
+		0x72, 0x73:
+			# ENTITY_MOVE_TO_AXIS id, value, axis (int8), speed, and its camera form.
+			pause_game(0xFF)
+			var id := ctx.next_byte()
+			var value := _s16(_u16())
+			var axis := ctx.next_byte()
+			var speed := ctx.next_byte()
+			var slot := script_id_to_entity_id(id)
+			if slot != FREE:
+				_set_movement(slot, MOVE_TO_AXIS if op == 0x72 else MOVE_TO_AXIS_WITH_CAMERA,
+						{"id": id, "x": value, "target": ((axis & 0xFF) ^ 0x80) - 0x80, "speed": speed})
 		ScriptContext.OP_CALL_ROUTINE:
 			return _call_routine(ctx.next_byte())
 		0x65:
@@ -841,6 +1117,20 @@ func _wait_slot(id: int) -> int:
 	if id == 0xD6:
 		return 0x1A
 	return script_id_to_entity_id(id)
+
+
+# --- CALL_DIGIMON_ROUTINE (partner.c:1137) ----------------------------------------------------------
+
+## callDigimonRoutine: routine 0 starts the toilet scene (partner state 6, specs/care.md §2.16) and
+## clears the sync bit, which the scene sets when done. The other routines' scenes aren't ported:
+## reported, the bit stays set.
+func call_digimon_routine(routine: int) -> void:
+	if routine == ROUTINE_TOILET and partner != null:
+		partner.set_state(Partner.STATE_TOILET)
+		ctx.sync_bit = 0
+		_sync_scene = true
+		return
+	_report(0x49, "CALL_DIGIMON_ROUTINE %d" % routine)
 
 
 # --- CALL_ROUTINE (script_interp.c:1658-1891) -------------------------------------------------------

@@ -19,6 +19,15 @@ var data: Dictionary
 var background_size := Vector2.ZERO
 ## Background scroll in pixels (MAP_TILE_DATA.cameraX/Y).
 var scroll := Vector2.ZERO
+## PLAYER_OFFSET as a scroll: where the scroll would be without the background's edges
+## (specs/camera.md §2.1).
+var virtual_scroll := Vector2.ZERO
+## CAMERA_FOLLOW_PLAYER: the tamer's walk scrolls the camera (§2.2); pans clear and set it.
+var camera_follow := true
+## CAMERA_REACHED_TARGET: -1 idle, 0 a slot's pan moving, 1 reached (§2.3).
+var pan_reached := -1
+## CAMERA_TARGET: the Godot point the next pan centres, taken on its first frame.
+var pan_target := Vector3.ZERO
 var time_of_day := 0
 
 var _eye: Vector3
@@ -68,6 +77,8 @@ func load_map(name: String) -> bool:
 	set_time_of_day(time_of_day)
 
 	_load_doors()
+	_pan_speed = 0
+	_pan_has_target = false
 	return true
 
 
@@ -345,16 +356,152 @@ func background_pixel(world: Vector3) -> Vector2:
 	return background_size / 2 + _projection * Vector2(v.dot(_right), v.dot(_down)) / depth
 
 
-## Scrolls the background to keep `world` centred, clamped to the background edges
-## (initializeDrawingOffsets), and shifts the 3D projection centre to match (DRAWING_OFFSET).
+## initializeDrawingOffsets: the scroll that centres `world` becomes the virtual scroll, and the
+## scroll is that clamped to the background edges.
 func follow(world: Vector3) -> void:
-	var target := (background_pixel(world) - SCREEN / 2).round()
-	scroll = target.clamp(Vector2.ZERO, (background_size - SCREEN).max(Vector2.ZERO))
+	virtual_scroll = (background_pixel(world) - SCREEN / 2).round()
+	scroll = virtual_scroll
+	_clamp_scroll()
+	_apply_scroll()
+
+
+## The background-pixel motion of a move from one Godot point to another, as the C takes it: the
+## difference of the two projections, each rounded to whole pixels (gte_stsxy). Over a walk the
+## steps add up to the rounded end minus the rounded start.
+func screen_motion(from: Vector3, to: Vector3) -> Vector2:
+	return background_pixel(to).round() - background_pixel(from).round()
+
+
+## The scroll moves by `motion`, then updateDrawingOffsets (map.c:4616): the clamp, the virtual
+## scroll takes the whole motion, and on an axis the clamp left free, the step is undone when the
+## held direction (`held`: Pad bits, POLLED_INPUT) points away from where the virtual scroll is.
+## The follow (tickCameraFollowPlayer) and moveCameraByDiff (specs/camera.md §2.2, §2.4).
+func scroll_by(motion: Vector2, held: int) -> void:
+	scroll += motion
+	var free := _clamp_scroll()
+	virtual_scroll += motion
+	if free[0]:
+		if held & Pad.LEFT:
+			if virtual_scroll.x > scroll.x:
+				scroll.x -= motion.x
+		elif held & Pad.RIGHT:
+			if virtual_scroll.x < scroll.x:
+				scroll.x -= motion.x
+	if free[1]:
+		if held & Pad.UP:
+			if virtual_scroll.y > scroll.y:
+				scroll.y -= motion.y
+		elif held & Pad.DOWN:
+			if virtual_scroll.y < scroll.y:
+				scroll.y -= motion.y
+	_apply_scroll()
+
+
+## cameraIsAtEdge (map.c:4818): the scroll clamped to the background; per axis true when it was
+## free (the C's atEdge 1).
+func _clamp_scroll() -> Array:
+	var limit := (background_size - SCREEN).max(Vector2.ZERO)
+	var free := [true, true]
+	for axis in 2:
+		if scroll[axis] < 0:
+			scroll[axis] = 0
+			free[axis] = false
+		elif scroll[axis] > limit[axis]:
+			scroll[axis] = limit[axis]
+			free[axis] = false
+	return free
+
+
+## The background position, and the 3D projection centre shifted to match (DRAWING_OFFSET, always
+## background / 2 - scroll).
+func _apply_scroll() -> void:
 	background.position = -scroll
 	# Screen position of the projection centre, relative to the screen centre.
 	var centre := background_size / 2 - scroll - SCREEN / 2
 	var scale := NEAR / _projection
 	camera.set_frustum(SCREEN.y * scale, Vector2(-centre.x, centre.y) * scale, NEAR, FAR)
+
+
+# --- Pans (createCameraMovement, checkCameraMovement, tickCameraMovement; specs/camera.md §2.3) ---
+
+## The running pan's speed (its object's instance id: about that many frames); 0 none.
+var _pan_speed := 0
+## CAMERA_HAS_TARGET, and what its first frame takes: the scroll moves `_pan_total` (CAMERA_DATA -
+## CAMERA_MOVE_DIFF) to `_pan_final` (CAMERA_MOVE_FINAL); `_pan_extra` frames left with 1 more
+## pixel (CAMERA_MOVE_DELTA).
+var _pan_has_target := false
+var _pan_total := Vector2i.ZERO
+var _pan_final := Vector2.ZERO
+var _pan_extra := Vector2i.ZERO
+
+
+## createCameraMovement (map.c:4844), a scene's pan: centre `target` (Godot) over `speed` frames.
+## CAMERA_REACHED_TARGET -1: nothing waits for it.
+func start_pan(target: Vector3, speed: int) -> void:
+	pan_target = target
+	_pan_speed = speed
+	pan_reached = -1
+
+
+## checkCameraMovement (map.c:5080), the camera slot's tick: the first call starts the pan to
+## `pan_target`; true once, on the call after the pan ended.
+func check_pan(speed: int) -> bool:
+	if pan_reached == -1:
+		pan_reached = 0
+		_pan_speed = speed
+		return false
+	if pan_reached == 1:
+		pan_reached = -1
+		return true
+	return false
+
+
+func is_panning() -> bool:
+	return _pan_speed != 0
+
+
+## tickCameraMovement (map.c:4855), once per game frame while a pan runs. A pan started while one
+## runs only changes its speed (the C would run two objects on the same globals).
+func tick_pan() -> void:
+	if _pan_speed == 0:
+		return
+	var speed := _pan_speed
+	if not _pan_has_target:
+		# The point's centring scroll: the follow continues from there (PLAYER_OFFSET), the pan
+		# ends on it clamped.
+		virtual_scroll = (background_pixel(pan_target) - SCREEN / 2).round()
+		var limit := (background_size - SCREEN).max(Vector2.ZERO)
+		_pan_final = virtual_scroll.clamp(Vector2.ZERO, limit)
+		_pan_total = Vector2i(_pan_final - scroll)
+		_pan_extra = Vector2i(absi(_pan_total.x % speed), absi(_pan_total.y % speed))
+		camera_follow = false
+		_pan_has_target = true
+	for axis in 2:
+		var total := _pan_total[axis]
+		# C division (toward 0), then 1 more pixel on the first |total % speed| + 1 frames.
+		scroll[axis] += total / speed
+		if _pan_extra[axis] >= 0:
+			scroll[axis] += 1 if total > 0 else -1
+			_pan_extra[axis] -= 1
+	var free := _clamp_scroll()
+	var done := [true, true]
+	for axis in 2:
+		if not free[axis]:
+			continue
+		var total := _pan_total[axis]
+		if total > 0:
+			if scroll[axis] > _pan_final[axis]:
+				scroll[axis] = _pan_final[axis]
+		elif scroll[axis] < _pan_final[axis] or total == 0:
+			scroll[axis] = _pan_final[axis]
+		done[axis] = scroll[axis] == _pan_final[axis]
+	_apply_scroll()
+	if done[0] and done[1]:
+		_pan_has_target = false
+		camera_follow = true
+		if pan_reached == 0:
+			pan_reached = 1
+		_pan_speed = 0
 
 
 static func _vec(v: Array) -> Vector3:

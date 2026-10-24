@@ -260,7 +260,8 @@ func reset_entity_origin(script_id: int) -> void:
 ## checkMapInteraction's entityCheckCollision(partner, tamer, 0, 0): his next step against the map
 ## (10) and the entities (the partner is the source); -1 free. `confirm_now`: ✕ newly pressed this
 ## frame (POLLED_INPUT & ~POLLED_INPUT_PREVIOUS), which reaches 50 further while he stands.
-func tamer_collision(confirm_now: bool, standing: bool) -> int:
+## `skip_partner` false: no source (a script's walk to an entity, entityCheckCollision(NULL, ...)).
+func tamer_collision(confirm_now: bool, standing: bool, skip_partner := true) -> int:
 	if tamer == null:
 		return -1
 	var vy: int = tamer.direction
@@ -293,7 +294,7 @@ func tamer_collision(confirm_now: bool, standing: bool) -> int:
 	var t := table()
 	for i in ENTITY_COUNT:
 		var other: Node3D = t[i]
-		if other == null or other == tamer or other == partner or is_invisible(other):
+		if other == null or other == tamer or (other == partner and skip_partner) or is_invisible(other):
 			continue
 		var o: int = other.radius
 		var ox := other.position.x

@@ -8,7 +8,7 @@ Status:
   - test `tests/test_care.gd`; human checks in `VERIFY.md`;
   - the visuals: `scripts/systems/condition_bubbles.gd`, `status_bars.gd`, `psx_texture.gd`, `scripts/field/poop_piles.gd`;
   - the debug panel: `scripts/debug/care_debug_panel.gd`, and `GameLoop.speed`.
-- **Later:** evolution, the scenes behind the menus (feeding, praise / scold), the butterfly (§3.3). The toilet scene (§2.16) comes with step 4 of `specs/script.md` (spec written 2026-10-24).
+- **Later:** evolution, the scenes behind the menus (feeding, praise / scold), the butterfly (§3.3). The toilet scene (§2.16) is ported with step 4 of `specs/script.md` (`Partner.tick_toilet`, 2026-10-24; tested in `tests/test_camera.gd`).
 
 The partner's needs as time runs on the field:
 - hunger and energy, sleep, tiredness, poop, sickness and injury, unhappiness, lifetime;

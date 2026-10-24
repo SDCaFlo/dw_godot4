@@ -15,10 +15,15 @@ const ANIM_WALK := 2
 const ANIM_TIRED_WALK := 3
 const ANIM_RUN := 4
 const WAYPOINTS := 30
+## tickPartnerToilet's squat and its pans' speed.
+const ANIM_TOILET := 10
+const TOILET_PAN_SPEED := 20
 
 ## PARTNER_STATE values ported so far (partnerTickOverworld, partner.c:218-258).
 const STATE_NORMAL := 1
 const STATE_SLEEP := 3
+## The toilet scene, started by CALL_DIGIMON_ROUTINE 0 (specs/care.md §2.16).
+const STATE_TOILET := 6
 const STATE_WILD_POOP := 7
 ## Waits idling while the tamer is busy (e.g. his message box).
 const STATE_IDLE := 11
@@ -31,6 +36,10 @@ var game_state: Node
 var care: Care
 var clock: Clock
 var fade: Fade
+## The map's toilet (GameData: the map entity's "toilet" component) and the sync bit the scene sets
+## (ScriptContext.sync_bit, SOME_SCRIPT_SYNC_BIT).
+var data: Node
+var script_ctx: ScriptContext
 ## PARTNER_STATE / PARTNER_SUB_STATE (partner_impl.c:221), not saved.
 var state := STATE_NORMAL
 var sub_state := 0
@@ -50,6 +59,9 @@ var tamer_previous_tile := Vector2i.ZERO
 
 ## DIGIMON_DATA[0].radius: the tamer's collision square (for the tests without an entity table).
 var tamer_radius := 0
+## TOILET_TARGET_POS1 / 2 (PSX x, z): the point it walks to first and back to, and the toilet.
+var toilet_pos1 := Vector2i.ZERO
+var toilet_pos2 := Vector2i.ZERO
 
 
 func _ready() -> void:
@@ -102,6 +114,8 @@ func tick() -> void:
 			tick_normal()
 		STATE_SLEEP:
 			tick_sleep()
+		STATE_TOILET:
+			tick_toilet()
 		STATE_WILD_POOP:
 			tick_wild_poop()
 		STATE_IDLE:
@@ -192,6 +206,62 @@ func tick_sleep() -> void:
 				# handleSpecialEvolutions(2): the evolution step.
 				if clock != null:
 					clock.running = true
+
+
+# --- tickPartnerToilet (partner.c:536) --------------------------------------------------------
+
+## The toilet scene (specs/care.md §2.16): the camera pans to the toilet, the partner runs there in
+## two legs and squats, handleToilet, the camera pans back, it walks back to the first point and
+## sets the sync bit. The script's end gives the field back.
+func tick_toilet() -> void:
+	match sub_state:
+		0:
+			tamer.set_state(Tamer.STATE_STILL)
+			tamer.camera_follow = false
+			var toilet := _toilet()
+			if toilet.is_empty():
+				# No toilet on this map (the C reads TOILET_DATA[-1]): the scene ends at once.
+				_set_sync_bit()
+				sub_state = 5
+				return
+			toilet_pos1 = Vector2i(int(toilet["walk_to"][0]), int(toilet["walk_to"][1]))
+			toilet_pos2 = Vector2i(int(toilet["camera_to"][0]), int(toilet["camera_to"][1]))
+			field.start_pan(Vector3(toilet_pos2.x, position.y, -toilet_pos2.y), TOILET_PAN_SPEED)
+			start_animation(ANIM_RUN)
+			sub_state = 1
+		1:
+			tamer.look_at_psx(int(position.x), int(-position.z))
+			if ScriptInterpreter.tick_entity_walk_to(self, toilet_pos1.x, toilet_pos1.y):
+				sub_state = 2
+		2:
+			tamer.look_at_psx(int(position.x), int(-position.z))
+			if ScriptInterpreter.tick_entity_walk_to(self, toilet_pos2.x, toilet_pos2.y):
+				_play_or_skip(ANIM_TOILET)
+				sub_state = 3
+		3:
+			if animator.frame >= animator.frame_count:
+				if care != null:
+					care.handle_toilet()
+				field.start_pan(tamer.position, TOILET_PAN_SPEED)
+				start_animation(ANIM_WALK)
+				sub_state = 4
+		4:
+			# The C turns the tamer to a point made of stack values here (&location, §2.16): the port
+			# leaves him facing the toilet.
+			if ScriptInterpreter.tick_entity_walk_to(self, toilet_pos1.x, toilet_pos1.y):
+				_set_sync_bit()
+
+
+func _toilet() -> Dictionary:
+	if data == null or game_state == null:
+		return {}
+	var map: Dictionary = data.entity("map", game_state.state["world"]["screen"])
+	return map.get("toilet", {})
+
+
+func _set_sync_bit() -> void:
+	if script_ctx != null:
+		script_ctx.sync_bit = 1
 
 
 ## partnerTickIdle (partner.c:733).

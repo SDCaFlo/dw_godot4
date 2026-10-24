@@ -176,6 +176,11 @@ func _start_text() -> void:
 	_interpreter.tamer = _tamer
 	_interpreter.partner = _partner
 	_interpreter.entities = _entities
+	_interpreter.field = _field
+	_interpreter.pad = GameLoop.pad
+	if _partner != null:
+		_partner.data = GameData
+		_partner.script_ctx = _script_ctx
 	_script_ctx.entity_type = _entity_type
 	_interpreter.unported.connect(func(_op, what): _show_message("script: not ported yet: " + what))
 	# Map entry goes through MAPHEAD (specs/script.md §3): SET_SCRIPT loads the map, the end of
@@ -184,6 +189,9 @@ func _start_text() -> void:
 	_interpreter.setup_map = _script_setup_map
 	_interpreter.tick_map_change = _tick_script_map_change
 	GameLoop.frame.connect(_interpreter.tick_script)
+	# The camera's pans (tickCameraMovement), after the script and the partner that start them
+	# (specs/camera.md §6).
+	GameLoop.frame.connect(_field.tick_pan)
 	_map_name = MapName.new()
 	_map_name.name = "MapName"
 	_map_name.text_area = _text_area

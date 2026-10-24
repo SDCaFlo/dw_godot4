@@ -6,7 +6,8 @@ Status (2026-10-24):
 - **done ahead of step 4:** `ENTITY_WALK_TO` for the tamer and the partner (movement type 2, §2.7), for the walk-out exits;
 - **done:** step 3, the NPCs (`specs/npc.md`, option A): `LOAD` / `SET` / `UNLOAD_DIGIMON`, `UNLOAD_ENTITY`, `SET_AUTOTALK`, `PLAY_ANIMATION`, `ENTITY_LOOK_AT_ENTITY`, `ENTITY_SET_ROTATION`, `RESET_ENTITY_ORIGIN`, `ENTITY_WALK_TO` on NPCs, movement types 0–2, talking and the turn to each other;
 - **done:** step 3b, the NPCs' behaviour between talks (`specs/npc.md` §2.10);
-- **next:** step 4, scripted movement and the camera: spec written 2026-10-24 (§2.7 "Step 4", `specs/camera.md`, the toilet scene `specs/care.md` §2.16), code not started.
+- **done:** step 4, scripted movement and the camera (2026-10-24): slot types 3–11, 14, 15, the camera slot, the sync bit (§2.7 "Step 4"), the camera (`specs/camera.md`), the toilet scene (`specs/care.md` §2.16); `tests/test_camera.gd`;
+- **next:** step 5, with their systems (§3.1).
 
 The original's bytecode interpreter: how a script section starts, how each frame runs instructions until one waits, the call stack, the conditions, and what each instruction changes. It runs the map setup (music, NPCs), every NPC talk, trigger cells, cutscenes, shops, battles and the new game. The script files and their instruction layouts are documented in `asset_porter/specs/scn.md`; the text and choice instructions in `specs/text.md` §2.6–2.7.
 
@@ -230,7 +231,7 @@ Every call clears trigger 44. An owner below `0xC8` (an NPC) is allowed to move.
 - **The axis moves** (`tickEntityMoveToAxis`, `tamer.c:1192`): the same on one axis; a `delta` of 0 ends on the first moving frame.
 - **With the camera:** the first frame stores the walker's position, then each frame `moveCameraByDiff(previous, now)` (`specs/camera.md` §2.4), so the camera follows the walker's motion.
   - For the walks it is the motion since the previous tick, so one frame late, as the root motion moves the walker after the slots.
-  - For the moves it is this tick's step.
+  - For the moves it is this tick's step. The frame a move ends returns before `moveCameraByDiff`: its last step drags no camera (kept).
 - **Shared globals (kept):** `PREVIOUS_CAMERA_POS`, `PREVIOUS_CAMERA_POS_INITIALIZED` and `MOVE_TO_DELTA_X / Z` exist once, for every slot.
   - The moves use the flag as "started". Any walk that ends clears it: a move running beside it starts over (its delta again, from where it is). A walk with the camera sets it on its first frame: a move not started yet skips its first frame and runs with the old delta.
   - Two moves at once share one delta. The scripts rarely do either; the port keeps the globals.
@@ -307,7 +308,8 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
    - **the camera** (`specs/camera.md`): `FieldMap` gets the virtual scroll, the C's follow by the tamer's motion (replacing the re-centring), the pans and `scroll_by` for the "with camera" moves;
    - **the interpreter:** slot types 3–11, 14, 15 (§2.7 "Step 4"), with the C's shared globals (`PREVIOUS_CAMERA_POS(_INITIALIZED)`, `MOVE_TO_DELTA_X / Z`) as its fields; the camera slot 10 through `FieldMap.check_pan`; types 12 / 13 (doors, moving objects) stay with step 5's map objects;
    - **the toilet:** `CALL_DIGIMON_ROUTINE` 0 ported (partner state 6, `Partner.tick_toilet`, setting the sync bit); the other routines stay reported, and a wait on their sync bit still ends at once;
-   - **tests:** `tests/test_camera.gd` (new), `test_script.gd` (the slot types, `WAIT_FOR_ENTITY` on the camera and on the sync bit), `test_care.gd` (the toilet scene's sub-states with a stub field).
+   - **tests:** `tests/test_camera.gd` (new: the follow, the pans, the camera slot, the moves with the camera, the toilet scene on MAYO01 with Agumon's model), `test_script.gd` (the moves, the axis moves, a walk to an entity, the shared delta, the sync bit).
+   - Done 2026-10-24.
 5. **With their systems:** the builtins (shops, naming, new game, item keeper, jukebox, Birdramon, training, tournaments, save), `START_BATTLE`, items and chests on the map, map objects, sounds and music, `DEAL_DAMAGE`'s number.
 6. **Death and lives** (own spec later; after step 5's battles, since the battle loss shares it): `CALL_DIGIMON_ROUTINE` 7 (the collapse, `tamerTickSicknessLostLife`) and 9 (the battle loss, `tamerTickBattleLostLife`): the `MURD` scene (lives box, iris; `src/murd/murd.c`) and `DOOA` (`src/dooa/dooa.c`); the collapse script `0x4DE` then replaces the care stand-in; dying (3 / 4) if it belongs there.
 

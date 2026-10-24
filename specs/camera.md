@@ -1,6 +1,6 @@
 # Field camera (port spec)
 
-Status (2026-10-24): spec written for step 4 of `specs/script.md` §3.1; code not started. Today `FieldMap.follow()` re-centres the tamer every Godot frame while `Tamer.camera_follow` is set; nothing else moves the camera.
+Status (2026-10-24): ported with step 4 of `specs/script.md` §3.1 (`FieldMap`, `Tamer`, `ScriptInterpreter`; `tests/test_camera.gd`). It replaced the port's re-centring of the tamer every frame.
 
 The field's view: the fixed 3D camera of the map, a 2D background larger than the screen, and a scroll that keeps the two aligned. The original moves it three ways: the follow while the tamer walks, the pans of scripts and scenes, and the "with camera" moves that drag it along with an entity.
 
@@ -56,7 +56,7 @@ A pan is an object (`0xFB1`) that runs once per frame until it ends. Its instanc
 - **First frame:** the target point (`CAMERA_TARGET`, PSX x, y, z) is taken once (later changes don't count).
   - The target scroll `T` is the one that puts the point at the screen centre, clamped to the edges.
   - `total = T − scroll`, per axis.
-  - `v = T` at once (`PLAYER_OFFSET = CAMERA_MOVE_DIFF`): after the pan, the follow continues from there.
+  - `v` = the target's centring scroll at once, unclamped (`PLAYER_OFFSET = CAMERA_MOVE_DIFF` before the clamp): after the pan, the follow continues from there.
   - The follow is turned off (`unsetCameraFollowPlayer`).
 - **Every frame**, per axis:
   1. **Step:** the scroll moves `total / speed` (C division, toward 0).
@@ -82,6 +82,7 @@ The "with camera" walks and moves (`specs/script.md` §2.7) call it every frame,
 
 - **`FieldMap`** (`scripts/field/field_map.gd`):
   - `scroll` (as now) and `virtual_scroll` (`v`). `follow(world)` stays the map entry (sets both).
+  - `camera_follow` (`CAMERA_FOLLOW_PLAYER`): `Tamer.camera_follow` reads and sets it, so the pans and the old users share one flag.
   - `scroll_by(delta, pad)`: §2.2's step (scroll, clamp, `v`, the undo by the held direction).
   - `screen_motion(from, to)`: the background-pixel motion of a 3D move (`background_pixel` difference), the `d` of §2.2 and §2.4.
   - The pan: `start_pan(psx_target, speed)` (`createCameraMovement`), `check_pan(speed)` (`checkCameraMovement`, for the slot), `tick_pan()` (`tickCameraMovement`), `pan_reached` (`CAMERA_REACHED_TARGET`).
@@ -92,7 +93,9 @@ The "with camera" walks and moves (`specs/script.md` §2.7) call it every frame,
   - only while `camera_follow` (`CAMERA_FOLLOW_PLAYER`), state 0 and a held direction (§2.2).
   - `camera_follow` keeps its users (warps, sleep, wild poop); pans set and clear it too.
 - **The interpreter:** the camera slot 10 (types 6, 7) calls `check_pan`; the "with camera" moves call `scroll_by` (`specs/script.md` §2.7).
-- **Units:** the scroll is in background pixels as now. The original's projection gives whole pixels (`gte_stsxy`), so the motion is rounded to whole pixels, with the remainder carried, so slow walks still scroll.
+- **Units:** the scroll is in background pixels as now. The original's projection gives whole pixels (`gte_stsxy`): `screen_motion` rounds both projections and takes the difference, as the C. The steps add up to the rounded end minus the rounded start, so nothing is lost on slow walks.
+- **The tamer's walk** runs every Godot frame (his root motion), so the follow steps are smaller than the C's 20 Hz ones; they add up to the same scroll.
+- **One pan at a time:** a pan started while one runs only changes its speed (the C would tick two objects on the same globals).
 
 ## 4. Data
 
@@ -113,4 +116,4 @@ Nothing new: the camera matrices, projection and background size are in the map'
 ## 6. Open questions
 
 - **The pan object's first frame:** it is added during the script's slot tick (or a scene's tick). Whether it runs the same frame depends on the object list's order (`addObject`, `tickObjects`), not traced. The port runs it the same frame; off by one frame at most.
-- **Pixel rounding:** `gte_stsxy` rounds each point's projection to whole pixels, and the motion is the difference of two rounded projections. The port's carried remainder gives the same total over a walk, but may differ by 1 pixel on a frame.
+- **Pixel rounding:** whether `gte_stsxy` rounds or truncates the projection; the port rounds. At most 1 pixel.

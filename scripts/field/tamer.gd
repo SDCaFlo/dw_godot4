@@ -41,8 +41,16 @@ var state := STATE_FREE:
 		state = value
 		if value == STATE_FREE:
 			_scene_playing = false
-## setCameraFollowPlayer / unsetCameraFollowPlayer.
-var camera_follow := true
+## setCameraFollowPlayer / unsetCameraFollowPlayer: CAMERA_FOLLOW_PLAYER, kept by the field map
+## (its pans set and clear it too); a tamer without a field keeps his own.
+var camera_follow: bool:
+	get:
+		return field.camera_follow if field != null else _camera_follow
+	set(value):
+		_camera_follow = value
+		if field != null:
+			field.camera_follow = value
+var _camera_follow := true
 ## TAMER_SUB_STATE (reset by tamerSetState = set_state).
 var sub_state := 0
 ## For tick(): the field camera (screen positions), the partner and clock it stops, the message box,
@@ -104,6 +112,7 @@ func _process(delta: float) -> void:
 	if Engine.is_editor_hint() or _player == null or field == null:
 		return
 	var motion := Vector3.ZERO
+	var held := 0
 	if _scene_playing:
 		motion = _scene.advance(delta)
 	elif (state == STATE_CHANGE_MAP and sub_state < 2) or state == STATE_SCRIPT:
@@ -120,6 +129,7 @@ func _process(delta: float) -> void:
 		_player.advance(delta)
 	else:
 		var input := Vector2(Input.get_axis("ui_left", "ui_right"), Input.get_axis("ui_up", "ui_down"))
+		held = _held_directions(input)
 		if input != Vector2.ZERO and state == STATE_FREE:
 			_play(ANIM_RUN if Input.is_key_pressed(KEY_SHIFT) else ANIM_WALK)
 			_set_direction(_input_direction(input))
@@ -129,10 +139,13 @@ func _process(delta: float) -> void:
 		motion = _player.get_root_motion_position()
 	var world_motion := _skeleton.global_basis * motion
 	step += Vector2(world_motion.x, world_motion.z).length()
+	var before := global_position
 	if not step_blocked:
 		_move(world_motion)
-	if camera_follow:
-		field.follow(global_position)
+	# tickCameraFollowPlayer (map.c:4464): only free, following and with a direction held, the
+	# camera moves by his screen motion (specs/camera.md §2.2).
+	if camera_follow and state == STATE_FREE and held != 0:
+		field.scroll_by(field.screen_motion(before, global_position), held)
 
 
 ## tamerSetState (tamer.c:1359).
@@ -292,6 +305,20 @@ func _animation_name(id: int) -> String:
 func _play(anim_name: String) -> void:
 	if _player.current_animation != anim_name:
 		_player.play(anim_name)
+
+
+## The d-pad bits of a held direction (POLLED_INPUT & 0xF000).
+static func _held_directions(input: Vector2) -> int:
+	var held := 0
+	if input.x < 0:
+		held |= Pad.LEFT
+	elif input.x > 0:
+		held |= Pad.RIGHT
+	if input.y < 0:
+		held |= Pad.UP
+	elif input.y > 0:
+		held |= Pad.DOWN
+	return held
 
 
 ## Pad direction to rotation.vy: the camera's direction (getMapRotation) snapped to 45 degrees,

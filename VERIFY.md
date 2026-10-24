@@ -5,6 +5,7 @@ The porters have their own checklists (`asset_porter/VERIFY.md`, `data_porter/VE
 ```
 godot --headless --path . -s res://tests/test_script.gd
 godot --headless --path . -s res://tests/test_npc.gd
+godot --headless --path . -s res://tests/test_camera.gd
 godot --headless --path . -s res://tests/test_text.gd
 godot --headless --path . -s res://tests/test_care.gd
 godot --headless --path . -s res://tests/test_partner.gd
@@ -65,7 +66,7 @@ In the game (F5), `D` runs the next section of the current map's script (the hel
 Every map is entered through its MAPHEAD script, as in the original. Run the project (F5).
 1. **Start:** Native Forest (MAYO04A). The help line names what its setup met and couldn't run (`SET_BGM`, `LOAD_DIGIMON`, `SET_DIGIMON`, `SPAWN_ITEM`); the tamer and Agumon stand at the map's exit 0.
 2. **Walking through an exit:**
-   - the tamer keeps running straight in his direction while the screen fades to black over 1 s, darkest colours first, fully black by the end (no walls stop him, as in the C); the camera stops following him;
+   - the tamer keeps running straight in his direction while the screen fades to black over 1 s, darkest colours first, fully black by the end (no walls stop him, as in the C); the camera stays where it was;
    - at the half the map's area name appears in the centre ("Coela Point" going to MAYO05) in white, in front of the black;
    - at full black the name goes and the screen stays black for 1 s more (the port's stand-in for the CD load, `Fade.LOAD_FRAMES`); then it fades in over 1 s, with the tamer and Agumon standing still at the exit that matches the one you took;
    - the clock and bars stop during the change and come back after it.
@@ -73,7 +74,7 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
 3. **Coming back:** go back through the same exit: you arrive at the exit you left from. A few map changes store another map as the previous one (`change_map_previous` in the data): the Birdra Transport room (ROOM12) to its six destinations, Great Canyon (GCAN08_1 → GCAN07), Dragon Eye Lake → BETL01, Secret Beach Cave (OGRE10 → map 0x87), Coela Point → Tropical Jungle (TROP01, previous = map 13). Where the game uses the previous map (e.g. fleeing a battle), the port uses the same one.
 4. **Script walk-outs:** many exits are a script instead of a warp cell (121 of them: File City and its houses, the factory, the mountain paths, …). E.g. Green Gym (TRAI00) toward Jijimon's house: stepping on the exit, the tamer runs on toward a point past the edge (the script's `ENTITY_WALK_TO`) while the screen fades, stops there, and the map changes. Wrong if: he stands still at the exit, or keeps running on the new map. A few exits start a short scene first (GCAN08_1, YAKA24, OGRE11, TOPN01, OMOC04–07); those still lack their scene (NPCs and camera moves come later).
 5. **Trigger cells:** on MAYO04A, stand at the sign and press ✕: the sign's text (section 0x51) runs. Cells that start a scene when stepped on (51–79) run it at once, if their map has one.
-6. **Toilet:** step on a toilet while Agumon needs to go: its script (MAPHEAD 0x4E2) runs; Agumon's toilet scene itself is unported (reported), so only the texts show for now.
+6. **Toilet:** step on a toilet while Agumon needs to go: its scene plays (see Camera, item 4).
 7. **Debug `[` / `]`:** the previous / next map, with the same fade and name, to its exit 0.
 
 ## NPCs (`scripts/field/npc.gd`, `field_entities.gd`, `field_digimon.gd`, `specs/npc.md`)
@@ -83,13 +84,27 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
 2. **Talking:** walk into the Aruraumon. It talks on contact (autotalk 1): the tamer stops against it, he and the NPC turn to face each other, and the box opens with its name in yellow ("I guess I can play with you."). Its battle is reported as unported, and the section goes on.
 3. **✕ talk:** File City (press `]` to the TWNA maps) or Jijimon's house: walk up to an NPC with autotalk 0, face it and press ✕ from a short distance (the reach is 50 units in front). Its section starts; walking into it without ✕ only stops you.
 4. **Blocking:** you can't walk through an NPC; Agumon goes around NPCs as it goes around walls.
-5. **Scenes:** sections that walk, turn or animate NPCs play those moves now; camera moves and `ENTITY_MOVE_TO` slides still don't (step 4). Compare a scene you know: who turns to whom, who walks where.
+5. **Scenes:** sections that walk, turn, slide or animate NPCs play those moves, with the camera pans (see Camera). Compare a scene you know: who turns to whom, who walks where.
 6. **The original's slot-7 quirk** (`specs/npc.md` §6, `PLANS.md`): after a scene that animates an NPC, on a map whose last NPC has script id 12 (File City's Whamon), check the real game: can you still talk to that NPC?
 7. **Wandering (3b):** on maps with several NPCs (File City, the forests), the walkers go from point to point, stop for a moment (½–4 s), and loop. Against a wall or another Digimon they slide along it and turn away instead of walking into it. Wrong if: one stays pressed into a wall walking on the spot, or walks through walls.
 8. **Wild enemies (follow mode 12):** walk into an enemy's range (e.g. MAYO04A's walking Aruraumon, by day, or Goburimon, at night: 300 units around the point where it first stands). It walks, then runs, at the place where you were when it noticed you (it doesn't steer after you). It stops there or when it touches you, waits 2 s, then walks back to its place. Touching you starts its section (the battle is reported). Compare with the game: the moment it notices you, the speed of the charge, the wait.
 9. **Looking at you (follow mode 2):** near such an NPC it stops and turns to follow you; when you walk away it goes back to its path.
 10. **During a talk:** the NPC you talk to stops; the others keep moving. After the talk it restarts its path from the first point.
 11. **Agumon and NPCs:** when Agumon bumps into an NPC it no longer overlaps it: it stops moving towards it and turns along it.
+
+## Camera (`scripts/field/field_map.gd`, `tamer.gd`, `specs/camera.md`; the script's moves `specs/script.md` §2.7 "Step 4")
+
+`test_camera.gd` prints `OK: camera checks`. The camera now moves as the original's: while you hold a direction it scrolls by exactly how far the tamer moved on screen; it doesn't re-centre him. In the game (F5), check:
+1. **Plain walking:** the tamer stays where he is on screen while you walk; the camera doesn't move while nothing is held. Wrong if: it jitters, or lags behind and catches up.
+2. **Map edges:** walk to an edge of a big map (Native Forest's sides): the camera stops and the tamer walks on towards the screen's edge. Walk back: the camera starts again only once he is back where it stopped (about the screen's centre). Compare with the game: where on screen he is when the camera starts again.
+3. **Walk-out exits** (Green Gym towards Jijimon's house): the camera stays put while he runs off, during the fade.
+4. **The toilet:** when Agumon needs to go (Care, item 4: about every 4 game hours, then 42 game minutes before the accident), walk onto a toilet cell on a map that has one (MAYO01 does). Then:
+   - the camera slides to the toilet over 1 s while Agumon runs there (two legs: to a point near it, then onto it), the tamer turning to follow it;
+   - Agumon squats (its animation 10); at the end: not poopy any more, happiness and discipline + 2;
+   - the camera slides back to the tamer over 1 s while Agumon walks back to the first point; then the field is free again.
+   - Compare with the game: the tamer's facing while Agumon walks back (the C turns him to a garbage point there, `specs/care.md` §6), the timing.
+5. **Cutscenes with camera moves:** sections that pan the camera (`MOVE_CAMERA_TO`, `MOVE_CAMERA_TO_ENTITY`; e.g. the File City scenes, Jijimon's house) and walk or slide entities with it. After a pan back to the tamer he is centred again; after a pan elsewhere, the follow carries on from there, so he may stay off-centre until you walk. Compare where the tamer is on screen afterwards with the game.
+6. **Rising / sinking** (`ENTITY_MOVE_TO_AXIS` on y, 15 uses): entities slide up or down without changing animation.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

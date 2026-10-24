@@ -50,13 +50,23 @@ void vertex() {
 			+ shine(n, psx_light_1_dir, psx_light_1_color) + shine(n, psx_light_2_dir, psx_light_2_color) : vec3(1.0);
 }
 
+// The GPU's texel: floor of the interpolated texel coordinate. The porter's UVs are texel / 256,
+// on a texel's edge: a polygon whose UVs sit on one texel column (a strip mapped onto a face)
+// would flip between two texels per pixel by rounding (ISSUES.md I-6). A nudge of 1 / 1024 texel
+// keeps it on the PSX's texel.
+vec2 psx_uv(sampler2D tex, vec2 uv) {
+	vec2 size = vec2(textureSize(tex, 0));
+	return (floor(uv * size + 1.0 / 1024.0) + 0.5) / size;
+}
+
 vec3 srgb_to_linear(vec3 c) {
 	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
 }
 
 void fragment() {
-	vec4 texel = use_texture ? texture(albedo_texture, UV) : vec4(1.0);
-	bool semi = use_stp && texture(stp_texture, UV).r > 0.5;
+	vec2 uv = use_texture ? psx_uv(albedo_texture, UV) : UV;
+	vec4 texel = use_texture ? texture(albedo_texture, uv) : vec4(1.0);
+	bool semi = use_stp && texture(stp_texture, uv).r > 0.5;
 	if (texel.a < alpha_cutoff || semi != blended_pass) {
 		discard;
 	}

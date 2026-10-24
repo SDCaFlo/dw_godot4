@@ -103,6 +103,15 @@ func _frame() -> void:
 
 func _follow() -> void:
 	_eq(limit, Vector2(448, 400), "MAYO01: the scroll's range (6 x 5 tiles of 128 - the screen)")
+	# ISSUES.md I-7: at a render scale above 1 the motion is rounded to the render's pixels.
+	var a := Vector3(0, 0, 0)
+	var b := Vector3(0.37, 0, 0)
+	var whole := map.screen_motion(a, b)
+	FieldMap.render_scale = 4
+	var quarter := map.screen_motion(a, b)
+	FieldMap.render_scale = 1
+	_eq([whole.x == roundf(whole.x), quarter.x * 4 == roundf(quarter.x * 4)], [true, true],
+			"the follow's steps: whole pixels at 1x, quarter pixels at 4x")
 	var far := Vector3(6000, 0, 0)
 	map.follow(far)
 	_eq([map.virtual_scroll, map.scroll.x], [_centre(far), limit.x],

@@ -12,13 +12,20 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 - **Seen:** small, distant models look blocky.
 - **Evidence:** `issues/evidence/dw_issue_top_of_tree_and_too_light_texture.png`; `issues/evidence/dw_night_real_game.png`.
 - **Notes:** the PSX also draws at 320 × 240 with no texture filtering; the reference screenshot looks like an emulator at a higher internal resolution (smooth edges).
-- **Status:** to check in the game (2026-10-24). Decided: render the 3D at 4× by default, like an emulator's upscaling, with the choice in the debugger (D-1, "Render" tab: 1× the PSX's to 4×). The field's `render_scale` sets the 3D viewport to 320 × 240 × the scale, shown at the PSX size; the background canvas layer scales with it, so it keeps its exact pixels; every screen position goes through `FieldMap.unproject`. The game window is now 1280 × 960 (4×).
+- **Status:** fixed (2026-10-24, `b6538ef`; checked in the game: "the 4x render looks cool"). Render the 3D at 4× by default, like an emulator's upscaling, with the choice in the debugger (D-1, "Render" tab: 1× the PSX's to 4×). The field's `render_scale` sets the 3D viewport to 320 × 240 × the scale, shown at the PSX size; the background canvas layer scales with it, so it keeps its exact pixels; every screen position goes through `FieldMap.unproject`. The game window is now 1280 × 960 (4×).
 
-### I-6. Palmon's texture shimmers
-- **Seen:** Palmon's body shimmers: a fine checkered pattern that changes from frame to frame while it animates. Maybe other Digimon too.
-- **Evidence:** `issues/evidence/dw_issue_palmon_texture_shimmering.mp4` (MAYO03, night).
-- **Cause (likely):** texture aliasing. A detailed texture sampled texel by texel (nearest, as the PSX) at a small size on screen: which texel lands on a pixel changes as the model moves, so the pattern crawls. The same root as I-3.
-- **Status:** to check with I-3's 4× render (the default now): at 4× each texel covers more pixels. If it still shimmers, compare with the game at 1× (Render tab): the PSX may shimmer too.
+### I-6. Textures shimmer (Palmon, Aruraumon)
+- **Seen:** Palmon's body shimmers: a fine checkered pattern that changes from frame to frame while it animates. Still there at 4×, and on other Digimon: Aruraumon on MAYO04A (dark speckles on its yellow body and its flower bud).
+- **Evidence:** `issues/evidence/dw_issue_palmon_texture_shimmering.mp4` (MAYO03, night); `issues/evidence/dw_issue_texture_shimmering.mp4` (MAYO04A, Aruraumon, 4×).
+- **Cause:** not aliasing (the first guess): the texture sampling. Some polygons map a whole face onto one column of texels (Aruraumon: UVs (208, 65), (208, 65), (208, 48): a strip). The porter's UVs are texel / 256, the left edge of a texel: across the face the interpolated coordinate sits on 208 and rounding picks texel 207 or 208 from pixel to pixel. Where the two differ, speckles, moving with the model. The PSX takes floor(u): always texel 208. Found by rendering Aruraumon at 4× (`RC_SCALE=4 tests/render_check.gd -- MAYO04A 200 200 20 0 360 330 mmd_files/MMD2/ARUR.gltf`); flat colours per surface (`RC_TINT=1`) showed no speckles, so it wasn't z-fighting.
+- **Status:** fixed (2026-10-24; checked in the game): `PsxLit` samples the PSX's texel, floor of the coordinate nudged by 1 / 1024 texel (`psx_uv`). The render shows the body and the bud clean.
+
+### I-7. The camera shakes while running
+- **Seen:** while the tamer runs, the picture shakes a little.
+- **Evidence:** `issues/evidence/dw_issue_no_text_render_and_camerashaking.mp4` (CHKA01, Mansion Basement, 4×).
+- **Cause:** I-3's 4× render. The follow scrolls the background in whole PSX pixels (as the C, `gte_stsxy`), while the 3D now draws the tamer at a quarter of a PSX pixel: he drifts up to half a PSX pixel (2 screen pixels) against the background and snaps back when the scroll steps. At 1× both are on the same pixel grid.
+- **Status:** fixed (2026-10-24; checked in the game): above 1× the follow rounds the motion to the render's pixels (`FieldMap._pixel_round`: quarter pixels at 4×); the background, drawn at the render scale, scrolls in those steps. At 1× it is the C's whole pixels as before (`tests/test_camera.gd`). The pans still step in whole pixels.
+- **Also in the video:** the tamer's text box shows only " ! ": that is the script's line (script 63, offset 0x00F4, `SHOW_TEXTBOX " ! "`), his surprise. "Player" stands for the tamer's name until the naming is ported.
 
 ## Fixed
 
@@ -51,6 +58,9 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Ideas (not bugs)
 
+### D-2. A CONFIG menu for the render scale
+- **Asked:** a future configuration menu where players choose the 3D render amplification (today only the debugger's Render tab and the field's `render_scale`, 4× by default).
+
 ### D-1. The debugger: pick a map to teleport to, a bigger view
 - **Asked:** choose the map to warp to from a list (today `[` / `]` step through them), and a bigger window: the game keeps its 4:3 aspect, with the debug information readable beside it instead of inside the 320 × 240 picture.
-- **Status:** done, to check (2026-10-24): `DebugWindow` (`scripts/debug/debug_window.gd`), its own OS window (`display/window/subwindows/embed_subwindows=false`), F1 toggles it. Tabs: Status (map, clock, last message, the keys), Maps (filter, double-click or Go teleports to the exit chosen), Render (the 3D render scale, I-3). The game window is 1280 × 960. Later: the care panel (`C`) could move into a tab.
+- **Status:** done (2026-10-24, `b6538ef`; checked: "the new debugger is cool"): `DebugWindow` (`scripts/debug/debug_window.gd`), its own OS window (`display/window/subwindows/embed_subwindows=false`), F1 toggles it. Tabs: Status (map, clock, last message, the keys), Maps (filter, double-click or Go teleports to the exit chosen), Render (the 3D render scale, I-3). The game window is 1280 × 960. Later: the care panel (`C`) could move into a tab.

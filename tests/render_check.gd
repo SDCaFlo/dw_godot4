@@ -18,17 +18,22 @@ var _feet := Vector2(-1, -1)
 var _model := "mmd_files/MMD0/AGUM.gltf"
 ## The frame the shot with the overlays is taken (they animate 20 a second).
 var _shot_frame := 20
+## Env RC_SCALE: the 3D render scale (as the field's, ISSUES.md I-3); above 1 the frame is only
+## saved, not compared.
+var _scale := maxi(1, int(OS.get_environment("RC_SCALE")))
 
 
 func _init() -> void:
 	var args := OS.get_cmdline_user_args()
 	var map_name := args[0] if args.size() > 0 else "MAYO01"
 	_viewport = SubViewport.new()
-	_viewport.size = Vector2i(320, 240)
+	_viewport.size = Vector2i(320, 240) * _scale
+	FieldMap.render_scale = _scale
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	root.add_child(_viewport)
 	var layer := CanvasLayer.new()
 	layer.layer = -1
+	layer.scale = Vector2.ONE * _scale
 	_viewport.add_child(layer)
 	var bg := Sprite2D.new()
 	bg.centered = false
@@ -91,6 +96,10 @@ func _process(_delta: float) -> bool:
 	var shot := _capture()
 	var path := "user://render_check_%s.png" % _map.map_name
 	shot.save_png(path)
+	if _scale > 1:
+		print("render_check %s at %dx: saved %s" % [_map.map_name, _scale, ProjectSettings.globalize_path(path)])
+		quit(0)
+		return true
 	var bg: Image = _map.background.texture.get_image()
 	bg.convert(Image.FORMAT_RGBA8)
 	var off := Vector2i(_map.scroll)
@@ -131,6 +140,17 @@ func _place_model() -> void:
 	var ground := a + (b - a) * (-a.y / (b.y - a.y))
 	var model := Content.load_model(_model)
 	_map.add_child(model)
+	if OS.get_environment("RC_TINT") != "":
+		# Diagnostic: each surface a flat colour of its own (which surface shows where).
+		var k := 0
+		for mesh in model.find_children("*", "MeshInstance3D", true, false):
+			for i in (mesh as MeshInstance3D).mesh.get_surface_count():
+				var m := StandardMaterial3D.new()
+				m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				m.albedo_color = Color.from_hsv(fmod(k * 0.27, 1.0), 0.9, 0.9)
+				(mesh as MeshInstance3D).set_surface_override_material(i, m)
+				print("  surface %d: %s %s" % [k, mesh.name, m.albedo_color.to_html(false)])
+				k += 1
 	model.position = ground
 	var inst := _map.overlays.instance(0)
 	var node: MeshInstance3D = inst["node"]

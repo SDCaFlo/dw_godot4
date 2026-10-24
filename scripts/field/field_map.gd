@@ -520,7 +520,7 @@ func projection() -> float:
 ## initializeDrawingOffsets: the scroll that centres `world` becomes the virtual scroll, and the
 ## scroll is that clamped to the background edges.
 func follow(world: Vector3) -> void:
-	virtual_scroll = (background_pixel(world) - SCREEN / 2).round()
+	virtual_scroll = _pixel_round(background_pixel(world) - SCREEN / 2)
 	scroll = virtual_scroll
 	_clamp_scroll()
 	_apply_scroll()
@@ -530,7 +530,15 @@ func follow(world: Vector3) -> void:
 ## difference of the two projections, each rounded to whole pixels (gte_stsxy). Over a walk the
 ## steps add up to the rounded end minus the rounded start.
 func screen_motion(from: Vector3, to: Vector3) -> Vector2:
-	return background_pixel(to).round() - background_pixel(from).round()
+	return _pixel_round(background_pixel(to)) - _pixel_round(background_pixel(from))
+
+
+## gte_stsxy's whole pixels, at the render scale's pixels above 1x (ISSUES.md I-7): the 3D draws the
+## models at 1 / render_scale of a PSX pixel, so a scroll in whole PSX pixels would leave the tamer
+## up to half a PSX pixel off the background, snapping back as the scroll steps (a shake). The
+## background is drawn at the render scale too, so it scrolls in those steps.
+static func _pixel_round(p: Vector2) -> Vector2:
+	return (p * render_scale).round() / render_scale
 
 
 ## The scroll moves by `motion`, then updateDrawingOffsets (map.c:4616): the clamp, the virtual

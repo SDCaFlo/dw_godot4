@@ -75,6 +75,8 @@ Last updated: 2026-10-24
 
 ## Ideas (not planned yet)
 
+- A CONFIG menu for players: the 3D render scale (ISSUES.md D-2), later other options.
+
 - Import original memory-card saves (`.mcr` / `.mcd`): `specs/game_state.md` maps the whole `SavegamePayload` layout.
 - Godot `.tres` resources generated from the pack data for editor use (gitignored for `dw1`).
 
@@ -89,6 +91,8 @@ Last updated: 2026-10-24
 - In `godot -s` mode autoload names aren't registered: tests instantiate scripts directly, or run through the main scene.
 
 ## Done
+
+- 2026-10-24 — ISSUES.md I-6 (texels sampled as the PSX: no speckles), I-7 (the camera's shake at 4×).
 
 - 2026-10-24 — ISSUES.md D-1 (the debugger window: status, map list, render scale) and I-3 (3D render scale, 4× by default); I-6 (Palmon's shimmering) logged.
 - 2026-10-24 — ISSUES.md I-5 (`5fdc59e`).

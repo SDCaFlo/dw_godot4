@@ -140,7 +140,8 @@ In the game (F5):
 2. **Status tab:** the map, the clock and the last message follow the game.
 3. **Maps tab:** type part of a name (`MAYO`, `File City`): the list narrows. Double-click a map (or select it and press Go): the tamer warps there with the fade, at the exit chosen (out-of-range exits are clamped).
 4. **Render tab:** 1× is the PSX's blocky 3D, 4× smooth; switching is immediate. At every scale the background is unchanged, and the text boxes, the condition bubbles and the map name sit where they did (they use the models' screen positions).
-5. **Palmon** (MAYO03, ISSUES.md I-6): at 4× its texture no longer shimmers.
+5. **Textures** (ISSUES.md I-6): Palmon (MAYO03) and Aruraumon (MAYO04A) without speckles or a crawling pattern, at 1× and 4×.
+6. **Running** (ISSUES.md I-7): at 4× the picture doesn't shake while the tamer runs; at 1× the scroll is in whole pixels as before.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

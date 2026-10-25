@@ -10,6 +10,7 @@ signal message(text: String)
 const GAME_MENU_SCENE := preload("res://scenes/ui/game_menu.tscn")
 const INVENTORY_SCENE := preload("res://scenes/ui/inventory.tscn")
 const DIGIMON_SCREEN_SCENE := preload("res://scenes/ui/digimon_screen.tscn")
+const PLAYER_SCREEN_SCENE := preload("res://scenes/ui/player_screen.tscn")
 
 ## Set by the field before start.
 var tamer: Tamer
@@ -29,8 +30,11 @@ var item_use: ItemUse
 var menu: GameMenu
 var inventory: Inventory
 var digimon_screen: DigimonScreen
+var player_screen: PlayerScreen
 ## The screens' model view (renderDigiviceEntity), over the UI boxes.
 var digivice: DigiviceView
+## The medal model's view (renderDigiviceMedals: MEDAL_VIEW, projection 0x400, the field's lights).
+var medal_view: DigiviceView
 
 
 func start() -> void:
@@ -77,6 +81,26 @@ func start() -> void:
 	digimon_screen.back.connect(func():
 		digimon_screen.close()
 		menu.digimon_screen_back())
+	medal_view = DigiviceView.new()
+	medal_view.name = "MedalView"
+	medal_view.eye = [-1050, 220, -10000]
+	medal_view.target = [-1050, 220, 0]
+	medal_view.projection = 0x400
+	medal_view.own_light = false
+	boxes.add_child(medal_view)
+	player_screen = PLAYER_SCREEN_SCENE.instantiate()
+	player_screen.boxes = boxes
+	player_screen.text_area = text_area
+	player_screen.tamer = tamer
+	player_screen.partner = partner
+	player_screen.pad = pad
+	player_screen.digivice = digivice
+	player_screen.medal_view = medal_view
+	add_child(player_screen)
+	menu.open_player_screen.connect(player_screen.open)
+	player_screen.back.connect(func():
+		player_screen.close()
+		menu.player_screen_back())
 
 
 ## startFeedingItem (game_menu.c:2228): if the tamer's hands are free, he holds the item, stands

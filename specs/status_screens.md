@@ -1,11 +1,17 @@
 # The Digimon and Player screens
 
-Status (2026-10-25): step 5e-3 (`PLANS.md` 5e), coded in two parts. **5e-3a** the Digimon screen (§3): coded (`scenes/ui/digimon_screen.tscn` with `scripts/ui/digimon_screen.gd`, `digimon_status_tab.gd`, `digimon_techniques_tab.gd`; `MenuDraw`, `DigiviceView`; data porter `move_data.menu_cell`; `tests/test_digimon_screen.gd`; VERIFY "The Digimon screen"). **5e-3b** the Player screen (§4): not coded yet.
+Status (2026-10-25): step 5e-3 (`PLANS.md` 5e), coded in two parts. **5e-3a** the Digimon screen (§3): coded (`scenes/ui/digimon_screen.tscn` with `scripts/ui/digimon_screen.gd`, `digimon_status_tab.gd`, `digimon_techniques_tab.gd`; `MenuDraw`, `DigiviceView`; data porter `move_data.menu_cell`; `tests/test_digimon_screen.gd`; VERIFY "The Digimon screen"). **5e-3b** the Player screen (§4): coded (`scenes/ui/player_screen.tscn` with `scripts/ui/player_screen.gd`, `player_info_tab.gd`, `player_chart_tab.gd`, `player_medals_tab.gd`, `player_cards_tab.gd`; GameMenu states 5 / 6; a second `DigiviceView` for the medal; `tests/test_player_screen.gd`; VERIFY "The Player screen").
 
 As built (5e-3a):
 - **Draw order.** Primitives on one ordering-table layer are drawn in the reverse of the order the C adds them; the port draws them in that order (the model first, under the window's contents; the tabs under their labels; the grid's red boxes over the icons).
 - **Subtracted boxes** (`renderBox` flags 3: the grid's unusable cells) are approximated as darkening by the colour's share (Godot's canvas draws no subtractive box here).
 - **The model** (`DigiviceView`) is lit by its own light through `PsxLit`'s `own_light` parameters (the field's ambient kept), drawn from its viewport into the box's canvas.
+
+As built (5e-3b):
+- **The tamer's name** is `DIGIMON_NAME(0)` in the C (naming the player writes it into `DIGIMON_DATA[0].name`): the port reads `GameState.state.tamer.name`.
+- **The medal** is a second `DigiviceView` (eye / target `MEDAL_VIEW`, projection 0x400, the field's lights, no own light). `activateMedalTexture`'s VRAM copy is done on the model's texture page image: the medal's 24 × 32 cell, image (24 + (id % 9)·24, 176 + (id / 9)·32), blitted to (0, 176), into copies of the model's materials. The page starts with medal 0's face there. The turn (+0x64) advances only on the frames the medal is drawn, like the C.
+- **Kept quirks:** ✕ on the Medals tab puts the cursor on medal 0 without loading its face, so the medal shown keeps the face (and the strings) of the last medal loaded until the cursor moves; the Info tab counts 18 medal triggers; the chart's 62nd entry (read past `EVO_CHART_BOXES`: `MAIN_D_8012472C`'s first bytes, x −146, y −67) is an offscreen frame, and a cell with no Digimon selects id 0x3F, refused on ✕ (the port refuses it without reading trigger 0x23F); the title's suffix cell of the Info tab (a leftover of the Japanese layout) is drawn, empty in the US text.
+- **The layout tables** keep the original's 61 Digimon chart cells, 66 card cells and their palettes (`EVO_CHART_BOXES`, `CARD_SPRITE_CLUT`) in the scripts; a pack adding Digimon or cards would need its own chart and card pages (an idea in `PLANS.md`).
 
 The △ menu's DIGIMON and PLAYER icons open a full-screen window with tabs:
 - **Digimon:** Status (the partner's values, its model) and Techniques (the equipped techniques, the finisher, and a grid of every technique where they are equipped).
@@ -127,7 +133,7 @@ Strings (`drawPlayerInfoStrings`, 6 frames): the labels, the tamer's name (`DIGI
 ### 4.3 Evolution chart (`renderEvoChartView`, `renderEvoChartDetail`)
 
 - Every Digimon raised (`hasDigimonRaised(i + 1)`, trigger 0x200 + id) shows its 16 × 16 portrait at its `EVO_CHART_BOXES` cell (palette by `clut`); the selected one blinks in states ≥ 2; every cell has a bordered box; five coloured level columns; two footer lines.
-  - **Quirk:** the loops run over 0x3E = 62 entries of `EVO_CHART_BOXES[61]`; the 62nd reads past the table. To check when coding (what the next table holds there).
+  - **Quirk:** the loops run over 0x3E = 62 entries of `EVO_CHART_BOXES[61]`; the 62nd reads past the table: the first 8 bytes of `MAIN_D_8012472C` (x −146, y −67, an offscreen frame).
 - **Detail** (box 2): the selected Digimon's portrait in the centre, its level's name and its name; the Digimon it can come from (`EVOLUTION_PATHS.from`, up to 5) and evolve to (`.to`, up to 6) at fixed spots (`CHART_FROM_*` / `CHART_TO_*`, odd or even counts), joined by 3-pixel coloured lines; portraits only for the raised ones (others an empty box).
 
 ### 4.4 Medals (`renderMedalView`)
@@ -166,6 +172,6 @@ Godot: a `SubViewport` with its own `World3D`, camera and light, holding a separ
 
 ## 9. Open points
 
-- `EVO_CHART_BOXES` read one past its 61 entries (§4.3).
-- The exact US playtime string (`FMT_PLAYTIME`, "%d : %d") and the key items of the Info tab (triggers 0x2D–0x30: which items) — to name when coding.
+- ~~`EVO_CHART_BOXES` read one past its 61 entries~~: an offscreen frame (§4.3).
+- The US playtime string is `FMT_PLAYTIME` "%d : %d" (hours, minutes; no leading zero). The key items of the Info tab (triggers 0x2D–0x30) are drawn as their SYSTEM_W icons; which items set those triggers is the scripts' business (not named here).
 - The medal atlas's TIM and `MEDAL.TMD`'s texture placement (§4.4).

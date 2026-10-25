@@ -8,10 +8,12 @@ extends Node
 ## page (896, 256), so a sprite's (u, v) is image pixel (u, v - 192). Screen coordinates are
 ## relative to the centre (160, 120).
 
-## Player was chosen: its screen comes with step 5e-3b.
+## Fishing was chosen: fishing is not ported yet.
 signal unported(what: String)
 ## Digimon: box 0 is closed, the Digimon screen opens (tickTriangleMenu state 3).
 signal open_digimon_screen
+## Player: box 0 is closed, the Player screen opens (tickTriangleMenu state 5).
+signal open_player_screen
 ## Items was chosen (drawInventoryText), then box 0 is closed: the inventory opens (addInventoryUI).
 signal items_chosen
 signal open_inventory
@@ -77,6 +79,9 @@ const STATE_ITEMS := 2
 ## (specs/status_screens.md §2).
 const STATE_DIGIMON := 3
 const STATE_DIGIMON_BACK := 4
+## Player: the same with the Player screen (TRIANGLE_MENU_STATE 5 and 6).
+const STATE_PLAYER := 5
+const STATE_PLAYER_BACK := 6
 
 ## Set by the host.
 var boxes: UIBoxes
@@ -155,6 +160,11 @@ func digimon_screen_back() -> void:
 	menu_state = STATE_DIGIMON_BACK
 
 
+## The Player screen's △ (TRIANGLE_MENU_STATE = 6).
+func player_screen_back() -> void:
+	menu_state = STATE_PLAYER_BACK
+
+
 ## startFeedingItem's menu part (game_menu.c:2228): the menu object goes, IS_IN_MENU = 0, game time
 ## runs (the inventory has closed its boxes).
 func hand_over() -> void:
@@ -190,7 +200,12 @@ func tick() -> void:
 			if boxes.boxes[0].frame == 0:
 				open_digimon_screen.emit()
 				menu_state = STATE_OPEN
-		STATE_DIGIMON_BACK:
+		STATE_PLAYER:
+			_close_box_if_open(0)
+			if boxes.boxes[0].frame == 0:
+				open_player_screen.emit()
+				menu_state = STATE_OPEN
+		STATE_DIGIMON_BACK, STATE_PLAYER_BACK:
 			if tamer != null:
 				tamer.visible = true
 			if partner != null:
@@ -267,7 +282,9 @@ func choose(entry: int) -> void:
 		DIGIMON:
 			menu_state = STATE_DIGIMON
 		PLAYER:
-			unported.emit("Player")
+			menu_state = STATE_PLAYER
+		FISHING:
+			unported.emit("Fishing")
 		PRAISE, SCOLD, SLEEP:
 			close()
 			if partner != null:

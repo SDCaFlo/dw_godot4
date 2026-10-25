@@ -11,13 +11,19 @@ extends Node
 ## the PSX projection's centre is the screen's. The screen draws it (`draw_on`) first in its box:
 ## the C sorts the model's ordering table in last, so it lies under the window's contents.
 
-## True while a model is shown.
-var showing := false
-
 const PROJECTION := 0x200
 const EYE := [1300, 0, -3280]
 const LIGHT_DIRECTION := [100, 100, 100]
 const LIGHT_COLOR := 0x80
+
+## True while a model is shown.
+var showing := false
+## The view (GsRVIEW2 eye and target, PSX) and projection; set before the node enters the tree.
+## The medal view (renderDigiviceMedals) uses its own, and keeps the field's lights.
+var eye: Array = EYE
+var target: Array = [0, 0, 0]
+var projection := PROJECTION
+var own_light := true
 
 var _viewport: SubViewport
 var _camera: Camera3D
@@ -34,12 +40,12 @@ func _ready() -> void:
 	_camera = Camera3D.new()
 	_camera.keep_aspect = Camera3D.KEEP_HEIGHT
 	# The PSX projection: 120 pixels up from the centre at distance 0x200.
-	_camera.fov = rad_to_deg(2.0 * atan(120.0 / PROJECTION))
+	_camera.fov = rad_to_deg(2.0 * atan(120.0 / projection))
 	_camera.near = 10.0
 	_camera.far = 20000.0
 	_viewport.add_child(_camera)
-	_camera.position = Content.psx_to_godot(EYE)
-	_camera.look_at(Vector3.ZERO, Vector3.UP)
+	_camera.position = Content.psx_to_godot(eye)
+	_camera.look_at(Content.psx_to_godot(target), Vector3.UP)
 	_camera.current = true
 
 
@@ -55,7 +61,8 @@ func show_model(rel: String, view: Array) -> void:
 	model.rotation.y = Content.psx_yaw(0)
 	var light_dir := Content.psx_to_godot(LIGHT_DIRECTION).normalized()
 	var light := Vector3.ONE * LIGHT_COLOR * 16.0 / 4096.0
-	PsxLit.use_own_light(model, light_dir, light)
+	if own_light:
+		PsxLit.use_own_light(model, light_dir, light)
 	var players := model.find_children("*", "AnimationPlayer", true, false)
 	if not players.is_empty():
 		var player: AnimationPlayer = players[0]
@@ -74,6 +81,11 @@ func hide_model() -> void:
 	if _model != null:
 		_model.queue_free()
 		_model = null
+
+
+## The shown model (to turn it, or change its texture), null when none.
+func model() -> Node3D:
+	return _model
 
 
 ## Draws the model over the whole screen (the viewport's centre is the screen's).

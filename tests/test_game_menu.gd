@@ -231,13 +231,13 @@ func _open_and_close() -> void:
 			break
 		_frame()
 	_check(menu.menu_state == GameMenu.STATE_OPEN, "the menu is open once box 0 reached frame 4")
-	# ✕ on Player: not ported yet (5e-3b), the menu stays open.
+	# Fishing: not ported yet, named; the menu stays open (the Player screen: test_player_screen.gd).
 	var told := []
 	menu.unported.connect(func(what): told.append(what))
-	menu.selection = GameMenu.PLAYER
-	sounds.played.clear()
-	_frame(Pad.CONFIRM)
-	_check(told == ["Player"] and sounds.played == [3], "✕ on Player: sound 3, named as not ported")
+	menu.fishing_disabled = false
+	menu.choose(GameMenu.FISHING)
+	menu.fishing_disabled = true
+	_check(told == ["Fishing"], "Fishing: named as not ported")
 	_check(host.is_open(), "the menu stays open")
 	_frame()
 	sounds.played.clear()

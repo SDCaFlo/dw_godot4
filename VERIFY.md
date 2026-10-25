@@ -8,6 +8,7 @@ godot --headless --path . -s res://tests/test_npc.gd
 godot --headless --path . -s res://tests/test_game_menu.gd
 godot --headless --path . -s res://tests/test_inventory.gd
 godot --headless --path . -s res://tests/test_digimon_screen.gd
+godot --headless --path . -s res://tests/test_player_screen.gd
 godot --headless --path . -s res://tests/test_camera.gd
 godot --headless --path . -s res://tests/test_map_objects.gd
 godot --headless --path . -s res://tests/test_lighting.gd
@@ -103,6 +104,18 @@ Sections are added as systems are ported (`PLANS.md`).
 5. **Item / Digimon / Player:** the click, and the help line says the screen isn't ported yet; the menu stays open.
 6. **△ again** closes it with the refusal sound; time runs again.
 7. **Compare with the game:** the icons and labels (the PRAISE label looked odd in a capture: check it), how dark the disabled Sleep icon is, the blink speed, and the praise / scold sounds. `Z` and the care panel's Sleep still work, through the menu's Sleep.
+
+## The Player screen (`scripts/ui/player_screen.gd` and its tabs, `digivice_view.gd`; `specs/status_screens.md` §4)
+
+`test_player_screen.gd` prints `OK: player screen checks`. In the game (F5), △, then ✕ on PLAYER (a new game has little to show: the debug keys or a save with Digimon raised, medals and cards help):
+1. **Opening:** the △ menu shrinks away, the window grows out of the tamer with four tabs: Player, Chart, Med., Card. The tamer and Agumon leave the field.
+2. **Info:** Name, Level and its title (Amateur at 0), Raised, Bits (50000 at the start), Time ("0 : 0" style, hours : minutes), Items (icons of the key items you have), Medals (count), and the tamer's model on the left.
+3. **Tabs:** → / ← switch (a click); △ on any tab goes back to the △ menu.
+4. **Chart:** five coloured level columns of grey cells, the icons of the Digimon raised. ✕: a yellow cursor; the icon under it blinks; ✕ on a raised one opens the detail (where it comes from on the left, what it becomes on the right, coloured lines, its level and name; icons only for the ones raised); △ closes it; ✕ on an empty or unraised cell: the refusal sound.
+5. **Medals:** 15 slots, the won ones as small gold medals. The selected won medal turns as a 3D medal on the right with its name and description below. ✕: a cursor; moving onto another won medal changes the 3D medal's face. Known original quirk: right after ✕ the cursor is on the first medal but the 3D medal keeps the last face shown until you move.
+6. **Cards:** 11 × 6 cells, the icons of the cards owned. ✕: a cursor; ✕ on an owned card opens its picture and the count beside it; △ closes them.
+7. **Back:** △ on a tab: the window shrinks into the tamer, the tamer and Agumon come back, the △ menu opens again.
+8. **Compare with the game:** the layouts, the chart's colours and lines, the medal's size and speed, the card picture's place. Check also the card pictures' text: the porter's `card_all` images show Japanese names (e.g. card 04) — compare with what the US game shows.
 
 ## The Digimon screen (`scripts/ui/digimon_screen.gd` and its tabs, `menu_draw.gd`, `digivice_view.gd`; `specs/status_screens.md` §3)
 

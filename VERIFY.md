@@ -148,7 +148,7 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
 4. **Doors:** the Great Canyon gates (GCAN02/03/06/10) sliding apart in their scene before the warp; Grey Lord's Mansion doors (YAKA11A / 11B / 13), with both halves of the double doors (model 10). Compare whether those doors snap shut at the end of their swing as in the port (§6).
 5. **Scenes that move sprites:** Amida Forest (TROP06), Secret Beach Cave (OGRE10), Factorial Town (FACT08B).
 6. **Digimon Bridge (MAYO08A):** when the bridge is broken, its cells are blocked (the tamer stops before them).
-7. **Snow** on Freezeland (FRZL01–16): flakes falling over everything, drifting, melting at the bottom.
+7. **Snow** on Freezeland (FRZL01–16): flakes falling over everything, drifting, melting at the bottom. The scenery in front still hides the tamer (ISSUES.md I-8): walk behind the boulder on FRZL13 and the ice crystals on FRZL12; they cover him and Agumon.
 8. **Day / evening / night:** the sprites change palette with the background, at the end of its fade.
 9. **No grey dots at night:** the background's transparent texels show black (ISSUES.md I-4), e.g. the rocks of Native Forest at night.
 

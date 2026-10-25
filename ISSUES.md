@@ -12,6 +12,12 @@ None right now.
 
 ## Fixed
 
+### I-8. On the snow maps the tamer is drawn over the scenery in front of him (Freezeland)
+- **Seen:** the tamer and the partner stand on top of things that should hide them: the boulder on FRZL13 and the ice crystals on FRZL12 (Freezeland, day). In the original they walk behind them.
+- **Evidence:** `issues/evidence/dw_issue_freezeland_player_on_top_of_BOULDER.png` (FRZL13), `issues/evidence/dw_issue_freezeland_player_on_top_of_ice.png` (FRZL12).
+- **Cause:** those pieces are overlay sprites drawn by depth over the background (as the trees of I-1): the boulder is FRZL13's instance 35 (sprite 7, 224 × 192, at (300, 0, −440)), the ice FRZL12's sprites 7–13. On the snow maps the field loads the overlays twice: `FieldMap.load_map`, then again with the map's snow (`MapOverlays.load(data, snow)`). `MapOverlays.clear` emptied its sprite list with `clear()`, but that list *is* the map data's `objects` array, so the second load found no sprites: every non-snow instance got the "behind everything" depth and drew nothing, and what you saw was the plain background. `tests/render_check.gd` (one load) drew the boulder over the tamer correctly, which pointed at the second load. It hits all 13 snow maps (ids 0x58–0x60, 0x84–0x87).
+- **Status:** fixed (2026-10-24; checked in the game: "it looks perfect"): `clear()` drops the reference instead of emptying the shared array; `tests/test_map_objects.gd` loads FRZL13 twice and checks the boulder is drawn at its depth (fails on the old code: 0 sprites left).
+
 ### I-3. The models look too pixelated from far away
 - **Seen:** small, distant models look blocky.
 - **Evidence:** `issues/evidence/dw_issue_top_of_tree_and_too_light_texture.png`; `issues/evidence/dw_night_real_game.png`.

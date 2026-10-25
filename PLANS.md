@@ -98,6 +98,8 @@ Last updated: 2026-10-24
 
 ## Done
 
+- 2026-10-24 — ISSUES.md I-8: the snow maps' scenery sprites (Freezeland's boulder, ice) were lost on the second overlay load and the tamer drew over them.
+
 - 2026-10-24 — Step 5c, sound and music: the songs rendered offline by the asset porter (`music` family: libsnd's sequencer and voice manager checked against DW's libsnd asm, on an SPU emulation with the Studio B reverb; tables read from the executable); the `Sound` autoload plays them (day / night variants, `SET_BGM`, `STOP_BGM`, the clock's `updateBGM`) and the sound effects voice by voice (`playSound`, the SPU envelope, voices 10–23): script `PLAY_SOUND`, text boxes and windows, the animations' footsteps, the map's and the partner's banks.
 
 - 2026-10-24 — The 17 exits with a short scene play (steps 3–4 ported their opcodes): `tests/exit_scan.tscn` plays each one in the field scene (21 runs: GCAN08_1's two visits, Toy Town's locked door and its random doors, right and wrong); still skipped on the way, with their steps: sounds, chests, battles, builtins 0x2B / 0x2C / 0x37.

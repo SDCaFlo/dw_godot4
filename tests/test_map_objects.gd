@@ -317,6 +317,14 @@ func _snow() -> void:
 	_eq(o.instance(0)["x"], int(source[0]["x"]), "instances below 0x14 keep their x")
 	_ticks(30)
 	_eq(o.instance(0)["y"] >= 0 and o.instance(0)["y"] < 0xF1, true, "the flakes fall and wrap above y 0xF1")
+	# ISSUES.md I-8: the field loads a snow map's overlays twice (FieldMap.load_map, then with the
+	# snow); the second load must keep the map's sprites, so the boulder in front stays drawn.
+	map.load_map("FRZL13")
+	var sprites: int = map.data["objects"].size()
+	map.overlays.load(map.data, data.map(data.map_id("FRZL13")).get("snow", {}))
+	var boulder := map.overlays.instance(35)
+	_eq([map.data["objects"].size(), boulder["order"] < MapOverlays.ORDER_MAX, map.overlays.is_drawn(35)],
+			[sprites, true, true], "FRZL13 loaded twice: the sprites kept, the boulder (instance 35) drawn at its depth")
 
 
 func _eq(actual: Variant, expected: Variant, what: String) -> void:

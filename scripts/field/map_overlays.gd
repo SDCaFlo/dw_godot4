@@ -95,7 +95,8 @@ func clear() -> void:
 		if inst["node"] != null:
 			inst["node"].queue_free()
 	_instances.clear()
-	_sprites.clear()
+	# a new array, not clear(): _sprites is the map data's own `objects` list (ISSUES.md I-8)
+	_sprites = []
 	_materials.clear()
 	for k in 10:
 		_move_started[k] = false

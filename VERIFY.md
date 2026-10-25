@@ -7,6 +7,7 @@ godot --headless --path . -s res://tests/test_script.gd
 godot --headless --path . -s res://tests/test_npc.gd
 godot --headless --path . -s res://tests/test_game_menu.gd
 godot --headless --path . -s res://tests/test_inventory.gd
+godot --headless --path . -s res://tests/test_digimon_screen.gd
 godot --headless --path . -s res://tests/test_camera.gd
 godot --headless --path . -s res://tests/test_map_objects.gd
 godot --headless --path . -s res://tests/test_lighting.gd
@@ -102,6 +103,17 @@ Sections are added as systems are ported (`PLANS.md`).
 5. **Item / Digimon / Player:** the click, and the help line says the screen isn't ported yet; the menu stays open.
 6. **△ again** closes it with the refusal sound; time runs again.
 7. **Compare with the game:** the icons and labels (the PRAISE label looked odd in a capture: check it), how dark the disabled Sleep icon is, the blink speed, and the praise / scold sounds. `Z` and the care panel's Sleep still work, through the menu's Sleep.
+
+## The Digimon screen (`scripts/ui/digimon_screen.gd` and its tabs, `menu_draw.gd`, `digivice_view.gd`; `specs/status_screens.md` §3)
+
+`test_digimon_screen.gd` prints `OK: digimon screen checks`. In the game (F5), △, then ✕ on DIGIMON:
+1. **Opening:** the △ menu shrinks away, a big window grows out of the tamer with two tabs, Status and Tech. The tamer and Agumon disappear from the field (Agumon is shown in the window).
+2. **Status:** the partner's name and Digimon, age, weight, the specialty icons (fire, battle) and type (vaccine), the active time ("day"), the three lives, condition icons when sick / hungry / ..., the happiness and discipline bars, HP / MP / stats with their bars, and Agumon's model standing behind the condition rows.
+3. **Tabs:** → / ← switch (a click); the current tab's label is white.
+4. **Tech:** the equipped techniques (Spit Fire: power, MP, range), the finisher (Pepper Breath), the help lines. ✕: the window squeezes and opens the grid: 7 element rows × 8 columns, the learned techniques' icons, the equipped one red, the ones Agumon can't use darker; a data panel on the side away from the cursor shows the technique under the cursor.
+5. **Equipping:** ✕ on an equipped technique removes it; ✕ on a learned one Agumon can use equips it (up to 3); others give the refusal sound. △ leaves the grid only with an attack equipped. □ opens the help page; △ closes it.
+6. **Back:** △ on a tab: the window shrinks into the tamer, the tamer and Agumon come back, the △ menu opens again.
+7. **Compare with the game:** the layout of both tabs, the model's place and size, the darker cells (the port approximates the PSX's subtracted boxes), and the colours.
 
 ## Items (`scripts/ui/inventory.gd`, `scripts/systems/item_use.gd`, the feeding scene in `partner.gd`; `specs/inventory.md`)
 

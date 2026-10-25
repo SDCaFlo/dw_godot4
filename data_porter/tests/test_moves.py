@@ -67,6 +67,8 @@ def make_decomp(root: Path, bad_range_at=None) -> None:
     (root / "src" / "main").mkdir(parents=True)
     (root / "src" / "main" / "item.c").write_text("\n".join(item), encoding="utf-8")
     (root / "src" / "main" / "utils2.c").write_text(EVIDENCE, encoding="utf-8")
+    # the technique grid's row mapping (getEquippedSlot), checked by the converter
+    (root / "src" / "main" / "game_menu.c").write_text(moves.MENU_GRID_RULE, encoding="utf-8")
     (root / "src" / "btl").mkdir(parents=True)
     (root / "src" / "btl" / "battle_main.c").write_text(EVIDENCE, encoding="utf-8")
     names = ["MOVE_NAMES:", "  entries:"]
@@ -105,6 +107,12 @@ class MovesConvertTests(unittest.TestCase):
         self.assertEqual([table["records"][i]["category"] for i in (0x39, 0x3a, 0x70, 0x71)],
                          ["technique", "finisher", "finisher", "other"])
         self.assertEqual(table["records"][0x2c]["learned_with"], 0x30)
+        # the Digimon screen's grid (../specs/status_screens.md §3.4): 58 techniques in 56 cells
+        cells = {r["id"]: (r["menu_cell"]["row"], r["menu_cell"]["column"]) for r in table["records"] if "menu_cell" in r}
+        self.assertEqual(len(cells), 58)
+        self.assertEqual(cells[0x28], (1, 0))
+        self.assertEqual(cells[0x30], cells[0x2c])
+        self.assertEqual(cells[0x31], (6, 0))
         self.assertEqual(table["used_by"][0]["fields"], ["mpCost", "power"])
         factors = self.load("type_factors")
         self.assertEqual(factors["records"][0]["against"][1], {"defender": {"id": 1, "name": "battle"},

@@ -231,13 +231,13 @@ func _open_and_close() -> void:
 			break
 		_frame()
 	_check(menu.menu_state == GameMenu.STATE_OPEN, "the menu is open once box 0 reached frame 4")
-	# ✕ on Digimon: not ported yet (5e-3), the menu stays open.
+	# ✕ on Player: not ported yet (5e-3b), the menu stays open.
 	var told := []
 	menu.unported.connect(func(what): told.append(what))
-	menu.selection = GameMenu.DIGIMON
+	menu.selection = GameMenu.PLAYER
 	sounds.played.clear()
 	_frame(Pad.CONFIRM)
-	_check(told == ["Digimon"] and sounds.played == [3], "✕ on Digimon: sound 3, named as not ported")
+	_check(told == ["Player"] and sounds.played == [3], "✕ on Player: sound 3, named as not ported")
 	_check(host.is_open(), "the menu stays open")
 	_frame()
 	sounds.played.clear()

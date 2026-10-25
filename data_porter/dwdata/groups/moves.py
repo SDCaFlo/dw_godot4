@@ -48,6 +48,33 @@ EVIDENCE = [
 ]
 # learnMove (utils2.c:320): these pairs are learned together (same technique, two ids).
 LEARNED_TOGETHER = {0x2C: 0x30, 0x30: 0x2C, 0x37: 0x39, 0x39: 0x37}
+# The Digimon screen's technique grid (game_menu.c getEquippedSlot / equipMove / renderDigimonMoveBox,
+# ../specs/status_screens.md §3.4): grid row -> the block of 8 technique ids it shows; the last row
+# skips 0x30, and 0x30 / 0x39 share the cells of 0x2C / 0x37. The C text must still be there.
+GAME_MENU_C = "src/main/game_menu.c"
+MENU_GRID_BLOCKS = [0, 5, 1, 4, 2, 3, 6]
+MENU_GRID_RULE = ("if (row == 1) { row = 5; } else if (row == 2) { row = 1; } else if (row == 3) { row = 4; } "
+                  "else if (row == 4) { row = 2; } else if (row == 5) { row = 3; } moveId = column + row * 8; "
+                  "if (moveId >= 0x30) { moveId++; }")
+MENU_GRID_SHARED = {0x30: 0x2C, 0x39: 0x37}
+
+
+def _menu_cells() -> dict:
+    cells = {}
+    for grid_row, block in enumerate(MENU_GRID_BLOCKS):
+        for column in range(8):
+            move_id = column + block * 8
+            if move_id >= 0x30:
+                move_id += 1
+            cells[move_id] = {"row": grid_row, "column": column}
+    for move_id, shares in MENU_GRID_SHARED.items():
+        cells[move_id] = dict(cells[shares])
+    return cells
+
+
+def _collapsed(text: str) -> str:
+    return " ".join(text.split())
+
 
 TABLE_PURPOSES = {
     "move_data": "Techniques: power, MP cost, preferred distance, range, element, status effect, accuracy, flags",
@@ -188,6 +215,10 @@ def convert(input_root, output_root) -> GroupWriter:
         tables.size_check(out, decomp, loaded)
 
     # -- move_data ----------------------------------------------------------------------------
+    game_menu_c = _collapsed((decomp.root / GAME_MENU_C).read_text(encoding="utf-8", errors="replace"))
+    out.check("the technique grid's row mapping is still in game_menu.c", _collapsed(MENU_GRID_RULE) in game_menu_c,
+              MENU_GRID_RULE)
+    menu_cells = _menu_cells()
     entries = names_block["items"]
     records, bad = [], defaultdict(list)
     for i, raw in enumerate(us.value):
@@ -221,6 +252,8 @@ def convert(input_root, output_root) -> GroupWriter:
                "unk4": raw["unk4"], "unk5": raw["unk5"]}
         if i in LEARNED_TOGETHER:
             rec["learned_with"] = LEARNED_TOGETHER[i]
+        if i in menu_cells:
+            rec["menu_cell"] = menu_cells[i]
         rec["c"] = raw
         rd = tables.diffs(move_data, lambda l, i=i: l.value[i])
         if rd:

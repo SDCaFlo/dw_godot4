@@ -36,6 +36,11 @@ uniform bool use_stp = false;
 uniform bool blended_pass = false;
 uniform float alpha_scale = 1.0;
 uniform float color_scale = 1.0;
+// A model lit by its own light instead of the map's 3 (the Digimon / Player screens' model,
+// renderDigiviceEntity: one light, the ambient kept).
+uniform bool own_light = false;
+uniform vec3 own_light_dir;
+uniform vec3 own_light_color;
 
 varying vec3 intensity;
 
@@ -46,8 +51,12 @@ vec3 shine(vec3 n, vec3 dir, vec3 color) {
 
 void vertex() {
 	vec3 n = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
-	intensity = lit ? psx_ambient + shine(n, psx_light_0_dir, psx_light_0_color)
-			+ shine(n, psx_light_1_dir, psx_light_1_color) + shine(n, psx_light_2_dir, psx_light_2_color) : vec3(1.0);
+	if (own_light) {
+		intensity = lit ? psx_ambient + shine(n, own_light_dir, own_light_color) : vec3(1.0);
+	} else {
+		intensity = lit ? psx_ambient + shine(n, psx_light_0_dir, psx_light_0_color)
+				+ shine(n, psx_light_1_dir, psx_light_1_color) + shine(n, psx_light_2_dir, psx_light_2_color) : vec3(1.0);
+	}
 }
 
 // The GPU's texel: floor of the interpolated texel coordinate. The porter's UVs are texel / 256,
@@ -98,6 +107,25 @@ static func material(texture: Texture2D, double_sided: bool, alpha_cutoff := 0.5
 	blended.set_shader_parameter("color_scale", 0.25 if (abr & 3) == ADD_QUARTER else 1.0)
 	base.next_pass = blended
 	return base
+
+
+## Lights a loaded model with its own light instead of the map's (`dir` the Godot direction the
+## light travels, `color` 0-1, like FieldLighting's): copies of its PsxLit materials, every pass.
+static func use_own_light(model: Node, dir: Vector3, color: Vector3) -> void:
+	for node in model.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		for i in mesh_instance.get_surface_override_material_count():
+			var source := mesh_instance.get_active_material(i)
+			if not source is ShaderMaterial:
+				continue
+			var copy := (source as ShaderMaterial).duplicate(true) as ShaderMaterial
+			var pass_material: Material = copy
+			while pass_material is ShaderMaterial:
+				pass_material.set_shader_parameter("own_light", true)
+				pass_material.set_shader_parameter("own_light_dir", dir)
+				pass_material.set_shader_parameter("own_light_color", color)
+				pass_material = pass_material.next_pass
+			mesh_instance.set_surface_override_material(i, copy)
 
 
 ## One pass: opaque (`blend` "") or blended in a semi-transparency mode.

@@ -8,8 +8,10 @@ extends Node
 ## page (896, 256), so a sprite's (u, v) is image pixel (u, v - 192). Screen coordinates are
 ## relative to the centre (160, 120).
 
-## Digimon or Player was chosen: their screens come with step 5e-3.
+## Player was chosen: its screen comes with step 5e-3b.
 signal unported(what: String)
+## Digimon: box 0 is closed, the Digimon screen opens (tickTriangleMenu state 3).
+signal open_digimon_screen
 ## Items was chosen (drawInventoryText), then box 0 is closed: the inventory opens (addInventoryUI).
 signal items_chosen
 signal open_inventory
@@ -71,6 +73,10 @@ const STATE_OPENING := 0
 const STATE_REMOVE := 1
 ## Items: box 0 closes, then the inventory (specs/inventory.md §2.1).
 const STATE_ITEMS := 2
+## Digimon: box 0 closes, then the Digimon screen; back: box 1 closes, the menu opens again
+## (specs/status_screens.md §2).
+const STATE_DIGIMON := 3
+const STATE_DIGIMON_BACK := 4
 
 ## Set by the host.
 var boxes: UIBoxes
@@ -144,6 +150,11 @@ func reopen() -> void:
 	add_game_menu()
 
 
+## The Digimon screen's △ (TRIANGLE_MENU_STATE = 4).
+func digimon_screen_back() -> void:
+	menu_state = STATE_DIGIMON_BACK
+
+
 ## startFeedingItem's menu part (game_menu.c:2228): the menu object goes, IS_IN_MENU = 0, game time
 ## runs (the inventory has closed its boxes).
 func hand_over() -> void:
@@ -174,6 +185,19 @@ func tick() -> void:
 			if boxes.boxes[0].frame == 0:
 				open_inventory.emit()
 				menu_state = STATE_OPEN
+		STATE_DIGIMON:
+			_close_box_if_open(0)
+			if boxes.boxes[0].frame == 0:
+				open_digimon_screen.emit()
+				menu_state = STATE_OPEN
+		STATE_DIGIMON_BACK:
+			if tamer != null:
+				tamer.visible = true
+			if partner != null:
+				partner.visible = true
+			_close_box_if_open(1)
+			if boxes.boxes[1].frame == 0:
+				menu_state = STATE_OPENING
 		STATE_REMOVE:
 			_close_box_if_open(0)
 			active = false
@@ -241,7 +265,7 @@ func choose(entry: int) -> void:
 			menu_state = STATE_ITEMS
 			items_chosen.emit()
 		DIGIMON:
-			unported.emit("Digimon")
+			menu_state = STATE_DIGIMON
 		PLAYER:
 			unported.emit("Player")
 		PRAISE, SCOLD, SLEEP:

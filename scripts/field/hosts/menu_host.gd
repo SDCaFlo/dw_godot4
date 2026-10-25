@@ -9,6 +9,7 @@ signal message(text: String)
 
 const GAME_MENU_SCENE := preload("res://scenes/ui/game_menu.tscn")
 const INVENTORY_SCENE := preload("res://scenes/ui/inventory.tscn")
+const DIGIMON_SCREEN_SCENE := preload("res://scenes/ui/digimon_screen.tscn")
 
 ## Set by the field before start.
 var tamer: Tamer
@@ -27,6 +28,9 @@ var item_use: ItemUse
 ## null without the game data (no UI boxes).
 var menu: GameMenu
 var inventory: Inventory
+var digimon_screen: DigimonScreen
+## The screens' model view (renderDigiviceEntity), over the UI boxes.
+var digivice: DigiviceView
 
 
 func start() -> void:
@@ -58,6 +62,21 @@ func start() -> void:
 	inventory.unported.connect(func(what: String): message.emit("items: %s not ported yet" % what))
 	if partner != null:
 		partner.item_use = item_use
+	digivice = DigiviceView.new()
+	digivice.name = "DigiviceView"
+	boxes.add_child(digivice)
+	digimon_screen = DIGIMON_SCREEN_SCENE.instantiate()
+	digimon_screen.boxes = boxes
+	digimon_screen.text_area = text_area
+	digimon_screen.tamer = tamer
+	digimon_screen.partner = partner
+	digimon_screen.pad = pad
+	digimon_screen.digivice = digivice
+	add_child(digimon_screen)
+	menu.open_digimon_screen.connect(digimon_screen.open)
+	digimon_screen.back.connect(func():
+		digimon_screen.close()
+		menu.digimon_screen_back())
 
 
 ## startFeedingItem (game_menu.c:2228): if the tamer's hands are free, he holds the item, stands

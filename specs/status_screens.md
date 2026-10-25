@@ -1,6 +1,11 @@
 # The Digimon and Player screens
 
-Status (2026-10-25): spec written, step 5e-3 (`PLANS.md` 5e). Not coded yet. Coded in two parts: **5e-3a** the Digimon screen (§3), **5e-3b** the Player screen (§4).
+Status (2026-10-25): step 5e-3 (`PLANS.md` 5e), coded in two parts. **5e-3a** the Digimon screen (§3): coded (`scenes/ui/digimon_screen.tscn` with `scripts/ui/digimon_screen.gd`, `digimon_status_tab.gd`, `digimon_techniques_tab.gd`; `MenuDraw`, `DigiviceView`; data porter `move_data.menu_cell`; `tests/test_digimon_screen.gd`; VERIFY "The Digimon screen"). **5e-3b** the Player screen (§4): not coded yet.
+
+As built (5e-3a):
+- **Draw order.** Primitives on one ordering-table layer are drawn in the reverse of the order the C adds them; the port draws them in that order (the model first, under the window's contents; the tabs under their labels; the grid's red boxes over the icons).
+- **Subtracted boxes** (`renderBox` flags 3: the grid's unusable cells) are approximated as darkening by the colour's share (Godot's canvas draws no subtractive box here).
+- **The model** (`DigiviceView`) is lit by its own light through `PsxLit`'s `own_light` parameters (the field's ambient kept), drawn from its viewport into the box's canvas.
 
 The △ menu's DIGIMON and PLAYER icons open a full-screen window with tabs:
 - **Digimon:** Status (the partner's values, its model) and Techniques (the equipped techniques, the finisher, and a grid of every technique where they are equipped).

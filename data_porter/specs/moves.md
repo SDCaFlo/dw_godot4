@@ -92,6 +92,7 @@ The first index is the element of the technique (or of the attacker, in `BTL_cal
   - derived fields: `mp` = mp_cost × 3, `distance` = √distance_squared
   - enums as `{id, name}`
   - `learned_with` for the two pairs
+  - `menu_cell {row, column}`: the technique's cell in the Digimon screen's grid (`game_menu.c` `getEquippedSlot` / `equipMove` / `renderDigimonMoveBox`; `../specs/status_screens.md` §3.4): grid rows 0–6 show the id blocks 0–7, 0x28–0x2F, 8–0xF, 0x20–0x27, 0x10–0x17, 0x18–0x1F, 0x31–0x38; 0x30 / 0x39 share the cells of 0x2C / 0x37. The converter checks the C's row mapping is still there. The ported screen finds a cell's technique by this property, not by computing ids.
   - `c`: the record with its C field names, exactly as the initializer gives it
 - `type_factors`: 7 records (attacker element), each with 7 `against` cells: `defender`, `factor`, `multiplier` (factor / 10).
 - `learn_chances`: 58 records: `id`, `name` (en_us, for reading), `chances[3]`.

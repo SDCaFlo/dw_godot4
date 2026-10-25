@@ -72,6 +72,17 @@ Sections are added as systems are ported (`PLANS.md`).
 8. **Reverb on effects:** an approximation (Godot's reverb); say if a sound effect sounds too wet or too dry next to the emulator.
 9. **NPC sounds (to check in the game):** in the original, does an NPC ever make an odd system sound while it animates (specs/sound.md §6)? The port plays none of their bank-4 sounds.
 
+## Items and chests (`scripts/field/map_items.gd`, `map_chests.gd`, `tamer.gd`; `specs/map_items.md`)
+
+`test_map_items.gd` prints `OK: map item checks`. The maps' setups spawn them: most Native Forest maps have items (some at random), Dragon Eye Lake (MAYO10) a chest near its item boxes. `DW_START_MAP=MAYO10` starts the field on that map.
+1. **An item on the ground:** its icon floats at the tile, the size of a small square at its depth, models in front of it hide it; a faint dark ring of its shadow around it.
+2. **Picking it up:** walk next to it: the tamer stops (his pick-up animation), the box grows from him: the item's name in yellow, "Woah!" below; ✕ (after a few frames): the click and the "got it" sound, the box shrinks, the item is gone and in the bag.
+3. **Bag full** (an item already at 99): "I can't hold anymore."; the item stays. It doesn't start again until you step away and come back.
+4. **A chest:** the model (the white box), its cells blocked. Stand in front of it (the side the tray faces) and press ✕: the tamer turns to it, Agumon stops, the tray slides out, the box shows the item; hold ✕: the item goes into the bag as the box closes.
+5. **Again:** ✕ at the same chest, now or after leaving the map and coming back: the tray is out and "Hey! It's empty!".
+6. **Chest with a full bag:** "I can't hold anymore.", the tray slides back in; the chest can be opened later.
+7. **Award box sound:** the "<name> is sick" box (Care) now plays its sound when it opens.
+
 ## Scripts (`scripts/script/`, `specs/script.md`)
 
 `test_script.gd` prints `OK: script checks`. Besides its synthetic checks it runs every section of every script (1269) and every map setup (255) to its end, played like a player (texts confirmed, choices tried in turn), in about 15 s; it prints the unported instructions it met.

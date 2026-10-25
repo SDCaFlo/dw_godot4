@@ -1,6 +1,6 @@
 # Items and chests on the map (port spec)
 
-Status (2026-10-24): spec written, not coded. This is step 5b of `specs/script.md` §3.1.
+Status (2026-10-24): ported with step 5b of `specs/script.md` §3.1: `MapItems` (`scripts/field/map_items.gd`), `MapChests` (`scripts/field/map_chests.gd`), the tamer's states 7 and 14 (`tamer.gd`), the opcodes in `ScriptInterpreter`; `tests/test_map_items.gd`; VERIFY "Items and chests".
 
 Things to pick up on the field:
 - **Items on the ground:** `SPAWN_ITEM` (0x74, 241 uses) puts an item on a tile. The tamer picks it up by walking next to it, with a "Woah!" box.
@@ -135,7 +135,7 @@ Then `renderUIBox(1)` and `TEXTBOX_OPEN_TIMER + 1`. The other versions also show
   - `spawn(item_key, tile)`, `near(tile) -> int` (the slot, −1), `remove(slot)`, `clear()`.
   - Each item is a camera-facing quad (as the overlay sprites, `MapOverlays`) at its point. Its size is the projected 128-unit square, and it is placed at the point's view depth, so it sorts against the models by depth as on the PSX.
   - The quad's texture is the item's 16 × 16 cell of the `ITEM.TIM` palette PNG (`tim_files/ETCDAT/ITEM.p<n>.png`, n = `icon_clut`), with the 15 × 15 quirk when close.
-  - The shadow is a subtractive quad on the ground with the `SPOT256.TIM` cell, drawn just over the background (as I-5's poop shadow).
+  - The shadow is a subtractive quad on the ground with the `SPOT256.TIM` cell. It is depth-tested, so the models in front of it hide it; the original draws it at entry 0xFFD, behind every model even one far behind it (a small difference). Its raw texel values are subtracted as linear: the PSX subtracts in its gamma values, Godot blends in linear light, and this comes closest (about the same darkening on a bright ground, black on a dark one). The icon covers most of the spot, so only a faint ring shows, as on the PSX (to compare in the game).
 - **`MapChests`** (`scripts/field/map_chests.gd`): the 8 slots, `TAKA.gltf` loaded once (`Content.load_model`).
   - The box node at its tile's centre and rotation, the tray node a child at (0, 0, tray z).
   - `spawn(item, point, rotation, trigger)`, `near(tile) -> int`, `tick_open(k) -> bool`, `tick_close(k) -> bool`, `clear()`.
@@ -183,5 +183,5 @@ Then `renderUIBox(1)` and `TEXTBOX_OPEN_TIMER + 1`. The other versions also show
 
 - **The entities' drop shadows** (`renderDropShadow`, `drop_shadow.c`): the same SPOT256 texture under the tamer, the partner and the NPCs, a radius-sized square. They aren't drawn in the port yet. They're small and would share the item shadow's material, so they could come right after this step (to decide).
 - **`getEntityScreenPos(tamer, 1)`** for the box's start point is the existing `Tamer.screen_rect`.
-- **The pick-up animation 0xC:** does the tamer model have it (`BOYS.gltf` anim 12)? Check while coding; the C does nothing for a missing animation, like `PsxAnimator.play`.
+- **The pick-up animation 0xC:** the tamer model has it (`BOYS.gltf` animation 12, checked 2026-10-24).
 - **The item height** is the tamer's height at spawn time: normally 0. A script spawning an item during a scene with the tamer off the ground would float it; kept.

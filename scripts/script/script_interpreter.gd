@@ -132,6 +132,10 @@ var pad: Pad
 ## The sound (SoundSystem, the "Sound" autoload; specs/sound.md): PLAY_SOUND, SET_BGM, STOP_BGM.
 ## Without it those opcodes are skipped and reported, as before the sound was ported.
 var sound: Node
+## The items on the ground and the chests (specs/map_items.md): SPAWN_ITEM, SPAWN_CHEST. Without
+## them those opcodes are skipped and reported.
+var map_items: MapItems
+var map_chests: MapChests
 ## The entity table (the NPCs, specs/npc.md); null: only the tamer and the partner.
 var entities: FieldEntities
 ## Field hooks for the map change (step 2): func(map, exit, show_name) -> bool done, called every
@@ -1114,6 +1118,20 @@ func _op_64_7e(op: int) -> int:
 		0x7B:
 			_push({"type": AFTER_MAP_CHANGE, "arg": ctx.next_byte()})
 			game_state.set_script_value(0, ctx.saved_pstat0)
+		0x74 when map_items != null:
+			# SPAWN_ITEM item, x, z (spawnItem: the two shorts are the tile), at the tamer's height
+			var item := ctx.next_byte()
+			var x := _s16(_u16())
+			var z := _s16(_u16())
+			map_items.spawn(item, Vector2i(x, z), int(-tamer.position.y) if tamer != null else 0)
+		0x75 when map_chests != null:
+			# SPAWN_CHEST item, x, y, z, rotation, trigger (spawnChest)
+			var item := ctx.next_byte()
+			var x := _s16(_u16())
+			var y := _s16(_u16())
+			var z := _s16(_u16())
+			var rotation := _s16(_u16())
+			map_chests.spawn(item, Vector3i(x, y, z), rotation, _u16())
 		_:
 			return _unported_op(op)
 	return NEXT

@@ -20,6 +20,17 @@ const STATE_STILL := 6
 ## A script moves him (scriptSetEntityWalking, scriptStartAnimation): only his animation ticks.
 const STATE_SCRIPT := 10
 const STATE_AWARD := 20
+## Picking up an item from the ground (tamerTickPickupItem) and opening a chest (tamerTickTakeChest).
+const STATE_PICKUP := 7
+const STATE_CHEST := 14
+## startAnimation(tamer, 0xC): the pick-up animation.
+const ANIM_PICKUP := 0xC
+## ITEM_PICKUP_TEXT_AREA / TAKE_CHEST_TEXT_AREA (tamer.c:35, :42): the rows the boxes' text uses.
+const PICKUP_TEXT_AREA := Rect2i(0, 12, 256, 200)
+## The texts (text/main/tamer.yaml): found, the bag is full, the chest is empty.
+const TEXT_FOUND := "MAIN_D_801341FC"
+const TEXT_FULL := "MAIN_D_80122D68"
+const TEXT_EMPTY := "MAIN_D_80122D80"
 ## The bone getEntityScreenPos reads for the box's start point (tamer.c:1801).
 const SCREEN_BONE := 1
 
@@ -72,6 +83,22 @@ var target_exit := 0
 var change_map := Callable()
 var show_map_name := Callable()
 var map_interaction := Callable()
+## For the pickup and the chests (specs/map_items.md): the items on the ground, the chests, the
+## pickup / chest box (box 1, no arrow), the GameState and GameData nodes, the sound.
+var map_items: MapItems
+var map_chests: MapChests
+var pickup_box: MessageBox
+var game_state: Node
+var data: Node
+var sound: Node
+## PICKED_UP_DROP_ID, HAS_PICKED_UP_ITEM, INTERACTED_CHEST, TAKE_CHEST_STATE (0 taking, 1 the bag
+## is full, 2 an empty chest), TAKE_CHEST_ITEM, TAKE_ITEM_FRAME_COUNTER.
+var picked_up_drop := -1
+var has_picked_up := false
+var interacted_chest := -1
+var take_chest_state := 0
+var take_chest_item: Variant = null
+var take_item_frames := 0
 
 var _player: AnimationPlayer
 var _skeleton: Skeleton3D
@@ -170,6 +197,8 @@ func set_state(value: int) -> void:
 func tick() -> void:
 	match state:
 		STATE_FREE:
+			# tamerTickWalkingState (tamer.c:586): checkItemPickup, then checkMapInteraction.
+			check_item_pickup()
 			if map_interaction.is_valid():
 				map_interaction.call()
 			else:
@@ -178,6 +207,10 @@ func tick() -> void:
 			tick_change_map()
 		STATE_AWARD:
 			tick_award_something()
+		STATE_PICKUP:
+			tick_pickup_item()
+		STATE_CHEST:
+			tick_take_chest()
 	if state != STATE_FREE:
 		step_blocked = false
 	step = 0.0
@@ -232,7 +265,7 @@ func tick_award_something() -> void:
 			if message_box != null and message_box.is_available():
 				message_box.open(screen_rect())
 				sub_state = 5
-				# playSound(0, 7): later with audio.
+				_play_sound(7)
 		5:
 			# POLLED_INPUT & CONFIRM_BUTTON: held, not newly pressed (specs/text.md §2.8).
 			if pad != null and pad.is_held(Pad.CONFIRM):
@@ -261,6 +294,176 @@ func bone_position(node: int) -> Vector3:
 	if _skeleton == null or node < 0 or node >= _skeleton.get_bone_count():
 		return global_position
 	return _skeleton.global_transform * _skeleton.get_bone_global_pose(node).origin
+
+
+# --- items and chests (specs/map_items.md) -------------------------------------------------------
+
+## checkItemPickup (tamer.c:618): next to an item (one tile), state 7, once until he has left it.
+func check_item_pickup() -> void:
+	if map_items == null:
+		return
+	picked_up_drop = map_items.near(tile())
+	if picked_up_drop >= 0:
+		if not has_picked_up:
+			set_state(STATE_PICKUP)
+			has_picked_up = true
+	else:
+		has_picked_up = false
+
+
+## The tamer's collision tile (getModelTile).
+func tile() -> Vector2i:
+	return FieldMap.model_tile(int(position.x), int(-position.z))
+
+
+## tamerTickPickupItem (tamer.c:1401), tamer state 7.
+func tick_pickup_item() -> void:
+	match sub_state:
+		0:
+			play_scene_animation(ANIM_PICKUP)
+			camera_follow = false
+			_draw_found(map_items.item_at(picked_up_drop))
+			take_chest_state = 0
+			take_item_frames = 0
+			sub_state = 1
+		1:
+			if pickup_box != null and pickup_box.is_available():
+				take_chest_item = map_items.item_at(picked_up_drop)
+				_pickup_strings()
+				pickup_box.open(screen_rect())
+				sub_state = 2
+		2:
+			take_item_frames += 1
+			if pad != null and pad.is_key_down(Pad.CONFIRM) and take_item_frames > 4:
+				if take_item_frames < 0x3C:
+					_play_sound(3)
+				if not game_state.give_item(map_items.item_at(picked_up_drop), 0):
+					_draw_full()
+					take_item_frames = 0
+					sub_state = 3
+				else:
+					_play_sound(7)
+					sub_state = 4
+		3:
+			take_item_frames += 1
+			if pad != null and pad.is_key_down(Pad.CONFIRM) and take_item_frames > 4:
+				if take_item_frames < 0x3C:
+					_play_sound(3)
+				sub_state = 4
+		4:
+			if pickup_box != null:
+				pickup_box.close(screen_rect())
+			if take_chest_state == 0:
+				# pickupItem (item.c:2633): the item leaves the ground if it went into the bag.
+				if game_state.give_item(map_items.item_at(picked_up_drop), 1):
+					map_items.remove(picked_up_drop)
+			set_state(STATE_FREE)
+			camera_follow = true
+	take_item_frames = mini(take_item_frames, 10)
+
+
+## tamerTickTakeChest (tamer.c:1493), tamer state 14.
+func tick_take_chest() -> void:
+	var chest := map_chests.chest(interacted_chest) if map_chests != null else {}
+	if chest.is_empty():
+		set_state(STATE_FREE)
+		return
+	match sub_state:
+		0:
+			play_scene_animation(0)
+			if partner != null:
+				partner.set_state(Partner.STATE_IDLE)
+			camera_follow = false
+			var at: Vector3i = chest["location"]
+			look_at_psx(at.x, at.z)
+			if not chest["taken"]:
+				_draw_found(chest["item"])
+				take_chest_state = 0
+			else:
+				var area := pickup_box.text_area if pickup_box != null else null
+				if area != null:
+					area.clear(PICKUP_TEXT_AREA)
+					area.draw_string(_tamer_name(), 0, 0xC)
+					area.draw_string(data.text(TEXT_EMPTY), 0, 0x18)
+				take_chest_state = 2
+			sub_state = 1
+		1:
+			if pickup_box != null and pickup_box.is_available():
+				if map_chests.tick_open(interacted_chest):
+					take_chest_item = chest["item"]
+					_pickup_strings()
+					pickup_box.open(screen_rect())
+					take_item_frames = 0
+					sub_state = 2 if take_chest_state == 0 else 4
+		2:
+			take_item_frames += 1
+			# POLLED_INPUT: held, not newly pressed
+			if pad != null and pad.is_held(Pad.CONFIRM) and take_item_frames > 5:
+				take_item_frames = 0
+				if not game_state.give_item(take_chest_item, 0):
+					_draw_full()
+					sub_state = 3
+				else:
+					game_state.set_trigger(int(chest["trigger"]))
+					sub_state = 4
+		3:
+			if map_chests.tick_close(interacted_chest):
+				sub_state = 4
+		4:
+			take_item_frames += 1
+			if pad != null and pad.is_held(Pad.CONFIRM) and take_item_frames > 5:
+				if pickup_box != null:
+					pickup_box.close(screen_rect())
+				if take_chest_state == 0:
+					game_state.give_item(take_chest_item, 1)
+				set_state(STATE_FREE)
+				if partner != null:
+					partner.set_state(Partner.STATE_NORMAL)
+				camera_follow = true
+	take_item_frames = mini(take_item_frames, 10)
+
+
+## Sub-state 0's text: the tamer's name at row 0xC (not shown by the US box), the item's name at
+## row 0x18, "Woah!" at row 0x24.
+func _draw_found(item: Variant) -> void:
+	var area := pickup_box.text_area if pickup_box != null else null
+	if area == null or data == null:
+		return
+	area.clear(PICKUP_TEXT_AREA)
+	area.draw_string(_tamer_name(), 0, 0xC)
+	area.draw_string(data.localize(data.item(item).get("name")).strip_edges(), 0, 0x18)
+	area.draw_string(data.text(TEXT_FOUND), 0, 0x24)
+
+
+## The bag is full: row 0x18 becomes the full-bag text (TAKE_CHEST_STATE 1).
+func _draw_full() -> void:
+	var area := pickup_box.text_area if pickup_box != null else null
+	if area != null and data != null:
+		area.draw_string(data.text(TEXT_FULL), 0, 0x18)
+	take_chest_state = 1
+	_pickup_strings()
+
+
+## renderItemPickupTextbox (tamer.c:801, US): the box's lines for TAKE_CHEST_STATE.
+func _pickup_strings() -> void:
+	if pickup_box == null:
+		return
+	match take_chest_state:
+		0:
+			pickup_box.strings = [[0, -125, 0x39, 0x5A, 12, 0, 0x24, false], [0xF, -125, 0x2D, 0x60, 12, 0, 0x18, false]]
+		1:
+			pickup_box.strings = [[0, -125, 0x39, 0xF0, 12, 0, 0x18, false]]
+		_:
+			pickup_box.strings = [[0, -125, 0x39, 0x90, 12, 0, 0x18, false]]
+
+
+func _tamer_name() -> String:
+	return str(game_state.state["tamer"]["name"]) if game_state != null else ""
+
+
+func _play_sound(value: int) -> void:
+	if sound != null:
+		sound.play_sound(0, value)
 
 
 ## getEntityScreenPos (utils.c:176): bone 1 projected, relative to the screen centre.

@@ -67,6 +67,9 @@ var _script_change_state := 0
 var _message := ""
 var _message_frames := 0
 var _debug: DebugWindow
+## The items on the ground and the chests (specs/map_items.md).
+var _map_items: MapItems
+var _map_chests: MapChests
 
 @onready var _field: FieldMap = $World/SubViewport/FieldMap
 @onready var _tamer: Tamer = $World/SubViewport/Tamer
@@ -88,6 +91,7 @@ func _ready() -> void:
 	# The tamer (entity 0) and the partner tick before the clock, as in the original's object list
 	# (specs/care.md §2.1).
 	GameLoop.frame.connect(_tamer.tick)
+	_start_map_items()
 	_start_partner()
 	_start_npcs()
 	_start_clock()
@@ -96,6 +100,10 @@ func _ready() -> void:
 	set_render_scale(render_scale)
 	PsxUiFilter.set_enabled(ui_filter)
 	_start_debug_window()
+	# Debug: DW_START_MAP=MAYO10 starts on another map (render checks, --write-movie).
+	var env_map := OS.get_environment("DW_START_MAP")
+	if env_map != "":
+		start_map = env_map
 	_begin(start_map if start_map in _maps else _maps[0], start_spawn)
 
 
@@ -158,6 +166,22 @@ func _start_partner() -> void:
 	# loadPartnerSounds (partner_impl.c:466): the partner's voice and sound sets.
 	Sound.load_partner_sounds(GameData.digimon_sounds(GameState.state["partner"]["digimon"]))
 	_partner.animation_sound.connect(_play_sound)
+
+
+## DROPPED_ITEMS and CHEST_ARRAY (specs/map_items.md): in the 3D world with the models.
+func _start_map_items() -> void:
+	_map_items = MapItems.new()
+	_map_items.name = "MapItems"
+	_map_items.field = _field
+	_map_items.data = GameData
+	$World/SubViewport.add_child(_map_items)
+	_map_chests = MapChests.new()
+	_map_chests.name = "MapChests"
+	_map_chests.field = _field
+	_map_chests.game_state = GameState
+	$World/SubViewport.add_child(_map_chests)
+	_tamer.map_items = _map_items
+	_tamer.map_chests = _map_chests
 
 
 ## The entity table and the map's NPCs (specs/npc.md): created by SET_DIGIMON, ticked after the
@@ -287,6 +311,14 @@ func _start_text() -> void:
 	_tamer.clock = _clock
 	_tamer.pad = GameLoop.pad
 	_tamer.message_box = MessageBox.new(_boxes, _text_area)
+	# The pickup / chest box (renderItemPickupTextbox): box 1 without the arrow.
+	_tamer.pickup_box = MessageBox.new(_boxes, _text_area)
+	_tamer.pickup_box.arrow = false
+	_tamer.game_state = GameState
+	_tamer.data = GameData
+	_tamer.sound = Sound
+	_interpreter.map_items = _map_items
+	_interpreter.map_chests = _map_chests
 
 
 ## setupBoxOrigin's getEntityScreenPos(entity, 1) for a script id: the tamer, the partner, an NPC
@@ -470,6 +502,10 @@ func _script_load_map(map_id: int) -> void:
 func _load_map_at_exit(map_name: String, exit: int) -> bool:
 	if not _field.load_map(map_name):
 		return false
+	# changeMap's clearDroppedItems, unloadMap's emptyChests: the map's setup spawns them again.
+	if _map_items != null:
+		_map_items.clear()
+		_map_chests.clear()
 	# changeMap's removeMapEntities, then loadMap's clearMapDigimon + loadMapDigimon (the NPCs
 	# appear when the MAPHEAD section's SET_DIGIMON places them).
 	if _entities != null:
@@ -590,6 +626,12 @@ func _check_map_interaction() -> void:
 	elif trigger >= 80 and trigger < 110:
 		if GameLoop.pad.is_changed(Pad.CONFIRM) and paused and _interpreter != null:
 			_interpreter.call_section(_script_ctx.current_script_id, trigger, 0)
+	# checkChestCollision (tamer.c:714): ✕ next to a chest's front; no IS_SCRIPT_PAUSED test.
+	if _map_chests != null:
+		var chest := _map_chests.near(_tamer.tile())
+		if chest >= 0 and GameLoop.pad.is_changed(Pad.CONFIRM):
+			_tamer.interacted_chest = chest
+			_tamer.set_state(Tamer.STATE_CHEST)
 
 
 ## scriptTickChangeMap (map.c:5277): a script's WARP_TO / TELEPORT. Fade to black (the map name at

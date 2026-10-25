@@ -8,8 +8,11 @@ extends Node
 ## page (896, 256), so a sprite's (u, v) is image pixel (u, v - 192). Screen coordinates are
 ## relative to the centre (160, 120).
 
-## Items, Digimon or Player was chosen: their screens come with steps 5e-2 / 5e-3.
+## Digimon or Player was chosen: their screens come with step 5e-3.
 signal unported(what: String)
+## Items was chosen (drawInventoryText), then box 0 is closed: the inventory opens (addInventoryUI).
+signal items_chosen
+signal open_inventory
 ## The menu closed (△ or an option that gives the field back).
 signal closed
 
@@ -66,6 +69,8 @@ const DISABLED := Color(0x32 / 128.0, 0x32 / 128.0, 0x32 / 128.0)
 const STATE_OPEN := -1
 const STATE_OPENING := 0
 const STATE_REMOVE := 1
+## Items: box 0 closes, then the inventory (specs/inventory.md §2.1).
+const STATE_ITEMS := 2
 
 ## Set by the host.
 var boxes: UIBoxes
@@ -108,6 +113,16 @@ func _ready() -> void:
 ## addGameMenu (game_menu.c:1306) and the rest of tamerTickWalkingState's △ (tamer.c:529-537):
 ## IS_IN_MENU, stopGameTime, setPartnerIdling.
 func open() -> void:
+	add_game_menu()
+	is_open = true
+	if clock != null:
+		clock.running = false
+	if partner != null:
+		partner.start_animation(Partner.ANIM_IDLE)
+
+
+## addGameMenu (game_menu.c:1306): the options and the menu object, from Items (or Fishing).
+func add_game_menu() -> void:
 	selection = ITEMS
 	count = 7
 	fishing_disabled = false
@@ -120,11 +135,20 @@ func open() -> void:
 		care.sleep_enabled = _sleepy()
 	menu_state = STATE_OPENING
 	active = true
-	is_open = true
-	if clock != null:
-		clock.running = false
-	if partner != null:
-		partner.start_animation(Partner.ANIM_IDLE)
+
+
+## Back from the inventory (tickInventoryUI action 2): closeTriangleMenu, addGameMenu; IS_IN_MENU
+## and the stopped time stay.
+func reopen() -> void:
+	close()
+	add_game_menu()
+
+
+## startFeedingItem's menu part (game_menu.c:2228): the menu object goes, IS_IN_MENU = 0, game time
+## runs (the inventory has closed its boxes).
+func hand_over() -> void:
+	active = false
+	_resume()
 
 
 ## The menu can open: box 0 free (state != 1, frame 0); the script and fade tests are the host's.
@@ -145,6 +169,11 @@ func tick() -> void:
 			if text_area != null:
 				text_area.clear(YEAR_DAY_AREA)
 				text_area.draw_string(_year_day(), 0, YEAR_DAY_V)
+		STATE_ITEMS:
+			_close_box_if_open(0)
+			if boxes.boxes[0].frame == 0:
+				open_inventory.emit()
+				menu_state = STATE_OPEN
 		STATE_REMOVE:
 			_close_box_if_open(0)
 			active = false
@@ -209,7 +238,8 @@ func choose(entry: int) -> void:
 		return
 	match entry:
 		ITEMS:
-			unported.emit("Items")
+			menu_state = STATE_ITEMS
+			items_chosen.emit()
 		DIGIMON:
 			unported.emit("Digimon")
 		PLAYER:

@@ -6,6 +6,7 @@ The porters have their own checklists (`asset_porter/VERIFY.md`, `data_porter/VE
 godot --headless --path . -s res://tests/test_script.gd
 godot --headless --path . -s res://tests/test_npc.gd
 godot --headless --path . -s res://tests/test_game_menu.gd
+godot --headless --path . -s res://tests/test_inventory.gd
 godot --headless --path . -s res://tests/test_camera.gd
 godot --headless --path . -s res://tests/test_map_objects.gd
 godot --headless --path . -s res://tests/test_lighting.gd
@@ -101,6 +102,20 @@ Sections are added as systems are ported (`PLANS.md`).
 5. **Item / Digimon / Player:** the click, and the help line says the screen isn't ported yet; the menu stays open.
 6. **△ again** closes it with the refusal sound; time runs again.
 7. **Compare with the game:** the icons and labels (the PRAISE label looked odd in a capture: check it), how dark the disabled Sleep icon is, the blink speed, and the praise / scold sounds. `Z` and the care panel's Sleep still work, through the menu's Sleep.
+
+## Items (`scripts/ui/inventory.gd`, `scripts/systems/item_use.gd`, the feeding scene in `partner.gd`; `specs/inventory.md`)
+
+`test_inventory.gd` prints `OK: inventory checks`. In the game (F5), △, then ✕ on ITEM:
+1. **The list:** the △ menu shrinks away and the bag opens: two columns of items with their icon, name and amount, the description of the selected one below, a scroll bar on the right. The tamer looks into his bag. Names are coloured by where the item works (field, battle, both, nowhere).
+2. **Cursor:** arrows move (held up / down repeats after a moment), with a click; the list scrolls past the 9th row.
+3. **Options:** ✕ opens Use / Move / Sort / Drop next to the slot. Use is grey for items that don't work in the field (the battle disks), Drop for items you can't throw away. ✕ on a grey option does nothing; △ closes the options.
+4. **Move:** Move, then pick another slot and ✕: the two swap (a sound). △ instead cancels it (another sound).
+5. **Sort:** Sort, pick Battle / Raise / Basic: the bag reorders by group, empty slots last.
+6. **Drop:** "Are you sure?", on No. No keeps it; Yes (left, ✕) throws the whole stack away.
+7. **Back:** △ on the list goes back to the △ menu, on ITEM.
+8. **Feeding:** Use on a food: everything closes, Agumon walks up (or first a few steps away if he was too close), the tamer holds the item out (a sound) and Agumon eats it, or refuses it (a shake) and the tamer puts it away. Eaten, one leaves the bag; the care panel (`C`) shows the effect (Meat: energy, and +2 happiness since it is Agumon's favourite).
+9. **Refusals:** a recovery floppy may be refused when discipline is low; scold right after (△ menu) and the next item is taken. An evolution item says "evolution not ported yet" and stays in the bag.
+10. **Compare with the game:** the layout, colours and sounds of the boxes, the walk-up, and when the item disappears from his hand.
 
 ## Drop shadows (`scripts/field/drop_shadow.gd`, `scenes/field/drop_shadow.tscn`, `specs/drop_shadow.md`)
 

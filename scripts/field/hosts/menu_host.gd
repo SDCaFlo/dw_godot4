@@ -8,6 +8,7 @@ extends Node
 signal message(text: String)
 
 const GAME_MENU_SCENE := preload("res://scenes/ui/game_menu.tscn")
+const INVENTORY_SCENE := preload("res://scenes/ui/inventory.tscn")
 
 ## Set by the field before start.
 var tamer: Tamer
@@ -20,9 +21,12 @@ var text_area: TextArea
 var script_ctx: ScriptContext
 ## The pad (GameLoop.pad).
 var pad: Pad
+## The item rules (specs/inventory.md §4).
+var item_use: ItemUse
 
 ## null without the game data (no UI boxes).
 var menu: GameMenu
+var inventory: Inventory
 
 
 func start() -> void:
@@ -40,6 +44,31 @@ func start() -> void:
 	menu.unported.connect(func(what: String): message.emit("menu: %s not ported yet" % what))
 	tamer.open_menu = try_open
 	tamer.care = care
+	inventory = INVENTORY_SCENE.instantiate()
+	inventory.boxes = boxes
+	inventory.text_area = text_area
+	inventory.tamer = tamer
+	inventory.item_use = item_use
+	inventory.pad = pad
+	add_child(inventory)
+	menu.items_chosen.connect(inventory.draw_text)
+	menu.open_inventory.connect(inventory.open)
+	inventory.back.connect(menu.reopen)
+	inventory.use_item.connect(start_feeding)
+	inventory.unported.connect(func(what: String): message.emit("items: %s not ported yet" % what))
+	if partner != null:
+		partner.item_use = item_use
+
+
+## startFeedingItem (game_menu.c:2228): if the tamer's hands are free, he holds the item, stands
+## (state 6), the partner comes to take it (state 5); the menu goes, time runs.
+func start_feeding(item: String) -> void:
+	if tamer.held_item != "" or partner == null:
+		return
+	tamer.held_item = item
+	tamer.set_state(Tamer.STATE_STILL)
+	partner.set_state(Partner.STATE_FEED)
+	menu.hand_over()
 
 
 ## tamerTickWalkingState's △ (tamer.c:515): no script runs, no protected fade, box 0 free.
@@ -61,10 +90,12 @@ func is_open() -> bool:
 	return menu != null and menu.is_open
 
 
-## The menu object (tickTriangleMenu), after the NPCs.
+## The menu object (tickTriangleMenu), after the NPCs, then the inventory object.
 func tick() -> void:
 	if menu != null:
 		menu.tick()
+	if inventory != null:
+		inventory.tick()
 
 
 ## The menu's "Sleep" without opening it (the debug key Z, the care panel): only when the menu could

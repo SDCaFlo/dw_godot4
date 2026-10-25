@@ -100,6 +100,13 @@ var map_interaction := Callable()
 var open_menu := Callable()
 ## STORED_TAMER_POS: where he stood when the menu opened (the inventory reads it).
 var stored_position := Vector3.ZERO
+## TAMER_ITEM.worldItem.type: the item he hands the partner (specs/inventory.md §2.7); "" = none.
+var held_item := ""
+## renderFeedingItem (game_menu.c:2245): the held item's icon at his hand (bone 9), like an item on
+## the ground (a 128-unit square facing the camera), while the feeding scene shows it.
+const HAND_BONE := 9
+const ICONS := "tim_files/ETCDAT/ITEM%s.png"
+var _held_icon: Sprite3D
 ## The care rules (ITEM_SCOLD_FLAG picks the partner's scolded animation).
 var care: Care
 ## For the pickup and the chests (specs/map_items.md): the items on the ground, the chests, the
@@ -167,6 +174,8 @@ func place(spawn: Dictionary) -> void:
 func _process(delta: float) -> void:
 	if Engine.is_editor_hint() or _player == null or field == null:
 		return
+	if _held_icon != null and _held_icon.visible:
+		_held_icon.global_position = bone_position(HAND_BONE)
 	# the sound events the last frame's advance passed (every path below advances the player)
 	_sounds.update(_player)
 	var motion := Vector3.ZERO
@@ -561,6 +570,49 @@ func screen_position() -> Vector2i:
 ## is free again.
 func play_scene_animation(id: int) -> void:
 	_scene_playing = _scene != null and _scene.play(id)
+
+
+## The scene animation's animFrame (0 when none plays).
+func scene_frame() -> int:
+	return _scene.frame if _scene_playing and _scene != null else 0
+
+
+## renderFeedingItem's object (addObject / removeObject 0xFA7): the held item in his hand.
+func show_held_item(on: bool) -> void:
+	if on and held_item != "" and data != null:
+		if _held_icon == null:
+			_held_icon = Sprite3D.new()
+			_held_icon.name = "HeldItem"
+			_held_icon.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			_held_icon.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+			_held_icon.shaded = false
+			_held_icon.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+			_held_icon.region_enabled = true
+			# 16 texels show a 128-unit square (renderOverworldItem, MapItems.ICON_SIZE).
+			_held_icon.pixel_size = MapItems.ICON_SIZE / 16.0
+			_held_icon.top_level = true
+			add_child(_held_icon)
+		var record: Dictionary = data.item(held_item)
+		var clut := int(record.get("icon_clut", 0))
+		_held_icon.texture = Content.load_texture(ICONS % ("" if clut == 0 else ".p%d" % clut))
+		var id := int(record.get("id", 0))
+		_held_icon.region_rect = Rect2((id % 16) * 16, (id / 16) * 16, 16, 16)
+		_held_icon.global_position = bone_position(HAND_BONE)
+		_held_icon.visible = true
+	elif _held_icon != null:
+		_held_icon.visible = false
+
+
+## removeTamerItem (item.c:2677).
+func clear_held_item() -> void:
+	held_item = ""
+	show_held_item(false)
+
+
+## animFrame >= frameCount of the scene animation, as the C tests it: also once a looping one (the
+## bag, anim 4) has passed its end, whatever the Godot frame rate, and when the model lacks it.
+func scene_animation_ended() -> bool:
+	return not _scene_playing or not _scene.playing or _scene.frame >= _scene.frame_count or _scene.passes > 0
 
 
 ## animFrame >= frameCount of the scene animation (also true when the model lacks it).

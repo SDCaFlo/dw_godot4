@@ -59,6 +59,41 @@ PASSIVE = [
     (0x25, "src/main/partner.c", "getItemCount(0x25) != 0",
      "while the tamer walks (animation 2), partner +5 HP and MP every 20 frames (partner.c:949-960)", "walking_heal"),
 ]
+# The feeding rules on item id ranges (partnerWillRefuseItem, partnerHandleFoodFeed), turned into the
+# item_data property `feeding` (../specs/inventory.md §2.9, §4). Each C text must still be there.
+PARTNER_C = "src/main/partner_impl.c"
+FEEDING_RULES = [
+    "if ((item >= 0x73) && (item != 0x79) && (item != 0x7A) && (item < 0x7D)) return 1;",
+    "if ((item >= 0x21) && (item < 0x26)) return 1;",
+    "if (((item >= 0x47) && (item < 0x73)) || ((item >= 0x7D) && (item < 0x80))) {",
+    "if ((0 <= item) && (item < 0x26)) {",
+    "if (((itemType < 0x26) || (itemType >= 0x47)) && (itemType != 0x79) && (itemType != 0x7a)) { return; }",
+]
+FEEDING = {"refused": "key items (0x73-0x7C but 0x79 / 0x7A) and passive chips (0x21-0x25): always refused",
+           "evolution": "evolution items (0x47-0x72, 0x7D-0x7F): refused unless the levels fit",
+           "obedience": "other items below 0x26: refused on a discipline roll",
+           "food": "food (0x26-0x46, 0x79, 0x7A): the hunger rule of partnerHandleFoodFeed"}
+# partnerWillRefuseItem: the special evolution items need this partner level (0x7E a Rookie, 0x7D / 0x7F a Champion)
+REQUIRES_LEVEL = {0x7D: 4, 0x7E: 3, 0x7F: 4}
+REQUIRES_LEVEL_RULE = ("if (item == 0x7E) { if (DIGIMON_DATA[PARTNER_ENTITY.digimonEntity.entity.type].level != 3) "
+                       "return 1; } else if ((item == 0x7D) || (item == 0x7F)) { if (DIGIMON_DATA[PARTNER_ENTITY."
+                       "digimonEntity.entity.type].level != 4) return 1;")
+
+
+def _feeding(i: int) -> str:
+    if (0x73 <= i < 0x7D and i not in (0x79, 0x7A)) or 0x21 <= i < 0x26:
+        return "refused"
+    if 0x47 <= i < 0x73 or 0x7D <= i < 0x80:
+        return "evolution"
+    if i < 0x26:
+        return "obedience"
+    return "food"
+
+
+def _collapsed(text: str) -> str:
+    return " ".join(text.split())
+
+
 PLACEHOLDER_RARITY = 5   # cards 0 and 65: tamer, no price (CARD_PRICES has 5 classes)
 # PARTNER_PARA.trainBoostFlag bits: the stat whose training gain each bit scales (trn_reward.c:169-517)
 BOOST_BITS = {0x01: "off", 0x02: "def", 0x04: "speed", 0x08: "brain", 0x10: "hp", 0x20: "mp"}
@@ -274,6 +309,17 @@ def convert(input_root, output_root) -> GroupWriter:
     out.check("item effects read from every handler switch", not effect_problems, "; ".join(effect_problems) or
               f"{len(effects)} items with effects")
 
+    # -- feeding (the id ranges of partner_impl.c) ----------------------------------------------
+    partner_c = _collapsed((decomp.root / PARTNER_C).read_text(encoding="utf-8", errors="replace"))
+    missing = [r for r in FEEDING_RULES + [REQUIRES_LEVEL_RULE] if _collapsed(r) not in partner_c]
+    out.check("the feeding rules on item id ranges are still in partner_impl.c", not missing,
+              "; ".join(missing) or f"{len(FEEDING_RULES) + 1} rules")
+    for item in items:
+        item["feeding"] = _feeding(item["id"])
+    for e in effects:
+        if e["item"]["id"] in REQUIRES_LEVEL:
+            e["requires_level"] = REQUIRES_LEVEL[e["item"]["id"]]
+
     # -- cards --------------------------------------------------------------------------------
     price_list = card_prices[REFERENCE].value
     card_rows, cbad = [], []
@@ -335,6 +381,9 @@ def convert(input_root, output_root) -> GroupWriter:
                     "values": {p[4]: p[3] for p in PASSIVE},
                     "meaning": "effect of carrying the item, read by the ported code instead of the id "
                                "(../specs/content.md §4); absent = none"},
+        "feeding": {"derived": "the item id ranges of partnerWillRefuseItem (partner_impl.c:1431) and "
+                               "partnerHandleFoodFeed (:1615)", "values": FEEDING,
+                    "meaning": "how the partner treats the item when fed (../specs/inventory.md §2.9)"},
         "c": {"meaning": "the ITEM_PARA record as the C initializer gives it"},
         "_struct": {"c_type": "Item", "header": f"include/dw/item.h:{item_struct.line}",
                     "fields": describe_type(item_struct)},

@@ -411,7 +411,7 @@ Started by stepping on a toilet cell (120) while the partner is poopy. The cell 
 ### 3.4 Functions ported now, used later
 
 `skip_hours` (scripts), `handle_toilet` (toilet scene), `handle_eating_poop` (poop eaters), `handle_praise_scold` (menus), `handle_post_battle_tiredness` (battle).
-- **Deferred to the menus:** `partnerHandleFoodFeed` and `partnerWillRefuseItem` test item id ranges (food 0x26–0x46, evolution items, 0x73+). They wait for item properties for those ranges.
+- **Moved to item use:** `partnerHandleFoodFeed` and `partnerWillRefuseItem` test item id ranges (food 0x26–0x46, evolution items, 0x73+). They are ported in `ItemUse` with the inventory (`specs/inventory.md` §4), reading item properties instead of the ranges.
 - They are short state changes, tested now against the C.
 - The debug panel calls some of them: praise, scold, toilet.
 - `skipHours` has a JP / US difference (`int16_t` vs `int32_t` hours); the US version is ported.

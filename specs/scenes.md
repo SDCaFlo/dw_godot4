@@ -82,7 +82,7 @@ Field.tscn                   Field (script): starts the systems, owns the frame 
 │  ├─ ScriptHost             TextArea, UIBoxes, ScriptContext, TextBoxes, ScriptInterpreter, the map name, NPC talks
 │  ├─ CareHost               Care, the fade, the bars, the bubbles, the poop piles, the menu's Sleep
 │  ├─ ClockHost              Clock (with its music hookup), ClockHud, the map's daytime fade
-│  └─ MenuHost               the △ menu scene (scenes/ui/game_menu.tscn); IS_IN_MENU for the frame order
+│  └─ MenuHost               the △ menu and the inventory scenes (scenes/ui/game_menu.tscn, inventory.tscn); IS_IN_MENU for the frame order
 └─ Debug                     DebugHost: the help line's text, the debug keys, DebugWindow, CareDebugPanel, ScriptDebug (left out of an export later)
 ```
 

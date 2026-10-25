@@ -104,10 +104,11 @@ Items and what they do, the healing values, the built-in inventories, the invent
   - **Property `passive`** on the five passive items (`../specs/content.md` §4): `training_boost` (0x21), `sleep_boost` (0x22), `battle_repel` (0x23), `battle_lure` (0x24), `walking_heal` (0x25). Absent on every other item.
     - It replaces the literal ids of the inventory checks (`getItemCount(0x22)` …). The ported code asks "does the inventory hold an item whose `passive` is `sleep_boost`", so a pack can add another pillow.
     - Each property comes from the same evidence check as `item_effects.passive`.
+  - **Property `feeding`** (`../specs/inventory.md` §2.9): how the partner treats the item when fed, from the id ranges of `partnerWillRefuseItem` (`partner_impl.c:1431`) and `partnerHandleFoodFeed` (`:1615`), whose C text the converter checks: `refused` (0x21–0x25, 0x73–0x7C but 0x79 / 0x7A), `evolution` (0x47–0x72, 0x7D–0x7F), `obedience` (other items below 0x26: the discipline roll), `food` (0x26–0x46, 0x79, 0x7A).
   - `c` keeps the raw `ITEM_PARA` record.
 - `item_effects`: one record per item with a handler.
   - `values` (switch assignments, or the heal values); `code` (other statements, C text); `defaults`
-  - `train_boost` (decoded `trainFlag`); `passive` (passive items: effect, `property`, evidence); `evolution` (where the target comes from)
+  - `train_boost` (decoded `trainFlag`); `passive` (passive items: effect, `property`, evidence); `evolution` (where the target comes from); `requires_level` (0x7D–0x7F: the partner level `partnerWillRefuseItem` requires, 4 / 3 / 4)
 - `card_data`: `digimon {id, name}`, `rarity`, `price`, `sell_price`, `merit`, `c`. `source.prices` lists the price and roll range per class.
 - `inventories`: `default_savegame` and `boot`, as non-empty slots `{slot, item, amount}` plus the raw arrays.
 - `shops`: one record with `maps` and `shopkeepers`.

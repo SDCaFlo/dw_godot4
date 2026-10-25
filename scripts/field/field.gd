@@ -140,6 +140,15 @@ func _start() -> void:
 	menu_host.text_area = scripts.text_area
 	menu_host.script_ctx = scripts.script_ctx
 	menu_host.pad = GameLoop.pad
+	# The item rules (specs/inventory.md §4): logic, shared by the inventory and the feeding scene.
+	var item_use := ItemUse.new()
+	item_use.game_state = GameState
+	item_use.data = GameData
+	item_use.care = care_host.care
+	item_use.clock = clock
+	item_use.interpreter = scripts.interpreter
+	item_use.script_ctx = scripts.script_ctx
+	menu_host.item_use = item_use
 	menu_host.start()
 	menu_host.message.connect(debug.show_message)
 	map_session.partner = partner

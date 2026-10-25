@@ -46,6 +46,14 @@ class RealDataTests(unittest.TestCase):
         items = self.load("item_data")
         self.assertEqual(items[0x22]["passive"], "sleep_boost")      # Rest Pillow (sleepRegen)
         self.assertEqual(effects[0x22]["passive"]["property"], "sleep_boost")
+        # the feeding ranges of partnerWillRefuseItem / partnerHandleFoodFeed (../specs/inventory.md §2.9)
+        self.assertEqual(items[0x00]["feeding"], "obedience")      # Sm. recovery
+        self.assertEqual(items[0x22]["feeding"], "refused")        # Rest pillow (passive)
+        self.assertEqual(items[0x26]["feeding"], "food")           # Meat
+        self.assertEqual(items[0x7A]["feeding"], "food")           # Steak
+        self.assertEqual(items[0x73]["feeding"], "refused")        # key item
+        self.assertEqual(items[0x47]["feeding"], "evolution")
+        self.assertEqual(effects[0x7E]["requires_level"], 3)
         self.assertNotIn("passive", meat)
 
     def test_cards_and_shops(self):

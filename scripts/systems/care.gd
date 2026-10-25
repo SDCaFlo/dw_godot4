@@ -139,6 +139,20 @@ func _level() -> int:
 	return int(data.digimon(_digimon()).get("level", {}).get("id", 0))
 
 
+## For item use (specs/inventory.md §4): the partner's raise_data, its level (DIGIMON_DATA.level),
+## the sick message (tamer state 20).
+func raise_data() -> Dictionary:
+	return _raise()
+
+
+func partner_level() -> int:
+	return _level()
+
+
+func show_sick_message() -> void:
+	_show_sick_message()
+
+
 func _sleep_pattern() -> Dictionary:
 	return data.sleep_pattern(int(_raise().get("sleep_cycle", {}).get("id", 0)))
 

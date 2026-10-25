@@ -65,7 +65,7 @@ Last updated: 2026-10-24
        - [ ] 5d. battles: include the battle music (`stopBGM`, `ENEMY_MUSIC_MAPPING`, font 33, `playBGM` after a win) and the fighters' sound banks 4–7.
        - [ ] 5e. builtins and menus, each a scene from the start (`specs/scenes.md` §4.3), each wiring its sounds (`Sound.play_sound`):
          1. [x] The △ menu (`specs/game_menu.md`, coded 2026-10-25: `scenes/ui/game_menu.tscn`, `Systems/MenuHost`, `tests/test_game_menu.gd`, VERIFY "The △ menu"; spec written 2026-10-24): opening / closing, the icons, cursor and date, Praise / Scold (partner states 15 / 4, tamer states 13 / 9, sounds 14 / 13) and Sleep; what stops while it is open; data porter `raise_data.praise_pat_low`. The debug key Z and the care panel's Sleep now go through the menu's Sleep.
-         2. [ ] Items: the inventory (`inventory.c`), feeding (partner state 5), `ITEM_SCOLD_FLAG` from a refused item.
+         2. [x] Items (`specs/inventory.md`, coded 2026-10-25: `ItemUse`, `scenes/ui/inventory.tscn`, the feeding scene, `tests/test_inventory.gd`, VERIFY "Items"; spec written 2026-10-25): the inventory (`inventory.c`: list, Use / Move / Sort / Drop), feeding (partner state 5) with the refusal rules (`ITEM_SCOLD_FLAG`) and the hunger rule, the field effects of every item (`ItemEffects`); data porter `item_data.feeding`, `item_effects.evolution.requires_level`. Evolution items wait for evolution.
          3. [ ] The Digimon and Player screens (status, techniques, evolution chart, medals, cards).
          4. [ ] The script builtins with their menus, one at a time (shops, item bank, jukebox, Birdramon, training, tournaments, naming, save, ...).
          - Fishing (the menu's 7th icon) comes with fishing.

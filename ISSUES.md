@@ -8,7 +8,18 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Open
 
-None right now.
+### I-10. Feeding: the tamer takes the item out of the bag again and again
+- **Seen:** Use on an item: while the partner comes and takes it, the tamer keeps pulling the item out of the bag, over and over (reported 2026-10-25 with step 5e-2).
+- **Cause:** his "hold it out" animation (5) loops only its frames 10-11 in the model's data (`loop` start frame 10, end 11), so the original plays it once and holds the arm out. `PsxAnimator` approximated every loop by looping the whole animation, so it started over from frame 1.
+- **Status:** fixed (2026-10-25, to check in the game): `PsxAnimator` plays a partial loop once, then wraps inside the loop's segment; `tests/test_inventory.gd` checks the pose doesn't start over. Every entity's partial loops now play like the original (the partner's and the NPCs' too).
+
+### I-11. Feeding: stuck after the partner refuses an item
+- **Seen:** the partner refuses the item: the tamer stays with his hand in his bag, the game never resumes (reported 2026-10-25).
+- **Cause:** after a refusal the scene waits until the tamer's animation 4 (the bag) reaches its last frame (`animFrame >= frameCount`, `partner.c:523`). Animation 4 loops as a whole, and the port's "ended" test was only true for animations that stop; the port's frame also never showed a loop's last frame (it went 10 -> 1), so the wait never ended.
+- **Evidence:** `issues/evidence/dw_issue_refuse_item_lock_bug.mp4` (still stuck after the first fix).
+- **Second cause (found with the evidence):** the first fix made the animator report the last frame on the Godot frame where the loop wraps. The tests and traces ran at a fixed 20 fps (one Godot frame per game frame), where that works; in the game, at 60 fps and more, the next Godot frame overwrote it before the 20 Hz game tick looked, so the wait still never ended. Reproduced with a 60 fps trace.
+- **Status:** fixed again (2026-10-25, to check in the game): `PsxAnimator.passes` counts the passes through a loop's end and the scene's test (`Tamer.scene_animation_ended()`) reads it, so it holds whatever the frame rate; `tests/test_inventory.gd` now runs the refusal at 60 fps (3 model frames per game frame) and checks both end free with the item still in the bag.
+- **Follow-up:** other scene waits on a *looping* animation's last frame (`animator.frame >= frame_count` in the partner's scenes) can miss it the same way at high frame rates; they should read `passes` too (to review).
 
 ## Fixed
 

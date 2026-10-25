@@ -22,6 +22,8 @@ const TOILET_PAN_SPEED := 20
 ## PARTNER_STATE values ported so far (partnerTickOverworld, partner.c:218-258).
 const STATE_NORMAL := 1
 const STATE_SLEEP := 3
+## The menu's Use: the partner takes the tamer's item (partnerTickFeedItem, specs/inventory.md §2.8).
+const STATE_FEED := 5
 ## The menu's Scold and Praise (partnerTickPraiseScold, specs/game_menu.md §2.5).
 const STATE_SCOLD := 4
 const STATE_PRAISE := 15
@@ -45,6 +47,9 @@ var data: Node
 var script_ctx: ScriptContext
 ## playSound(0, n) of its scenes (the Sound node).
 var sound: Node
+## The item rules the feeding scene asks (specs/inventory.md §4).
+var item_use: ItemUse
+var _tamer_hand_reset := false
 ## PARTNER_STATE / PARTNER_SUB_STATE (partner_impl.c:221), not saved.
 var state := STATE_NORMAL
 var sub_state := 0
@@ -123,6 +128,8 @@ func tick() -> void:
 			tick_sleep()
 		STATE_SCOLD, STATE_PRAISE:
 			tick_praise_scold()
+		STATE_FEED:
+			tick_feed_item()
 		STATE_TOILET:
 			tick_toilet()
 		STATE_WILD_POOP:
@@ -254,6 +261,88 @@ func tick_praise_scold() -> void:
 				set_state(STATE_NORMAL)
 				tamer.set_state(Tamer.STATE_FREE)
 				tamer.camera_follow = true
+
+
+# --- partnerTickFeedItem (partner.c:425) ------------------------------------------------------
+
+## Use: it gets within its take distance (walking away first if too close), the tamer holds the
+## item out, it eats it or refuses it; eaten, the item's effect, one of it out of the bag and the
+## hunger rule. What the item does is ItemUse's.
+func tick_feed_item() -> void:
+	match sub_state:
+		0:
+			sub_state = 1 if check_eat_distance() else 2
+			start_animation(ANIM_WALK)
+			_set_direction(direction + 0x800)
+			tick_partner_waypoints()
+		1:
+			tamer.look_at_psx(int(position.x), int(-position.z))
+			if not check_eat_distance():
+				sub_state = 3
+		2:
+			tamer.look_at_psx(int(position.x), int(-position.z))
+			look_at_psx(int(tamer.position.x), int(-tamer.position.z))
+			if check_eat_distance():
+				sub_state = 3
+		3:
+			look_at_psx(int(tamer.position.x), int(-tamer.position.z))
+			tamer.play_scene_animation(5)
+			_play_sound(12)
+			start_animation(ANIM_IDLE)
+			tamer.show_held_item(true)
+			_tamer_hand_reset = false
+			sub_state = 4
+		4:
+			if tamer.scene_frame() > 7:
+				if item_use != null and item_use.will_refuse(tamer.held_item):
+					play_or_skip(13)
+					sub_state = 7
+				else:
+					play_or_skip(8)
+					sub_state = 5
+		5:
+			# The C tests frames 11 and 15 exactly; the port's animation may step over one, so from
+			# those frames on (once).
+			if animator.anim_id == 8 and animator.frame >= 11:
+				tamer.show_held_item(false)
+			if animator.frame >= 15 and not _tamer_hand_reset:
+				tamer.start_animation(0)
+				_tamer_hand_reset = true
+			if animator.frame >= animator.frame_count:
+				sub_state = 6
+		6:
+			if animator.frame >= animator.frame_count:
+				var item: String = tamer.held_item
+				set_state(STATE_NORMAL)
+				tamer.set_state(Tamer.STATE_FREE)
+				tamer.camera_follow = true
+				if item_use != null:
+					item_use.apply(item)
+					item_use.remove_one(item)
+				tamer.clear_held_item()
+				if item_use != null and item_use.handle_food_feed(item):
+					play_or_skip(ItemUse.ANIM_HAPPY)
+		7:
+			if animator.frame >= animator.frame_count:
+				tamer.show_held_item(false)
+				start_animation(ANIM_IDLE)
+				tamer.play_scene_animation(4)
+				sub_state = 8
+		8:
+			if tamer.scene_animation_ended():
+				tamer.set_state(Tamer.STATE_FREE)
+				set_state(STATE_NORMAL)
+				tamer.clear_held_item()
+				tamer.camera_follow = true
+
+
+## checkEatDistance (partner.c:1094): within ITEM_TAKE_DISTANCE * 200 / 10 + 160 of the tamer.
+func check_eat_distance() -> bool:
+	var distance := int(data.item_take_distance(digimon)) if data != null else 0
+	var target := distance * 200 / 10 + 160
+	var dx := int(tamer.position.x) - int(position.x)
+	var dz := int(-tamer.position.z) - int(-position.z)
+	return target * target >= dx * dx + dz * dz
 
 
 func _play_sound(value: int) -> void:

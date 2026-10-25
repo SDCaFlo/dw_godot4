@@ -56,7 +56,7 @@ func _ready() -> void:
 	_field.debug_window = false
 	_field.render_scale = 1
 	add_child(_field)
-	_field._interpreter.unported.connect(func(_op, what): _unported.append(what))
+	_field.scripts.interpreter.unported.connect(func(_op, what): _unported.append(what))
 	_next()
 
 
@@ -71,7 +71,7 @@ func _next() -> void:
 	_phase = 0
 	_visits = 0
 	_unported_before = _unported.size()
-	_field._debug_change_map(EXITS[_index][0], EXITS[_index][2].get("spawn", 0))
+	_field.map_session.debug_change_map(EXITS[_index][0], EXITS[_index][2].get("spawn", 0))
 	_start_frame = GameLoop.frame_count
 
 
@@ -81,19 +81,19 @@ func _process(_delta: float) -> void:
 	var map: String = EXITS[_index][0]
 	var section: int = EXITS[_index][1]
 	var setup: Dictionary = EXITS[_index][2]
-	var tamer: Tamer = _field._tamer
-	var ctx: ScriptContext = _field._script_ctx
+	var tamer: Tamer = _field.map_session.tamer
+	var ctx: ScriptContext = _field.scripts.script_ctx
 	var frames := GameLoop.frame_count - _start_frame
 	if frames > TIMEOUT:
 		_finish("%s 0x%X: stuck in phase %d on %s (fade in %d, warp at %d, script paused %s, tamer state %d, waiting 0x%02X at %d)" % [
-				map, section, _phase, _screen_file(), _field._fade.in_current, _warp_frame, ctx.is_paused, tamer.state, ctx.active_instruction, ctx.pointer], true)
+				map, section, _phase, _screen_file(), _field.care_host.fade.in_current, _warp_frame, ctx.is_paused, tamer.state, ctx.active_instruction, ctx.pointer], true)
 		return
 	match _phase:
 		0:
 			# The map's entry scene, if any, with its text boxes.
 			if frames % 4 == 0 and not ctx.is_paused:
 				GameLoop.press("pad_cross")
-			if _screen_file() != map or not ctx.is_paused or tamer.state != Tamer.STATE_FREE or _field._fade.in_current <= 0x13:
+			if _screen_file() != map or not ctx.is_paused or tamer.state != Tamer.STATE_FREE or _field.care_host.fade.in_current <= 0x13:
 				return
 			if _trigger_tile(section).x < 0:
 				_finish("%s 0x%X: no cell with trigger %d" % [map, section, section], true)
@@ -157,12 +157,12 @@ func _finish(line: String, failed: bool) -> void:
 	_failed = _failed or failed
 	if failed:
 		# Like tests/test_script.gd's _force_end: the next exit starts from a free tamer.
-		var ctx: ScriptContext = _field._script_ctx
+		var ctx: ScriptContext = _field.scripts.script_ctx
 		ctx.is_paused = true
 		ctx.map_change = 0
 		ctx.stack.clear()
-		_field._textboxes.close_all_textboxes()
-		_field._tamer.set_state(Tamer.STATE_FREE)
+		_field.scripts.textboxes.close_all_textboxes()
+		_field.map_session.tamer.set_state(Tamer.STATE_FREE)
 	_next()
 
 
@@ -172,13 +172,13 @@ func _new_unported() -> String:
 
 
 func _place_on(tile: Vector2i) -> void:
-	var tamer: Tamer = _field._tamer
+	var tamer: Tamer = _field.map_session.tamer
 	var at := FieldMap.tile_centre(tile)
 	tamer.position = Vector3(at.x, tamer.position.y, -at.y)
 
 
 func _trigger_tile(trigger: int) -> Vector2i:
-	var map: FieldMap = _field._field
+	var map: FieldMap = _field.map_session.field_map
 	for tz in FieldMap.GRID:
 		for tx in FieldMap.GRID:
 			if map._cell(tx, tz) == trigger:

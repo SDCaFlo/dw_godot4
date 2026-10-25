@@ -43,7 +43,7 @@ dw_godot_port/
 │   │   ├── core/             # GameLoop autoload (the original's 20 Hz game frames), Rng
 │   │   ├── systems/          # Ported game systems: Clock + ClockHud (specs/clock.md), Care (specs/care.md)
 │   │   ├── ui/               # Text and windows: the game's font, text area, UI boxes, message box (specs/text.md, docs/ui.md)
-│   │   └── field/            # FieldMap (background, camera, collision, warps), Tamer, field.gd
+│   │   └── field/            # FieldMap (background, camera, collision, warps), Tamer, field.gd (start and frame order), hosts/ (specs/scenes.md §4.2)
 │   ├── tests/                # Godot headless tests (test_game_state.gd, test_game_data.gd, test_content.gd, test_data_dock.gd)
 │   └── VERIFY.md             # Human checks of the ported game systems
 └── external-resources/       # Not tracked; reference material and dumped game files

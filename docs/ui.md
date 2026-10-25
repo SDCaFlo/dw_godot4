@@ -25,7 +25,7 @@ The buttons are `Pad.CONFIRM` (✕), `Pad.CANCEL` (△), `Pad.UP`, `Pad.DOWN`, `
 
 **Coordinates.** The screen is 320 × 240, and coordinates are relative to its centre (160, 120), as in the C: the message box's rect (−130, 42, 262, 59) is the strip near the bottom. Text-area coordinates (u, v, rows) are 0–255.
 
-**Frames.** Everything advances once per game frame (`GameLoop.frame`, 20 Hz), never per Godot frame.
+**Frames.** Everything advances once per game frame (20 Hz), never per Godot frame. The field's root calls every system in a fixed order (`Field._frame`, `specs/scenes.md` §3): a window's `tick` is called by its host from there, it doesn't connect to `GameLoop.frame` itself.
 
 ## The upscaling filter
 
@@ -50,7 +50,7 @@ box.open(Rect2i(-5, -5, 10, 10))                # grows from a 10 x 10 point (e.
 Close it on the confirm button, polled once per game frame:
 
 ```gdscript
-func tick() -> void:                            # connected to GameLoop.frame
+func tick() -> void:                            # called by its host in the field's frame order
 	if box.is_shown() and GameLoop.pad.is_key_down(Pad.CONFIRM):
 		box.close(Rect2i(-5, -5, 10, 10))
 ```

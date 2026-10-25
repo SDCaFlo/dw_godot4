@@ -10,9 +10,9 @@ extends Control
 ##   boxes.create_static(2, 1, 0, rect, my_tick, my_render)    # open at once
 ##   boxes.remove_animated(1, to_rect) / boxes.remove_static(2)
 ##
-## Each game frame (GameLoop.frame) runs the original's object pass: the tick of every open box
-## (tickUIBox), then its render step (renderUIBoxAnimated / renderUIBoxStatic). What that step
-## decided is drawn in _draw. Box i is on ordering-table layer 6 - i, so box 5 is in front.
+## Each game frame step() (called in the field's frame order, specs/scenes.md §3) runs the
+## original's object pass: the tick of every open box (tickUIBox), then its render step
+## (renderUIBoxAnimated / renderUIBoxStatic). What that step decided is drawn in _draw. Box i is on ordering-table layer 6 - i, so box 5 is in front.
 
 ## playSound(0, id): 0 when an animated box opens, 1 when its closing animation starts.
 signal sound(id: int)
@@ -111,9 +111,6 @@ func _ready() -> void:
 	_additive.material = PsxUiFilter.material("add")
 	_additive.draw.connect(_draw_additive)
 	add_child(_additive)
-	var loop := get_node_or_null("/root/GameLoop")
-	if loop != null:
-		loop.frame.connect(step)
 
 
 # --- ui.c ----------------------------------------------------------------------------------------

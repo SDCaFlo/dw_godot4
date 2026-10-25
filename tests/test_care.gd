@@ -461,13 +461,13 @@ func _visuals() -> void:
 	bars.clock = clock
 	clock.running = false
 	for i in 3:
-		bars._on_frame()
+		bars.tick()
 	_eq(bars.offset_x, 225, "bars slide out by 50 per frame while time is stopped")
-	bars._on_frame()
+	bars.tick()
 	_eq(bars.offset_x, StatusBars.OFFSET_HIDDEN, "up to 240")
 	clock.running = true
 	for i in 5:
-		bars._on_frame()
+		bars.tick()
 	_eq(bars.offset_x, StatusBars.OFFSET_SHOWN, "and back to 75")
 	bars.free()
 

@@ -87,6 +87,8 @@ Sections are added as systems are ported (`PLANS.md`).
 
 1. **Nothing changed in play:** the tamer, Agumon and the NPCs look, move and sound as before (the refactor steps are behaviour-neutral).
 2. **In the editor:** open `scenes/field/partner.tscn` and `npc.tscn`: both are inherited from `digimon.tscn` (Model, AnimationSounds, DropShadow); `tamer.tscn` has the same parts, and `field.tscn` shows the Tamer as an instance of it.
+3. **The field's hosts:** `field.tscn` has `Systems` (Entities, MapSession, ScriptHost, CareHost, ClockHost) and `Debug`. The editor preview still shows the start map, the tamer and the help line's map name; changing `start_map` or `time_of_day` in the Inspector updates it, and saving writes no map content into `field.tscn`.
+4. **In the game, nothing changed:** the clock slides in and runs, the bars, bubbles and fade work, map changes (walking and `[` `]`), NPC talks, the debug keys (T, Z, C, D, L, H, F1) and the debugger's map list and render scale behave as before.
 
 ## Drop shadows (`scripts/field/drop_shadow.gd`, `scenes/field/drop_shadow.tscn`, `specs/drop_shadow.md`)
 

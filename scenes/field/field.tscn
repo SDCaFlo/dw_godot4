@@ -3,6 +3,12 @@
 [ext_resource type="Script" uid="uid://dli5ots2bhx6w" path="res://scripts/field/field.gd" id="1_field"]
 [ext_resource type="Script" uid="uid://bdkuto3xl7ah" path="res://scripts/field/field_map.gd" id="2_map"]
 [ext_resource type="PackedScene" path="res://scenes/field/tamer.tscn" id="3_tamer"]
+[ext_resource type="Script" path="res://scripts/field/hosts/entity_host.gd" id="4_entities"]
+[ext_resource type="Script" path="res://scripts/field/hosts/map_session.gd" id="5_map_session"]
+[ext_resource type="Script" path="res://scripts/field/hosts/script_host.gd" id="6_script_host"]
+[ext_resource type="Script" path="res://scripts/field/hosts/care_host.gd" id="7_care_host"]
+[ext_resource type="Script" path="res://scripts/field/hosts/clock_host.gd" id="8_clock_host"]
+[ext_resource type="Script" path="res://scripts/field/hosts/debug_host.gd" id="9_debug"]
 
 [sub_resource type="Environment" id="Environment_bg"]
 background_mode = 3
@@ -53,3 +59,23 @@ offset_bottom = 30.0
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 8
+
+[node name="Systems" type="Node" parent="."]
+
+[node name="Entities" type="Node" parent="Systems"]
+script = ExtResource("4_entities")
+
+[node name="MapSession" type="Node" parent="Systems"]
+script = ExtResource("5_map_session")
+
+[node name="ScriptHost" type="Node" parent="Systems"]
+script = ExtResource("6_script_host")
+
+[node name="CareHost" type="Node" parent="Systems"]
+script = ExtResource("7_care_host")
+
+[node name="ClockHost" type="Node" parent="Systems"]
+script = ExtResource("8_clock_host")
+
+[node name="Debug" type="Node" parent="."]
+script = ExtResource("9_debug")

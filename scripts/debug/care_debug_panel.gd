@@ -64,15 +64,13 @@ func _ready() -> void:
 	for entry in [["happy", "happiness"], ["disc", "discipline"], ["tired", "tiredness"], ["energy", "energy_level"]]:
 		_button(values, "%s-" % entry[0], _add.bind(entry[1], -10))
 		_button(values, "%s+" % entry[0], _add.bind(entry[1], 10))
-	var loop := get_node_or_null("/root/GameLoop")
 	if game_loop == null:
-		game_loop = loop
-	if loop != null:
-		loop.frame.connect(_on_frame)
+		game_loop = get_node_or_null("/root/GameLoop")
 	_refresh()
 
 
-func _on_frame() -> void:
+## Once per game frame (the field's frame order).
+func tick() -> void:
 	_frames += 1
 	if visible and _frames % 5 == 0:
 		_refresh()

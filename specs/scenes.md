@@ -1,6 +1,6 @@
 # Scenes and composition (design note)
 
-Status (2026-10-24): design decided with the user. Step 2 done (§7): `scenes/field/digimon.tscn`, `partner.tscn` and `npc.tscn` (inherited), `tamer.tscn`, each with a `Model` slot and an `AnimationSounds` component (`scripts/field/animation_sounds_component.gd`); the field instances them; an entity made with `.new()` (the logic tests) creates its missing parts itself (`_part`). Step 3 done: the `DropShadow` component scene (`scenes/field/drop_shadow.tscn`, `specs/drop_shadow.md`) under `Digimon.tscn` and `Tamer.tscn`. The refactor plan is in `PLANS.md` ("Scene composition refactor": after 5b, before 5e).
+Status (2026-10-24): design decided with the user. Step 2 done (§7): `scenes/field/digimon.tscn`, `partner.tscn` and `npc.tscn` (inherited), `tamer.tscn`, each with a `Model` slot and an `AnimationSounds` component (`scripts/field/animation_sounds_component.gd`); the field instances them; an entity made with `.new()` (the logic tests) creates its missing parts itself (`_part`). Step 3 done: the `DropShadow` component scene (`scenes/field/drop_shadow.tscn`, `specs/drop_shadow.md`) under `Digimon.tscn` and `Tamer.tscn`. Step 4 done: `field.tscn` has the hosts of §4.2 (`scripts/field/hosts/`), `field.gd` keeps the start order, the wiring and the frame order (`Field._frame`, the one `GameLoop.frame` connection); no component connects to `GameLoop.frame` any more. The refactor plan is in `PLANS.md` ("Scene composition refactor": after 5b, before 5e).
 
 How the game's runtime parts are put together in Godot:
 - **Logic:** plain classes that reproduce the original's C code.
@@ -75,16 +75,17 @@ Field.tscn                   Field (script): starts the systems, owns the frame 
 │     ├─ Partner             Partner.tscn (its Digimon set from GameState)
 │     ├─ Npcs                Npc.tscn instances, spawned by FieldEntities
 │     ├─ MapItems, MapChests, PoopPiles
+├─ Hud                       CanvasLayer: the help line, ClockHud, StatusBars, ConditionBubbles, CareDebugPanel, UIBoxes, Fade, MapName (drawing order)
 ├─ Systems
-│  ├─ MapSession             map loading and changes, warps, exits, the map interaction checks
-│  ├─ ScriptHost             ScriptInterpreter, ScriptContext, TextBoxes, the map name
-│  ├─ CareHost               Care, the fade, the care visuals' hookup
-│  └─ ClockHost              Clock (with its music hookup)
-├─ Hud                       CanvasLayer: UIBoxes, ClockHud, StatusBars, ConditionBubbles, MapName, the help line
-└─ Debug                     the debug keys, DebugWindow, CareDebugPanel, ScriptDebug (left out of an export later)
+│  ├─ Entities               EntityHost: the partner and the NPC table (FieldEntities), the entity scenes, their sounds
+│  ├─ MapSession             map loading and changes, warps, exits, the map interaction checks, items and chests
+│  ├─ ScriptHost             TextArea, UIBoxes, ScriptContext, TextBoxes, ScriptInterpreter, the map name, NPC talks
+│  ├─ CareHost               Care, the fade, the bars, the bubbles, the poop piles, the menu's Sleep
+│  └─ ClockHost              Clock (with its music hookup), ClockHud, the map's daytime fade
+└─ Debug                     DebugHost: the help line's text, the debug keys, DebugWindow, CareDebugPanel, ScriptDebug (left out of an export later)
 ```
 
-The names are the plan, not final. A host is a node whose script holds today's `_start_*` code and the callbacks that belong to it. For example, `_check_map_interaction` and `_change_map` move to `MapSession`, and `_entity_screen_position` and `_talk_to` to `ScriptHost`. `Field` keeps only the start order, the frame order and the hand-over of references between hosts.
+As built (step 4, `scripts/field/hosts/`). A host is a node whose script holds the old `_start_*` code and the callbacks that belong to it (`check_map_interaction` and `change_map` in `MapSession`, `talk_to` and the speakers' screen positions in `ScriptHost`). A host creates its nodes; the 3D ones it adds to the world itself, the HUD ones the field adds in the drawing order. Hosts report up with signals (`message` to the help line, `map_loaded`, `npc_autotalk`); the field connects them and hands each host its references (`MapSession` gets `ScriptHost` and `CareHost`, which it calls during a map change). `Field` keeps only the start order, the frame order (`_frame`) and that hand-over. `MapSession` and `DebugHost` are tool scripts: the editor preview loads its map and help line through them.
 
 ### 4.3 Menus and later systems (5e on)
 
@@ -115,7 +116,7 @@ Each menu is a scene (`scenes/ui/<menu>.tscn`) on the existing UI pieces (`UIBox
 1. This note.
 2. **Entity scenes:** `Digimon.tscn` with the `Model` slot and `AnimationSounds`, `Partner.tscn` / `Npc.tscn` inherited, `Tamer.tscn`; `FieldEntities` and the field instantiate them; the tests load them. Behaviour-neutral.
 3. **`DropShadow`** as the first new component (`PLANS.md` "Drop shadows", `specs/drop_shadow.md`); the item shadows (`MapItems`) share its material. Done.
-4. **Split `field.gd`** into the hosts of §4.2, with the explicit frame order. Behaviour-neutral; one host per commit, the tests and the exit scan after each.
+4. **Split `field.gd`** into the hosts of §4.2, with the explicit frame order. Behaviour-neutral, the tests and the exit scan unchanged. Done (in one change: the hosts call each other during start and map changes, so they couldn't be moved one at a time).
 5. **5e's menus** as scenes from the start.
 
 ## 8. Open questions

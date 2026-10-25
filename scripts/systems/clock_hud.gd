@@ -36,13 +36,10 @@ func _ready() -> void:
 		var texture := Content.load_texture(TEXTURE % ("" if palette == 0 else ".p%d" % palette))
 		if texture != null:
 			_textures[palette] = texture
-	var loop := get_node_or_null("/root/GameLoop")
-	if loop != null:
-		loop.frame.connect(_on_frame)
 
 
-## The slide of renderGameClock, once per game frame.
-func _on_frame() -> void:
+## The slide of renderGameClock, once per game frame (the field's frame order).
+func tick() -> void:
 	if clock == null:
 		return
 	offset_x = clampi(offset_x + (SLIDE if clock.running else -SLIDE), OFFSET_HIDDEN, OFFSET_SHOWN)

@@ -2,7 +2,7 @@ class_name Clock
 extends Node
 ## The game clock (specs/clock.md): clock.c, the hour check of renderMap and the daily update.
 ## A node of the field scene, like the objects addClock() adds when play starts (clock.c:90).
-## Runs once per game frame (GameLoop.frame) on GameState.state.
+## tick() runs once per game frame (the field's frame order, specs/scenes.md §3) on GameState.state.
 
 ## The palette to show for the current hour (updateTimeOfDay, map.c:4301).
 signal time_of_day_changed(palette: int)
@@ -57,9 +57,6 @@ var map_has_time_of_day := true
 func _ready() -> void:
 	if game_state == null:
 		game_state = get_node_or_null("/root/GameState")
-	var loop := get_node_or_null("/root/GameLoop")
-	if loop != null:
-		loop.frame.connect(tick)
 
 
 ## One game frame: the clock and playtime objects, then the hour check of renderMap.

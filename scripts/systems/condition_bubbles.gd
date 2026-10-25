@@ -72,9 +72,6 @@ func _ready() -> void:
 	_additive.material = PsxUiFilter.material("add")
 	_additive.draw.connect(_draw_bubbles.bind(true))
 	add_child(_additive)
-	var loop := get_node_or_null("/root/GameLoop")
-	if loop != null:
-		loop.frame.connect(tick)
 
 
 ## handleConditionBubble's removeConditionBubble(CONDITION_BUBBLE_ID) + addConditionBubble(type).
@@ -98,7 +95,7 @@ func remove_current() -> void:
 	current = -1
 
 
-## tickConditionBubble (bubble.c:611), each bubble once per game frame.
+## tickConditionBubble (bubble.c:611), each bubble once per game frame (the field's frame order).
 func tick() -> void:
 	for i in SLOTS:
 		var b = bubbles[i]

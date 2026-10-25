@@ -58,6 +58,7 @@ var _maps: PackedStringArray
 @onready var scripts: ScriptHost = $Systems/ScriptHost
 @onready var care_host: CareHost = $Systems/CareHost
 @onready var clock_host: ClockHost = $Systems/ClockHost
+@onready var menu_host: MenuHost = $Systems/MenuHost
 @onready var debug: DebugHost = $Debug
 
 
@@ -130,6 +131,17 @@ func _start() -> void:
 	care_host.debug_partner = debug_partner
 	care_host.start()
 	care_host.message.connect(debug.show_message)
+	menu_host.tamer = _tamer
+	menu_host.partner = partner
+	menu_host.care = care_host.care
+	menu_host.clock = clock
+	menu_host.fade = care_host.fade
+	menu_host.boxes = scripts.boxes
+	menu_host.text_area = scripts.text_area
+	menu_host.script_ctx = scripts.script_ctx
+	menu_host.pad = GameLoop.pad
+	menu_host.start()
+	menu_host.message.connect(debug.show_message)
 	map_session.partner = partner
 	map_session.entities = entities.entities
 	map_session.scripts = scripts
@@ -153,6 +165,7 @@ func _start_debug() -> void:
 	debug.map_session = map_session
 	debug.scripts = scripts
 	debug.care_host = care_host
+	debug.menu_host = menu_host
 	debug.clock = clock_host.clock
 	debug.render_scale = render_scale
 	debug.ui_filter = ui_filter
@@ -168,14 +181,19 @@ func _start_debug() -> void:
 
 
 ## One game frame, in the original's object order (specs/scenes.md §3): the tamer and the partner
-## before the clock (specs/care.md §2.1), the NPCs after them; updateMapLightState and tickScript
+## before the clock (specs/care.md §2.1), the NPCs after them (both skipped while the △ menu is open:
+## IS_IN_MENU, specs/game_menu.md §2.6), the menu object; updateMapLightState and tickScript
 ## (specs/map_objects.md §2.4), the camera's pans after the script and the partner that start them
 ## (specs/camera.md §6), the overlay sprites where the map renders; the HUD; the UI boxes after
 ## everything that opens and closes them; the fade last.
 func _frame() -> void:
 	_tamer.tick()
-	entities.tick_partner()
-	entities.tick_npcs()
+	var in_menu := menu_host.is_open()
+	entities.freeze_npcs(in_menu)
+	if not in_menu:
+		entities.tick_partner()
+		entities.tick_npcs()
+	menu_host.tick()
 	clock_host.tick()
 	if scripts.interpreter != null:
 		map_session.update_map_light_state()
@@ -183,7 +201,7 @@ func _frame() -> void:
 		_field.tick_pan()
 		_field.overlays.tick()
 	debug.tick_message()
-	care_host.tick_visuals()
+	care_host.tick_visuals(in_menu)
 	debug.tick_panel()
 	scripts.step_boxes()
 	care_host.tick_fade()

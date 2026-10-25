@@ -84,28 +84,20 @@ func _start_visuals() -> void:
 	care.poop_changed.connect(poop.refresh)
 
 
-## The bars' slide, then the bubbles.
-func tick_visuals() -> void:
+## The bars' slide, then the bubbles; with the menu open (IS_IN_MENU, bubble.c:482, :619) the
+## bubbles are neither ticked nor drawn.
+func tick_visuals(in_menu := false) -> void:
 	if bars != null:
 		bars.tick()
-		bubbles.tick()
+		bubbles.visible = not in_menu
+		if not in_menu:
+			bubbles.tick()
 
 
 ## The fade, last in the frame.
 func tick_fade() -> void:
 	if fade != null:
 		fade.tick()
-
-
-## The menu's "Sleep" (handleGameMenuSelection case 6, game_menu.c:2178): only while it is enabled
-## (the partner is sleepy) and both are free. False when refused.
-func menu_sleep() -> bool:
-	if care == null or not care.sleep_enabled or partner.state != Partner.STATE_NORMAL \
-			or tamer.state != Tamer.STATE_FREE:
-		return false
-	partner.set_state(Partner.STATE_SLEEP)
-	clock.running = true
-	return true
 
 
 ## setButterfly removes the bubble first (handleConditionBubble, partner_impl.c:1590). The

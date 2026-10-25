@@ -5,6 +5,7 @@ The porters have their own checklists (`asset_porter/VERIFY.md`, `data_porter/VE
 ```
 godot --headless --path . -s res://tests/test_script.gd
 godot --headless --path . -s res://tests/test_npc.gd
+godot --headless --path . -s res://tests/test_game_menu.gd
 godot --headless --path . -s res://tests/test_camera.gd
 godot --headless --path . -s res://tests/test_map_objects.gd
 godot --headless --path . -s res://tests/test_lighting.gd
@@ -89,6 +90,17 @@ Sections are added as systems are ported (`PLANS.md`).
 2. **In the editor:** open `scenes/field/partner.tscn` and `npc.tscn`: both are inherited from `digimon.tscn` (Model, AnimationSounds, DropShadow); `tamer.tscn` has the same parts, and `field.tscn` shows the Tamer as an instance of it.
 3. **The field's hosts:** `field.tscn` has `Systems` (Entities, MapSession, ScriptHost, CareHost, ClockHost) and `Debug`. The editor preview still shows the start map, the tamer and the help line's map name; changing `start_map` or `time_of_day` in the Inspector updates it, and saving writes no map content into `field.tscn`.
 4. **In the game, nothing changed:** the clock slides in and runs, the bars, bubbles and fade work, map changes (walking and `[` `]`), NPC talks, the debug keys (T, Z, C, D, L, H, F1) and the debugger's map list and render scale behave as before.
+
+## The △ menu (`scripts/ui/game_menu.gd`, `scenes/ui/game_menu.tscn`, `scripts/field/hosts/menu_host.gd`; `specs/game_menu.md`)
+
+`test_game_menu.gd` prints `OK: game menu checks`. In the game (F5), on the start map:
+1. **Opening:** △ (Esc, or the pad's Y) while walking. The tamer stops, the box grows out of him, the clock and the bars slide away. It shows "Year 1  Day 1" (the date + 1) over a blue line, and two rows of icons: ITEM, DIGIMON, PLAYER / PRAISE, SCOLD, SLEEP. Agumon stands still, NPCs freeze, condition bubbles vanish.
+2. **Cursor:** a yellow frame around the selected icon, which blinks. Arrows move it with a click; up / down jump between rows, left / right wrap around the six.
+3. **Sleep:** dimmed unless Agumon is sleepy (from 19:00, `T` to get there): ✕ on it gives the refusal sound; when sleepy, ✕ closes the menu and the sleep scene plays (with its sound now).
+4. **Praise / Scold:** ✕ closes the menu, Agumon walks up, the tamer pats it (a short pat: Agumon is a Rookie) or scolds it (his own sound), Agumon reacts, then both are free. The care panel (`C`) shows discipline / happiness change: praise -5 / up, scold +2 / -10.
+5. **Item / Digimon / Player:** the click, and the help line says the screen isn't ported yet; the menu stays open.
+6. **△ again** closes it with the refusal sound; time runs again.
+7. **Compare with the game:** the icons and labels (the PRAISE label looked odd in a capture: check it), how dark the disabled Sleep icon is, the blink speed, and the praise / scold sounds. `Z` and the care panel's Sleep still work, through the menu's Sleep.
 
 ## Drop shadows (`scripts/field/drop_shadow.gd`, `scenes/field/drop_shadow.tscn`, `specs/drop_shadow.md`)
 

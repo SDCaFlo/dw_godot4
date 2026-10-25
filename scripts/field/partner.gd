@@ -22,6 +22,9 @@ const TOILET_PAN_SPEED := 20
 ## PARTNER_STATE values ported so far (partnerTickOverworld, partner.c:218-258).
 const STATE_NORMAL := 1
 const STATE_SLEEP := 3
+## The menu's Scold and Praise (partnerTickPraiseScold, specs/game_menu.md §2.5).
+const STATE_SCOLD := 4
+const STATE_PRAISE := 15
 ## The toilet scene, started by CALL_DIGIMON_ROUTINE 0 (specs/care.md §2.16).
 const STATE_TOILET := 6
 const STATE_WILD_POOP := 7
@@ -40,6 +43,8 @@ var fade: Fade
 ## (ScriptContext.sync_bit, SOME_SCRIPT_SYNC_BIT).
 var data: Node
 var script_ctx: ScriptContext
+## playSound(0, n) of its scenes (the Sound node).
+var sound: Node
 ## PARTNER_STATE / PARTNER_SUB_STATE (partner_impl.c:221), not saved.
 var state := STATE_NORMAL
 var sub_state := 0
@@ -116,6 +121,8 @@ func tick() -> void:
 			tick_normal()
 		STATE_SLEEP:
 			tick_sleep()
+		STATE_SCOLD, STATE_PRAISE:
+			tick_praise_scold()
 		STATE_TOILET:
 			tick_toilet()
 		STATE_WILD_POOP:
@@ -170,17 +177,17 @@ func tick_sleep() -> void:
 			tamer.look_at_psx(int(position.x), int(-position.z))
 			look_at_psx(int(tamer.position.x), int(-tamer.position.z))
 			if closeness() == 2:
-				# playSound(0, 15): later with audio.
+				_play_sound(15)
 				tamer.play_scene_animation(8)
 				start_animation(ANIM_IDLE)
 				sub_state = 2
 		2:
 			if tamer.scene_animation_done():
-				_play_or_skip(11)
+				play_or_skip(11)
 				sub_state = 3
 		3:
 			if animator.frame >= animator.frame_count:
-				_play_or_skip(9)
+				play_or_skip(9)
 				sub_state = 4
 		4:
 			if animator.frame >= animator.frame_count - 5:
@@ -208,6 +215,50 @@ func tick_sleep() -> void:
 				# handleSpecialEvolutions(2): the evolution step.
 				if clock != null:
 					clock.running = true
+
+
+# --- partnerTickPraiseScold (partner.c:368) ---------------------------------------------------
+
+## The menu's Praise (state 15) and Scold (4): it walks up to the tamer; close to him the praise's
+## sound and the tamer's pat (state 13) or his scold (state 9); when his animation is over,
+## handlePraiseScold; when its own answer ends, both are free. handleSpecialEvolutions(3) comes with
+## evolution.
+func tick_praise_scold() -> void:
+	match sub_state:
+		0:
+			tamer.camera_follow = false
+			tick_partner_waypoints()
+			if closeness() != 2:
+				start_animation(ANIM_WALK)
+			sub_state = 1
+		1:
+			tamer.look_at_psx(int(position.x), int(-position.z))
+			look_at_psx(int(tamer.position.x), int(-tamer.position.z))
+			if closeness() == 2:
+				start_animation(ANIM_IDLE)
+				if state == STATE_PRAISE:
+					_play_sound(14)
+					tamer.set_state(Tamer.STATE_PRAISE)
+				else:
+					tamer.set_state(Tamer.STATE_SCOLD)
+				sub_state = 2
+		2:
+			if tamer.animation_id() == 0:
+				if care != null:
+					care.handle_praise_scold(state)
+				sub_state = 3
+		3:
+			if animator.loop_count == PsxAnimator.ENDLESS:
+				animator.finish_loop()
+			if animator.frame >= animator.frame_count:
+				set_state(STATE_NORMAL)
+				tamer.set_state(Tamer.STATE_FREE)
+				tamer.camera_follow = true
+
+
+func _play_sound(value: int) -> void:
+	if sound != null:
+		sound.play_sound(0, value)
 
 
 # --- tickPartnerToilet (partner.c:536) --------------------------------------------------------
@@ -238,7 +289,7 @@ func tick_toilet() -> void:
 		2:
 			tamer.look_at_psx(int(position.x), int(-position.z))
 			if ScriptInterpreter.tick_entity_walk_to(self, toilet_pos2.x, toilet_pos2.y):
-				_play_or_skip(ANIM_TOILET)
+				play_or_skip(ANIM_TOILET)
 				sub_state = 3
 		3:
 			if animator.frame >= animator.frame_count:
@@ -275,7 +326,7 @@ func tick_idle() -> void:
 
 ## startAnimation of a scene animation; one the model lacks counts as played, so the scene goes
 ## on (the original would wait on the previous animation forever).
-func _play_or_skip(id: int) -> void:
+func play_or_skip(id: int) -> void:
 	if not animator.play(id):
 		animator.frame = animator.frame_count
 
@@ -293,14 +344,14 @@ func tick_wild_poop() -> void:
 		1:
 			look_at_psx(int(tamer.position.x), int(-tamer.position.z))
 			if closeness() > 0:
-				_play_or_skip(10)
+				play_or_skip(10)
 				sub_state = 2
 		2:
 			if animator.frame >= animator.frame_count:
 				if care != null:
 					care.create_poop_pile(tile(), direction)
 					care.handle_wild_poop()
-				_play_or_skip(12)
+				play_or_skip(12)
 				sub_state = 3
 		3:
 			if animator.frame >= animator.frame_count:

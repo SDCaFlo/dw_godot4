@@ -14,6 +14,11 @@ const ANIM_WALK := "anim_03"
 ## tamerGetState values ported so far: 0 walks freely, 6 stands still while a scene plays, 20 shows
 ## the award / sickness message box (tamerTickAwardSomething).
 const STATE_FREE := 0
+## The △ menu was opened (tamer.c:529): state 6 on his next tick.
+const STATE_MENU := 1
+## The menu's Scold and Praise (tamerTickPraiseScold, specs/game_menu.md §2.5).
+const STATE_SCOLD := 9
+const STATE_PRAISE := 13
 ## A warp cell's map change (tamerTickChangeMap).
 const STATE_CHANGE_MAP := 5
 const STATE_STILL := 6
@@ -25,6 +30,13 @@ const STATE_PICKUP := 7
 const STATE_CHEST := 14
 ## startAnimation(tamer, 0xC): the pick-up animation.
 const ANIM_PICKUP := 0xC
+## tamerTickPraiseScold: the scold, the low and high pats; the partner's answers.
+const ANIM_SCOLD := 7
+const ANIM_PAT_LOW := 0x26
+const ANIM_PAT_HIGH := 0x27
+const PARTNER_PRAISED := 0x0B
+const PARTNER_SCOLDED := 0x0C
+const PARTNER_SCOLDED_AFTER_ITEM := 0x19
 ## ITEM_PICKUP_TEXT_AREA / TAKE_CHEST_TEXT_AREA (tamer.c:35, :42): the rows the boxes' text uses.
 const PICKUP_TEXT_AREA := Rect2i(0, 12, 256, 200)
 ## The texts (text/main/tamer.yaml): found, the bag is full, the chest is empty.
@@ -83,6 +95,13 @@ var target_exit := 0
 var change_map := Callable()
 var show_map_name := Callable()
 var map_interaction := Callable()
+## △ in the walking state: func() -> bool, opens the △ menu if it can (the menu host checks the
+## script, the fade protection and box 0; specs/game_menu.md §2.1).
+var open_menu := Callable()
+## STORED_TAMER_POS: where he stood when the menu opened (the inventory reads it).
+var stored_position := Vector3.ZERO
+## The care rules (ITEM_SCOLD_FLAG picks the partner's scolded animation).
+var care: Care
 ## For the pickup and the chests (specs/map_items.md): the items on the ground, the chests, the
 ## pickup / chest box (box 1, no arrow), the GameState and GameData nodes, the sound.
 var map_items: MapItems
@@ -210,12 +229,19 @@ func set_state(value: int) -> void:
 func tick() -> void:
 	match state:
 		STATE_FREE:
-			# tamerTickWalkingState (tamer.c:586): checkItemPickup, then checkMapInteraction.
-			check_item_pickup()
-			if map_interaction.is_valid():
-				map_interaction.call()
-			else:
-				step_blocked = false
+			if not _check_open_menu():
+				# tamerTickWalkingState (tamer.c:586): checkItemPickup, then checkMapInteraction.
+				check_item_pickup()
+				if map_interaction.is_valid():
+					map_interaction.call()
+				else:
+					step_blocked = false
+		STATE_MENU:
+			set_state(STATE_STILL)
+		STATE_STILL:
+			tick_idle()
+		STATE_SCOLD, STATE_PRAISE:
+			tick_praise_scold()
 		STATE_CHANGE_MAP:
 			tick_change_map()
 		STATE_AWARD:
@@ -227,6 +253,49 @@ func tick() -> void:
 	if state != STATE_FREE:
 		step_blocked = false
 	step = 0.0
+
+
+## tamerTickWalkingState's △ (tamer.c:515): the menu opens, he stands (state 1, animation 0), the
+## camera stops following him and his position is kept.
+func _check_open_menu() -> bool:
+	if pad == null or not pad.is_key_down(Pad.TRIANGLE) or not open_menu.is_valid() or not open_menu.call():
+		return false
+	set_state(STATE_MENU)
+	_scene_playing = false
+	camera_follow = false
+	stored_position = position
+	return true
+
+
+## tamerTickIdle (tamer.c:1602): animation 0 once.
+func tick_idle() -> void:
+	if sub_state == 0:
+		_scene_playing = false
+		sub_state = 1
+
+
+## tamerTickPraiseScold (tamer.c:1625): his pat (low or high by the partner's raise_data
+## praise_pat_low) or the scold with its sound, the partner's answer; idle when his animation ends.
+func tick_praise_scold() -> void:
+	match sub_state:
+		0:
+			if state == STATE_PRAISE:
+				var low := true
+				if data != null and partner != null:
+					low = bool(data.raise_data(partner.digimon).get("praise_pat_low", true))
+				play_scene_animation(ANIM_PAT_LOW if low else ANIM_PAT_HIGH)
+				if partner != null:
+					partner.play_or_skip(PARTNER_PRAISED)
+			else:
+				_play_sound(0xD)
+				play_scene_animation(ANIM_SCOLD)
+				if partner != null:
+					var after_item := care != null and care.item_scold_flag == 1
+					partner.play_or_skip(PARTNER_SCOLDED_AFTER_ITEM if after_item else PARTNER_SCOLDED)
+			sub_state = 1
+		1:
+			if scene_animation_done():
+				set_state(STATE_STILL)
 
 
 ## tamerTickChangeMap (tamer.c:1367): fade out running (animation 2), the map name at frame 10,

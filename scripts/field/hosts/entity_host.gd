@@ -34,6 +34,7 @@ func start_partner() -> void:
 	partner.field = field_map
 	partner.tamer = tamer
 	partner.game_state = GameState
+	partner.sound = Sound
 	if debug_partner != "":
 		GameState.state["partner"]["digimon"] = debug_partner
 	if not partner.load_digimon(GameData, GameState.state["partner"]["digimon"]):
@@ -81,6 +82,15 @@ func play_sound(slot: int, value: int) -> void:
 func tick_partner() -> void:
 	if partner != null:
 		partner.tick()
+
+
+## IS_IN_MENU for the NPCs: their tick returns before even their animation (overworld.c:1232).
+func freeze_npcs(frozen: bool) -> void:
+	if entities == null:
+		return
+	for npc in entities.npcs:
+		if npc != null:
+			npc.frozen = frozen
 
 
 ## The NPC objects, in slot order.

@@ -398,7 +398,7 @@ Started by stepping on a toilet cell (120) while the partner is poopy. The cell 
 
 | Original | Stand-in | Real version |
 |---|---|---|
-| menu "Sleep" (enabled while sleepy) | debug key `Z` (later also the panel), refused unless `Care.sleep_enabled` and both are free | menus milestone |
+| menu "Sleep" (enabled while sleepy) | the △ menu (`specs/game_menu.md`); the debug key `Z` and the panel run its option 6 (`MenuHost.menu_sleep`), refused unless `Care.sleep_enabled` and both are free | done (5e-1) |
 | save prompt after sleeping (sub-state 5) | skipped | menus |
 | fade to black / in | `Fade`: `fade.c`'s counters exactly (`out_current`, `in_current`, `progress`, `protection`, stops game time); drawn as the original's colour subtraction (`renderFade`, mode 2): grey `min(progress / 128, 1)` subtracted, so black from progress 128 (the texel assumed white; 128 is a tint of 1.0) | kept, reused by warps later |
 | "<name> is sick" text box (tamer state 0x14) | done (2026-10-23): `Care._show_sick_message` draws the text into the text area and sets the tamer's state 20; `Tamer.tick_award_something` shows it in the message box (`specs/text.md` §2.5) | — |

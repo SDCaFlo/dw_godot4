@@ -25,6 +25,7 @@ MAIN_C = "src/main/main.c"
 PARTNER_C = "src/main/partner_impl.c"
 MODEL_C = "src/main/model.c"
 SOUND_C = "src/main/sound.c"
+TAMER_C = "src/main/tamer.c"
 HEADERS = ["include/dw/params.h", "include/dw/partner.h"]
 NAMES_FILE = "text/main/main.yaml"
 ITEMS_FILE = "text/main/item.yaml"
@@ -64,6 +65,9 @@ POOP_EATERS = ({0xB, 0x27}, "if ((PARTNER_ENTITY.digimonEntity.entity.type != 0x
                             "(PARTNER_ENTITY.digimonEntity.entity.type != 0x27)) { return; }")
 # createPoopPile: pooping raises the virus bar, except for this one
 NO_VIRUS_BAR = ({0x27}, "if (PARTNER_ENTITY.digimonEntity.entity.type != 0x27) PARTNER_PARA.virusBar++;")
+# tamerTickPraiseScold (tamer.c:1625): the low pat (animation 0x26) below Champion and for these small Ultimates
+PRAISE_PAT_LOW = ({0xD, 0x1B, 0x38}, 4, "if ((DIGIMON_DATA[type].level < 4) || (type == 0xd) || (type == 0x1b) || "
+                                        "(type == 0x38)) { startAnimation(&TAMER_ENTITY.entity, 0x26);")
 
 
 def _collapsed(text: str) -> str:
@@ -153,7 +157,7 @@ def convert(input_root, output_root) -> GroupWriter:
         return out
     index = CIndex(decomp)
     sources = [SourceText(decomp.root, p).identity() for p in
-               [MAIN_C, PARTNER_C, MODEL_C, SOUND_C] + HEADERS + [NAMES_FILE, ITEMS_FILE]]
+               [MAIN_C, PARTNER_C, MODEL_C, SOUND_C, TAMER_C] + HEADERS + [NAMES_FILE, ITEMS_FILE]]
 
     _fields_check(out, index, MAIN_C, "DigimonPara", DIGIMON_FIELDS,
                   lambda r: DIGIMON_FIELDS[1:] if r == "eu" else DIGIMON_FIELDS)
@@ -330,6 +334,9 @@ def convert(input_root, output_root) -> GroupWriter:
     missing = [needle for needle in rules if _collapsed(needle) not in partner_c]
     out.check("the care rules on literal Digimon ids are still in partner_impl.c", not missing,
               "; ".join(missing) or f"{len(rules)} rules")
+    tamer_c = _collapsed((decomp.root / TAMER_C).read_text(encoding="utf-8", errors="replace"))
+    out.check("the praise's low-pat rule is still in tamer.c", _collapsed(PRAISE_PAT_LOW[2]) in tamer_c,
+              PRAISE_PAT_LOW[2])
     first = {}
     for type_id, anim, move, _ in FIRST_TECHNIQUE:
         slot = anim - MOVE_ANIM_BASE
@@ -342,6 +349,8 @@ def convert(input_root, output_root) -> GroupWriter:
         r["first_technique"] = first.get(r["id"])
         r["eats_poop"] = r["id"] in POOP_EATERS[0]
         r["raises_virus_bar"] = r["id"] not in NO_VIRUS_BAR[0]
+        r["praise_pat_low"] = (data[REFERENCE].value[r["id"]]["level"] < PRAISE_PAT_LOW[1]
+                               or r["id"] in PRAISE_PAT_LOW[0])
 
     raise_struct = index.program(PARTNER_C, REFERENCE).structs["RaiseData"]
     out.write_table("raise_data", {
@@ -387,6 +396,10 @@ def convert(input_root, output_root) -> GroupWriter:
                           "meaning": "walks to a poop pile near the tamer and eats it"},
             "raises_virus_bar": {"derived": "createPoopPile (partner_impl.c:1319): type != 0x27",
                                  "meaning": "each poop pile adds 1 to the virus bar (16 = Sukamon)"},
+            "praise_pat_low": {"derived": "tamerTickPraiseScold (tamer.c:1625): level < 4 (Champion) or type 0xd, "
+                                          "0x1b, 0x38",
+                               "meaning": "the tamer praises it with the low pat (animation 0x26), else the high one "
+                                          "(0x27) (../specs/game_menu.md §2.5)"},
             "c": {"meaning": "the record as the C initializer gives it"},
             "_struct": {"c_type": "RaiseData", "fields": describe_type(raise_struct)},
         },

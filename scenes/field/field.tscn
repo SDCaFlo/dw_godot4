@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://scripts/field/hosts/care_host.gd" id="7_care_host"]
 [ext_resource type="Script" path="res://scripts/field/hosts/clock_host.gd" id="8_clock_host"]
 [ext_resource type="Script" path="res://scripts/field/hosts/debug_host.gd" id="9_debug"]
+[ext_resource type="Script" path="res://scripts/field/hosts/menu_host.gd" id="10_menu_host"]
 
 [sub_resource type="Environment" id="Environment_bg"]
 background_mode = 3
@@ -76,6 +77,9 @@ script = ExtResource("7_care_host")
 
 [node name="ClockHost" type="Node" parent="Systems"]
 script = ExtResource("8_clock_host")
+
+[node name="MenuHost" type="Node" parent="Systems"]
+script = ExtResource("10_menu_host")
 
 [node name="Debug" type="Node" parent="."]
 script = ExtResource("9_debug")

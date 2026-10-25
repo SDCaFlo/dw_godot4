@@ -49,6 +49,11 @@ class RealDataTests(unittest.TestCase):
         self.assertIsNone(rows[1]["first_technique"])
         self.assertEqual([r["id"] for r in rows if r["eats_poop"]], [0xB, 0x27])
         self.assertEqual([r["id"] for r in rows if not r["raises_virus_bar"]], [0x27])
+        # the praise's low pat: below Champion, and Mamemon, MetalMamemon, Digitamamon
+        low = [r["id"] for r in rows if r["praise_pat_low"]]
+        self.assertIn(3, low)                          # Agumon, Rookie
+        self.assertNotIn(5, low)                       # Greymon, Champion
+        self.assertTrue({0xD, 0x1B, 0x38} <= set(low))
         self.assertEqual(self.load("file_names")["records"][3]["mmd"], "CHDAT/MMD0/AGUM.MMD")
 
     def test_release_differences_and_placeholders(self):

@@ -12,6 +12,12 @@ None right now.
 
 ## Fixed
 
+### I-9. NPCs walk off through walls while the △ menu is open
+- **Seen:** open the △ menu while an NPC is walking: it keeps walking in its direction, through the map's walls, without end (Native Forest, day; reported 2026-10-25 with step 5e-1).
+- **Evidence:** `issues/evidence/dw_issue_npc_walking_out_while_in_menu.mp4`.
+- **Cause:** while the menu is open (`IS_IN_MENU`) the field skipped the NPCs' game-frame tick, which does their collision and turning, but their animation and its root motion run every Godot frame (`FieldDigimon._process`), so the walk kept moving them. In the original `NPCEntityTickOverworld` returns before its `tickAnimation` too (`overworld.c:1232`, `:1353`): the NPCs stand frozen, animation included.
+- **Status:** fixed (2026-10-25; checked in the game: "the npc is solved"): the field freezes the NPCs while the menu is open (`FieldDigimon.frozen`, `EntityHost.freeze_npcs`); `tests/test_game_menu.gd` checks a walking NPC stays put and moves again after.
+
 ### I-8. On the snow maps the tamer is drawn over the scenery in front of him (Freezeland)
 - **Seen:** the tamer and the partner stand on top of things that should hide them: the boulder on FRZL13 and the ice crystals on FRZL12 (Freezeland, day). In the original they walk behind them.
 - **Evidence:** `issues/evidence/dw_issue_freezeland_player_on_top_of_BOULDER.png` (FRZL13), `issues/evidence/dw_issue_freezeland_player_on_top_of_ice.png` (FRZL12).

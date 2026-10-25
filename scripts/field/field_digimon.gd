@@ -42,6 +42,9 @@ var sound_slot := -1
 var on_screen := true
 ## isOnMap: 0 once a script unloaded it.
 var on_map := true
+## The whole object stands still, its animation too (an NPC while the △ menu is open:
+## NPCEntityTickOverworld returns before its tickAnimation, overworld.c:1232, :1353).
+var frozen := false
 ## Ground distance the root motion moved during the last game frame: the step entityMoveForward
 ## probes with (the animation's forward momentum; 0 while idling).
 var step := 0.0
@@ -87,7 +90,7 @@ func load_digimon(data: Node, ref: Variant) -> bool:
 
 
 func _process(delta: float) -> void:
-	if animator == null or field == null:
+	if animator == null or field == null or frozen:
 		return
 	var motion := _skeleton.global_basis * animator.advance(delta)
 	sounds.update(animator.player)

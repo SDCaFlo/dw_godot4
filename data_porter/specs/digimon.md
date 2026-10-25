@@ -109,6 +109,7 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
     | `first_technique {slot, anim, move}` | `initializePartner` (`:499–506`): `if (type == 3) { …moves[0] = 0x2e; learnMove(2); }`, the same for `0x11` with `0x30` / `0x2b` | Agumon slot 0 Spit Fire, Gabumon slot 2 Sonic Jab (0x2B); null for the others |
     | `eats_poop` | `tickPoopDetection` (`:1697`): returns unless type is `0xb` or `0x27` | Numemon, Sukamon |
     | `raises_virus_bar` | `createPoopPile` (`:1319`): `if (type != 0x27) virusBar++` | false for Sukamon only |
+    | `praise_pat_low` | `tamerTickPraiseScold` (`tamer.c:1625`): `if ((DIGIMON_DATA[type].level < 4) \|\| (type == 0xd) \|\| (type == 0x1b) \|\| (type == 0x38))` → animation 0x26, else 0x27 | true below Champion and for Mamemon, MetalMamemon, Digitamamon (`../specs/game_menu.md` §2.5) |
 
     `slot` is the technique slot the starter has equipped (battle animation `anim` = 0x2e + slot). A second check confirms that slot holds the technique the starter learns.
 - `item_take_distance`: `index` (C index), `digimon {id = index + 1, name}`, `distance`.

@@ -18,6 +18,7 @@ var maps: PackedStringArray
 var map_session: MapSession
 var scripts: ScriptHost
 var care_host: CareHost
+var menu_host: MenuHost
 var clock: Clock
 ## The debugger window's settings at start (the field's exports).
 var render_scale := 4
@@ -90,9 +91,9 @@ func tick_panel() -> void:
 		panel.tick()
 
 
-## The menu's "Sleep" (debug key until the menus exist).
+## The △ menu's "Sleep" without opening it (debug key Z, the care panel).
 func menu_sleep() -> void:
-	if care_host == null or not care_host.menu_sleep():
+	if menu_host == null or not menu_host.menu_sleep():
 		show_message("Sleep: only while the partner is sleepy")
 
 

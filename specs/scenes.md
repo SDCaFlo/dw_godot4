@@ -1,6 +1,6 @@
 # Scenes and composition (design note)
 
-Status (2026-10-24): design decided with the user. Step 2 done (§7): `scenes/field/digimon.tscn`, `partner.tscn` and `npc.tscn` (inherited), `tamer.tscn`, each with a `Model` slot and an `AnimationSounds` component (`scripts/field/animation_sounds_component.gd`); the field instances them; an entity made with `.new()` (the logic tests) creates its missing parts itself (`_part`). The refactor plan is in `PLANS.md` ("Scene composition refactor": after 5b, before 5e).
+Status (2026-10-24): design decided with the user. Step 2 done (§7): `scenes/field/digimon.tscn`, `partner.tscn` and `npc.tscn` (inherited), `tamer.tscn`, each with a `Model` slot and an `AnimationSounds` component (`scripts/field/animation_sounds_component.gd`); the field instances them; an entity made with `.new()` (the logic tests) creates its missing parts itself (`_part`). Step 3 done: the `DropShadow` component scene (`scenes/field/drop_shadow.tscn`, `specs/drop_shadow.md`) under `Digimon.tscn` and `Tamer.tscn`. The refactor plan is in `PLANS.md` ("Scene composition refactor": after 5b, before 5e).
 
 How the game's runtime parts are put together in Godot:
 - **Logic:** plain classes that reproduce the original's C code.
@@ -114,7 +114,7 @@ Each menu is a scene (`scenes/ui/<menu>.tscn`) on the existing UI pieces (`UIBox
 
 1. This note.
 2. **Entity scenes:** `Digimon.tscn` with the `Model` slot and `AnimationSounds`, `Partner.tscn` / `Npc.tscn` inherited, `Tamer.tscn`; `FieldEntities` and the field instantiate them; the tests load them. Behaviour-neutral.
-3. **`DropShadow`** as the first new component (`PLANS.md` "Drop shadows"); it shares the item shadow's material (`MapItems`).
+3. **`DropShadow`** as the first new component (`PLANS.md` "Drop shadows", `specs/drop_shadow.md`); the item shadows (`MapItems`) share its material. Done.
 4. **Split `field.gd`** into the hosts of §4.2, with the explicit frame order. Behaviour-neutral; one host per commit, the tests and the exit scan after each.
 5. **5e's menus** as scenes from the start.
 

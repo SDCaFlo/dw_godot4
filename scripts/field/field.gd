@@ -92,6 +92,10 @@ func _ready() -> void:
 	if _maps.is_empty():
 		_label.text = "No maps in %s.\nRun: python -m dwporter convert maps mmd_files" % Content.path("maps")
 		return
+	# Debug: DW_START_HOUR=22 starts at that hour (render checks of the night, --write-movie).
+	var env_hour := OS.get_environment("DW_START_HOUR")
+	if env_hour.is_valid_int():
+		GameState.state["clock"]["hour"] = clampi(int(env_hour), 0, 23)
 	# The tamer (entity 0) and the partner tick before the clock, as in the original's object list
 	# (specs/care.md §2.1).
 	GameLoop.frame.connect(_tamer.tick)

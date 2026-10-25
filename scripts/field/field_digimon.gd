@@ -81,6 +81,7 @@ func load_digimon(data: Node, ref: Variant) -> bool:
 	sounds.set_model(gltf)
 	if not sounds.sound.is_connected(_on_animation_sound):
 		sounds.sound.connect(_on_animation_sound)
+	_part("DropShadow", func(): return DropShadow.new())
 	start_animation(0)
 	return true
 

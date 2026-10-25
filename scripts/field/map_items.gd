@@ -5,7 +5,8 @@ extends Node3D
 ##
 ## Each item is its ITEM.TIM icon facing the camera at the tile's centre (renderOverworldItem,
 ## item.c:2478): a 128-unit square at its depth, so the models sort against it by depth as on the
-## PSX. Under it a 200 x 200 subtractive shadow on the ground (renderDroppedItemShadow).
+## PSX. Under it a 200 x 200 subtractive shadow on the ground (renderDroppedItemShadow), with the
+## entities' shadow material (DropShadow).
 
 ## DROPPED_ITEMS' slots.
 const SLOTS := 11
@@ -14,11 +15,6 @@ const ICON_SIZE := 128.0
 ## renderOverworldItem: from 0x20 pixels wide the UV is 15 x 15 (the icon's last row and column go).
 const NEAR_WIDTH := 0x20
 const SHADOW_SIZE := 200.0
-## The shadow's texture: ETCDAT/SPOT256.TIM, the 63 x 63 cell at (64, 0) (UV (0x40, 0x80) of page
-## (832, 256), palette row 0x1E7); colour 0x30 of 0x80, subtracted.
-const SHADOW_TEXTURE := "tim_files/ETCDAT/SPOT256.png"
-const SHADOW_CELL := Rect2(64, 0, 63, 63)
-const SHADOW_COLOR := 0x30 / 128.0
 const ICONS := "tim_files/ETCDAT/ITEM%s.png"
 
 const _ICON_SHADER := """shader_type spatial;
@@ -33,24 +29,6 @@ void fragment() {
 	ALBEDO = c.rgb;
 }
 """
-## The PSX subtracts in its own (gamma) colour values; Godot blends in linear light. The raw
-## texel values (no source_color) subtracted as linear come closest: on a bright ground they take
-## about as much light away as the PSX's subtraction, on a dark one both end black.
-const _SHADOW_SHADER := """shader_type spatial;
-render_mode unshaded, cull_disabled, depth_draw_never, blend_sub;
-uniform sampler2D tex : filter_nearest;
-uniform vec4 region;
-uniform float color_scale;
-void fragment() {
-	vec4 c = texture(tex, region.xy + UV * region.zw);
-	if (c.a < 0.5) {
-		discard;
-	}
-	ALBEDO = c.rgb * color_scale;
-	// writing ALPHA puts the material in the transparent pass, where blend_sub applies
-	ALPHA = 1.0;
-}
-"""
 
 ## The field map (camera, tiles).
 var field: FieldMap
@@ -61,9 +39,7 @@ var data: Node
 var slots: Array = []
 
 static var _icon_shader: Shader
-static var _shadow_shader: Shader
 var _icon_textures := {}
-var _shadow_material: ShaderMaterial
 
 
 func _init() -> void:
@@ -131,8 +107,8 @@ func _make_nodes(slot: Dictionary) -> void:
 	quad.orientation = PlaneMesh.FACE_Y
 	shadow.mesh = quad
 	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	shadow.material_override = _shadow()
-	shadow.position = Content.psx_to_godot([slot["point"].x, 0, slot["point"].z]) + Vector3(0, 0.5, 0)
+	shadow.material_override = DropShadow.material()
+	shadow.position = Content.psx_to_godot([slot["point"].x, 0, slot["point"].z]) + Vector3(0, DropShadow.LIFT, 0)
 	add_child(shadow)
 	slot["shadow"] = shadow
 	_place(slot)
@@ -180,17 +156,3 @@ func _icon_material(slot: Dictionary) -> ShaderMaterial:
 	m.set_shader_parameter("tex", _icon_textures[clut])
 	return m
 
-
-func _shadow() -> ShaderMaterial:
-	if _shadow_material != null:
-		return _shadow_material
-	if _shadow_shader == null:
-		_shadow_shader = Shader.new()
-		_shadow_shader.code = _SHADOW_SHADER
-	_shadow_material = ShaderMaterial.new()
-	_shadow_material.shader = _shadow_shader
-	_shadow_material.set_shader_parameter("tex", Content.load_texture(SHADOW_TEXTURE))
-	_shadow_material.set_shader_parameter("region", Vector4(SHADOW_CELL.position.x / 128.0, SHADOW_CELL.position.y / 128.0,
-			SHADOW_CELL.size.x / 128.0, SHADOW_CELL.size.y / 128.0))
-	_shadow_material.set_shader_parameter("color_scale", SHADOW_COLOR)
-	return _shadow_material

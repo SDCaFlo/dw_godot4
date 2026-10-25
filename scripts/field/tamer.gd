@@ -125,6 +125,7 @@ func _ready() -> void:
 	_sounds.sound.connect(func(bank: int, value: int):
 		if bank != 4 and (field == null or field.is_on_screen(global_position)):
 			animation_sound.emit(bank, value))
+	_part("DropShadow", func(): return DropShadow.new())
 	for anim_name in [ANIM_IDLE, ANIM_RUN, ANIM_WALK]:
 		_player.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
 	# Root motion only when the game runs: the editor checks NodePath properties relative to the

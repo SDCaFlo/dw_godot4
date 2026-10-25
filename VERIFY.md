@@ -74,7 +74,7 @@ Sections are added as systems are ported (`PLANS.md`).
 
 ## Items and chests (`scripts/field/map_items.gd`, `map_chests.gd`, `tamer.gd`; `specs/map_items.md`)
 
-`test_map_items.gd` prints `OK: map item checks`. The maps' setups spawn them: most Native Forest maps have items (some at random), Dragon Eye Lake (MAYO10) a chest near its item boxes. `DW_START_MAP=MAYO10` starts the field on that map.
+`test_map_items.gd` prints `OK: map item checks`. The maps' setups spawn them: most Native Forest maps have items (some at random), Dragon Eye Lake (MAYO10) a chest near its item boxes. `DW_START_MAP=MAYO10` starts the field on that map (`DW_START_HOUR=22` at that hour).
 1. **An item on the ground:** its icon floats at the tile, the size of a small square at its depth, models in front of it hide it; a faint dark ring of its shadow around it.
 2. **Picking it up:** walk next to it: the tamer stops (his pick-up animation), the box grows from him: the item's name in yellow, "Woah!" below; ✕ (after a few frames): the click and the "got it" sound, the box shrinks, the item is gone and in the bag.
 3. **Bag full** (an item already at 99): "I can't hold anymore."; the item stays. It doesn't start again until you step away and come back.
@@ -86,7 +86,16 @@ Sections are added as systems are ported (`PLANS.md`).
 ## Scenes (`scenes/field/`, `specs/scenes.md`)
 
 1. **Nothing changed in play:** the tamer, Agumon and the NPCs look, move and sound as before (the refactor steps are behaviour-neutral).
-2. **In the editor:** open `scenes/field/partner.tscn` and `npc.tscn`: both are inherited from `digimon.tscn` (Model, AnimationSounds); `tamer.tscn` has the same parts, and `field.tscn` shows the Tamer as an instance of it.
+2. **In the editor:** open `scenes/field/partner.tscn` and `npc.tscn`: both are inherited from `digimon.tscn` (Model, AnimationSounds, DropShadow); `tamer.tscn` has the same parts, and `field.tscn` shows the Tamer as an instance of it.
+
+## Drop shadows (`scripts/field/drop_shadow.gd`, `scenes/field/drop_shadow.tscn`, `specs/drop_shadow.md`)
+
+In the game (F5), on the start map (Native Forest):
+1. **Under every entity:** the tamer, Agumon and each NPC have a soft dark spot on the ground under their feet, about as wide as their body (bigger for bigger Digimon). It follows them as they walk and doesn't turn with them.
+2. **Behind the models:** the spot never darkens the entity's own body or a model in front of it.
+3. **Blocked cells:** where an entity stands on a cell you can't walk on (an NPC placed on a wall cell, the partner pushed into a corner), it has no spot.
+4. **At night** (`T` until night, or start with `DW_START_HOUR=22`): the spot is darker and its fading edge narrower than by day (the PSX subtracts from a darker ground), but still soft, not a hard black square or disc.
+5. **Compare with the game:** the darkness and size of the spot, against the item shadow (VERIFY "Items and chests" 1: the same texture and colour). Wrong if: a black or coloured square, a spot that lags behind the entity, or a spot left on the map after an NPC leaves.
 
 ## Scripts (`scripts/script/`, `specs/script.md`)
 

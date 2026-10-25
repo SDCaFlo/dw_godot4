@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 GameData="*res://scripts/data/game_data.gd"
 GameState="*res://scripts/state/game_state.gd"
 GameLoop="*res://scripts/core/game_loop.gd"
+Sound="*res://scripts/audio/sound_system.gd"
 
 [display]
 

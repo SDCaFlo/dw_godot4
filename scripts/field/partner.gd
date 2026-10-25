@@ -76,6 +76,8 @@ func load_digimon(data: Node, ref: Variant) -> bool:
 	if not super.load_digimon(data, ref):
 		return false
 	tamer_radius = int(data.digimon(0).get("radius", 0))
+	# stats.current.vabId = 4 (partner_impl.c:465): its sounds are in slot 4.
+	sound_slot = 4
 	return true
 
 

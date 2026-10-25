@@ -40,6 +40,8 @@ const MAX_TAMER_LEVEL := 10
 
 ## The GameState autoload; set explicitly where there is no scene tree.
 var game_state: Node
+## The music (MusicPlayer): updateBGM at the end of every running tick.
+var music: MusicPlayer
 ## The field is in normal play (stands for GAME_STATE == 0, not fishing, map layer shown).
 var active := false
 ## IS_GAMETIME_RUNNING (clock.c:51): scripts stop the time. Not saved.
@@ -93,6 +95,9 @@ func tick_game_clock() -> void:
 		_next_minute(clock)
 	if clock["year"] >= YEARS:
 		clock["year"] = 0
+	# updateBGM (clock.c:171): the music's day / night variant follows the hour.
+	if music != null:
+		music.update_bgm()
 
 
 func _next_minute(clock: Dictionary) -> void:

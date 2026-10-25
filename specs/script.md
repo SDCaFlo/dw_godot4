@@ -317,10 +317,10 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
      - `SET_OBJ_VISIBILITY` (1,669 uses), `MOVE_OBJECT_TO` (293, slot type 13), `ROTATE_3D_OBJECT` (103, slot type 12), `SET_RECT_IMPASSABLE` (16), `SPAWN_SPRITE_AT_ENTITY` / `_AT_LOCATION` (18 / 0);
      - builtin 0x15 (107), File City's lights, the snow;
      - the porters: the door slots, the map record's `light_objects` and `snow`;
-   - **5b. items and chests on the map:** `SPAWN_ITEM` (241), `SPAWN_CHEST` (71), picking them up;
-   - **5c. sound and music:** `PLAY_SOUND` (501), `SET_BGM` (527, with `handleMusicOverride`), `STOP_BGM`, on the asset porter's sound banks and music;
-   - **5d. battles:** `START_BATTLE` (499) and its outcome;
-   - **5e. the builtins with their menus**, one system at a time: shops, item keeper, jukebox, Birdramon, training (0x07, 32 uses), tournaments, naming, new game, save, …; `DEAL_DAMAGE`'s number; the 3D map props (boulder, dirt cart, Toy Town's boxes, …).
+   - **5b. items and chests on the map:** `SPAWN_ITEM` (241), `SPAWN_CHEST` (71), picking them up, with their sounds (`Sound.play_sound`, `specs/sound.md`: the pickup ✕ 3, the "bag full" 7, the chest 7; `tamer.c:1447–1811`);
+   - **5c. sound and music:** `PLAY_SOUND` (501), `SET_BGM` (527, with `handleMusicOverride`), `STOP_BGM`, on the asset porter's sound banks and music. Spec: `specs/sound.md` (game side) and `asset_porter/specs/sound.md` "Music render" (the songs rendered with libsnd + SPU emulation);
+   - **5d. battles:** `START_BATTLE` (499) and its outcome, with the battle music (`stopBGM` at the start, `ENEMY_MUSIC_MAPPING`, font 33; `playBGM(ACTIVE_BGM_FONT)` after a win, `tamer.c:862`) and the fighters' banks 4–7 (`btl.c:412`; `specs/sound.md`);
+   - **5e. the builtins with their menus**, one system at a time: shops, item keeper, jukebox, Birdramon, training (0x07, 32 uses), tournaments, naming, new game, save, …; `DEAL_DAMAGE`'s number; the 3D map props (boulder, dirt cart, Toy Town's boxes, …). Each menu wires its own sounds through `Sound.play_sound` (`script_common.c`, `game_menu.c`, `inventory.c`, `script_menu.c`; the partner's praise / scold / feeding sounds 15, 14, 12, `partner.c:297–464`; `specs/sound.md` §3 "Not wired yet").
    - The order after 5a is open.
 6. **Death and lives** (own spec later; after step 5's battles, since the battle loss shares it): `CALL_DIGIMON_ROUTINE` 7 (the collapse, `tamerTickSicknessLostLife`) and 9 (the battle loss, `tamerTickBattleLostLife`): the `MURD` scene (lives box, iris; `src/murd/murd.c`) and `DOOA` (`src/dooa/dooa.c`); the collapse script `0x4DE` then replaces the care stand-in; dying (3 / 4) if it belongs there.
 

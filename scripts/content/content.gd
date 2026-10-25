@@ -97,6 +97,23 @@ static func load_texture(rel: String) -> Texture2D:
 	return ImageTexture.create_from_image(image)
 
 
+## Loads a WAV (sound samples, rendered songs). Godot reads the `smpl` loop but keeps its end as
+## stored, which is inclusive: one is added so the loop plays its last sample.
+static func load_audio(rel: String) -> AudioStreamWAV:
+	var stream: AudioStreamWAV
+	if imported(rel) != "":
+		# a copy: the imported resource is cached and shared, the loop fix must not add up
+		stream = (load(imported(rel)) as AudioStreamWAV).duplicate()
+	else:
+		stream = AudioStreamWAV.load_from_file(path(rel))
+	if stream == null:
+		push_error("Content: cannot load audio %s" % path(rel))
+		return null
+	if stream.loop_mode != AudioStreamWAV.LOOP_DISABLED:
+		stream.loop_end += 1
+	return stream
+
+
 ## Loads a model as a node tree. Materials get the PSX look (PsxLit): nearest filtering, the field
 ## lighting on the lit polygons (specs/lighting.md), the semi-transparency of the STP texels
 ## (asset_porter/specs/tmd.md "STP masks"); unlit opaque ones stay unshaded. Materials and

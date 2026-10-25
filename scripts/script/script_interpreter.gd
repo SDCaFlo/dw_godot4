@@ -129,6 +129,9 @@ var partner: Partner
 var field: FieldMap
 ## POLLED_INPUT for moveCameraByDiff's updateDrawingOffsets.
 var pad: Pad
+## The sound (SoundSystem, the "Sound" autoload; specs/sound.md): PLAY_SOUND, SET_BGM, STOP_BGM.
+## Without it those opcodes are skipped and reported, as before the sound was ported.
+var sound: Node
 ## The entity table (the NPCs, specs/npc.md); null: only the tamer and the partner.
 var entities: FieldEntities
 ## Field hooks for the map change (step 2): func(map, exit, show_name) -> bool done, called every
@@ -694,7 +697,8 @@ func _op_fb_ff(op: int) -> int:
 			ctx.current_screen_id = _u16()
 			ctx.stack.append({"type": MAP_SETUP})
 			ctx.map_setup_pending = 1
-			# resetBGM: with audio.
+			if sound != null:
+				sound.music.reset_bgm()
 			if load_map.is_valid():
 				load_map.call(ctx.current_screen_id)
 			return NEXT
@@ -1011,12 +1015,25 @@ func _op_46_58(op: int) -> int:
 	return NEXT
 
 
+## scriptInstruction5Ato5F (script_interp.c:1557).
 func _op_5a_5f(op: int) -> int:
 	match op:
 		0x5B, 0x5C, 0x5F:
 			ctx.next_byte()
-		_:
+		_ when sound == null:
 			return _unported_op(op)
+		0x5A:
+			# PLAY_SOUND bank, sound (skipOnePollTwoScriptBytes): playSound.
+			ctx.pointer += 1
+			var bank := ctx.next_byte()
+			var value := ctx.next_byte()
+			sound.play_sound(bank, value)
+		0x5D:
+			sound.music.play_bgm(ctx.next_byte())
+		0x5E:
+			# STOP_BGM x: resetBGM; the byte isn't used.
+			ctx.next_byte()
+			sound.music.reset_bgm()
 	return NEXT
 
 

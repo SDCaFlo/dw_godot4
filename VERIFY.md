@@ -58,6 +58,20 @@ Sections are added as systems are ported (`PLANS.md`).
 3. **Running:** hold the right shoulder (R1) or △ while walking: he runs. On the keyboard Shift still runs.
 4. **Keyboard:** arrows, Enter / Space and Shift work as before.
 
+## Sound (`scripts/audio/`, `specs/sound.md`; the songs: `asset_porter/specs/sound.md` "Music render")
+
+`test_sound.gd` prints `OK: sound checks`. The songs must be rendered first: in `asset_porter/`, `python -m dwporter convert sound music` (a few minutes; ~0.9 GB in `output/music/`). Then run the project (F5), ideally next to the game in an emulator at the same place and hour.
+
+1. **Map music:** Native Forest (MAYO04A) plays its song at once; walking into another area changes the song (the map's `SET_BGM`). The same song restarts when you change map, as in the game (`playBGM` stops first).
+2. **Day / night:** press `T` until 21:00: the song switches to its night version at that hour, back to the day one at 6:00.
+3. **The music itself:** tempo, instruments, the envelopes (no notes hanging on, no chirping in battle tracks later), the reverb tail, the loudness against the emulator. The loop: listen through the end of a song; it goes back into its loop without a jump or a click.
+4. **Text boxes and windows:** talk to an NPC: the window opening and closing sounds, ✕ on each page, △ / choice moves in choices.
+5. **Footsteps:** walk and run: the tamer's and the partner's steps (only when they are on screen).
+6. **Script sounds:** scenes with `PLAY_SOUND`, e.g. the Grey Lord's Mansion book scene (YAKA24, VERIFY "Map changes" 5) or Toy Town's doors.
+7. **Ambience:** maps whose set loops a sound until the script stops it.
+8. **Reverb on effects:** an approximation (Godot's reverb); say if a sound effect sounds too wet or too dry next to the emulator.
+9. **NPC sounds (to check in the game):** in the original, does an NPC ever make an odd system sound while it animates (specs/sound.md §6)? The port plays none of their bank-4 sounds.
+
 ## Scripts (`scripts/script/`, `specs/script.md`)
 
 `test_script.gd` prints `OK: script checks`. Besides its synthetic checks it runs every section of every script (1269) and every map setup (255) to its end, played like a player (texts confirmed, choices tried in turn), in about 15 s; it prints the unported instructions it met.

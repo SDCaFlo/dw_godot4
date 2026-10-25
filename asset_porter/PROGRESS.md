@@ -21,6 +21,7 @@ Last updated: 2026-10-22
 | VHB / VAB (sound banks) | done | `dwporter/formats/vab.py` | `specs/sound.md` | VHB offset table + libsnd VAB (programs, tones, samples); PSX ADPCM → WAV with loop points |
 | SEQ (music) | done | `dwporter/formats/seq.py` | `specs/sound.md` | Sony pQES → Standard MIDI; loop markers |
 | WAV / SF2 (export) | done | `dwporter/exporters/wav.py`, `sf2.py` | `specs/sound.md` | WAV with `smpl` loops; SF2 preview banks (no ADSR) |
+| libsnd + SPU (music render) | done | `dwporter/formats/libsnd.py`, `spu.py` | `specs/sound.md` | libsnd's sequencer and voice manager (from DW's libsnd asm) on an SPU emulation: ADPCM loops, Gaussian interpolation, ADSR, Studio B reverb; tables read from the executable |
 | STR (FMV) | done | `dwporter/formats/strmovie.py` | `specs/movies.md` | Sector interleave (7 video 2048 B : 1 XA 2324 B), MDEC v2/v3 bitstream decoder (MPEG-1 VLC, IDCT, YCbCr), XA ADPCM; numpy optional for speed |
 
 ## Families (disc files)
@@ -39,6 +40,7 @@ Last updated: 2026-10-22
 | `atr_files` | `STDDAT/B_TOGI.ATR`, `E_TOGI.ATR` | done | 2 | 7/7 | `specs/atr.md` | Arena collision; walkable disc (B) / diamond (E) checked against the arena models; T_TOGI arena reuses B_TOGI.ATR |
 | `scripts` | `SCN/MAPHEAD.SCN`, `SCN/DG.SCN` | done | 223 | 1571/1571 | `specs/scn.md` | 222 DG scripts + MAPHEAD (map setup); 39,797 instructions, 4,844 texts; map → script links; JSON + readable listings |
 | `sound` | 7 `SOUND/VHB/*.VHB` | done | 145 | 1396/1396 | `specs/sound.md` | 145 VABs (SS, SL, SB, 22 ESALL map sets, 16 VLALL partner sets, 71 VBALL Digimon sets, 33 FAALL music fonts), 834 samples, 74 music tracks (.seq + .mid), usage per bank |
+| `music` | `SOUND/VHB/FAALL.VHB` + `SLUS_010.32` tables | done | 74 | see manifest | `specs/sound.md` | The 74 songs rendered like the game plays them (WAV 44.1 kHz stereo, intro + loop in `smpl`; fonts 0x1D–0x20 once); `index.json` per track |
 | `mmm_dat` | `MMM.DAT` | done | 0 | 2/2 | `specs/sound.md` | All zeros, never opened by the code: disc filler, nothing to convert |
 | `movies` | 4 `MOVIE/*.STR` | done | 4 | 20/20 | `specs/movies.md` | 13,089 frames (320x176, ~30 fps) all decode with code counts matching their headers; audio WAV (37.8 kHz stereo, length = video); preview PNG every 2 s; `.ogv` for Godot (ffmpeg) |
 | | `*_REL.BIN`, `SLUS_010.32` | — | | | | Code; data tables come from the decomp, not converted here |
@@ -82,3 +84,4 @@ Last updated: 2026-10-22
 - 2026-10-22 — `movies` done (4 assets, 20/20). The STR dump is complete (earlier "truncated" note was wrong): sectors keep their payload size (2048 video / 2324 audio) while the file table counts 2336. MDEC v3 decoder verified by the per-frame code count in every frame header (13,089/13,089) and by eye (BANDAI logo, Japan map, Digivice, credits). `.ogv` export via ffmpeg (Theora yuv420p + Vorbis, 16–21 MB per movie). All disc files are now converted or explained.
 - 2026-10-24 — `maps`: door slots kept in `map.json` (`slot`; tables 1 and 6 start with an empty one), and object sprites get an STP mask (`object_<k>[_p<p>].stp.png`, `objects[k].stp_files`; `Vram.sample_page_stp`) for the semi-transparent blending (`../specs/map_objects.md`).
 - 2026-10-24 — Models (`tmd_files`, `mmd_files`, `efe`, map doors): texture pages with STP texels get a `.stp.png` mask, named by the semi-transparent materials' `extras.stp_texture` (ISSUES.md I-5: the poop's subtractive shadow).
+- 2026-10-24 — `music`: the songs rendered offline (`formats/libsnd.py` + `formats/spu.py`, `tests/test_music.py`). libsnd checked against DW's asm (key-on volume squared for songs only, `_SsVmSetVol` reads the voice's own tone, NRPN 20/30 loops with the count from data entry, the 240 Hz tick); `_svm_ptable` and `_spu_rev_param` (Studio B = entry 3) read from `SLUS_010.32`. ~2x real time per song in pure Python, one process per song.

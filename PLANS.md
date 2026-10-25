@@ -53,6 +53,10 @@ Last updated: 2026-10-24
      - [x] 4. scripted movement and the camera, and the partner's toilet scene (`CALL_DIGIMON_ROUTINE` 0, needs the camera pan) (done early: the slot ticks and `ENTITY_WALK_TO` for the tamer and partner, tamer state 10 / partner state 12, so the 121 walk-out exits play). Spec written 2026-10-24: `specs/camera.md` (new: the follow by the tamer's motion with the virtual scroll, pans, moves with the camera), `specs/script.md` §2.7 "Step 4" (slot types 3–11, 14, 15, `WAIT_FOR_ENTITY`, the sync bit), `specs/care.md` §2.16 (the toilet scene). Coded 2026-10-24 (`tests/test_camera.gd`; VERIFY "Camera");
      - [ ] 5. with their systems, split (`specs/script.md` §3.1): 5a map objects, 5b items / chests on the map, 5c sound and music, 5d battles, 5e the builtins with their menus;
        - [x] 5a. map objects: spec written 2026-10-24 (`specs/map_objects.md`: overlay sprites, `SET_OBJ_VISIBILITY`, `MOVE_OBJECT_TO`, doors `ROTATE_3D_OBJECT`, `SET_RECT_IMPASSABLE`, builtin 0x15, File City's lights, snow; asset porter door slots; data porter `light_objects`, `snow`). Coded 2026-10-24 (`MapOverlays`; the background moved into the 3D viewport, `Environment.BG_CANVAS`, so sprites blend with it; STP masks from the asset porter; `tests/test_map_objects.gd`, `tests/render_check.gd`; VERIFY "Map objects");
+       - [ ] 5b. items and chests: include their sounds (pickup, bag full, chest: `specs/script.md` §3.1, `specs/sound.md` §3).
+       - [x] 5c. sound and music: spec written 2026-10-24, coded 2026-10-24 (the `Sound` autoload, `scripts/audio/`; the asset porter's `music` family renders the 74 songs; `tests/test_sound.gd`, `asset_porter/tests/test_music.py`; VERIFY "Sound"). Was: spec written 2026-10-24 (`specs/sound.md`; `asset_porter/specs/sound.md` "Music render": the songs rendered offline with libsnd's sequencer / voice manager and the SPU, from the decomp's libsnd asm and the executable's tables; effects played live by `Sound` with the SPU envelope). Order: (1) asset porter renderer + tests, (2) `Sound` / `Music` in Godot + wiring + `tests/test_sound.gd`, (3) VERIFY "Sound". Not in 5c (left to their steps): chest / item sounds (5b), battle music and banks (5d), menu, shop and partner-interaction sounds (5e);
+       - [ ] 5d. battles: include the battle music (`stopBGM`, `ENEMY_MUSIC_MAPPING`, font 33, `playBGM` after a win) and the fighters' sound banks 4–7.
+       - [ ] 5e. builtins and menus: each menu wires its sounds (`Sound.play_sound`), with the partner's praise / scold / feeding sounds.
        - [ ] To check in the game: the additive sprites' brightness (Godot blends in linear colour), Grey Lord's Mansion doors (YAKA11, models 9 / 10) snapping shut at the end of their swing (`specs/map_objects.md` §6);
      - [ ] 6. death and lives (after the battles): the collapse and the battle loss (`CALL_DIGIMON_ROUTINE` 7 / 9, the `MURD` + `DOOA` scenes, ~2350 lines of C), the collapse script 0x4DE replacing the care stand-in.
    - [ ] To check in the real game (`specs/npc.md` §6): after a scene that walks or animates an NPC, on a map with a slot-7 NPC (script id 12, e.g. File City's Whamon on TWNA02–13), can you still walk into it and talk to it? It tells the leftover value of the original's `setActiveAnim(0xC)` bug.
@@ -74,6 +78,8 @@ Last updated: 2026-10-24
 
 ## Ideas (not planned yet)
 
+- Sound: mirror the sound samples and rendered songs into `res://content/dw1/` with QOA compression (the songs are ~0.9 GB of WAV); the CONFIG menu's music / effects volumes (buses `Music`, `Sfx`).
+
 - A CONFIG menu for players: the 3D render scale and the text and windows' filter (ISSUES.md D-2, D-3), later other options.
 - Try other upscaling filters for the text and windows (today Scale4x, ISSUES.md D-3): e.g. xBR / ScaleFX-style edge filters, HQx, a CRT look; compare them with the game in an emulator, and offer the good ones in the CONFIG menu.
 
@@ -91,6 +97,8 @@ Last updated: 2026-10-24
 - In `godot -s` mode autoload names aren't registered: tests instantiate scripts directly, or run through the main scene.
 
 ## Done
+
+- 2026-10-24 — Step 5c, sound and music: the songs rendered offline by the asset porter (`music` family: libsnd's sequencer and voice manager checked against DW's libsnd asm, on an SPU emulation with the Studio B reverb; tables read from the executable); the `Sound` autoload plays them (day / night variants, `SET_BGM`, `STOP_BGM`, the clock's `updateBGM`) and the sound effects voice by voice (`playSound`, the SPU envelope, voices 10–23): script `PLAY_SOUND`, text boxes and windows, the animations' footsteps, the map's and the partner's banks.
 
 - 2026-10-24 — The 17 exits with a short scene play (steps 3–4 ported their opcodes): `tests/exit_scan.tscn` plays each one in the field scene (21 runs: GCAN08_1's two visits, Toy Town's locked door and its random doors, right and wrong); still skipped on the way, with their steps: sounds, chests, battles, builtins 0x2B / 0x2C / 0x37.
 

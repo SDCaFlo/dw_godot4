@@ -32,6 +32,12 @@ var radius := 100
 ## PSX rotation.vy (4096 per turn).
 var direction := 0
 var animator: PsxAnimator
+## The model's animation sound events (anim.c:336); `animation_sound` is emitted for the ones the
+## original plays: on screen, bank 4 replaced by `sound_slot` (the entity's VAB slot: the partner's
+## is 4; -1 = skipped, NPCs: specs/sound.md §6).
+signal animation_sound(slot: int, value: int)
+var sounds: AnimationSounds
+var sound_slot := -1
 ## isOnScreen (entityIsOffScreen, 320 x 240), set by the entity's tick.
 var on_screen := true
 ## isOnMap: 0 once a script unloaded it.
@@ -69,7 +75,10 @@ func load_digimon(data: Node, ref: Variant) -> bool:
 	var player: AnimationPlayer = model.find_children("*", "AnimationPlayer", true, false)[0]
 	var anim_root := player.get_node(player.root_node)
 	player.root_motion_track = NodePath("%s:bone_0" % anim_root.get_path_to(_skeleton))
-	animator = PsxAnimator.new(player, Content.load_json(rel))
+	var gltf = Content.load_json(rel)
+	animator = PsxAnimator.new(player, gltf)
+	sounds = AnimationSounds.new(gltf)
+	sounds.sound.connect(_on_animation_sound)
 	start_animation(0)
 	return true
 
@@ -78,6 +87,7 @@ func _process(delta: float) -> void:
 	if animator == null or field == null:
 		return
 	var motion := _skeleton.global_basis * animator.advance(delta)
+	sounds.update(animator.player)
 	if step_blocked:
 		return
 	step += Vector2(motion.x, motion.z).length()
@@ -86,8 +96,18 @@ func _process(delta: float) -> void:
 
 ## startAnimation.
 func start_animation(id: int) -> void:
-	if animator != null:
-		animator.play(id)
+	if animator != null and animator.play(id):
+		sounds.restart()
+
+
+func _on_animation_sound(bank: int, value: int) -> void:
+	if not on_screen:
+		return
+	if bank == 4:
+		if sound_slot < 0:
+			return
+		bank = sound_slot
+	animation_sound.emit(bank, value)
 
 
 ## posData[node].posMatrix.workm.t: the world position of a bone (SPAWN_SPRITE_AT_ENTITY).

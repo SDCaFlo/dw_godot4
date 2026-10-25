@@ -42,6 +42,7 @@ DIGIMON_VLALL_SOUND_ID = 0x80127EFC  # u8[66]
 DIGIMON_VBALL_SOUND_ID = 0x80127F40  # u8[180]
 MAP_SOUND_PARA = 0x80127FF4  # {u16 sector*2, u16 count*2}[22]
 ENEMY_MUSIC_MAPPING = 0x8012BAE4  # u8[48], battle track for enemy type - 0x43
+SVM_PTABLE = 0x80128864  # u16[193], libsnd's pitch per semitone / 16 (note2pitch); 0x1000 = 44.1 kHz
 ONE_SHOT_FONTS = {0x1D: 1, 0x1E: 2, 0x1F: 2, 0x20: 2}  # seqPlay: played once unless this track
 
 
@@ -55,6 +56,7 @@ def read_tables(exe: bytes) -> dict:
         "digimon_vball_sound_id": list(exe[at(DIGIMON_VBALL_SOUND_ID):at(DIGIMON_VBALL_SOUND_ID) + len(DIGIMON_TYPES)]),
         "map_sound_para": [list(struct.unpack_from("<HH", exe, at(MAP_SOUND_PARA) + 4 * i)) for i in range(22)],
         "enemy_music_mapping": list(exe[at(ENEMY_MUSIC_MAPPING):at(ENEMY_MUSIC_MAPPING) + 48]),
+        "svm_ptable": list(struct.unpack_from("<193H", exe, at(SVM_PTABLE))),
     }
 
 

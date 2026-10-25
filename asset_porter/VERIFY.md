@@ -80,6 +80,13 @@ Wrong if: noise instead of instruments, wrong key (everything sharp/flat), wrong
 
 -"battle tracks may chirp in preview renders: missing envelopes, known"
 
+The rendered songs (`python -m dwporter convert music`, a few minutes) are the music as the game plays it, envelopes and reverb included:
+
+- `output/music/font_NN/track_T.wav`: open in any player. Compare with the game in an emulator (same map, same time of day): tempo, instruments, the envelopes (no chirping in font 33), the reverb's tail, the loudness between songs.
+- Loops: a player that reads `smpl` loops (Audacity shows the loop region, foobar2000 / Godot loop it) should go from the end back into the loop without a click or a jump in the music. `index.json` → each track's `loop` (samples) and `play_once` (fonts 29–32 play once).
+
+Wrong if: a song is silent or cut short, notes hang forever, a loop jumps audibly, the music is much louder or softer than the emulator's.
+
 ## 4d. Battle effects — 5 minutes
 
 One folder per technique: `output/efe/<slot>_<technique>/` (slot = technique id).

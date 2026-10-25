@@ -29,6 +29,10 @@ var radius := 100
 var field: FieldMap
 ## Entity 0 of the entity table (FieldEntities): on the map and on screen (isInvisible).
 var on_screen := true
+## The model's animation sound events (anim.c:336: footsteps): emitted when on screen. Bank 4
+## (the entity's own slot) is skipped: the tamer has none (specs/sound.md §6).
+signal animation_sound(slot: int, value: int)
+var _sounds: AnimationSounds
 var on_map := true
 ## Ground distance his root motion moved during the last game frame (entityMoveForward's step).
 var step := 0.0
@@ -89,6 +93,10 @@ func _ready() -> void:
 
 	_player = model.find_children("*", "AnimationPlayer", true, false)[0]
 	_skeleton = model.find_children("*", "Skeleton3D", true, false)[0]
+	_sounds = AnimationSounds.new(Content.load_json(MODEL))
+	_sounds.sound.connect(func(bank: int, value: int):
+		if bank != 4 and (field == null or field.is_on_screen(global_position)):
+			animation_sound.emit(bank, value))
 	for anim_name in [ANIM_IDLE, ANIM_RUN, ANIM_WALK]:
 		_player.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
 	# Root motion only when the game runs: the editor checks NodePath properties relative to the
@@ -111,6 +119,8 @@ func place(spawn: Dictionary) -> void:
 func _process(delta: float) -> void:
 	if Engine.is_editor_hint() or _player == null or field == null:
 		return
+	# the sound events the last frame's advance passed (every path below advances the player)
+	_sounds.update(_player)
 	var motion := Vector3.ZERO
 	var held := 0
 	if _scene_playing:
@@ -313,6 +323,8 @@ func _animation_name(id: int) -> String:
 func _play(anim_name: String) -> void:
 	if _player.current_animation != anim_name:
 		_player.play(anim_name)
+		if _sounds != null:
+			_sounds.restart()
 
 
 ## Held d-pad bits (POLLED_INPUT & 0xF000, not 0) to rotation.vy: the camera's direction

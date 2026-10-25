@@ -78,6 +78,7 @@ var _debug: DebugWindow
 func _ready() -> void:
 	_maps = DirAccess.get_directories_at(Content.path("maps"))
 	_tamer.field = _field
+	_tamer.animation_sound.connect(_play_sound)
 	if Engine.is_editor_hint():
 		_refresh_preview()
 		return
@@ -154,6 +155,9 @@ func _start_partner() -> void:
 		_partner = null
 		return
 	GameLoop.frame.connect(_partner.tick)
+	# loadPartnerSounds (partner_impl.c:466): the partner's voice and sound sets.
+	Sound.load_partner_sounds(GameData.digimon_sounds(GameState.state["partner"]["digimon"]))
+	_partner.animation_sound.connect(_play_sound)
 
 
 ## The entity table and the map's NPCs (specs/npc.md): created by SET_DIGIMON, ticked after the
@@ -180,7 +184,13 @@ func _create_npc(slot: int) -> Npc:
 	if not npc.load_digimon(GameData, int(_entities.slots[slot]["type"])):
 		npc.queue_free()
 		return null
+	npc.animation_sound.connect(_play_sound)
 	return npc
+
+
+## playSound for the entities' animation sounds and the windows' clicks.
+func _play_sound(slot: int, value: int) -> void:
+	Sound.play_sound(slot, value)
 
 
 func _tick_npcs() -> void:
@@ -232,6 +242,10 @@ func _start_text() -> void:
 	_interpreter.entities = _entities
 	_interpreter.field = _field
 	_interpreter.pad = GameLoop.pad
+	_interpreter.sound = Sound
+	# The windows' and text boxes' sounds (ui.c:223, :336; script_textbox.c): playSound(0, id).
+	_boxes.sound.connect(func(id: int): _play_sound(0, id))
+	_textboxes.sound.connect(func(id: int): _play_sound(0, id))
 	if _partner != null:
 		_partner.data = GameData
 		_partner.script_ctx = _script_ctx
@@ -410,6 +424,7 @@ func _tick_message() -> void:
 func _start_clock() -> void:
 	_clock = Clock.new()
 	_clock.name = "Clock"
+	_clock.music = Sound.music
 	add_child(_clock)
 	_clock.time_of_day_changed.connect(_field.set_time_of_day)
 	_clock.daytime_transition.connect(_field.start_daytime_transition)
@@ -467,6 +482,9 @@ func _load_map_at_exit(map_name: String, exit: int) -> bool:
 	if _partner != null:
 		_partner.place_for_spawn(spawn_point)
 	var id := -1 if Engine.is_editor_hint() or not GameData.available() else GameData.map_id(map_name)
+	# loadMap (map.c:4084): the map's sound set into slot 8.
+	if id >= 0:
+		Sound.load_map_sounds(int(GameData.map(id).get("sound_bank", 0)))
 	# loadMapObjects' snow maps: a property of the map record (specs/map_objects.md §2.5).
 	var snow: Dictionary = GameData.map(id).get("snow", {}) if id >= 0 else {}
 	if not snow.is_empty():

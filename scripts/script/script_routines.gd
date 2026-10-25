@@ -1,0 +1,50 @@
+class_name ScriptRoutines
+extends Node
+## The builtin routines of CALL_ROUTINE that are ported (script_interp.c:421-561, :1658-1891;
+## specs/shops.md §3): a node under Systems/ScriptHost whose children are the routine nodes. Each
+## child lists the builtins it runs (`routines`) and has `start(routine) -> bool` (true: the
+## routine waits, ticked each frame until it sets ACTIVE_INSTRUCTION to 0) and `tick(routine)`.
+## A mod adds or replaces a builtin with a node here; builtins without one stay unported.
+
+## Set by the host (configure).
+var ctx: ScriptContext
+var textboxes: TextBoxes
+var game_state: Node
+var data: Node
+## The one script item menu (the C's item menu is global): every routine node uses it, so the bits
+## box of builtin 0x0F sees what a later routine buys.
+var menu: ItemMenu
+
+
+## Hands the script state to the routine nodes (after the ScriptHost made it).
+func configure(script_ctx: ScriptContext, text_boxes: TextBoxes, state: Node, game_data: Node) -> void:
+	ctx = script_ctx
+	textboxes = text_boxes
+	game_state = state
+	data = game_data
+	menu = ItemMenu.new(textboxes, game_state, data)
+	for child in get_children():
+		if child.has_method("configure"):
+			child.configure(self)
+
+
+## The node running a builtin (the last child listing it, so a mod's node added later wins).
+func node_for(routine: int) -> Node:
+	var found: Node = null
+	for child in get_children():
+		var list = child.get("routines")
+		if list is Array and routine in list:
+			found = child
+	return found
+
+
+func handles(routine: int) -> bool:
+	return ctx != null and node_for(routine) != null
+
+
+func start(routine: int) -> bool:
+	return node_for(routine).start(routine)
+
+
+func tick(routine: int) -> void:
+	node_for(routine).tick(routine)

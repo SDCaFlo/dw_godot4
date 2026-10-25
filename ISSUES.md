@@ -8,7 +8,49 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Open
 
-None right now.
+Reported 2026-10-25 (minor, to check later).
+
+### I-12. No mist in the misty trees
+- **Seen:** the Misty Trees maps have no mist.
+- **Expected:** the original's mist over those maps (not ported yet: find its effect in the decomp).
+- **Status:** open.
+
+### I-13. Time-of-day changes are a hard cut
+- **Seen:** the light jumps when the time of day changes (afternoon → night, night → day, day → afternoon).
+- **Expected:** the original fades the lighting softly from one time of day to the next.
+- **Note:** `specs/lighting.md` takes the lights "at the end of the hour's fade"; the fade itself (`updateTimeOfDay`, map.c:4301, and the background palettes) still has to be reproduced.
+- **Status:** open.
+
+### I-14. Player / Digimon screen: the tab headers all look selected
+- **Seen:** every tab is drawn light; in the original the tabs not shown are darker, with blue labels.
+- **Evidence:** `issues/evidence/dw_issue_card_menu_colors.png`, `issues/evidence/dw_issue_evo_char_menu_color.png` (left original, right port).
+- **Cause (likely):** `renderMenuTab(x, w, layer)` passes `layer` (1 for the tabs not shown) as `renderRectPolyFT4`'s flag, and flag 1 dims the sprite (`game_menu.c:2960`). `MenuDraw.menu_tab` draws every tab undimmed.
+- **Status:** open.
+
+### I-15. No pause
+- **Seen:** the game can't be paused.
+- **Expected:** the original's pause (START in the field; to find in the decomp).
+- **Status:** open.
+
+### I-16. The partner (Agumon) isn't in the evolution chart
+- **Seen:** in a new game the Player screen's chart is empty; the original shows Agumon.
+- **Evidence:** `issues/evidence/dw_issue_evo_char_menu_color.png`.
+- **Cause:** the new game marks the first partner raised (`setDigimonRaised(partnerId)`, `main.c:3452`, trigger 0x200 + id); `GameState.new_game` doesn't.
+- **Status:** open.
+
+### I-17. Chart and card screens: the cells and columns have no contour
+- **Seen:** the evolution chart's cells and level columns, and the card list's cells, are flat; in the original they have a light top-left and a dark bottom-right edge.
+- **Evidence:** `issues/evidence/dw_issue_card_menu_colors.png`, `issues/evidence/dw_issue_evo_char_menu_color.png`.
+- **Cause (likely):** `renderBorderBox` adds its two lines and then its box, so on the PSX the lines are drawn over the box. `MenuDraw.border_box` draws the lines first and the box over them, which hides the edges. The same may apply to `inset_box`.
+- **Status:** open.
+
+### I-18. To verify: the inventory cursor at the top
+- **Question:** in the original inventory, does ↑ on the first row wrap to the bottom, or stay at the top? Compare with the port (`specs/inventory.md`).
+- **Status:** to verify.
+
+### I-19. To verify: the partner's mood animations too often
+- **Question:** the partner may play its hungry / happy / poop animation and sound more often than the original. Compare the timers with the game (`specs/partner.md`, `specs/care.md`).
+- **Status:** to verify.
 
 ## Fixed
 

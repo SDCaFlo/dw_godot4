@@ -9,6 +9,8 @@ godot --headless --path . -s res://tests/test_game_menu.gd
 godot --headless --path . -s res://tests/test_inventory.gd
 godot --headless --path . -s res://tests/test_digimon_screen.gd
 godot --headless --path . -s res://tests/test_player_screen.gd
+godot --headless --path . -s res://tests/test_shops.gd
+godot --headless --path . -s res://tests/test_card_shops.gd
 godot --headless --path . -s res://tests/test_camera.gd
 godot --headless --path . -s res://tests/test_map_objects.gd
 godot --headless --path . -s res://tests/test_lighting.gd
@@ -127,6 +129,33 @@ Sections are added as systems are ported (`PLANS.md`).
 5. **Equipping:** ✕ on an equipped technique removes it; ✕ on a learned one Agumon can use equips it (up to 3); others give the refusal sound. △ leaves the grid only with an attack equipped. □ opens the help page; △ closes it.
 6. **Back:** △ on a tab: the window shrinks into the tamer, the tamer and Agumon come back, the △ menu opens again.
 7. **Compare with the game:** the layout of both tabs, the model's place and size, the darker cells (the port approximates the PSX's subtracted boxes), and the colours.
+
+## Card shops, merit shop, Mojyamon (`scripts/script/card_shop_routines.gd`, `merit_shop_routines.gd`, `mojyamon_routines.gd`, `scripts/ui/trade_menu.gd`; `specs/card_shops.md`)
+
+`test_card_shops.gd` prints `OK: card shop checks`. In the game (F5):
+1. **Card shop** (Gear Savanna, GIAS06B, the Market Manager):
+   - **A pack (500 bits):** three lines as the tamer, one card each: "This is a …card." for a new one, "A …card!" for one held 1–5 times, "Another …card." above that. The Player screen's card list counts them; a card stays at 9.
+   - **A single card:** the 6 cards on sale with their icons by rarity and their prices. Yellow = not held yet, red = too dear or held 9 times, blank row = sold today. ✕ → "Is it OK? Yes No"; Yes buys it (the bits box goes down; the slot is empty until the next day).
+   - **Selling:** a long list with gaps (cards you don't hold), MENU / PRICE / COUNT; ✕ opens the amount box at half the price, up to the count you hold.
+   - On this map, buying and selling play the Savannah's extra sound.
+2. **Merit shop** (GKYO02, script 135): the Points box at the top left.
+   - **Show a Digimon card:** the cards you hold (MENU / COUNT); ✕ → the rarity's line ("This is very rare! …100points."), Give it → the points go up (at most 9999), one card fewer.
+   - **Use Merit points:** the merit items with their prices (MENU / MERIT), red if too dear or no room; ✕ → OK / Cancel; OK gives one.
+   - △ in a list comes back to the choice; See ya closes the Points box.
+3. **Mojyamon** (Freezeland, FRZL14 / FRZL15): "I'm a collector …", then the trade box: "You have" / "Will trade", three rows, red when you don't hold the item, "－" in front of a trade already made. ✕ → "You'll really give me …?" Yeah → the items swap, "Thanks!"; with a full inventory "Too many Items." and nothing changes. △ or "Well..., no" ends the talk.
+4. **Compare with the game:** the boxes' places and sizes, the card icons' colours, the column positions, the sounds.
+
+## Shops (`scripts/script/shop_routines.gd`, `scripts/ui/item_menu.gd`, `script_routines.gd`; `specs/shops.md`)
+
+`test_shops.gd` prints `OK: shop checks`. In the game (F5), at a shop (File City's Item Shop, ROOM06, once it has opened; the recycle shop in Gear Savanna's script 126; or any NPC that sells):
+1. **Talking:** the keeper's greeting, then the tamer's "Buy / Sell / See ya" (the recycle shop: "Buy / See ya"). The bits box opens at the top left with your bits.
+2. **Buy:** a list with MENU / PRICE headers, the item icons, names and prices, and a scroll bar. Items you can't afford, or hold 99 of, are red (grey-red). ↑ ↓ move with repeat, R1 + ↑ / ↓ jump to the top / bottom, START shows the item's description.
+3. **Amount:** ✕ on an item opens the amount box (name, unit price, amount, total). ↑ ↓ change it by 1, holding ○ by 10, □ sets the maximum. The maximum is limited by your bits and by 99 minus what you hold. ✕ buys: the bits go down, the bits box updates, the keeper thanks you, and you're back at the choice.
+4. **Baby discount:** with a Fresh or In-Training partner, purchases cost 90%, and the keeper says "I'll discount it …".
+5. **Sell:** your inventory, half prices; items that can't be dropped show "－－－－" and can't be sold.
+6. **Leaving:** △ in the list: "Have anything else?". △ on the choice is See ya: "Come again." if you bought or sold, "That's too bad." otherwise; then the script goes on.
+7. **Item picker** (an NPC asking for an item, e.g. a hungry Digimon): the list of your items, ✕ → "Is it OK? Yes No" (← →). Yes gives the item; △ in the list cancels when the script allows it.
+8. **Compare with the game:** the boxes' places and sizes, the headers, the amount box layout, the sounds (cursor, confirm, refusal, cancel).
 
 ## Items (`scripts/ui/inventory.gd`, `scripts/systems/item_use.gd`, the feeding scene in `partner.gd`; `specs/inventory.md`)
 

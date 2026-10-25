@@ -270,6 +270,7 @@ At boot and on each new day (clock, training, `ADVANCE_TO_DATE_AT`):
   - Waits whose system is missing finish at once: movement slots are free, builtin routines end, and the sync-bit wait (set again by partner and tamer scenes, `partner.c:586` …) ends with a report.
   - `UNPORTED` in the interpreter holds, per opcode, the bytes the C reads; the real-script test checks them against the asset porter's instruction sizes.
   - Ported builtins: `0x03`–`0x05`, `0x11` (nothing), `0x0C` / `0x0D` (remove the item in script value 0xFE), `0x10`, `0x19`, `0x1E` / `0x1F` / `0x38` (shop value), `0x21` (the arena's daily values).
+  - Builtins with a menu are routine nodes under `Systems/ScriptHost/Routines` (`ScriptRoutines`, `specs/shops.md` §3): `0x00` the item picker, `0x08` the shop / recycle shop, `0x0F` the bits box, `0x23` (nothing); `0x0E` the card shops, `0x01` the merit shop, `0x02` Mojyamon's trades (`specs/card_shops.md`).
 - **Actors:** in step 1 the interpreter reaches the tamer and the partner directly (`tamer`, `partner`: `setMovementEnabled`, `scriptIdToEntityId`). The NPC step adds one interface for every entity (screen position, start animation, movement ticks).
 - **Debug** (`scripts/debug/script_debug.gd`, key `D`): runs the current map's script sections one after another (NPC sections below 0x33 as events), until their entry points exist.
 - **The field:** `field.gd` creates the interpreter, ticks it on `GameLoop.frame` before the objects (where the text boxes' tick runs now), and starts sections from the events of §2.2 as their systems exist.

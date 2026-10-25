@@ -116,6 +116,8 @@ const ROUTINE_WAITS := [0x00, 0x01, 0x02, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x
 		0x17, 0x18, 0x1D, 0x20, 0x25, 0x2F, 0x30, 0x32, 0x35, 0x36, 0x37]
 
 var ctx: ScriptContext
+## The builtin routines ported as nodes (shops, menus, ...; specs/shops.md §3); null: none.
+var routines: ScriptRoutines
 var files: ScriptFiles
 var textboxes: TextBoxes
 var game_state: Node
@@ -169,6 +171,8 @@ func _init(script_ctx: ScriptContext, script_files: ScriptFiles, text_boxes: Tex
 	ctx = script_ctx
 	files = script_files
 	textboxes = text_boxes
+	if textboxes != null and textboxes.files == null:
+		textboxes.files = files
 	ctx.pause_game = pause_game
 	ctx.is_paused = true
 	movement.resize(MOVEMENT_SLOTS)
@@ -276,8 +280,11 @@ func _tick_waiting_instruction() -> void:
 			if textboxes.delay_frames == 0:
 				ctx.active_instruction = 0
 		ScriptContext.OP_CALL_ROUTINE:
-			# The builtins' ticks (shops, menus, ...) come with their systems: they end at once.
-			ctx.active_instruction = 0
+			# The ported builtins tick until they end (ACTIVE_INSTRUCTION = 0); the others end at once.
+			if routines != null and routines.handles(ctx.script_param_1):
+				routines.tick(ctx.script_param_1)
+			else:
+				ctx.active_instruction = 0
 		OP_WAIT_FOR_ENTITY:
 			if _wait_done():
 				ctx.active_instruction = 0
@@ -1244,6 +1251,14 @@ func call_digimon_routine(routine: int) -> void:
 
 func _call_routine(routine: int) -> int:
 	ctx.script_param_1 = routine
+	if routines != null and routines.handles(routine):
+		if routines.start(routine):
+			# The C's setup of a waiting builtin; the frame ends.
+			ctx.active_instruction = ScriptContext.OP_CALL_ROUTINE
+			ctx.state_2 = 0
+			ctx.textbox_mode = 0
+			return STOP
+		return NEXT
 	match routine:
 		0x03, 0x04, 0x05, 0x11:
 			pass

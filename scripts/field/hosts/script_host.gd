@@ -93,6 +93,11 @@ func start() -> void:
 	tamer.sound = Sound
 	interpreter.map_items = map_items
 	interpreter.map_chests = map_chests
+	# The ported builtin routines (shops, ...): the Routines node's children (specs/shops.md §3).
+	var routines := get_node_or_null("Routines") as ScriptRoutines
+	if routines != null:
+		routines.configure(script_ctx, textboxes, GameState, GameData)
+		interpreter.routines = routines
 
 
 ## tickScript (where gameLoop calls it).

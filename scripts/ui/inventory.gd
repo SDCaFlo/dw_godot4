@@ -14,8 +14,6 @@ signal use_item(item: String)
 signal unported(what: String)
 
 const CENTRE := Vector2(160, 120)
-## ITEM.TIM icons (renderItemSprite / setItemTexture): 16 x 16 cells, palette `icon_clut`.
-const ICONS := "tim_files/ETCDAT/ITEM%s.png"
 ## renderItemAmount's digits (setEntityTextDigit: page 0x1E, palette (256, 484)): BI_IN.TIM, p4,
 ## UV (d * 6 + 0x89, 0x9C) = image (d * 6 + 0x89, 28), 6 x 10.
 const DIGITS := "etctim/00_bi_in.p4.png"
@@ -76,7 +74,6 @@ var names: Array = []
 ## ITEM_MOVE_TARGET as renderInventoryBottom uses it: the slot whose description is drawn.
 var _description_slot := -1
 var _repeat := 0
-var _icons := {}
 var _digits: Texture2D
 
 
@@ -573,20 +570,9 @@ func _option_selector(cursor: int, count: int, up: int, down: int) -> int:
 
 # --- drawing helpers -----------------------------------------------------------------------------
 
-## renderItemSprite: the item's 16 x 16 icon (15 texels on the last row / column).
+## renderItemSprite.
 func _icon(canvas: CanvasItem, record: Dictionary, x: int, y: int) -> void:
-	var clut := int(record.get("icon_clut", 0))
-	if not _icons.has(clut):
-		_icons[clut] = Content.load_texture(ICONS % ("" if clut == 0 else ".p%d" % clut))
-	var tex: Texture2D = _icons[clut]
-	if tex == null:
-		return
-	var id := int(record.get("id", 0))
-	var u := (id % 16) * 16
-	var v := (id / 16) * 16
-	var w := 15 if u == 0xF0 else 16
-	var h := 15 if v == 0xF0 else 16
-	canvas.draw_texture_rect_region(tex, Rect2(CENTRE + Vector2(x, y), Vector2(w, h)), Rect2(u, v, w, h))
+	MenuDraw.item_icon(canvas, record, x, y)
 
 
 ## renderItemAmount(0, 2, ...): two digits, right-aligned, no leading zeros.

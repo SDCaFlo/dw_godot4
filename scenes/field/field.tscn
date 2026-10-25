@@ -10,6 +10,11 @@
 [ext_resource type="Script" path="res://scripts/field/hosts/clock_host.gd" id="8_clock_host"]
 [ext_resource type="Script" path="res://scripts/field/hosts/debug_host.gd" id="9_debug"]
 [ext_resource type="Script" path="res://scripts/field/hosts/menu_host.gd" id="10_menu_host"]
+[ext_resource type="Script" path="res://scripts/script/script_routines.gd" id="11_routines"]
+[ext_resource type="PackedScene" path="res://scenes/script/shop_routines.tscn" id="12_shop_routines"]
+[ext_resource type="PackedScene" path="res://scenes/script/card_shop_routines.tscn" id="12_card_shop_routines"]
+[ext_resource type="PackedScene" path="res://scenes/script/merit_shop_routines.tscn" id="12_merit_shop_routines"]
+[ext_resource type="PackedScene" path="res://scenes/script/mojyamon_routines.tscn" id="12_mojyamon_routines"]
 
 [sub_resource type="Environment" id="Environment_bg"]
 background_mode = 3
@@ -71,6 +76,17 @@ script = ExtResource("5_map_session")
 
 [node name="ScriptHost" type="Node" parent="Systems"]
 script = ExtResource("6_script_host")
+
+[node name="Routines" type="Node" parent="Systems/ScriptHost"]
+script = ExtResource("11_routines")
+
+[node name="ShopRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_shop_routines")]
+
+[node name="CardShopRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_card_shop_routines")]
+
+[node name="MeritShopRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_merit_shop_routines")]
+
+[node name="MojyamonRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_mojyamon_routines")]
 
 [node name="CareHost" type="Node" parent="Systems"]
 script = ExtResource("7_care_host")

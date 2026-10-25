@@ -82,6 +82,8 @@ var pad: Pad
 var ctx: ScriptContext
 var data: Node
 var game_state: Node
+## The scripts (the MAPHEAD script's lines for the builtin routines); set by the interpreter.
+var files: ScriptFiles
 
 
 func _init(ui_boxes: UIBoxes, area: TextArea, script_ctx: ScriptContext, game_pad: Pad, game_data: Node, state: Node) -> void:
@@ -624,6 +626,89 @@ static func int_to_string_sjis(value: int, digits: int, skip_zeros: int) -> Pack
 	return out
 
 
+# --- the MAPHEAD lines of the builtin routines (script_common.c:1174-1219, :2431, :2971) ------------
+
+## The shopkeepers' line sections: 0x4C4 + the index of the NPC's Digimon in SHOPKEEP_DIGIMON_TYPES,
+## 0x4C4 for another NPC, 0x4CE without one (getShopkeeperLine).
+const SHOPKEEPER_SECTION := 0x4C4
+const NO_SHOPKEEPER_SECTION := 0x4CE
+## A routine's line section 0xFF: the shopkeeper's.
+const SECTION_SHOPKEEPER := 0xFF
+## showMapHeadTextbox's owner "keep the dialogue owner" (0xFE).
+const OWNER_KEEP := 0xFE
+
+
+## getShopkeeperLine's section: by the Digimon of the NPC in script value 0xFE.
+func shopkeeper_section() -> int:
+	var owner := ctx.read_pstat(0xFE)
+	if owner == 0xFF:
+		return NO_SHOPKEEPER_SECTION
+	var type := ctx.type_of(owner)
+	if type >= 0:
+		var keepers: Array = data.shops().get("shopkeepers", [])
+		for i in keepers.size():
+			if int(keepers[i]["id"]) == type:
+				return SHOPKEEPER_SECTION + i
+	return SHOPKEEPER_SECTION
+
+
+## resolveMapHeadEntry: the offset of the text of entry `index` of a MAPHEAD section (its entries
+## are JUMP_TOs to SHOW_TEXTBOXes; the text is 2 bytes in), -1 if missing.
+func maphead_entry(section: int, index: int) -> int:
+	if files == null:
+		return -1
+	var bytes := files.script(ScriptFiles.MAPHEAD)
+	if section == SECTION_SHOPKEEPER:
+		section = shopkeeper_section()
+	var at := ScriptFiles.section(bytes, section)
+	if at < 0 or at + index * 4 + 4 > bytes.size():
+		return -1
+	return bytes.decode_u16(at + index * 4 + 2) + 2
+
+
+## Runs `f` with the script pointer on a MAPHEAD line, then puts the pointer back (the C swaps
+## SCRIPT_POINTER the same way).
+func _at_maphead(section: int, index: int, f: Callable) -> Variant:
+	var at := maphead_entry(section, index)
+	if at < 0:
+		return 0
+	var saved_code := ctx.code
+	var saved_pointer := ctx.pointer
+	ctx.code = files.script(ScriptFiles.MAPHEAD)
+	ctx.pointer = at
+	var result = f.call()
+	ctx.code = saved_code
+	ctx.pointer = saved_pointer
+	return result
+
+
+## showMapHeadTextbox (script_common.c:2431): a routine's line into a box (box 0: the dialogue, as
+## the owner's); the routine keeps waiting (ACTIVE_INSTRUCTION = CALL_ROUTINE).
+func show_maphead_textbox(index: int, owner: int, box_id: int, section := SECTION_SHOPKEEPER) -> void:
+	if box_id == 0 and owner != OWNER_KEEP:
+		set_dialogue_owner(owner)
+	var speaker := ScriptContext.OWNER_NONE if owner == OWNER_KEEP else owner
+	_at_maphead(section, index, func(): return show_textbox_ready(box_id, speaker))
+	ctx.active_instruction = ScriptContext.OP_CALL_ROUTINE
+
+
+## showMapheadSelection (script_common.c:2971): a routine's choice of `count` lines in the dialogue
+## box; `keep` = the choice was shown before (SHOP_ACTION_SELECTED: the cursor stays).
+func show_maphead_selection(index: int, owner: int, count: int, keep: bool, section := SECTION_SHOPKEEPER) -> void:
+	if owner != OWNER_KEEP:
+		set_dialogue_owner(owner)
+	else:
+		ctx.dialogue_owner = ScriptContext.OWNER_NONE
+		owner = ScriptContext.OWNER_TAMER
+	selection["count"] = count
+	if not keep:
+		selection["current"] = 0
+	var cols: int = _at_maphead(section, index, func(): return show_textbox_ready(0, ctx.dialogue_owner))
+	selection["cursor_width"] = cols * text_area.font.glyph_width + 2
+	selection["cursor_offset_y"] = 0xD if owner != ScriptContext.OWNER_NONE else 0
+	ctx.active_instruction = ScriptContext.OP_CALL_ROUTINE
+
+
 # --- the dialogue box (script_textbox.c:112-410, 912-1050) ----------------------------------------
 
 ## setupDialogueBox (script_textbox.c:912).
@@ -736,9 +821,11 @@ func tick_selection_dialogue() -> int:
 		return selection["current"]
 	if pad.is_key_down(Pad.CANCEL):
 		if not ctx.is_trigger_set(ScriptContext.TRIGGER_NO_CANCEL):
+			# The C asks who owns the choice before advanceTextbox clears ACTIVE_INSTRUCTION.
+			var routine := ctx.active_instruction == ScriptContext.OP_CALL_ROUTINE
 			advance_textbox(0)
 			sound.emit(4)
-			if ctx.active_instruction != ScriptContext.OP_CALL_ROUTINE:
+			if not routine:
 				ctx.pointer = selection["end_pointer"]
 				return 0xFFFF
 			selection["current"] = selection["count"] - 1

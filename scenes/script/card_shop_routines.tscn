@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/script/card_shop_routines.gd" id="1_card_shop"]
+
+[node name="CardShopRoutines" type="Node"]
+script = ExtResource("1_card_shop")

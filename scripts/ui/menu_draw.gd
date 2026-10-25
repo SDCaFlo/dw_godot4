@@ -18,6 +18,8 @@ const SBOY := "etctim/05_sboy%s.png"
 const LINE_COLORS := [0x020202, 0xFAD990, 0xC59F4A, 0x6996B4]
 ## renderRectPolyFT4's dimmed colour (flag 1): 0x32 instead of 0x80.
 const DIMMED := Color(0x32 / 128.0, 0x32 / 128.0, 0x32 / 128.0)
+## ITEM.TIM icons (renderItemSprite / setItemTexture): 16 x 16 cells, palette `icon_clut`.
+const ITEM_ICONS := "tim_files/ETCDAT/ITEM%s.png"
 ## renderNumber's digits: drawn into the text area at row 0xF0, DIGIT_WIDTH 8 apart (US).
 const DIGIT_ROW := 0xF0
 const DIGIT_WIDTH := 8
@@ -32,6 +34,23 @@ static func texture(page: String, palette: int) -> Texture2D:
 		var suffix := "" if palette == 0 else ".p%d" % palette
 		_textures[key] = Content.load_texture((SYSTEM_W if page == "system_w" else SBOY) % suffix)
 	return _textures[key]
+
+
+## renderItemSprite (utils2.c:269): an item's 16 x 16 icon (15 texels on the last row / column).
+static func item_icon(canvas: CanvasItem, record: Dictionary, x: int, y: int) -> void:
+	var clut := int(record.get("icon_clut", 0))
+	var key := "item %d" % clut
+	if not _textures.has(key):
+		_textures[key] = Content.load_texture(ITEM_ICONS % ("" if clut == 0 else ".p%d" % clut))
+	var tex: Texture2D = _textures[key]
+	if tex == null:
+		return
+	var id := int(record.get("id", 0))
+	var u := (id % 16) * 16
+	var v := (id / 16) * 16
+	var w := 15 if u == 0xF0 else 16
+	var h := 15 if v == 0xF0 else 16
+	canvas.draw_texture_rect_region(tex, Rect2(CENTRE + Vector2(x, y), Vector2(w, h)), Rect2(u, v, w, h))
 
 
 ## The palette index of a CLUT word on SYSTEM_W (rows 488 + n at x 96).

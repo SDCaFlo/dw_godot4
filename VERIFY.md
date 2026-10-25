@@ -83,6 +83,11 @@ Sections are added as systems are ported (`PLANS.md`).
 6. **Chest with a full bag:** "I can't hold anymore.", the tray slides back in; the chest can be opened later.
 7. **Award box sound:** the "<name> is sick" box (Care) now plays its sound when it opens.
 
+## Scenes (`scenes/field/`, `specs/scenes.md`)
+
+1. **Nothing changed in play:** the tamer, Agumon and the NPCs look, move and sound as before (the refactor steps are behaviour-neutral).
+2. **In the editor:** open `scenes/field/partner.tscn` and `npc.tscn`: both are inherited from `digimon.tscn` (Model, AnimationSounds); `tamer.tscn` has the same parts, and `field.tscn` shows the Tamer as an instance of it.
+
 ## Scripts (`scripts/script/`, `specs/script.md`)
 
 `test_script.gd` prints `OK: script checks`. Besides its synthetic checks it runs every section of every script (1269) and every map setup (255) to its end, played like a player (texts confirmed, choices tried in turn), in about 15 s; it prints the unported instructions it met.

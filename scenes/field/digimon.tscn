@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/field/field_digimon.gd" id="1_digimon"]
+[ext_resource type="Script" path="res://scripts/field/animation_sounds_component.gd" id="2_sounds"]
+
+[node name="Digimon" type="Node3D"]
+script = ExtResource("1_digimon")
+
+[node name="Model" type="Node3D" parent="."]
+
+[node name="AnimationSounds" type="Node" parent="."]
+script = ExtResource("2_sounds")

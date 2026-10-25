@@ -42,6 +42,10 @@ extends Node
 		editor_preview = value
 		_refresh_preview()
 
+## The entity scenes (specs/scenes.md §4.1).
+const PARTNER_SCENE := preload("res://scenes/field/partner.tscn")
+const NPC_SCENE := preload("res://scenes/field/npc.tscn")
+
 var _maps: PackedStringArray
 var _clock: Clock
 var _partner: Partner
@@ -150,7 +154,7 @@ func _map_list_label(map_name: String) -> String:
 ## initializePartner's model part: the partner of the game state follows the tamer
 ## (specs/partner.md).
 func _start_partner() -> void:
-	_partner = Partner.new()
+	_partner = PARTNER_SCENE.instantiate()
 	_partner.name = "Partner"
 	$World/SubViewport.add_child(_partner)
 	_partner.field = _field
@@ -197,7 +201,7 @@ func _start_npcs() -> void:
 
 
 func _create_npc(slot: int) -> Npc:
-	var npc := Npc.new()
+	var npc: Npc = NPC_SCENE.instantiate()
 	npc.name = "Npc%d" % slot
 	npc.slot = slot
 	npc.field = _field

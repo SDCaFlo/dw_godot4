@@ -36,7 +36,7 @@ var animator: PsxAnimator
 ## original plays: on screen, bank 4 replaced by `sound_slot` (the entity's VAB slot: the partner's
 ## is 4; -1 = skipped, NPCs: specs/sound.md §6).
 signal animation_sound(slot: int, value: int)
-var sounds: AnimationSounds
+var sounds: AnimationSoundsComponent
 var sound_slot := -1
 ## isOnScreen (entityIsOffScreen, 320 x 240), set by the entity's tick.
 var on_screen := true
@@ -68,7 +68,7 @@ func load_digimon(data: Node, ref: Variant) -> bool:
 	if _model != null:
 		_model.queue_free()
 	_model = model
-	add_child(model)
+	_part("Model", func(): return Node3D.new()).add_child(model)
 	digimon = record.get("key", str(ref))
 	radius = int(record["radius"])
 	_skeleton = model.find_children("*", "Skeleton3D", true, false)[0]
@@ -77,8 +77,10 @@ func load_digimon(data: Node, ref: Variant) -> bool:
 	player.root_motion_track = NodePath("%s:bone_0" % anim_root.get_path_to(_skeleton))
 	var gltf = Content.load_json(rel)
 	animator = PsxAnimator.new(player, gltf)
-	sounds = AnimationSounds.new(gltf)
-	sounds.sound.connect(_on_animation_sound)
+	sounds = _part("AnimationSounds", func(): return AnimationSoundsComponent.new())
+	sounds.set_model(gltf)
+	if not sounds.sound.is_connected(_on_animation_sound):
+		sounds.sound.connect(_on_animation_sound)
 	start_animation(0)
 	return true
 
@@ -92,6 +94,17 @@ func _process(delta: float) -> void:
 		return
 	step += Vector2(motion.x, motion.z).length()
 	_move(motion)
+
+
+## The entity scene's child `part_name` (specs/scenes.md §4.1: `Model`, the components); an entity
+## made with .new() (the logic tests) gets it here.
+func _part(part_name: String, make: Callable) -> Node:
+	var node := get_node_or_null(part_name)
+	if node == null:
+		node = make.call()
+		node.name = part_name
+		add_child(node)
+	return node
 
 
 ## startAnimation.

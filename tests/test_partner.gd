@@ -32,7 +32,8 @@ func _run() -> void:
 	map._collision.fill(0)
 	var tamer := Node3D.new()
 	root.add_child(tamer)
-	var partner := Partner.new()
+	# the entity scene (specs/scenes.md §6): Model and AnimationSounds children
+	var partner: Partner = load("res://scenes/field/partner.tscn").instantiate()
 	root.add_child(partner)
 	partner.field = map
 	partner.tamer = tamer

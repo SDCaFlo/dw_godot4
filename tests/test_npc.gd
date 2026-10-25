@@ -69,14 +69,14 @@ func _setup() -> void:
 	map._collision.fill(0)
 	tamer = Tamer.new()
 	tamer.field = map
-	partner = Partner.new()
+	partner = load("res://scenes/field/partner.tscn").instantiate()
 	partner.field = map
 	partner.tamer = tamer
 	ents = FieldEntities.new()
 	ents.tamer = tamer
 	ents.partner = partner
 	ents.npc_factory = func(slot: int) -> Npc:
-		var npc := Npc.new()
+		var npc: Npc = load("res://scenes/field/npc.tscn").instantiate()
 		npc.slot = slot
 		npc.entities = ents
 		npc.field = map

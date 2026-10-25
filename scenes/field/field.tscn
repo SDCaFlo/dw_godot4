@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dli5ots2bhx6w" path="res://scripts/field/field.gd" id="1_field"]
 [ext_resource type="Script" uid="uid://bdkuto3xl7ah" path="res://scripts/field/field_map.gd" id="2_map"]
-[ext_resource type="Script" uid="uid://ckda3uk0ng3f8" path="res://scripts/field/tamer.gd" id="3_tamer"]
+[ext_resource type="PackedScene" path="res://scenes/field/tamer.tscn" id="3_tamer"]
 
 [sub_resource type="Environment" id="Environment_bg"]
 background_mode = 3
@@ -41,8 +41,7 @@ current = true
 
 [node name="Doors" type="Node3D" parent="World/SubViewport/FieldMap" unique_id=2098059702]
 
-[node name="Tamer" type="Node3D" parent="World/SubViewport" unique_id=1420352460]
-script = ExtResource("3_tamer")
+[node name="Tamer" parent="World/SubViewport" unique_id=1420352460 instance=ExtResource("3_tamer")]
 
 [node name="Hud" type="CanvasLayer" parent="." unique_id=872916731]
 

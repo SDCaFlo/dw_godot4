@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/field/digimon.tscn" id="1_digimon"]
+[ext_resource type="Script" path="res://scripts/field/partner.gd" id="2_script"]
+
+[node name="Partner" instance=ExtResource("1_digimon")]
+script = ExtResource("2_script")

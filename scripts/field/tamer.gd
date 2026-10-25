@@ -43,7 +43,7 @@ var on_screen := true
 ## The model's animation sound events (anim.c:336: footsteps): emitted when on screen. Bank 4
 ## (the entity's own slot) is skipped: the tamer has none (specs/sound.md §6).
 signal animation_sound(slot: int, value: int)
-var _sounds: AnimationSounds
+var _sounds: AnimationSoundsComponent
 var on_map := true
 ## Ground distance his root motion moved during the last game frame (entityMoveForward's step).
 var step := 0.0
@@ -113,14 +113,15 @@ func _ready() -> void:
 	var model := Content.load_model(MODEL)
 	if model == null:
 		return
-	add_child(model)
+	_part("Model", func(): return Node3D.new()).add_child(model)
 	var sidecar = Content.load_json(SIDECAR)
 	if sidecar != null:
 		radius = int(sidecar["skeleton"]["radius"])
 
 	_player = model.find_children("*", "AnimationPlayer", true, false)[0]
 	_skeleton = model.find_children("*", "Skeleton3D", true, false)[0]
-	_sounds = AnimationSounds.new(Content.load_json(MODEL))
+	_sounds = _part("AnimationSounds", func(): return AnimationSoundsComponent.new())
+	_sounds.set_model(Content.load_json(MODEL))
 	_sounds.sound.connect(func(bank: int, value: int):
 		if bank != 4 and (field == null or field.is_on_screen(global_position)):
 			animation_sound.emit(bank, value))
@@ -184,6 +185,17 @@ func _process(delta: float) -> void:
 	# camera moves by his screen motion (specs/camera.md §2.2).
 	if camera_follow and state == STATE_FREE and held != 0:
 		field.scroll_by(field.screen_motion(before, global_position), held)
+
+
+## The entity scene's child `part_name` (specs/scenes.md §4.1: `Model`, the components); an entity
+## made with .new() (the logic tests) gets it here.
+func _part(part_name: String, make: Callable) -> Node:
+	var node := get_node_or_null(part_name)
+	if node == null:
+		node = make.call()
+		node.name = part_name
+		add_child(node)
+	return node
 
 
 ## tamerSetState (tamer.c:1359).

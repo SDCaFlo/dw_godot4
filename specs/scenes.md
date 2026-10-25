@@ -1,6 +1,6 @@
 # Scenes and composition (design note)
 
-Status (2026-10-24): design, decided with the user; nothing moved yet. The refactor plan is in `PLANS.md` ("Scene composition refactor": after 5b, before 5e).
+Status (2026-10-24): design decided with the user. Step 2 done (§7): `scenes/field/digimon.tscn`, `partner.tscn` and `npc.tscn` (inherited), `tamer.tscn`, each with a `Model` slot and an `AnimationSounds` component (`scripts/field/animation_sounds_component.gd`); the field instances them; an entity made with `.new()` (the logic tests) creates its missing parts itself (`_part`). The refactor plan is in `PLANS.md` ("Scene composition refactor": after 5b, before 5e).
 
 How the game's runtime parts are put together in Godot:
 - **Logic:** plain classes that reproduce the original's C code.

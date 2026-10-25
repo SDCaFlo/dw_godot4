@@ -24,6 +24,10 @@ var _accumulated := 0.0
 var _tapped := 0
 
 
+func _ready() -> void:
+	Pad.add_actions()
+
+
 func _process(delta: float) -> void:
 	if paused or Engine.is_editor_hint():
 		return

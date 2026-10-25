@@ -49,6 +49,15 @@ Sections are added as systems are ported (`PLANS.md`).
 5. **Dialogue:** see the Scripts section: the dialogue box is checked with the script sections that use it.
 6. **Not there yet:** the medal and tamer-level messages, the sounds.
 
+## Controller (`scripts/core/pad.gd`, `tamer.gd`; `specs/text.md` §2.8)
+
+`test_text.gd` checks the pad actions, `test_camera.gd` the direction chain. With a gamepad plugged in:
+
+1. **✕ on text boxes:** talk to an NPC and press the pad's bottom button (✕ / A): the pages turn and the box closes, as with Enter. △ (top button) cancels in choices.
+2. **Facing after the stick:** walk with the left stick in each direction and let go: the tamer keeps facing where he walked, never turns down on release. Same with the d-pad.
+3. **Running:** hold the right shoulder (R1) or △ while walking: he runs. On the keyboard Shift still runs.
+4. **Keyboard:** arrows, Enter / Space and Shift work as before.
+
 ## Scripts (`scripts/script/`, `specs/script.md`)
 
 `test_script.gd` prints `OK: script checks`. Besides its synthetic checks it runs every section of every script (1269) and every map setup (255) to its end, played like a player (texts confirmed, choices tried in turn), in about 15 s; it prints the unported instructions it met.
@@ -75,10 +84,17 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
    - the clock and bars stop during the change and come back after it.
    - Wrong if: the name is off-centre, the fade doesn't cover the tamer and Agumon, you warp back at once (a loop), or you can't move after arriving.
 3. **Coming back:** go back through the same exit: you arrive at the exit you left from. A few map changes store another map as the previous one (`change_map_previous` in the data): the Birdra Transport room (ROOM12) to its six destinations, Great Canyon (GCAN08_1 → GCAN07), Dragon Eye Lake → BETL01, Secret Beach Cave (OGRE10 → map 0x87), Coela Point → Tropical Jungle (TROP01, previous = map 13). Where the game uses the previous map (e.g. fleeing a battle), the port uses the same one.
-4. **Script walk-outs:** many exits are a script instead of a warp cell (121 of them: File City and its houses, the factory, the mountain paths, …). E.g. Green Gym (TRAI00) toward Jijimon's house: stepping on the exit, the tamer runs on toward a point past the edge (the script's `ENTITY_WALK_TO`) while the screen fades, stops there, and the map changes. Wrong if: he stands still at the exit, or keeps running on the new map. A few exits start a short scene first (GCAN08_1, YAKA24, OGRE11, TOPN01, OMOC04–07); those still lack their scene (NPCs and camera moves come later).
-5. **Trigger cells:** on MAYO04A, stand at the sign and press ✕: the sign's text (section 0x51) runs. Cells that start a scene when stepped on (51–79) run it at once, if their map has one.
-6. **Toilet:** step on a toilet while Agumon needs to go: its scene plays (see Camera, item 4).
-7. **Debug `[` / `]`:** the previous / next map, with the same fade and name, to its exit 0.
+4. **Script walk-outs:** many exits are a script instead of a warp cell (121 of them: File City and its houses, the factory, the mountain paths, …). E.g. Green Gym (TRAI00) toward Jijimon's house: stepping on the exit, the tamer runs on toward a point past the edge (the script's `ENTITY_WALK_TO`) while the screen fades, stops there, and the map changes. Wrong if: he stands still at the exit, or keeps running on the new map.
+5. **Exits with a short scene** (17 of them; `tests/exit_scan.tscn` plays them all headless: `godot --headless --fixed-fps 60 --path . res://tests/exit_scan.tscn`, every line `ok`). Teleport with the debugger's Maps tab and watch the scene before the warp:
+   - Great Canyon Top (GCAN08_1): the first time, "What?", the walk around, "I felt the ground move."; step off the cell and back: "What? No way!", they sink (the ground objects swap) and fall to GCAN07;
+   - Grey Lord's Mansion (YAKA24): at the books, the choice; "I'll take it": the walk, "Huh?", they slide away and land wounded on YAKA15 ("I'm wounded!");
+   - Secret Beach Cave (OGRE11): Ogremon's gang scene, then FRZL16 (the battle is skipped until battles are ported);
+   - Toy Town (OMOC04–07): the locked door ("It won't open." until trigger 349), then the door rooms: the right door (picked at random on entry) opens and you walk through, a wrong one plays its trap;
+   - TOPN01, GCAN10, FACT01: a short walk or turn, then the warp.
+   - Skipped for now, by design: sounds, chests, battles and a few built-in routines (0x2B, 0x2C, 0x37), which come with steps 5b–5e.
+6. **Trigger cells:** on MAYO04A, stand at the sign and press ✕: the sign's text (section 0x51) runs. Cells that start a scene when stepped on (51–79) run it at once, if their map has one.
+7. **Toilet:** step on a toilet while Agumon needs to go: its scene plays (see Camera, item 4).
+8. **Debug `[` / `]`:** the previous / next map, with the same fade and name, to its exit 0.
 
 ## NPCs (`scripts/field/npc.gd`, `field_entities.gd`, `field_digimon.gd`, `specs/npc.md`)
 

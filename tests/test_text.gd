@@ -226,6 +226,18 @@ func _pad() -> void:
 		if pad.is_key_down(Pad.DOWN):
 			downs.append(frame + 1)
 	_eq(downs, [1, 8, 10, 12], "isKeyDown with INPUT_REPEAT_MASK")
+	# The pad actions: every PSX button has one, ✕ / △ also on the joypad (ISSUES / PLANS controller bugs).
+	Pad.add_actions()
+	var cross_buttons := []
+	for event in InputMap.action_get_events("pad_cross"):
+		if event is InputEventJoypadButton:
+			cross_buttons.append(event.button_index)
+	var triangle_keys := []
+	for event in InputMap.action_get_events("pad_triangle"):
+		if event is InputEventKey:
+			triangle_keys.append(event.keycode)
+	_eq([Pad.ACTIONS.keys().all(func(a): return InputMap.has_action(a)), cross_buttons, triangle_keys],
+			[true, [JOY_BUTTON_A], [KEY_ESCAPE]], "pad actions: ✕ on the joypad's bottom button, △ on Escape")
 
 
 ## TextBoxes on a fresh UI box set, with a script context and a pad.

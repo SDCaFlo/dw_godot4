@@ -284,7 +284,8 @@ Everything is in `scripts/ui/`, built to be reused by every window that comes la
 - **`MessageBox`** (`message_box.gd`): a reusable text window on a box slot. It has `rect`, `color`, `features`, `strings` (`renderString` arguments), `arrow`, and `open(from)` / `close(to)` / `is_available()` / `is_shown()`. Its defaults are the tamer's award box.
 - **Tamer state 20:** `Tamer.tick_award_something()` reproduces `tamerTickAwardSomething` with a `MessageBox`. `Tamer.tick()` runs on `GameLoop.frame` before the partner. The medal and level texts (sub-states 1–3) come with those systems.
 - **Pad** (`scripts/core/pad.gd`): §2.8.
-  - `GameLoop` polls it at the start of every game frame from the Godot actions (`ui_accept` ✕, `ui_cancel` △, the arrows). A tap shorter than a frame still counts for one frame.
+  - `GameLoop` polls it at the start of every game frame from the Godot actions, one per PSX button (`pad_cross`, `pad_triangle`, `pad_up`, …, `Pad.ACTIONS`). `Pad.add_actions` gives each the keys and joypad events of `Pad.DEFAULT_EVENTS` unless the project's input map defines it: ✕ Enter / Space / the joypad's bottom button, △ Escape / the top button, ○ Backspace / the right button, R1 Shift / the right shoulder, the directions on the arrows, the d-pad and the left stick (digital: held past the 0.5 deadzone or not). A tap shorter than a frame still counts for one frame.
+  - The tamer walks on these bits like `tamerTickWalkingState` (`tamer.c:541`): his direction changes only while a direction is held (up over down, left over right), R1 or △ held runs.
   - It gives `is_held` (`POLLED_INPUT`), `is_changed` (`CHANGED_INPUT`) and `is_key_down` (`isKeyDown`), with the same repeats.
   - The tamer's message box closes on a held ✕ (`is_held`), as the C does.
 - **`TextBoxes`** (`scripts/ui/text_boxes.gd`): §2.6–2.7, the whole of `script_textbox.c`, on the shared `UIBoxes` and `TextArea`. Box 0 is the dialogue box.

@@ -140,8 +140,9 @@ func _follow() -> void:
 		seen.append([map.scroll.x - limit.x, map.virtual_scroll.x - limit.x])
 	_eq(seen, [[0.0, 3.0], [0.0, -2.0], [-5.0, -7.0]],
 			"walking back, the scroll waits until the virtual scroll is back inside (updateDrawingOffsets' undo)")
-	_eq([Tamer._held_directions(Vector2(-1, 1)), Tamer._held_directions(Vector2.ZERO)], [Pad.LEFT | Pad.DOWN, 0],
-			"the held d-pad bits")
+	_eq([Tamer._direction_offset(Pad.UP), Tamer._direction_offset(Pad.LEFT | Pad.DOWN),
+			Tamer._direction_offset(Pad.RIGHT), Tamer._direction_offset(Pad.UP | Pad.DOWN | Pad.RIGHT)],
+			[0x800, 0x200, 0xC00, 0xA00], "the d-pad's direction offsets (tamer.c:565, up wins over down)")
 
 
 # --- §2.3: pans --------------------------------------------------------------------------------------

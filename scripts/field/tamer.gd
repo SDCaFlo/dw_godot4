@@ -128,11 +128,12 @@ func _process(delta: float) -> void:
 		_play(ANIM_IDLE)
 		_player.advance(delta)
 	else:
-		var input := Vector2(Input.get_axis("ui_left", "ui_right"), Input.get_axis("ui_up", "ui_down"))
-		held = _held_directions(input)
-		if input != Vector2.ZERO and state == STATE_FREE:
-			_play(ANIM_RUN if Input.is_key_pressed(KEY_SHIFT) else ANIM_WALK)
-			_set_direction(_input_direction(input))
+		# tamerTickWalkingState (tamer.c:541): the d-pad bits of POLLED_INPUT; R1 or △ held runs.
+		var polled := pad.polled if pad != null else 0
+		held = polled & Pad.DIRECTIONS
+		if held != 0 and state == STATE_FREE:
+			_play(ANIM_RUN if polled & (Pad.R1 | Pad.CANCEL) != 0 else ANIM_WALK)
+			_set_direction(_input_direction(held))
 		else:
 			_play(ANIM_IDLE)
 		_player.advance(delta)
@@ -314,35 +315,27 @@ func _play(anim_name: String) -> void:
 		_player.play(anim_name)
 
 
-## The d-pad bits of a held direction (POLLED_INPUT & 0xF000).
-static func _held_directions(input: Vector2) -> int:
-	var held := 0
-	if input.x < 0:
-		held |= Pad.LEFT
-	elif input.x > 0:
-		held |= Pad.RIGHT
-	if input.y < 0:
-		held |= Pad.UP
-	elif input.y > 0:
-		held |= Pad.DOWN
-	return held
-
-
-## Pad direction to rotation.vy: the camera's direction (getMapRotation) snapped to 45 degrees,
-## then up = away from the camera (+0x800), left +0x400, right +0xC00, diagonals in between.
-func _input_direction(input: Vector2) -> int:
+## Held d-pad bits (POLLED_INPUT & 0xF000, not 0) to rotation.vy: the camera's direction
+## (getMapRotation) snapped to 45 degrees, plus the direction's offset (_direction_offset).
+func _input_direction(held: int) -> int:
 	var rotation := field.map_rotation()
 	var quadrant := rotation / 0x200
 	if rotation % 0x200 >= 0x100:
 		quadrant += 1
 	rotation = quadrant * 0x200
-	var offsets := {
-		Vector2i(0, -1): 0x800, Vector2i(-1, -1): 0x600, Vector2i(1, -1): 0xA00,
-		Vector2i(0, 1): 0x000, Vector2i(-1, 1): 0x200, Vector2i(1, 1): 0xE00,
-		Vector2i(-1, 0): 0x400, Vector2i(1, 0): 0xC00,
-	}
-	var key := Vector2i(signi(roundi(input.x)), signi(roundi(input.y)))
-	return (rotation + offsets.get(key, 0)) & 0xFFF
+	return (rotation + _direction_offset(held)) & 0xFFF
+
+
+## tamerTickWalkingState's direction chain (tamer.c:565): up = away from the camera (+0x800), down
+## +0, left +0x400, right +0xC00, diagonals in between; up wins over down, left over right.
+static func _direction_offset(held: int) -> int:
+	if held & Pad.UP != 0:
+		return 0x600 if held & Pad.LEFT != 0 else (0xA00 if held & Pad.RIGHT != 0 else 0x800)
+	if held & Pad.DOWN != 0:
+		return 0x200 if held & Pad.LEFT != 0 else (0xE00 if held & Pad.RIGHT != 0 else 0x000)
+	if held & Pad.LEFT != 0:
+		return 0x400
+	return 0xC00
 
 
 func _set_direction(vy: int) -> void:

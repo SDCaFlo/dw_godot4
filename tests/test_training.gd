@@ -2,7 +2,8 @@ extends SceneTree
 ## Training (scripts/systems/training.gd, scripts/ui/training_stats_box.gd, scripts/training/,
 ## scripts/script/training_routines.gd, scripts/field/cloud_fx.gd; specs/training.md): the gains,
 ## the hour, the stats box, builtins 0x07 / 0x27, the stations (HP, and 4d-2: Offense, Speed, Defense,
-## MP, Brains) with a stub walker, the Brains boxes and move learning, the sparks.
+## MP, Brains) with a stub walker, the Brains boxes and move learning, the sparks, and 4d-3: the slot
+## machine, its session and the stations with the Bonus Try.
 ##   godot --headless --path . -s res://tests/test_training.gd
 ## Exits 1 if a check fails.
 
@@ -27,6 +28,19 @@ class FakeSound extends Node:
 
 	func stop_sound_mask(mask: int) -> void:
 		stopped.append(mask)
+
+
+## The slot machine's box (duck-typed, SlotSession): box 3 is busy once opened until the test frees it.
+class FakeSlotBox extends RefCounted:
+	var opened: Array = []
+	var free := true
+
+	func open(machine: SlotMachine, mode: int) -> void:
+		opened.append([machine, mode])
+		free = false
+
+	func is_free() -> bool:
+		return free
 
 
 var _failed := 0
@@ -73,6 +87,15 @@ func _process(_delta: float) -> bool:
 	_defense()
 	_mp()
 	_brains()
+	_slot_machine()
+	_slot_choose()
+	_slot_payouts()
+	_slot_rows()
+	_slot_session()
+	_slot_hp()
+	_slot_stations()
+	_slot_defense()
+	_slot_box()
 	clock.free()
 	gs.free()
 	data.free()
@@ -619,10 +642,10 @@ func _free_rig(r: Dictionary) -> void:
 
 
 ## Builtin 0x07's setup on a map with value 0xFE = stat: the station started, or null.
-func _start(r: Dictionary, map_id: int, stat: int) -> TrainingStation:
+func _start(r: Dictionary, map_id: int, stat: int, slots := 0) -> TrainingStation:
 	r.ctx.current_screen_id = map_id
 	gs.set_script_value(TrainingRoutines.PSTAT_STAT, stat)
-	gs.set_script_value(TrainingRoutines.PSTAT_SLOTS, 0)
+	gs.set_script_value(TrainingRoutines.PSTAT_SLOTS, slots)
 	r.node.station = null
 	r.node.start(TrainingRoutines.TRAINING)
 	return r.node.station
@@ -820,3 +843,498 @@ func _brains() -> void:
 	_check(_run_out(r, s) and r.boxes.boxes[2].state != UIBoxes.STATE_OPEN and r.tamer.state == Tamer.STATE_FREE,
 			"done: box 2 closes, the tamer free")
 	_free_rig(r)
+
+
+# --- 4d-3 (specs/training.md §7) ---------------------------------------------------------------
+
+## The reels of the table, for the expectations (TRN_D_8008F1AC).
+const R0 := [1, 2, 3, 4, 5, 6, 7, 1, 3, 5, 2, 4, 6]
+const R1 := [6, 4, 2, 5, 3, 1, 2, 5, 3, 6, 1, 4, 7]
+const R2 := [7, 6, 5, 4, 6, 5, 4, 3, 2, 1, 3, 2, 1]
+
+
+## A machine on the table, opened for `mode` with the assist and reel positions set, recording its
+## sounds in `heard`.
+func _machine(mode: int, assist: int, pos: Array, heard: Array) -> SlotMachine:
+	var m := SlotMachine.new()
+	m.data = data
+	m.sound = func(id: int): heard.append(id)
+	m.open(mode)
+	m.assist = assist
+	for i in 3:
+		m.reel_pos[i] = pos[i]
+	return m
+
+
+func _slot_machine() -> void:
+	var t: Dictionary = data.slot_machine()
+	var reels := []
+	for reel in t["reels"]:
+		reels.append(Array(reel).map(func(v): return int(v)))
+	_check(reels == [R0, R1, R2] and Array(t["assist_draw"]).map(func(v): return int(v)) == [0, 0, 0, 0, 0, 1, 1, 1, 1, 2],
+			"the table: the reels and the assist draw")
+	_check(t["symbols"][0]["stat"] == "hp" and t["symbols"][6].get("jackpot", false)
+			and t["payouts"]["own_stat"]["payout"] == 40, "the table: symbols and payouts")
+	var heard := []
+	Rng.set_seed(7)
+	var a := SlotMachine.new()
+	a.data = data
+	a.open(Training.MODE_HP)
+	Rng.set_seed(7)
+	var b := SlotMachine.new()
+	b.data = data
+	b.open(Training.MODE_HP)
+	_check(a.assist == b.assist and a.reel_pos == b.reel_pos, "the same seed: the same opening")
+	var in_range := true
+	for p in a.reel_pos:
+		in_range = in_range and p >= 0 and p < 13
+	_check([0, 1, 2].has(a.assist) and in_range and a.state == 0 and a.result == -1 and a.payout == -1
+			and a.auto_start == -1, "opening: an assist 0-2, positions 0-12, waiting, no result")
+	var counts := [0, 0, 0]
+	for k in 1000:
+		a.open(Training.MODE_HP)
+		counts[a.assist] += 1
+	_check(counts[0] > 400 and counts[0] < 600 and counts[1] > 320 and counts[2] > 40 and counts[2] < 170,
+			"the assist draw: about 5 / 4 / 1 in 10 (%s)" % [counts])
+	var m := _machine(Training.MODE_HP, 0, [0, 0, 0], heard)
+	m.tick(false)
+	_check(m.state == 0 and heard.is_empty(), "waiting: nothing happens")
+	m.tick(true)
+	_check(m.state == 1 and m.spin_speed == [0x400, 0x400, 0x400] and heard == [6], "✕ starts the spin: sound 6")
+	var auto := _machine(Training.MODE_HP, 0, [0, 0, 0], [])
+	auto.start_spin()
+	auto.tick(false)
+	_check(auto.state == 1 and auto.spin_speed[2] == 0x400, "start_spin starts it too")
+	# The scroll: 16 a frame, 32 becomes 31, then the next symbol comes in.
+	m.tick(false)
+	_check(m.scroll_y == [16, 16, 16], "16 pixels a frame")
+	m.tick(false)
+	_check(m.scroll_y == [31, 31, 31] and m.reel_pos == [0, 0, 0], "exactly 0x20 becomes 0x1F: no symbol yet")
+	m.tick(false)
+	_check(m.scroll_y == [15, 15, 15] and m.reel_pos == [12, 12, 12], "then 15 and the next symbol (index − 1)")
+	# Three presses stop the reels one by one.
+	m.reel_pos = [0, 0, 0]
+	m.scroll_y = [16, 16, 16]
+	heard.clear()
+	m.tick(true)
+	_check(m.state == 2 and heard == [7] and m.target[0] == R0[12] and m.scroll_y[0] == 31,
+			"first ✕: sound 7, reel 0 told to stop at the next symbol")
+	m.tick(false)
+	_check(m.spin_speed == [0, 0x400, 0x400] and m.reel_pos[0] == 12 and m.scroll_y[0] == 0 and heard == [7, 8],
+			"reel 0 stops on the next symbol (sound 8)")
+	m.tick(true)
+	_check(m.state == 3 and heard == [7, 8, 7] and m.target[1] == R1[(m.reel_pos[1] + 12) % 13],
+			"second ✕: reel 1")
+	m.tick(false)
+	_check(m.spin_speed == [0, 0, 0x400] and heard == [7, 8, 7, 8], "reel 1 stops")
+	m.tick(true)
+	_check(m.state == 4 and heard.back() == 7, "third ✕: reel 2")
+	m.tick(false)
+	_check(m.spin_speed == [0, 0, 0] and m.state == 5 and m.result_timer == 0, "all stopped: the payout state")
+	# stop_steps: the reel rolls on that many more symbols.
+	var h2 := []
+	var m2 := _machine(Training.MODE_HP, 0, [0, 0, 0], h2)
+	m2.state = 2
+	m2.spin_speed = [0x400, 0x400, 0x400]
+	m2.stop_steps[0] = 2
+	m2.scroll_y = [31, 31, 31]
+	m2.tick(false)
+	_check(m2.reel_pos[0] == 12 and m2.stop_steps[0] == 1 and m2.spin_speed[0] == 0x400, "stop_steps 2: rolls on")
+	m2.scroll_y[0] = 31
+	m2.tick(false)
+	m2.scroll_y[0] = 31
+	m2.tick(false)
+	_check(m2.reel_pos[0] == 10 and m2.spin_speed[0] == 0 and h2.has(8), "stops on the symbol 2 further")
+	# ✕ in state 4 does not step the state past it.
+	var m3 := _machine(Training.MODE_HP, 0, [0, 0, 0], [])
+	m3.state = 4
+	m3.spin_speed = [0, 0, 0x400]
+	m3.tick(true)
+	_check(m3.state == 4, "state 4 stays 4 on ✕")
+
+
+func _slot_choose() -> void:
+	var m := _machine(0, 0, [3, 0, 5], [])
+	# Assist 0: reels 0 and 1 aim at the next symbol; reel 2 skips a match.
+	m.choose_reel_stop(0)
+	_check(m.target[0] == R0[2] and m.stop_steps[0] == 0, "assist 0, reel 0: the next symbol")
+	m.choose_reel_stop(1)
+	_check(m.target[1] == R1[12], "assist 0, reel 1: the next symbol")
+	m.target = [6, 6, 0]
+	m.reel_pos[2] = 5
+	m.choose_reel_stop(2)
+	_check(m.stop_steps[2] == 1 or m.stop_steps[2] == 2, "assist 0, reel 2 would match: skipped by 1-2 (%d)" % m.stop_steps[2])
+	m.stop_steps[2] = 0
+	m.target = [6, 4, 0]
+	m.choose_reel_stop(2)
+	_check(m.stop_steps[2] == 0, "assist 0, reel 2, reels 0 and 1 differ: untouched")
+	m.target = [6, 6, 0]
+	m.reel_pos[2] = 6
+	m.choose_reel_stop(2)
+	_check(m.stop_steps[2] == 0, "assist 0, reel 2 aims elsewhere: untouched")
+	# Assist 1.
+	m = _machine(0, 1, [3, 0, 0], [])
+	m.choose_reel_stop(0)
+	_check(m.target[0] == R0[3] and m.stop_steps[0] == 0, "assist 1, reel 0 at rest: the symbol on the line")
+	m.scroll_y[0] = 5
+	m.choose_reel_stop(0)
+	_check(m.target[0] == R0[2], "assist 1, reel 0 between two symbols: the next one")
+	m.target[0] = 3
+	m.reel_pos[1] = 5
+	m.choose_reel_stop(1)
+	_check(m.target[1] == 3 and m.stop_steps[1] == 0, "assist 1, reel 1: the match is the next symbol")
+	m.reel_pos[1] = 6
+	m.choose_reel_stop(1)
+	_check(m.target[1] == 3 and m.stop_steps[1] == 1, "assist 1, reel 1: the match is 2 ahead, 1 more step")
+	m.reel_pos[1] = 0
+	m.choose_reel_stop(1)
+	_check(m.target[1] == -2 and m.stop_steps[1] == 0, "assist 1, reel 1: no match, −2")
+	m.target[0] = 7
+	m.choose_reel_stop(1)
+	_check(m.target[1] == R1[0] and m.stop_steps[1] == 0, "assist 1, reel 1 after a 7: shifts (no search)")
+	m.target = [3, 3, 0]
+	m.reel_pos[2] = 8
+	m.choose_reel_stop(2)
+	_check(m.target[2] == 3 and m.stop_steps[2] == 0, "assist 1, reel 2: the match is the next symbol")
+	m.reel_pos[2] = 9
+	m.choose_reel_stop(2)
+	_check(m.target[2] == 3 and m.stop_steps[2] == 1, "assist 1, reel 2: the match 2 ahead")
+	m.reel_pos[2] = 0
+	m.choose_reel_stop(2)
+	_check(m.target[2] == -2 and m.stop_steps[2] == 0, "assist 1, reel 2: no match, −2")
+	m.target = [3, 4, 0]
+	m.stop_steps[2] = 9
+	m.choose_reel_stop(2)
+	_check(m.stop_steps[2] == 9, "assist 1, reel 2: reels 0 and 1 differ: nothing")
+	m.target = [7, 7, 0]
+	m.reel_pos[2] = 1
+	m.choose_reel_stop(2)
+	_check(m.stop_steps[2] == 1 or m.stop_steps[2] == 2, "assist 1, 7 and 7 and a 7 next: the jackpot is skipped")
+	m.stop_steps[2] = 0
+	m.reel_pos[2] = 3
+	m.choose_reel_stop(2)
+	_check(m.stop_steps[2] == 0, "assist 1, 7 and 7 and no 7 next: nothing")
+	# Assist 2.
+	m = _machine(0, 2, [7, 0, 1], [])
+	m.choose_reel_stop(0)
+	_check(m.target[0] == 7 and m.stop_steps[0] == 0, "assist 2, reel 0: a 7 next")
+	m.reel_pos[0] = 8
+	m.choose_reel_stop(0)
+	_check(m.target[0] == 7 and m.stop_steps[0] == 1, "assist 2, reel 0: a 7 two ahead, 1 more step")
+	m.reel_pos[0] = 0
+	m.choose_reel_stop(0)
+	_check(m.target[0] == -1 and m.stop_steps[0] == 0, "assist 2, reel 0: no 7, −1")
+	m.choose_reel_stop(1)
+	_check(m.target[1] == -2, "assist 2, reel 1 after a miss: −2")
+	m.target[0] = 7
+	m.choose_reel_stop(1)
+	_check(m.target[1] == 7 and m.stop_steps[1] == 0, "assist 2, reel 1 after a 7: scans")
+	m.choose_reel_stop(2)
+	_check(m.target[2] == 7 and m.stop_steps[2] == 0, "assist 2, reel 2 after two 7s: scans")
+	m.reel_pos[2] = 2
+	m.choose_reel_stop(2)
+	_check(m.target[2] == 7 and m.stop_steps[2] == 1, "assist 2, reel 2: a 7 two ahead")
+	m.reel_pos[2] = 5
+	m.choose_reel_stop(2)
+	_check(m.target[2] == -1 and m.stop_steps[2] == 0, "assist 2, reel 2: no 7, −1")
+	m.target = [7, -2, 0]
+	m.choose_reel_stop(2)
+	_check(m.target[2] == -3, "assist 2, reel 2 without two 7s: −3")
+
+
+func _slot_payouts() -> void:
+	# [pos0, pos1, pos2, mode, payout, sound]: 7 7 7; 1 1 1 at HP and at MP; no match; 6 6 6 at Brains.
+	var cases := [[6, 12, 0, Training.MODE_HP, 100, 0xC], [0, 5, 9, Training.MODE_HP, 40, 0xB],
+			[0, 5, 9, Training.MODE_MP, 20, 0xB], [0, 0, 0, Training.MODE_BRAINS, 5, 0xD],
+			[5, 0, 1, Training.MODE_BRAINS, 40, 0xB]]
+	for c in cases:
+		var heard := []
+		var m := _machine(c[3], 0, [c[0], c[1], c[2]], heard)
+		var line := [m.line_symbol(0), m.line_symbol(1), m.line_symbol(2)]
+		m.state = 5
+		m.tick(false)
+		_check(m.payout == c[4] and heard == [c[5]] and m.state == 5 and m.result_timer == 1,
+				"line %s at mode %d: %d, sound 0x%X (%d, %s)" % [line, c[3], c[4], c[5], m.payout, heard])
+	var heard := []
+	var m := _machine(0, 0, [6, 12, 0], heard)
+	m.state = 5
+	for i in 30:
+		m.tick(false)
+	_check(m.state == 5 and heard.size() == 1 and m.result == -1, "the payout shows 30 frames, one sound")
+	m.tick(false)
+	_check(m.state == 6 and m.closing(), "the 31st frame: closing")
+	m.tick(false)
+	_check(m.result == 100, "state 6: the result is the payout")
+	m = _machine(0, 0, [6, 12, 0], [])
+	m.state = 5
+	m.tick(false)
+	m.tick(true)
+	_check(m.state == 6, "✕ closes the payout early")
+	m = _machine(0, 0, [6, 12, 0], [])
+	m.state = 5
+	m.tick(true)
+	_check(m.state == 5 and m.payout == 100, "✕ on the first frame only pays")
+
+
+func _slot_rows() -> void:
+	var m := _machine(0, 0, [0, 0, 0], [])
+	var rows := m.rows(0)
+	var symbols := []
+	var tops := []
+	for row in rows:
+		symbols.append(row["symbol"])
+		tops.append(row["top"])
+	_check(symbols == [4, 6, 1, 2] and tops == [-122, -90, -58, -26],
+			"rows at rest: symbols (pos + 11 + k) %% 13, y −0x7A + 0x20 k (%s %s)" % [symbols, tops])
+	_check(not rows[0]["visible"] and rows[1]["visible"], "row 0 is above the window")
+	_check(rows[1]["y"] == -0x4A and rows[1]["v"] == 232 and rows[1]["h"] == 16, "row 1 starts above the window: clipped at its top")
+	_check(rows[2]["y"] == -58 and rows[2]["v"] == 0xD8 and rows[2]["h"] == 32 and rows[2]["visible"], "row 2 inside: whole")
+	_check(rows[3]["y"] == -26 and rows[3]["h"] == 16 and rows[3]["visible"] and rows[3]["u"] == 32,
+			"row 3 reaches below the window: h = 0x20 − (y + 0x2A)")
+	m.spin_speed[0] = 0x400
+	_check(m.rows(0)[0]["top"] == -122 + 16, "spinning at scroll 0: the step (16) is added")
+	m.scroll_y[0] = 16
+	_check(m.rows(0)[0]["top"] == -122 + 16 + 16 - 1, "scroll 16 + step 16 = 0x20: one less")
+	m.settling[0] = 1
+	_check(m.rows(0)[0]["top"] == -122 + 16 + 2, "settling: + 2 instead of the step")
+	m.scroll_y[0] = 0
+	m.spin_speed[0] = 0
+	_check(m.rows(0)[0]["top"] == -120, "settled: −0x7A + 2")
+	_check(SlotMachine.reel_x(0) == -41 and SlotMachine.reel_x(1) == 0 and SlotMachine.reel_x(2) == 41, "reels at −41, 0, 41")
+	# The tick counts the settling: the reel stopping on its last step.
+	m = _machine(0, 0, [0, 0, 0], [])
+	m.state = 2
+	m.spin_speed = [0x400, 0x400, 0x400]
+	m.scroll_y = [15, 15, 15]
+	m.tick(false)
+	_check(m.settling == [1, 0, 0] and m.spin_speed[0] == 0x400, "the stopping reel on its last step: settling 1; the others 0")
+	m.tick(false)
+	_check(m.settling == [0, 0, 0] and m.spin_speed[0] == 0, "it stops: the settling is over")
+	m = _machine(0, 0, [0, 0, 0], [])
+	m.state = 2
+	m.spin_speed = [0, 0x400, 0x400]
+	m.scroll_y = [0, 15, 15]
+	m.tick(true)
+	_check(m.settling == [0, 1, 0], "the reel told to stop this frame, on its last step: settling 1")
+
+
+func _slot_session() -> void:
+	var box := FakeSlotBox.new()
+	var s := SlotSession.new()
+	s.configure(data, Callable())
+	s.box = box
+	_check(s.result() == -1 and not s.active, "a new session: result −1")
+	s.start(Training.MODE_OFFENSE)
+	s.tick()
+	_check(box.opened.size() == 1 and box.opened[0][0] == s.machine and box.opened[0][1] == Training.MODE_OFFENSE
+			and s.machine.stat == Training.MODE_OFFENSE and s.machine.state == 0, "state 0: the machine opens, box 3 opens")
+	s.tick()
+	_check(s.state == SlotSession.STATE_WAIT_MACHINE and s.result() == -1, "waits for the machine")
+	s.machine.result = 20
+	s.tick()
+	_check(s.state == SlotSession.STATE_WAIT_BOX and s.payout == 20 and s.result() == -1, "the machine paid: waits for box 3")
+	s.tick()
+	_check(s.result() == -1 and s.active, "box 3 still closing: −1")
+	box.free = true
+	s.tick()
+	_check(s.result() == 20 and not s.active, "box 3 closed: the result is the payout")
+	s.tick()
+	_check(s.result() == 20, "ticking after the end changes nothing")
+	s.start(Training.MODE_HP)
+	_check(s.result() == -1, "a new session resets the result")
+	var free := SlotSession.new()
+	free.configure(data, Callable())
+	free.start(Training.MODE_MP)
+	free.tick()
+	free.machine.result = 5
+	free.tick()
+	free.tick()
+	_check(free.result() == 5, "without a box: free at once")
+	# The machine run through to its closing state, the session following it.
+	box.free = true
+	box.opened.clear()
+	s.tick()
+	var m := s.machine
+	m.reel_pos = [6, 12, 0]
+	m.state = 5
+	for i in 40:
+		m.tick(false)
+		s.tick()
+	_check(s.state == SlotSession.STATE_WAIT_BOX and s.payout == 100 and s.result() == -1, "the machine closed with 100")
+	box.free = true
+	s.tick()
+	_check(s.result() == 100, "a full machine run through the session: 100")
+
+
+func _slot_hp() -> void:
+	var r := _rig()
+	var box := FakeSlotBox.new()
+	r.node.training.slot_session.box = box
+	var s: HpBoulderStation = _start(r, 0x70, Training.STAT_HP, 1)
+	_check(s.slots and s.slot_mode() == Training.MODE_HP, "Bonus Try: HP station, mode 0")
+	_frame(r)
+	_check(box.opened.size() == 1 and box.opened[0][1] == Training.MODE_HP and s.state == 1,
+			"state 0: the session starts and the box opens for mode 0")
+	var machine: SlotMachine = r.node.training.slot_session.machine
+	_check(machine.auto_start == -1, "the spin waits for the partner")
+	_frame(r)
+	_check(s.state == 2 and machine.auto_start == 0, "at the boulder: the spin starts")
+	for i in 1300:
+		_frame(r, Pad.CANCEL if i % 7 == 0 else 0)
+	_check(s.state == 2 and s.counter == 1300 and s.running, "no end at 1200 frames nor on △ (%d)" % s.counter)
+	machine.result = 5
+	for i in 4:
+		_frame(r)
+	_check(s.state == 2, "the machine paid but box 3 is closing: the station goes on")
+	box.free = true
+	_frame(r)
+	_frame(r)
+	_check(s.state == 3 and s.training.gains == [40, 0, 1, 0, 0, 0], "result 5: × 0.5 (%s)" % [s.training.gains])
+	_check(s.counter == (1305 % 1200) / 120, "the pushes: (counter %% 1200) / 120 (%d)" % s.counter)
+	_check(_run_out(r, s, 1500), "HP done (the box counts 800 and more)")
+	for c in [[20, [160, 0, 4, 0, 0, 0]], [40, [320, 0, 8, 0, 0, 0]], [100, [800, 0, 20, 0, 0, 0]]]:
+		_clear_bonuses()
+		box.free = true
+		s = _start(r, 0x70, Training.STAT_HP, 1)
+		_frame(r)
+		_check(r.node.training.slot_session.result() == -1, "a new Bonus Try starts at −1")
+		r.node.training.slot_session.machine.result = c[0]
+		box.free = true
+		for i in 5:
+			_frame(r)
+		_check(s.training.gains == c[1], "result %d: gains %s (%s)" % [c[0], c[1], s.training.gains])
+		_check(_run_out(r, s, 1500), "HP done (the box counts 800 and more)")
+	_clear_bonuses()
+	_care()["train_boost_flag"] = Training.BOOST_HP
+	_care()["train_boost_value"] = 15
+	s = _start(r, 0x70, Training.STAT_HP, 1)
+	_frame(r)
+	r.node.training.slot_session.machine.result = 100
+	box.free = true
+	for i in 5:
+		_frame(r)
+	_check(s.training.gains[Training.HP] == Training.GAIN_CAP, "the jackpot with a boost: capped at 999")
+	_check(_run_out(r, s, 1500), "HP done (the box counts 800 and more)")
+	_clear_bonuses()
+	# Without the slots: no session, r = 10.
+	var before := box.opened.size()
+	s = _start(r, 0x70, Training.STAT_HP, 0)
+	_frame(r)
+	_check(box.opened.size() == before and s.result() == TrainingStation.NORMAL_RESULT, "without the slots: no session, r = 10")
+	s.running = false
+	_free_rig(r)
+
+
+## Per station (map, stat, the gains of result 20): the box opens for its mode, the spin starts on
+## arrival, no end at 1300 frames or on △, the end on the result with the gains × 2.
+func _slot_stations() -> void:
+	var cases := [[0x70, Training.STAT_OFFENSE, [0, 0, 16, 0, 4, 0], "Offense (Tree Striking)"],
+			[0x4E, Training.STAT_OFFENSE, [20, 0, 16, 0, 0, 0], "Offense (Striking Special)"],
+			[0x70, Training.STAT_SPEED, [20, 0, 0, 0, 16, 0], "Speed"],
+			[0x70, Training.STAT_MP, [0, 160, 0, 4, 0, 0], "MP"],
+			[0x70, Training.STAT_BRAINS, [0, 20, 0, 0, 0, 16], "Brains"]]
+	for c in cases:
+		var r := _rig()
+		var box := FakeSlotBox.new()
+		r.node.training.slot_session.box = box
+		var s: TrainingStation = _start(r, c[0], c[1], 1)
+		var machine: SlotMachine = r.node.training.slot_session.machine
+		var spun := -1
+		for i in 1300:
+			_frame(r, Pad.CANCEL if i % 5 == 0 else 0)
+			if spun < 0 and machine.auto_start == 0:
+				spun = i
+		_check(box.opened.size() == 1 and box.opened[0][1] == Training.mode_of_stat(c[1]),
+				"%s: the session's box opens for its mode" % c[3])
+		_check(spun >= 1 and spun <= 3, "%s: the spin starts on arrival (frame %d)" % [c[3], spun])
+		_check(s.running and s.training.gains_are_zero(), "%s: no end at 1200 frames nor on △" % c[3])
+		machine.result = 20
+		for i in 4:
+			_frame(r)
+		_check(s.training.gains_are_zero(), "%s: the box is still closing" % c[3])
+		box.free = true
+		var got := false
+		for i in 60:
+			_frame(r)
+			if not s.training.gains_are_zero():
+				got = true
+				break
+		_check(got and s.training.gains == c[2], "%s: result 20, gains × 2 (%s)" % [c[3], s.training.gains])
+		_check(_run_out(r, s), "%s: done" % c[3])
+		_free_rig(r)
+
+
+func _slot_defense() -> void:
+	var r := _rig()
+	var box := FakeSlotBox.new()
+	r.node.training.slot_session.box = box
+	var s: DefenseStation = _start(r, 0x70, Training.STAT_DEFENSE, 1)
+	var machine: SlotMachine = r.node.training.slot_session.machine
+	for i in 1300:
+		_frame(r, Pad.CANCEL if i % 11 == 0 else 0)
+	_check(machine.auto_start == 0 and s.running and s.training.gains_are_zero(), "Defense: runs on past 1200 and △")
+	machine.result = 40
+	box.free = true
+	var mid := 0
+	var ended_in := -1
+	for i in 400:
+		var before := s.state
+		_frame(r)
+		if not s.training.gains_are_zero():
+			ended_in = before
+			break
+		if s.state >= 2 and s.state <= 9:
+			mid += 1
+	_check(mid > 0 and ended_in == 10 and s.state == 12, "Defense: the result only ends it back at the point (from %d)" % ended_in)
+	_check(s.training.gains == [0, 0, 0, 32, 0, 8], "result 40: Defense 32, Brains 8 (%s)" % [s.training.gains])
+	_check(_run_out(r, s), "Defense: done")
+	_free_rig(r)
+
+
+## TrainingSlotsBox: the spot rect, box 3 through a whole Bonus Try with ✕, and the map's strips.
+func _slot_box() -> void:
+	# A projection that keeps the numbers readable: screen = (160 + x / 10, 120 + z / 10).
+	var project := func(p: Vector3) -> Vector2: return Vector2(160 + p.x / 10, 120 + p.z / 10)
+	var hp := TrainingSlotsBox.spot_rect_for(data.training_spots(0x70), Training.MODE_HP, project)
+	_check(hp == Rect2i(101 - 8, -97 - 6, 16, 16), "spot of (0x70, HP) at (1010, 0, -975): (x − 8, y − 6, 16, 16) (%s)" % hp)
+	_check(TrainingSlotsBox.spot_rect_for(data.training_spots(0x4E), Training.MODE_HP, project) == TrainingSlotsBox.NO_SPOT,
+			"no HP spot at GIAS09: (−8, −8, 16, 16)")
+	_check(TrainingSlotsBox.spot_rect_for({}, Training.MODE_MP, project) == TrainingSlotsBox.NO_SPOT, "no spots: (−8, −8, 16, 16)")
+	var r := _rig()
+	var box: TrainingSlotsBox = r.node.slots_box
+	_check(r.node.training.slot_session.box == box, "configure sets the session's box")
+	var s: HpBoulderStation = _start(r, 0x70, Training.STAT_HP, 1)
+	_frame(r)
+	var b: UIBoxes.Box = r.boxes.boxes[TrainingSlotsBox.BOX]
+	_check(b.state == UIBoxes.STATE_OPENING and b.final == TrainingSlotsBox.RECT and b.start == TrainingSlotsBox.NO_SPOT
+			and b.features == UIBoxes.FEATURE_HALF_FILL and b.color == 0, "box 3 grows from the spot (no camera: the default)")
+	_check(not box.is_free(), "box 3 busy")
+	var machine: SlotMachine = r.node.training.slot_session.machine
+	var presses := 0
+	var closed_at := -1
+	for i in 400:
+		var press := i >= 20 and i % 15 == 0 and presses < 3 and machine.state >= SlotMachine.STATE_SPINNING
+		if press:
+			presses += 1
+		_frame(r, Pad.CONFIRM if press else 0)
+		if closed_at < 0 and b.state == UIBoxes.STATE_CLOSING:
+			closed_at = i
+		if s.training.gains[Training.HP] != 0:
+			break
+	_check(presses == 3 and closed_at > 0, "three ✕ stop the reels; the box closes (frame %d)" % closed_at)
+	_check(machine.result in [5, 20, 40, 100] and r.node.training.slot_session.result() == machine.result,
+			"the session's result is the payout (%d)" % machine.result)
+	_check(box.is_free(), "box 3 free after its closing animation")
+	_check(s.training.gains[Training.HP] == 80 * machine.result / 10, "HP gains × c / 10 (%s)" % [s.training.gains])
+	_check(_run_out(r, s, 1500), "HP with the Bonus Try done")
+	_free_rig(r)
+	# The map's strips (asset porter output): 256 x 32, the window's texels all STP, the symbols' none.
+	if Content.exists("maps/TRAI00/training/slots_p3.png"):
+		var symbols := TrainingSlotsBox.load_strip("TRAI00", TrainingSlotsBox.SYMBOL_PALETTE)
+		var window := TrainingSlotsBox.load_strip("TRAI00", TrainingSlotsBox.WINDOW_PALETTE)
+		_check(symbols != null and symbols.base.get_size() == Vector2(256, 32), "the symbols' strip loads")
+		_check(symbols.stp.get_image().get_used_rect().size == Vector2i.ZERO, "the symbols are opaque (no STP)")
+		var w := window.base.get_image()
+		_check(w.get_used_rect().size == Vector2i.ZERO and window.stp.get_image().get_pixel(0xE0, 16).a > 0,
+				"the window's texels are all STP")
+	_check(TrainingSlotsBox.load_strip("NOMAP", 3) == null, "a map without strips: no texture, no error")

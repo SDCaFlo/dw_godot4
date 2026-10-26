@@ -48,6 +48,21 @@ UV = (tex_x % 256, tex_y % 256); `transparency` = blend mode; instance (x, y) = 
 - `map.json` `doors` keeps each door's `slot` (0–5, `../../specs/map_objects.md` §2.6): the scripts' `ROTATE_3D_OBJECT` names the slot, and tables 1 and 6 have an empty slot 0 (`[255, 9, 9, 9, 10, 10]`, `[255, 18, 16, 17, 255, 255]`). The empty slots stay dropped.
 - Model 10 is drawn twice by `renderDoors` (`map_object.c:374`): a mirrored copy (rotation `−vy`, `∓680` on z) makes a double door.
 
+### Training slot machine textures (gym maps)
+
+`loadTrainingLibrary` (map.c:5457) loads the TRN overlay on maps **0x70 TRAI00** (Green Gym), **0x4E GIAS09** (Gear Savanna) and **0x77 MIST05** (Misty Trees) (`TRAINING_MAPS` in `families/maps.py`). Its slot machine ("Bonus Try", `trn_slots.c` `TRN_renderSlotMachine`; `../../specs/training.md` §7.5) has no texture of its own: its two `GsSPRITE`s read the map's 4bpp page at VRAM (704, 0), rows v 0xD8–0xF7.
+
+| Sprite | tpage | u, v, w × h | CLUT (cx, cy) | Use |
+|---|---|---|---|---|
+| `TRN_SLOT_SPRITE1` | 0x2B (4bpp, x 704, semi-trans rate 1) | (symbol − 1) × 32, 0xD8, 32 × 32 | (48, 486) = row-486 palette 3 | 7 reel symbols |
+| `TRN_SLOT_SPRITE2` | 0x4B (4bpp, x 704, rate 2 = subtractive) | 0xE0, 0xD8, 8 × 32 | (64, 486) = palette 4 | reel window shade |
+
+The page is composed from the map's 4bpp images in load order (`loadMapImage2`: each image at its TIM position, later images overwrite; only image 0's CLUT, row i → (i × 16, 486)). The strip comes from TRAI00 image 1 (704, 0, 256 tall), GIAS09 image 0, MIST05 image 2 (704, 216, 32 tall; its image 1 is 200 tall and stops above it).
+
+Findings (all three maps give **identical** strips, indices and both palettes):
+- p3: the symbols at u 0–223 (HP heart, MP circle, Offense, Defense, Speed arrows, Brains bulb, poop), index 0 = 0x0000 (transparent); **no colour has the STP bit**, so the symbols' semi-transparent mode never applies (drawn opaque).
+- p4: every colour has the STP bit (0xFFFF … 0x8000, white to black); the window column u 0xE0–0xE7 is index 0 (white) at the top and bottom rows and 15 (0x8000, black) in the middle, so the subtraction darkens the reel's edges and leaves the pay line clear. u 0xE8–0xFF is index 0.
+
 ## Camera (verified)
 
 `GsSetRefView2`: eye = viewpoint × 2, target = reference × 2 (PSX axes, +Y down); camera right = down × forward, screen down = forward × right. A point projects to `screen = H · (x/z, y/z)`; the screen centre shows the background centre at load (`setupMap`: cameraX = width·128/2 − 160, drawing offset 160, 120), so
@@ -71,6 +86,9 @@ For Godot (axes x, −y, −z): camera at `(eye.x, −eye.y, −eye.z)` looking 
 | `objects/object_<k>.png`, `object_<k>_p<p>.png` | object sprites (per palette when clut = −1) |
 | `objects/object_<k>[_p<p>].stp.png` | grey mask, 255 where the texel's colour has the STP bit: the texels a semi-transparent sprite blends (`tim.md`). Only for sprites that have one; `objects[k].stp_files` lists them per palette (null when none) |
 | `doors/door_<id>.gltf` | door models textured with this map's VRAM |
+| `training/slots_p3.png`, `slots_p4.png` | training maps only: the slot strip (256 × 32, page (704, 0) v 0xD8–0xF7) as indexed PNG keeping the 4bpp indices, through CLUT (48, 486) / (64, 486) |
+| `training/slots_p<p>.stp.png` | grey mask, 255 where the texel's colour has the STP bit (always written: all 0 for p3, all 255 for p4) |
+| `training/slots.json` | sidecar: `asset_id` = the image holding the strip, `vram` (page, uv rect, VRAM rect, per palette: CLUT pos + id, raw u16 colours, CLUT source, tpage + semi-trans rate, drawing sprite), `source_images` (every image writing into the rect, load order), `code_refs` |
 | `overview.png` | **human check**: background (palette 0) + object sprites (frame 0, opaque) + walkable cells (green), trigger cells (orange), spawns (cyan), NPC digimon (yellow), doors (magenta) |
 | `map.json` | everything: table entry (incl. display name, sound, flags), header, setup, camera, TFS palettes + tile headers, image TIM headers/VRAM, objects (+ placement in VRAM, missing texels, whether used), instances, spawns, warps (+ target map name), digimon (+ type name, stats, AI, waypoints), doors, toilet, collision values, overview counts |
 
@@ -80,6 +98,7 @@ For Godot (axes x, −y, −z): camera at `(eye.x, −eye.y, −eye.z)` looking 
 - MAP and TFS parse; TFS ends exactly after its tiles; MAP bytes explained.
 - Sprites used by object instances are fully in loaded VRAM (unused definitions may point at unloaded CLUTs, e.g. MAYO10 object 17). UVs wrap inside the page like the GPU's 8-bit UVs (MIST02 object 10 is 480 px tall, FACT08B object 89 crosses u = 256; `uv_wraps` in `map.json`). **Exception:** GIAS06B objects 63–66 use CLUT row 485, which neither the map nor its TFS loads (its twin GIAS06A has the same images); it must come from an event or leftover VRAM — sprites are exported with those texels transparent. Same for **ICSA05** (Ice Sanctuary, map 101, reached only through warp crystals): objects 0–2 read 4bpp pages at x = 448 / 512 that the map does not load.
 - Door textures fully covered by the map's VRAM.
+- Training maps: the slot strip and its two CLUTs fully in loaded VRAM. Informational (always passes, detail + `manifest.json` `training_slots`): whether the three maps' strips are identical.
 - Projected collision lands on the background.
 
 ## Open questions

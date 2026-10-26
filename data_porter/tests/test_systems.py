@@ -57,6 +57,17 @@ class RealDataTests(unittest.TestCase):
         spots = self.load("training_spots")
         self.assertEqual([s["stat"] for s in spots[0]["spots"]], ["hp", "offense", "defense", "mp", "speed", "brain"])
 
+    def test_slot_machine(self):
+        (slots,) = self.load("slot_machine")
+        self.assertEqual([len(r) for r in slots["reels"]], [13, 13, 13])
+        self.assertEqual(slots["reels"][0][:7], [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(slots["assist_draw"], [0, 0, 0, 0, 0, 1, 1, 1, 1, 2])
+        self.assertEqual([s.get("stat") for s in slots["symbols"]],
+                         ["hp", "mp", "offense", "defense", "speed", "brain", None])
+        self.assertTrue(slots["symbols"][6]["jackpot"])
+        self.assertEqual({k: (v["payout"], v["sound"]) for k, v in slots["payouts"].items()},
+                         {"jackpot": (100, 12), "own_stat": (40, 11), "other_match": (20, 11), "none": (5, 13)})
+
 
 if __name__ == "__main__":
     unittest.main()

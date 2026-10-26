@@ -133,7 +133,7 @@ Sections are added as systems are ported (`PLANS.md`).
 6. **Back:** △ on a tab: the window shrinks into the tamer, the tamer and Agumon come back, the △ menu opens again.
 7. **Compare with the game:** the layout of both tabs, the model's place and size, the darker cells (the port approximates the PSX's subtracted boxes), and the colours.
 
-## Training (`scripts/systems/training.gd`, `scripts/training/`, `scripts/script/training_routines.gd`, `scripts/ui/training_stats_box.gd`, `scripts/ui/training_brains_box.gd`, `scripts/field/cloud_fx.gd`, `scripts/field/particle_fx.gd`; `specs/training.md`)
+## Training (`scripts/systems/training.gd`, `scripts/training/`, `scripts/script/training_routines.gd`, `scripts/ui/training_stats_box.gd`, `scripts/ui/training_brains_box.gd`, `scripts/ui/training_slots_box.gd`, `scripts/systems/slot_machine.gd`, `slot_session.gd`, `scripts/field/cloud_fx.gd`, `scripts/field/particle_fx.gd`; `specs/training.md`)
 
 `test_training.gd` prints `OK: training checks`. In the game (F5), at the Green Gym (TRAI00; the debugger's Maps tab):
 1. **The HP station** ("Boulder Moving", the boulder by the sign): Begin, then Normal.
@@ -143,7 +143,13 @@ Sections are added as systems are ported (`PLANS.md`).
    - The stats box opens from the partner: HP and Offense have blue bars and "+" gains. After about 5 seconds they count up one point a frame, with a ticking sound.
    - ✕ or △ adds the rest at once.
 3. **After the box:** the partner walks back, the boulder is in its place again, and you can move. The partner's HP and Offense went up (a Rookie with training type 0: +80 / +2), the clock moved one hour from when the session started, and the partner is more tired.
-4. **Bonus Try** runs like Normal until the slot machine is ported (4d-3).
+4. **Bonus Try** (the HP station: Begin, then Bonus Try; any station has it):
+   - The "Slot Game" help text opens, and box 3 grows as an outline from the station's spot (the boulder) to the upper middle of the screen, with the box's opening sound.
+   - It shows three reels: icons on light squares (heart, ring, Offense, Defense, arrows, bulb, poop), each reel darker at its top and bottom edges than on the middle line. When the partner reaches the boulder they spin, with the start sound.
+   - Each ✕ stops the next reel (a press sound, then a stop sound as it lands; the reels stop on whole symbols). △ does nothing. **Open question:** the help text says "Use △" in the script listing and draws a cross in the port, but the code reads ✕ (`specs/training.md` §7.9).
+   - After the third reel, the payout sound plays. About 1.5 seconds later (or on ✕) the box shrinks back to the boulder and the help text closes.
+   - The session ends on the payout (not after a minute, and △ does not end it): the partner stops, the camera goes back, and the stats box counts gains of Normal × c / 10. No match: c = 5 (half). Three of another stat's icon: 20 (× 2). Three of the station's own icon: 40 (× 4). Three poops: 100 (× 10). A Rookie at HP gets +40 / +160 / +320 / +800 HP.
+   - On GIAS09 and MIST05 the reels look the same (same textures).
 5. **The other Green Gym stations** (Begin, Normal; hold △ to end each sooner). The gains are those of a Rookie with training type 0:
    - **Tree Striking** (the tree by the boulder): the partner strikes the tree with one of its technique animations. At each hit, three sparks flash and burst, and the tree shakes. △ only ends the session after a hit. Offense +8, Speed +2.
    - **Running** (by the middle sign): the partner runs off in its direction. Once off screen it comes back from the course's start, every 3 seconds. HP +10, Speed +8. After it walks back, the tamer stays turned to it until the script ends.

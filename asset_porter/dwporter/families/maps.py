@@ -30,6 +30,7 @@ CODE_REFS = [
     "dw_decomp/src/main/tamer.c:379 loadMapEntities (spawns, warps); overworld.c:1026 loadMapDigimon",
     "dw_decomp/src/main/map_collision.c:23 loadMapCollisionData (100x100 cells of 100 units)",
     "dw_decomp/src/main/map_object.c:309 loadDoors; door_mapdata.c DOOR_MAPDATA; toilet_data.c TOILET_DATA",
+    "dw_decomp/src/main/map.c:5457 loadTrainingLibrary; trn/trn_slots.c TRN_SLOT_SPRITE1/2 (slot strip in the map's 4bpp page)",
 ]
 
 EXE_LOAD = mmd_files.EXE_LOAD
@@ -42,6 +43,13 @@ TIME_OF_DAY = {0: "day", 1: "evening", 2: "night"}
 # Maps whose used sprites read VRAM that nothing in the map loads (event scripts / leftover VRAM),
 # see specs/map.md: GIAS06B uses CLUT row 485; ICSA05 (warp-crystal map) uses 4bpp pages 448/512.
 KNOWN_UNLOADED_CLUT = {"GIAS06B", "ICSA05"}
+# Maps that load the TRN overlay (dw_decomp/src/main/map.c:5459 loadTrainingLibrary): TRAI00,
+# GIAS09, MIST05. Its slot machine (trn_slots.c TRN_SLOT_SPRITE1/2) draws from the map's VRAM:
+# 4bpp page (704, 0), v 0xD8-0xF7; symbols tpage 0x2B + CLUT (48, 486), window tpage 0x4B + CLUT (64, 486).
+TRAINING_MAPS = {0x70, 0x4E, 0x77}
+SLOT_PAGE, SLOT_V, SLOT_H = (704, 0), 0xD8, 0x20
+SLOT_STRIPS = {3: {"clut": (48, 486), "tpage": 0x2B, "sprite": "TRN_SLOT_SPRITE1 (symbols, u = (symbol - 1) * 32)"},
+               4: {"clut": (64, 486), "tpage": 0x4B, "sprite": "TRN_SLOT_SPRITE2 (reel window, u 0xE0, 8 x 32)"}}
 
 
 def map_path(map_id: int, name: str, ext: str) -> str:
@@ -137,6 +145,48 @@ def _object_sprite(vram: Vram, obj: dict, cache: dict):
     return w, h, bytes(out), missing, where, bytes(stp)
 
 
+def _training_slots(out: AssetWriter, folder, vram: Vram, msrc, parsed: dict, vram_label: str, label: str) -> dict:
+    """Slot machine strip (training.md §7.5): rows v 0xD8-0xF7 of the 4bpp page (704, 0) as the
+    map's images leave it, one indexed PNG (+ STP mask) per CLUT the TRN sprites use."""
+    px, py = SLOT_PAGE
+    indices, loaded = vram.page_indices(px, py, 4, 0, SLOT_V, PAGE_SIZE, SLOT_H)
+    rect = {"x": px, "y": py + SLOT_V, "w": PAGE_SIZE // 4, "h": SLOT_H}
+    writers = vram.sources_in(rect["x"], rect["y"], rect["w"], rect["h"])  # load order: the last one wins
+    # The map image whose texels end up in the strip (the last 4bpp TIM covering it).
+    holder = [i for i in parsed["images"] if i["kind"] == "4bpp" and f"{vram_label}.MAP@0x{i['offset']:X}" in writers][-1]
+    outputs, cluts, missing = [], {}, loaded.count(0)
+    for p, info in SLOT_STRIPS.items():
+        cx, cy = info["clut"]
+        words = [vram.word(cx + i, cy) for i in range(16)]
+        missing += sum(1 for _, ok in words if not ok)
+        colors = [c for c, _ in words]
+        path = folder / "training" / f"slots_p{p}.png"
+        png.write(path, png.encode_indexed(PAGE_SIZE, SLOT_H, indices, [psx.color_to_rgba(c) for c in colors]))
+        spath = path.with_name(path.stem + ".stp.png")
+        png.write(spath, png.encode_gray(PAGE_SIZE, SLOT_H, bytes(255 if colors[i] >> 15 else 0 for i in indices)))
+        outputs += [{"path": out._rel(path), "kind": "training_slots", "encoding": "indexed4", "palette": p},
+                    {"path": out._rel(spath), "kind": "stp_mask", "encoding": "gray8", "palette": p}]
+        cluts[p] = {"clut": {"x": cx, "y": cy}, "clut_id": psx.get_clut(cx, cy), "colors": colors,
+                    "clut_sources": vram.sources_in(cx, cy, 16, 1), "tpage": info["tpage"],
+                    "tpage_semi_trans": (info["tpage"] >> 5) & 3, "drawn_by": info["sprite"]}
+    out.check(f"{label}: training slot strip fully in loaded VRAM", missing == 0, f"{missing} texels/CLUT entries")
+    span = msrc.span(holder["offset"], holder["tim"].size)
+    sidecar = folder / "training" / "slots.json"
+    record = {
+        "asset_id": span.asset_id, "family": NAME, "format": "VRAM (MAP 4bpp TIMs)",
+        "source": span.identity(), "psxprev_name": span.psxprev_name, "outputs": outputs,
+        "vram": {"page": {"x": px, "y": py, "bpp": 4}, "uv_rect": {"u": 0, "v": SLOT_V, "w": PAGE_SIZE, "h": SLOT_H},
+                 "rect": rect, "palettes": cluts},
+        "source_images": [{"offset": i["offset"], "index": i["index"], "vram": i["tim"].vram_info()}
+                          for i in parsed["images"] if f"{vram_label}.MAP@0x{i['offset']:X}" in writers],
+        "code_refs": ["dw_decomp/src/trn/trn_slots.c TRN_SLOT_SPRITE1/2, TRN_renderSlotMachine",
+                      "dw_decomp/src/main/map.c:5459 loadTrainingLibrary"],
+    }
+    _dump(sidecar, record)
+    out.assets.append({"asset_id": span.asset_id, "sidecar": out._rel(sidecar), "outputs": [o["path"] for o in outputs]})
+    return {"outputs": outputs, "key": (indices, tuple(tuple(c["colors"]) for c in cluts.values()))}
+
+
 def _background(tfs, setup: dict, palette: int) -> tuple:
     width, height = setup["width"] * mapfmt.TILE, setup["height"] * mapfmt.TILE
     colors = [bytes(psx.color_to_rgba(c)) for c in tfs.palettes[palette]]
@@ -225,6 +275,7 @@ def convert(input_root, output_root, map_ids=None) -> AssetWriter:
     tables = read_tables(exe.data)
     sources = [exe]
     referenced = set()
+    slot_strips = {}  # map name -> (strip indices, CLUT colours) of the training maps
 
     for entry in tables["entries"]:
         map_id, name = entry["id"], entry["filename"]
@@ -302,6 +353,12 @@ def convert(input_root, output_root, map_ids=None) -> AssetWriter:
         out.check(f"{label}: sprites used by object instances fully in loaded VRAM",
                   missing_total == 0 or name in KNOWN_UNLOADED_CLUT, f"{missing_total} texels")
 
+        # training slot machine textures (4bpp images and CLUTs don't depend on the TFS palette)
+        if map_id in TRAINING_MAPS:
+            slots = _training_slots(out, folder, vrams[next(iter(vrams))], msrc, parsed, mpath[:-4], label)
+            outputs += slots["outputs"]
+            slot_strips[name] = slots["key"]
+
         # doors
         door_list = []
         if entry["doors_id"]:
@@ -366,5 +423,14 @@ def convert(input_root, output_root, map_ids=None) -> AssetWriter:
         on_disc = {p.relative_to(input_root).as_posix() for p in input_root.rglob("*.MAP")}
         unreferenced = sorted(on_disc - referenced)
         out.check("MAP files not in MAP_ENTRIES", len(unreferenced) <= 1, str(unreferenced))
-    out.finish(sources, {"map_table": tables})
+    # Informational: whether every training map leaves the same slot textures in VRAM.
+    strips = {}
+    if slot_strips:
+        groups = {}
+        for n, key in sorted(slot_strips.items()):
+            groups.setdefault(key, []).append(n)
+        strips = {"maps": sorted(slot_strips), "identical": len(groups) == 1, "groups": sorted(groups.values()),
+                  "indices_identical": len({k[0] for k in groups}) == 1}
+        out.check("training slot strips identical across maps (informational, not required)", True, str(strips))
+    out.finish(sources, {"map_table": tables, "training_slots": strips})
     return out

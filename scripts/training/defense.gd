@@ -61,10 +61,12 @@ func tick() -> void:
 			play(SOUND_START)
 			counter = 0
 			state = 1
+			start_slot_session()
 		1:
 			if walk_partner(ScriptInterpreter.FREE, point.x, point.y):
 				_guard(p)
 				state = 2
+				start_slot_spin()
 		2, 3, 4, 5, 6, 7, 8, 9:
 			counter += 1
 			if state == 3 or state == 4:
@@ -82,7 +84,7 @@ func tick() -> void:
 					state += 1
 		10:
 			if walk_partner(ScriptInterpreter.FREE, point.x, point.y):
-				if not slots and counter >= SESSION_FRAMES:
+				if (not slots and counter >= SESSION_FRAMES) or slot_result_ready():
 					training.award_defense_gains(partner_digimon(), 0, result())
 					partner_animation(ANIM_DONE)
 					play(SOUND_END)

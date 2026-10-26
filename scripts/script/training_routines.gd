@@ -17,6 +17,7 @@ const PSTAT_SLOTS := 0xF6
 var training := Training.new()
 var stats_box := TrainingStatsBox.new()
 var brains_box := TrainingBrainsBox.new()
+var slots_box := TrainingSlotsBox.new()
 ## The station running (its object in the list), or null.
 var station: TrainingStation
 
@@ -37,6 +38,19 @@ func configure(routine_host: ScriptRoutines) -> void:
 	brains_box.text_area = textboxes.text_area
 	brains_box.data = data
 	brains_box.tamer_rect = _tamer_rect
+	# The Bonus Try's box 3: the session opens it, and it ticks the machine.
+	slots_box.boxes = textboxes.boxes
+	slots_box.textboxes = textboxes
+	slots_box.pad = textboxes.pad
+	slots_box.data = data
+	slots_box.map_id = func() -> int: return ctx.current_screen_id
+	slots_box.field = _field
+	training.slot_session.box = slots_box
+
+
+## The field (its map and camera), or null.
+func _field() -> FieldMap:
+	return host.interpreter.field if host != null and host.interpreter != null else null
 
 
 ## getEntityScreenPos(partner, bone 1), centred, for the box to grow from.
@@ -97,7 +111,9 @@ func tick(_routine: int) -> void:
 		ctx.active_instruction = 0
 
 
-## The station's object, one game frame (the field calls it after the script and the pans).
+## The station's object, one game frame (the field calls it after the script and the pans), then the
+## slot session's, which the station added to the list after itself.
 func tick_objects() -> void:
 	if station != null and station.running:
 		station.tick()
+	training.slot_session.tick()

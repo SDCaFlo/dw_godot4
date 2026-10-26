@@ -55,6 +55,7 @@ func tick() -> void:
 			play(SOUND_START)
 			counter = 0
 			state = 1
+			start_slot_session()
 		1:
 			if walk_partner(ScriptInterpreter.FREE, approach.x, approach.y):
 				state = 2
@@ -69,6 +70,7 @@ func tick() -> void:
 				partner_animation(ANIM_STAND)
 				_fall_sound = play_loop(SOUND_FALL)
 				state = 3
+				start_slot_spin()
 		3:
 			counter += 1
 			if session_over():

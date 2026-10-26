@@ -28,6 +28,7 @@ STD_MAIN, STD_SETUP, VS_MAIN, VS_SELECT, VS_DEMO, VS_INTRO = (
     "src/vs/vs_intro.c")
 SCRIPT_C, TOURNAMENT_C, GAME_MENU = "src/main/script_common.c", "src/main/tournament.c", "src/main/game_menu.c"
 MAP_C, TOILET_C, TRN_HUD, TRN2_HUD = "src/main/map.c", "src/main/toilet_data.c", "src/trn/trn_hud.c", "src/trn2/trn2_hud.c"
+TRN_SLOTS = "src/trn/trn_slots.c"
 FISH_C, SHOP_MENU, DOOA_C = "src/fish/fish.c", "src/shop/script_menu.c", "src/dooa/dooa.c"
 MAIN_C = "src/main/main.c"
 OVERWORLD_C = "src/main/overworld.c"
@@ -109,7 +110,20 @@ EVIDENCE = [
     (SHOP_MENU, "if (MAIN_D_801303B8[track * 2] == getActiveBGMFont() && MAIN_D_801303B8[track * 2 + 1] == getActiveBGMVariant()) {"),
     ("include/dw/trigger.h", "#define TRIGGER_50\t50"),
     (SCRIPT_VALUE_C, "cap = STATS_LIMIT_ARRAY[stat];"),
+    (TRN_SLOTS, "st->assist = TRN_D_8008F2CC[rand() % 10];"),
+    (TRN_SLOTS, "if (TRN_D_8008F1AC[0][p->reelPos[0]] == 7) {"),
+    (TRN_SLOTS, "} else if ((TRN_D_8008F1AC[0][p->reelPos[0]] - 1) == p->stat) {"),
+    (TRN_SLOTS, "p->payout = 100;"), (TRN_SLOTS, "p->payout = 0x28;"), (TRN_SLOTS, "p->payout = 0x14;"),
+    (TRN_SLOTS, "p->payout = 5;"), (TRN_SLOTS, "playSound(8, 0xc);"), (TRN_SLOTS, "playSound(8, 0xb);"),
+    (TRN_SLOTS, "playSound(8, 0xd);"),
 ]
+# TRN_tickSlotMachine state 5 (trn_slots.c): the symbol that pays the jackpot, and what each result pays.
+SLOT_JACKPOT = 7
+SLOT_PAYOUTS = [("jackpot", 100, 0xC, "three 7s", "p->payout = 100; playSound(8, 0xc);"),
+                ("own_stat", 0x28, 0xB, "three of a kind, symbol - 1 == the station's stat",
+                 "p->payout = 0x28; playSound(8, 0xb);"),
+                ("other_match", 0x14, 0xB, "any other three of a kind", "p->payout = 0x14; playSound(8, 0xb);"),
+                ("none", 5, 0xD, "no match", "p->payout = 5; playSound(8, 0xd);")]
 
 TABLE_PURPOSES = {
     "battle_ai": "Partner battle AI: chance to retarget its attacker, move priorities of the 'Your call' command",
@@ -125,6 +139,7 @@ TABLE_PURPOSES = {
     "toilets": "Toilet positions (walk-to point, camera point) used by maps' toiletId",
     "birdramon_transport": "Destinations of Birdramon's transport: map, unlock trigger, price",
     "training_spots": "Gym training spots: per gym map, the position of each stat's training spot",
+    "slot_machine": "Training slot machine (Bonus Try): the reels, the assist draw, the symbols and the payouts",
     "fishing": "Fishing: fish kinds, bite chances by depth, items the line can snag, fishing maps",
     "mojyamon_trades": "Mojyamon's item trades: 4 sets of 3 (give -> get)",
     "babies": "Baby Digimon ids (Fresh / In-Training) and the baby each reincarnation egg gives",
@@ -143,7 +158,7 @@ def convert(input_root, output_root) -> GroupWriter:
         return out
     index = CIndex(decomp)
     files = sorted({BTL_MAIN, BTL_SETUP, BTL_C, BATTLE_UI, STD_MAIN, STD_SETUP, VS_MAIN, VS_SELECT, VS_DEMO,
-                    VS_INTRO, SCRIPT_C, TOURNAMENT_C, GAME_MENU, MAP_C, TOILET_C, TRN_HUD, TRN2_HUD, FISH_C,
+                    VS_INTRO, SCRIPT_C, TOURNAMENT_C, GAME_MENU, MAP_C, TOILET_C, TRN_HUD, TRN2_HUD, TRN_SLOTS, FISH_C,
                     SHOP_MENU, DOOA_C, SCRIPT_VALUE_C, SCRIPT_H, OVERWORLD_C, UTILS2_C})
     sources = [SourceText(decomp.root, p).identity() for p in files]
 
@@ -167,7 +182,8 @@ def convert(input_root, output_root) -> GroupWriter:
             (STD_SETUP, "STD_OPPONENT_BASE_STATS"), (STD_MAIN, "STD_WIN_CHANCES"), (STD_MAIN, "STD_STAT_BAR_LIMITS"),
             (TOURNAMENT_C, "TOURNAMENT_MEDAL_IDS"), (GAME_MENU, "MEDAL_NAMES"), (MAP_C, "MAP_ENTRIES"),
             (MAP_C, "MAP_NAME_PTR"), (TOILET_C, "TOILET_DATA"), (SCRIPT_C, "BIRDRA_TRANSPORT_TARGETS"),
-            (TRN_HUD, "TRN_TRAINING_SPOTS"), (FISH_C, "FISH_KIND_INFO"), (FISH_C, "FISH_BITE_CHANCE"),
+            (TRN_HUD, "TRN_TRAINING_SPOTS"), (TRN_HUD, "TRN_D_8008F1AC"), (TRN_SLOTS, "TRN_D_8008F2CC"),
+            (FISH_C, "FISH_KIND_INFO"), (FISH_C, "FISH_BITE_CHANCE"),
             (FISH_C, "FISH_BAIT_CHANCES"), (FISH_C, "FISHING_MAP_DATA"), (SHOP_MENU, "MOJYAMON_ITEMS_GIVE"),
             (SHOP_MENU, "MOJYAMON_ITEMS_GET"), (SCRIPT_C, "BABY_IDS"), (DOOA_C, "REINCARNATE_BABY_TYPE"),
             (SCRIPT_C, "BGM_TRACK_NAMES"), (SHOP_MENU, "MAIN_D_801303B8"), (SCRIPT_C, "MAP_LIGHT_UPDATE_DATA"), (VS_DEMO, "VS_DEMO_DIGIMON"), (VS_SELECT, "VS__BATTLE_COUNTS"),
@@ -230,14 +246,14 @@ def convert(input_root, output_root) -> GroupWriter:
     status = "implemented (scripts/data/game_data.gd)"
     bad = defaultdict(list)
 
-    def write(name, symbols, schema, records, godot, extra=None, fields=None):
+    def write(name, symbols, schema, records, godot, extra=None, fields=None, binary="main"):
         main = L[symbols[0]]
         used = sum((tables.used_by(decomp, refs[s], fields or [], L[s]) for s in symbols), [])
         diffs = {s: d for s in symbols if (d := tables.diffs(L[s], lambda l: l.value))}
         table = {"table": {"name": f"systems/{name}", "purpose": TABLE_PURPOSES[name]},
                  "source": tables.source(decomp, main, sources, dict(
                      {"also": [f"{s} {L[s][REFERENCE].decl.file}:{L[s][REFERENCE].decl.line}" for s in symbols[1:]]}
-                     if symbols[1:] else {}, **(extra or {}))),
+                     if symbols[1:] else {}, **(extra or {})), binary=binary),
                  "schema": schema, "records": records, "used_by": used, "godot": dict(status=status, **godot)}
         if diffs:
             table["release_values"] = diffs
@@ -470,6 +486,39 @@ def convert(input_root, output_root) -> GroupWriter:
                              "training equipment; -1 ends the list"},
     }, spots, {"access": "GameData.training_spots(map_id)",
                "notes": "trn2 has the same table (TRN2_TRAINING_SPOTS), checked equal."})
+
+    # -- training slot machine (Bonus Try) ----------------------------------------------------
+    reels, draw = us["TRN_D_8008F1AC"], us["TRN_D_8008F2CC"]
+    for ld in (L["TRN_D_8008F1AC"], L["TRN_D_8008F2CC"]):
+        tables.size_check(out, decomp, ld, binary="trn")
+    symbol_ids = sorted({s for r in reels for s in r})
+    slot_bad = []
+    if len(reels) != 3 or any(len(r) != 13 for r in reels):
+        slot_bad.append(f"reels {[len(r) for r in reels]}")
+    if symbol_ids != list(range(1, SLOT_JACKPOT + 1)):
+        slot_bad.append(f"symbols {symbol_ids}")
+    slot_bad += [f"reel {k} has {sorted(r)}" for k, r in enumerate(reels) if sorted(set(r)) != symbol_ids]
+    if len(draw) != 10 or any(a not in (0, 1, 2) for a in draw):
+        slot_bad.append(f"assist draw {draw}")
+    out.check("slot machine: 3 reels of 13 with symbols 1-7 on each, an assist draw of 10 entries (0-2)",
+              not slot_bad, "; ".join(slot_bad) or f"{len(reels)} reels, {len(draw)} draws")
+    write("slot_machine", ["TRN_D_8008F1AC", "TRN_D_8008F2CC"], {
+        "reels": {"c_name": "TRN_D_8008F1AC[3][13]", "meaning": "the symbols of each reel, in strip order; the "
+                  "symbol on the pay line is reels[i][reelPos[i]], and the strip scrolls towards lower indices "
+                  "(TRN_tickSlotMachine, TRN_renderSlotMachine)"},
+        "assist_draw": {"c_name": "TRN_D_8008F2CC[10]", "meaning": "assist = assist_draw[rand() % 10] when the "
+                        "machine opens (TRN_createSlotMachineBox): 0 honest, 1 helps the first symbol, 2 the "
+                        "jackpot (TRN_chooseReelStop)"},
+        "symbols": {"meaning": "symbol id (1-7, the picture u = (id - 1) * 32) and the stat it stands for: a "
+                    "match pays `own_stat` when the stat is the station's (the C tests symbol - 1 == stat, "
+                    "stat in the multiplier's mode numbering of training_spots); the jackpot has no stat"},
+        "payouts": {"meaning": "the awards' `c` and the sound (playSound(8, sound)) of each result, by the "
+                    "line symbols (TRN_tickSlotMachine state 5): c / 10 multiplies the stat gains"},
+    }, [{"reels": reels, "assist_draw": draw,
+         "symbols": [{"symbol": k, "stat": TRAINING_STATS[k - 1]} if k != SLOT_JACKPOT else
+                     {"symbol": k, "jackpot": True} for k in range(1, SLOT_JACKPOT + 1)],
+         "payouts": {n: {"payout": v, "sound": snd, "when": w, "c": c} for n, v, snd, w, c in SLOT_PAYOUTS}}],
+        {"access": "GameData.slot_machine()"}, binary="trn")
 
     # -- minigames / misc ---------------------------------------------------------------------
     kinds, bite, bait = us["FISH_KIND_INFO"], us["FISH_BITE_CHANCE"], us["FISH_BAIT_CHANCES"]

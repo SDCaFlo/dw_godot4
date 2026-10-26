@@ -1,8 +1,9 @@
 # Training
 
-Status (2026-10-26): steps 5e-4d-1 and 4d-2 coded; 4d-3 specced in §7, approved 2026-10-26 (`PLANS.md` 5e-4). Code:
+Status (2026-10-26): steps 5e-4d-1 and 4d-2 coded; 4d-3 specced in §7, approved 2026-10-26 (`PLANS.md` 5e-4), its logic coded (the box, textures and spot rect are the UI part). Code:
 - `Training` (`scripts/systems/training.gd`), `TrainingStatsBox` (`scripts/ui/training_stats_box.gd`), `TrainingBrainsBox` (`scripts/ui/training_brains_box.gd`);
 - `scenes/script/training_routines.tscn` (`scripts/script/training_routines.gd`) with its stations, scenes in `scenes/training/` on the scripts of `scripts/training/` (`TrainingStation`; `HpBoulderStation`, `OffenseStation`, `SpeedStation`, `DefenseStation`, `MpStation`, `BrainsStation`);
+- 4d-3 logic: `SlotMachine` (`scripts/systems/slot_machine.gd`), `SlotSession` (`scripts/systems/slot_session.gd`, held by `Training.slot_session`), the stations' `start_slot_session` / `start_slot_spin`, data `systems/slot_machine` (`GameData.slot_machine()`);
 - `CloudFX` (`scripts/field/cloud_fx.gd`), `ParticleFX` (`scripts/field/particle_fx.gd`);
 - `MapOverlays.store_positions` / `load_positions` / `move` / `move_with_limit`;
 - `Tamer.STATE_TRAINING`, `Tamer.STATE_NONE`, `Partner.STATE_TRAINING`;
@@ -25,6 +26,20 @@ As built:
 - **The session's shared states** (the box counted, then 20 frames) are one helper, `TrainingStation.gains_counted`; the stations' state numbers after the award differ from the C's where two C states became one (Offense 4–5 → 4, Speed 3–4 → 3, Defense 12–13 → 12, MP 5–6 → 5, Brains 4–5 → 4).
 - **Without Spit Fire known**, a Brains session at a technique threshold teaches Agumon Sonic Jab, not Heat Laser: fire's first candidate is then Spit Fire with weight 0. `initializePartner` normally teaches Spit Fire, so the game's usual case is Heat Laser.
 - **The tamer's walk at the Classroom** (state −1) plays his animation 2 with its root motion, as in `STATE_SCRIPT`.
+- **4d-3 logic, as built:**
+  - **The machine takes its data and sound from its owner:** `SlotMachine.data` (the `GameData` node: the autoload's name isn't there in `-s` tests) and `sound` (a `Callable` taking the `playSound(8, id)` id). It reads the reels, the assist draw, the symbols (`stat` names, `jackpot`) and the payouts (with their sounds) from `systems/slot_machine`. A match pays `own_stat` when the symbol's `stat` is `Training.MODE_NAMES[stat]`; the jackpot symbol is the one the table marks.
+  - **`rows(i)`** gives the four render rows as numbers: `symbol`, `u`, `top` (before clipping), `y`, `v`, `h` and `visible`. A row can be `visible` with `h` = 0 (y = −10, the C draws it likewise); the box skips an `h` of 0 or less. `reel_x(i)` gives the window's x.
+  - **`closing()`** (state 6) tells the box to run `remove_animated(3, spot rect)` and `close_box(0)`; the machine's own part of state 6 is `result = payout`.
+  - **The session ticks after the station** (`TrainingRoutines.tick_objects`), as the C's object list does: the frame the session sets its result, the station sees it on the next. `SlotSession.box` is duck-typed (`open(machine, mode)`, `is_free()`) and **unset in production**: without it the machine is never ticked and a Bonus Try would wait for ever. The UI part sets `training.slot_session.box` in `TrainingRoutines.configure`, where a comment marks the place.
+  - **The mapping of the stat to the mode** is `Training.STAT_MODES` / `mode_of_stat` (the script stat 0xFE → the multiplier's mode), and the data's mode names are `Training.MODE_NAMES`.
+  - **Defense** ends at the point on `(not slots and counter ≥ 1200) or slot_result_ready()`; the other stations call `session_over()`, which now includes the slot result. The −2 abort (`TRN_func_800888A0`) is not ported; a comment marks its place in states 1 of HP, Offense and Speed.
+- **4d-3 UI, as built:**
+  - **`TrainingSlotsBox`** (`scripts/ui/training_slots_box.gd`) is the session's box, set in `TrainingRoutines.configure`. `open` loads the map's strips and calls `create_animated(3, 0, FEATURE_HALF_FILL, SLOTS_UI_START, spot rect, tick, render)`. `is_free` is box 3's state 0.
+  - **Its tick** reads ✕ as `POLLED_INPUT & ~POLLED_INPUT_PREVIOUS`. It checks `closing()` *before* `machine.tick`, as the C's state 6 case: the frame the machine enters state 6 it is still open; on the next it shrinks back to the spot (recomputed) and `close_box(0)` closes the help text, while the machine sets its result.
+  - **The spot rect** is `spot_rect_for(training_spots(map), mode, project)`: the spot whose `stat` is `Training.MODE_NAMES[mode]`, through `FieldMap.unproject` of the field camera, then −(160, 120) − (8, 6), 16 × 16. With no spot, or with no camera in the tree (headless tests), it is (−8, −8, 16, 16).
+  - **The textures** are `maps/<NAME>/training/slots_p3.png` / `slots_p4.png` through `Content` (`load_strip`), split by their `.stp.png` masks into opaque and STP texels (a `PsxTexture`). A map without them gives null: the box and its frame draw, the reels don't, and nothing is reported.
+  - **The draw order and blending:** `render` (on `UIBoxes`, after the frame) draws per reel, from reel 2 to 0, the rows from 3 to 0, then the window's opaque texels. Two child layers of `UIBoxes` follow it: additive (the symbols' STP texels, none in the original) and subtractive (the windows' STP texels, all of them). Each window is 32 × 64 from u 0xE0 8 × 32, tinted 0x40 / 0x80 = 0.5, with Godot's `blend_sub` (screen − 0.5 × texel). The layers draw after every box, not just box 3: nothing else is open during a Bonus Try. `UIBoxes.step` now redraws all its children, so a layer clears when the box closes.
+  - **Seen in a test render of TRAI00** (frames, not kept): the outline grows from the boulder's spot, the three reels spin with the symbols on their light squares, and the window shades each reel's top and bottom (the light 0xF7 symbol background measured 120 at the edges, about 223 near the pay line). The box shrinks back to the boulder, the help text closes, and the stats box counts HP +40 for a payout of 5. The help text shows a cross glyph ("Use ✕"), not △ (§7.9).
 
 The gyms: the partner trains a stat at a station, the stats it gains count up in a box, and an hour passes. Builtin 0x07 of `CALL_ROUTINE` runs it. This spec ports the shared core and one station end to end, **HP at the Green Gym** (TRAI00, map 0x70, the "Boulder Moving" station). It also adds the field pieces a station needs. Later steps add the rest:
 - **4d-2:** the other five stations (Offense, Speed, Defense, MP, Brains), including the Brains "new orders" box and move learning (`TRN_tryLearnMove`);
@@ -861,10 +876,11 @@ All positions are centred PSX screen coordinates. The three reels are at x = −
   - scaled × 4 across and × 2 down (`scalex` 0x4000, `scaley` 0x2000) around (`mx` 4, `my` 0), so 32 × 64 pixels at (x − 16, −0x4A);
   - colour 0x40 (half), semi-transparent mode 2, which is **subtractive**: screen − texel for texels with the STP bit, the others drawn opaque.
 
-  It darkens the reel's strip.
+  It darkens the reel's strip. **Every colour of palette 4 has the STP bit** (0xFFFF … 0x8000, white to black; asset porter): the whole window subtracts. Its column is index 0 (white) on the top and bottom rows and 15 (0x8000, black) in the middle, so at colour 0x40 the edges lose half of white and the pay line nothing.
 - **The symbols** (`TRN_SLOT_SPRITE1`):
   - 32 × 32, u = (symbol − 1) × 32, v 0xD8, centred on x (`mx` 0x10);
-  - colour 0x80, semi-transparent mode 1 (additive, for STP texels).
+  - colour 0x80, semi-transparent mode 1 (additive, for STP texels). **No colour of palette 3 has the STP bit**: the symbols are drawn opaque, index 0 (0x0000) transparent. Each symbol is an icon on a light (0x7BDE) square.
+  - The seven pictures, u = (symbol − 1) × 32: HP heart, MP ring, Offense, Defense, Speed arrows, Brains bulb, and **the poop icon** (symbol 7, the jackpot; `jackpot` in the data).
 
   There are four rows, `k` = 0–3, each showing symbol `TRN_D_8008F1AC[i][(reelPos[i] + 11 + k) % 13]`:
   - **Position:** the first row's y = `scrollY[i]` − 0x7A, then + `spinSpeed[i] >> 6` (− 1 when `scrollY + step` is exactly 0x20). When `settling[i]` ≠ 0, + 2 instead of the step. Each next row is + 0x20.
@@ -875,7 +891,7 @@ All positions are centred PSX screen coordinates. The three reels are at x = −
   - A row is drawn only if y < −9 and y + 0x20 ≥ −0x49.
 
   Row `k` = 2 is `reelPos[i]`, centred in the window: the pay line.
-- **Draw order:** the window is sorted before the symbols, on the same layer. By the ordering-table rule (I-17), the symbols added after the window are drawn first, and the window then subtracts over them. The port follows that; a movie should compare it with the original if possible.
+- **Draw order:** the window is sorted before the symbols, on the same layer. By the ordering-table rule (I-17), the symbols added after the window are drawn first, and the window then subtracts over them. The port follows that (§7.7 "4d-3 UI, as built").
 
 **The textures are in the gym map's VRAM**, not in ETCTIM:
 - `tpage` 0x2B / 0x4B: the 4 bpp page at (704, 0), with semi-transparency rates 1 / 2;
@@ -887,7 +903,7 @@ Each map loads the strip itself:
 - GIAS09 with its image 0;
 - MIST05 with its image 2 (704, 216, 32 tall).
 
-The CLUT rows come from each map's image 0 (`loadMapImage2`, see the asset porter's `specs/map.md`).
+The CLUT rows come from each map's image 0 (`loadMapImage2`, see the asset porter's `specs/map.md`). MIST05's image 1 (704, 0, 200 tall) stops above row 216. The three maps' strips and both palettes are byte-identical (asset porter check, informational).
 
 ### 7.6 The stations
 
@@ -988,8 +1004,8 @@ VERIFY "Training" gets a Bonus Try item:
 
 ### 7.9 Open points
 
-- **"Use △ to match three pictures."** The US text says △, but the US code stops the reels with `CONFIRM_BUTTON` (0x40, ✕). The port follows the code; this needs checking on the original.
+- **"Use △ to match three pictures."** The US text says △, but the US code stops the reels with `CONFIRM_BUTTON` (0x40, ✕). The port follows the code; this needs checking on the original. In the port's field, the line draws a cross-like glyph ("Use ✕"), while the script listing shows △: which glyph the font gives that character should be checked too.
 - **The honest machine skips a match on reel 2** (assist 0, `stopSteps` = 1–2). It looks deliberate: a payout stays rare unless the session draws an assist. The port keeps it.
 - **The −2 abort** (`TRN_func_800888A0`) is dead code (§7.6).
-- **The window's draw order** against the symbols (§7.5): by the ordering-table rule, the subtractive window goes over the symbols. A movie should compare it with the original.
+- **The window's draw order** against the symbols (§7.5): by the ordering-table rule, the subtractive window goes over the symbols, and the port draws it so. Still to compare with the original on hardware or an emulator.
 - **Defense with slots:** △ still sets the counter, which only matters without slots.

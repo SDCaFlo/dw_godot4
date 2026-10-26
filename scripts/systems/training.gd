@@ -30,6 +30,10 @@ const STAT_SPEED := 2
 const STAT_DEFENSE := 3
 const STAT_MP := 4
 const STAT_BRAINS := 5
+## The mode of each script stat (the order of STAT_*), and the mode names of the data tables
+## (training_spots, slot_machine).
+const STAT_MODES := [MODE_HP, MODE_OFFENSE, MODE_SPEED, MODE_DEFENSE, MODE_MP, MODE_BRAINS]
+const MODE_NAMES := ["hp", "mp", "offense", "defense", "speed", "brain"]
 const UPGRADE_COUNTERS := ["upgrade_hp_counter", "upgrade_mp_counter", "upgrade_off_counter",
 		"upgrade_defense_counter", "upgrade_speed_counter", "upgrade_brain_counter"]
 ## The gyms' "revision" upgrades: × 6 / 5 for modes 0, 3, 4 (0xDB) and 2, 1, 5 (0xFB).
@@ -74,6 +78,10 @@ var stats_box: TrainingStatsBox
 ## Box 2 of the Brains award (new orders, a technique mastered); null in the logic tests.
 var brains_box: TrainingBrainsBox
 
+## The Bonus Try's session (4d-3); TrainingRoutines ticks it after the station. Its `box` is the
+## slot machine's UI part, set when the box exists.
+var slot_session := SlotSession.new()
+
 ## TRAINING_COMPLETE.
 var complete := false
 ## TRN_CURRENT_FRAME / HOUR / MINUTE.
@@ -83,6 +91,11 @@ var start_minute := 0
 ## INITIAL_COMBAT_STATS[0] and STATS_GAINS.
 var base: Array[int] = [0, 0, 0, 0, 0, 0]
 var gains: Array[int] = [0, 0, 0, 0, 0, 0]
+
+
+## The multiplier's mode of a script stat (value 0xFE).
+static func mode_of_stat(stat_id: int) -> int:
+	return STAT_MODES[stat_id]
 
 
 ## isTrainingComplete: true once, after a station finished.

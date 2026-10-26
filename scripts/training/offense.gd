@@ -82,7 +82,9 @@ func tick() -> void:
 			play(SOUND_START)
 			counter = 0
 			state = 1
+			start_slot_session()
 		1:
+			# TRN_func_800888A0(4), the slot result −2, is dead code: nothing sets −2 (not ported).
 			if walk_partner(ScriptInterpreter.FREE, point.x, point.y):
 				partner_animation(_strike())
 				if p != null:
@@ -91,6 +93,7 @@ func tick() -> void:
 				if p != null:
 					p.set_direction(rotation)
 				state = 7 if special else 2
+				start_slot_spin()
 		2:
 			hit += 1
 			counter += 1

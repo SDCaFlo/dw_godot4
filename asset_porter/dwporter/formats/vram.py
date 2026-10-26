@@ -85,6 +85,19 @@ class Vram:
                     stp.append(word >> 15 if ok else 0)
         return b"".join(out), bytes(loaded), bytes(stp)
 
+    def page_indices(self, page_x: int, page_y: int, bpp: int, u: int, v: int, w: int, h: int):
+        """Raw CLUT indices of a texel rect inside a 4/8bpp page, as the GPU reads them (low bits
+        first). Returns (indices, loaded): 1 byte per texel each, loaded 0 where no TIM wrote the word."""
+        per_word = {4: 4, 8: 2}[bpp]
+        bits = 16 // per_word
+        indices, loaded = bytearray(), bytearray()
+        for y in range(v, v + h):
+            for x in range(u, u + w):
+                word, ok = self.word(page_x + x // per_word, page_y + y)
+                indices.append((word >> ((x % per_word) * bits)) & ((1 << bits) - 1))
+                loaded.append(ok)
+        return bytes(indices), bytes(loaded)
+
     def sources_in(self, x: int, y: int, w: int, h: int) -> list:
         """Labels of loaded rects overlapping the given VRAM rect."""
         return [label for label, r in self.sources

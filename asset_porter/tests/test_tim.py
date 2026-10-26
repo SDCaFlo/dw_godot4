@@ -365,6 +365,51 @@ class MapTests(unittest.TestCase):
         self.assertLess(mapfmt.project(cam, (0, -100, 0), (640, 480))[1], 240)
 
 
+class TrainingSlotsTests(unittest.TestCase):
+    def test_strip_composed_like_loadmapimage2(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from types import SimpleNamespace
+
+        from dwporter.assets import AssetWriter
+        from dwporter.families import maps
+        from dwporter.source import SourceFile
+
+        # Image 0: whole page (704, 0), every texel index 1, 16 CLUT rows (row r, entry i = r*16 + i + 1;
+        # row 4 with the STP bit). Image 1: rows 216-247 only, u % 16, its own CLUT (must be ignored).
+        clut0 = [[(r * 16 + i + 1) | (0x8000 if r == 4 else 0) for i in range(16)] for r in range(16)]
+        tim0 = make_tim(4, 256, 256, b"\x11" * 128 * 256, clut0, x=704, y=0, cy=486)
+        row = bytes((2 * k % 16) | ((2 * k + 1) % 16) << 4 for k in range(128))
+        tim1 = make_tim(4, 256, 32, row * 32, [[0x7FFF] * 16] * 16, x=704, y=216, cy=486)
+        data = tim0 + tim1
+        images = [{"kind": "4bpp", "index": i, "offset": off, "tim": timfmt.parse(data, off)}
+                  for i, off in enumerate((0, len(tim0)))]
+        parsed = {"images": images}
+        vram = maps._map_vram(parsed, SimpleNamespace(palettes=[]), 0, "MAP/MAP8/TEST")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = AssetWriter(Path(tmp), "maps")
+            msrc = SourceFile(Path(tmp), "MAP/MAP8/TEST.MAP", data)
+            result = maps._training_slots(out, out.dir / "TEST", vram, msrc, parsed, "MAP/MAP8/TEST", "test")
+            self.assertTrue(out.ok)
+            header, raw = png_rows((out.dir / "TEST/training/slots_p3.png").read_bytes())
+            self.assertEqual(header[:4], (256, 32, 8, 3))
+            self.assertEqual(raw[1:17], bytes(range(16)))  # image 1 overwrote image 0's texels
+            _, stp = png_rows((out.dir / "TEST/training/slots_p4.stp.png").read_bytes())
+            self.assertEqual(set(stp[1:257]), {255})
+            _, stp = png_rows((out.dir / "TEST/training/slots_p3.stp.png").read_bytes())
+            self.assertEqual(set(stp[1:257]), {0})
+            side = json.loads((out.dir / "TEST/training/slots.json").read_text())
+            self.assertEqual(side["asset_id"], f"MAP/MAP8/TEST.MAP@0x{len(tim0):X}")
+            self.assertEqual(side["vram"]["rect"], {"x": 704, "y": 216, "w": 64, "h": 32})
+            pal = side["vram"]["palettes"]
+            self.assertEqual(pal["3"]["colors"], clut0[3])  # CLUT rows from image 0 only
+            self.assertEqual((pal["3"]["tpage"], pal["4"]["tpage"], pal["4"]["clut"]), (0x2B, 0x4B, {"x": 64, "y": 486}))
+            self.assertEqual(pal["3"]["clut_id"], psx.get_clut(48, 486))
+            self.assertEqual([i["index"] for i in side["source_images"]], [0, 1])
+            self.assertEqual(result["key"][1][1], tuple(clut0[4]))
+
+
 @unittest.skipUnless((DEFAULT_INPUT / "MAP" / "MAP1" / "MAYO04A.MAP").exists(), "dumped game files not available")
 class MapsFamilyTests(unittest.TestCase):
     def test_convert_subset(self):
@@ -377,6 +422,20 @@ class MapsFamilyTests(unittest.TestCase):
             out = maps.convert(DEFAULT_INPUT, Path(tmp), map_ids={3, 8})
             self.assertTrue(out.ok, [(c.name, c.detail) for c in out.checks if not c.passed])
             self.assertEqual(len(out.assets), 2)
+
+    def test_training_slot_strips(self):
+        import tempfile
+        from pathlib import Path
+
+        from dwporter.families import maps
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = maps.convert(DEFAULT_INPUT, Path(tmp), map_ids=maps.TRAINING_MAPS)
+            self.assertTrue(out.ok, [(c.name, c.detail) for c in out.checks if not c.passed])
+            for name in ("TRAI00", "GIAS09", "MIST05"):
+                for p in (3, 4):
+                    header, _ = png_rows((out.dir / name / "training" / f"slots_p{p}.png").read_bytes())
+                    self.assertEqual(header[:2], (256, 32))
 
 
 def sjis(text: str) -> bytes:

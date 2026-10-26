@@ -624,6 +624,13 @@ func training_spots(map_ref: Variant) -> Dictionary:
 	return find("systems/training_spots", "map", id)
 
 
+## The training slot machine's table (TRN_D_8008F1AC reels, TRN_D_8008F2CC assist draw, the symbols
+## and the payouts), or {}.
+func slot_machine() -> Dictionary:
+	var rows := system("slot_machine")
+	return rows[0] if not rows.is_empty() else {}
+
+
 ## enforceStatsLimits' cap of a script stat (STATS_LIMIT_ARRAY; stat 22 reads past it, see the
 ## table); -1 for an unknown stat.
 func script_stat_limit(stat: int) -> int:

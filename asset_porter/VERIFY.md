@@ -50,6 +50,10 @@ Also: `background_0/1/2.png` = day / evening / night variants; `doors/door_<id>.
 
 Wrong if: green dots are offset/rotated against the art, markers in the sky or inside walls, sprites in random places.
 
+Training slot machine (gyms `TRAI00`, `GIAS09`, `MIST05`): open `output/maps/TRAI00/training/slots_p3.png` (256 × 32, zoom in). It must show **7 symbols, 32 × 32, in a row** from the left: heart (HP), blue ring (MP), red round badge (Offense), yellow cog with blue centre (Defense), arrows (Speed), light bulb (Brains), yellow poop; then a narrow multicoloured column at u 224–231 and transparent to the right. `slots_p4.png` is the same strip in greys; what matters there is the **8-texel window column at u 0xE0 (224–231)**: white at the top and bottom, black in the middle (the subtractive shade of the reel window). `slots_p4.stp.png` is all white, `slots_p3.stp.png` all black. The other two maps' strips are the same (`manifest.json` `training_slots.identical`).
+
+Wrong if: symbols cut in half or shifted (wrong page/rows), noise or a piece of background (wrong image order), wrong colours (CLUT rows not from image 0).
+
 ## 4b. Event scripts and arena collision — 5 minutes
 
 Scripts: open `output/scripts/DG/script_004.txt` (Native Forest, map 3) and `output/scripts/MAPHEAD/script.txt` (section `0x3` = Native Forest setup).

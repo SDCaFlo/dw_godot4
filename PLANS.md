@@ -2,7 +2,7 @@
 
 Working list of what comes next and ideas not started yet. Bugs found while playing are in `ISSUES.md` (with their evidence). Keep it current: when something is done, move it to "Done" with the commit and drop the details that now live in the code / docs. Per-tool progress stays in `asset_porter/PROGRESS.md` and `data_porter/PROGRESS.md`; the high-level roadmap is in `README.md`.
 
-Last updated: 2026-10-24
+Last updated: 2026-10-26
 
 ## Rules for everything below
 
@@ -62,7 +62,12 @@ Last updated: 2026-10-24
          5. Then 5e's menus are built as scenes from the start.
        - [x] Drop shadows (coded 2026-10-24: `DropShadow`, `scenes/field/drop_shadow.tscn`, `specs/drop_shadow.md`; VERIFY "Drop shadows"; the item shadows use its material): `renderDropShadow` (`drop_shadow.c`) under the tamer, the partner and the NPCs: a radius-sized subtractive square of `ETCDAT/SPOT256.TIM` (cell (64, 0), 63 x 63, palette row 487), colour 0x30, at OT 0xFFD, skipped on blocked cells; shares the item shadow's material (`specs/map_items.md` §2.1, §6).
        - [x] 5c. sound and music: spec written 2026-10-24, coded 2026-10-24 (the `Sound` autoload, `scripts/audio/`; the asset porter's `music` family renders the 74 songs; `tests/test_sound.gd`, `asset_porter/tests/test_music.py`; VERIFY "Sound"). Was: spec written 2026-10-24 (`specs/sound.md`; `asset_porter/specs/sound.md` "Music render": the songs rendered offline with libsnd's sequencer / voice manager and the SPU, from the decomp's libsnd asm and the executable's tables; effects played live by `Sound` with the SPU envelope). Order: (1) asset porter renderer + tests, (2) `Sound` / `Music` in Godot + wiring + `tests/test_sound.gd`, (3) VERIFY "Sound". Not in 5c (left to their steps): chest / item sounds (5b), battle music and banks (5d), menu, shop and partner-interaction sounds (5e);
-       - [ ] 5d. battles: include the battle music (`stopBGM`, `ENEMY_MUSIC_MAPPING`, font 33, `playBGM` after a win) and the fighters' sound banks 4–7.
+       - [ ] 5d. battles (started 2026-10-26; spec approved 2026-10-26: `specs/battle.md`, `specs/battle_effects.md`). Includes the battle music (`stopBGM`, `ENEMY_MUSIC_MAPPING`, font 33, `playBGM` after a win) and the fighters' sound banks 4–7. Steps (`specs/battle.md` §7):
+         - [ ] 5d-1. Data and assets: move `buff` / `counter`, Digimon `battle_music` / `battle_scale` / `anim_technique`, map `concave` / `no_battle_drops`, the battle HUD tables, `systems/psx_math`; asset porter `btl_rel` family, `efe` raw slot bytes, `map.json` `unk1` → `targets_partner`.
+         - [ ] 5d-2. The effect API and VM, logic part (`PsxMath`; `BattleEffect` scene API + `BattleEffectContext` + `EffectHost`, decided 2026-10-26 so techniques can be modded; `EfeEffect` / `EfeVm` with every opcode and non-drawing built-in, the hits; `tests/test_efe.gd` runs all 120 effects and a test mod effect).
+         - [ ] 5d-3. The battle logic and the field hook-up (`Battle`, `BattleHost`, the phases, the tamer's waypoints, `START_BATTLE` and its outcomes, care and time after, rewards, items in battle; a plain HUD; `tests/test_battle.gd`; VERIFY "Battles").
+         - [ ] 5d-4. The HUD as the original draws it.
+         - [ ] 5d-5. Drawing the effects, then the status / aura / buff / item visuals (detailed spec first).
        - [ ] 5e. builtins and menus, each a scene from the start (`specs/scenes.md` §4.3), each wiring its sounds (`Sound.play_sound`):
          1. [x] The △ menu (`specs/game_menu.md`, coded 2026-10-25: `scenes/ui/game_menu.tscn`, `Systems/MenuHost`, `tests/test_game_menu.gd`, VERIFY "The △ menu"; spec written 2026-10-24): opening / closing, the icons, cursor and date, Praise / Scold (partner states 15 / 4, tamer states 13 / 9, sounds 14 / 13) and Sleep; what stops while it is open; data porter `raise_data.praise_pat_low`. The debug key Z and the care panel's Sleep now go through the menu's Sleep.
          2. [x] Items (`specs/inventory.md`, coded 2026-10-25: `ItemUse`, `scenes/ui/inventory.tscn`, the feeding scene, `tests/test_inventory.gd`, VERIFY "Items"; spec written 2026-10-25): the inventory (`inventory.c`: list, Use / Move / Sort / Drop), feeding (partner state 5) with the refusal rules (`ITEM_SCOLD_FLAG`) and the hunger rule, the field effects of every item (`ItemEffects`); data porter `item_data.feeding`, `item_effects.evolution.requires_level`. Evolution items wait for evolution.

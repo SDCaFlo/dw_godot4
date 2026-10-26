@@ -41,6 +41,7 @@ A node script may hold logic (the tamer's state code lives on the `Tamer` node).
 4. **Content fills the slots.** A scene doesn't name a specific Digimon or map. The model goes into an empty `Model` child from the record (`digimon_file`). Textures, sounds and texts come from `Content` / `GameData`.
 5. **Editor previews keep working.** The `@tool` scripts keep their previews (the field's start map, the time of day). An entity scene gets an exported `preview_digimon` that loads the model in the editor, without saving it (the rules in `PLANS.md`, "Rules for everything below": no `owner`, reset before saving).
 6. **Each refactor step is behaviour-neutral.** It changes how things are assembled, not what they do. The 15 test suites and `tests/exit_scan.tscn` must pass unchanged, test values included. A step that has to change a test value is doing more than a refactor. The only new behaviour in the series is the drop shadows, which come in their own step.
+7. **Composition and instantiation first** (the user's rule, 2026-10-26). Whenever a part could be modded later, build it as a scene that its owner instantiates, with a small API (calls down, signals up, a context object for what it may read) instead of code inside the owner. The C's behaviour is the scene's default implementation, kept in plain testable classes. First applied to battle techniques (`specs/battle_effects.md` §3.0: one `BattleEffect` scene per technique, chosen by the move record).
 
 ## 4. The layout
 

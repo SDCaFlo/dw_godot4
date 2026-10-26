@@ -130,10 +130,11 @@ static func lines(canvas: CanvasItem, entries: Array) -> void:
 ## renderMenuTab (game_menu.c:2960): a tab over the box's top edge; `front` the current one.
 static func menu_tab(canvas: CanvasItem, x: int, w: int, front: bool) -> void:
 	var h := 0x10 if front else 0xF
-	sprite(canvas, x, -0x68, 7, h, 0xD4, 0x8C - 0x80, 0x7B06)
+	var flags := 0 if front else 1
+	sprite(canvas, x, -0x68, 7, h, 0xD4, 0x8C - 0x80, 0x7B06, flags)
 	for i in (w - 0xE) / 4:
-		sprite(canvas, x + 7 + i * 4, -0x68, 4, h, 0xE2, 0x8C - 0x80, 0x7B06)
-	sprite(canvas, x + w - 9, -0x68, 7, h, 0xDB, 0x8C - 0x80, 0x7B06)
+		sprite(canvas, x + 7 + i * 4, -0x68, 4, h, 0xE2, 0x8C - 0x80, 0x7B06, flags)
+	sprite(canvas, x + w - 9, -0x68, 7, h, 0xDB, 0x8C - 0x80, 0x7B06, flags)
 
 
 ## renderNumber (utils.c:214): `value` in `n` digits without leading zeros, right-aligned, cut

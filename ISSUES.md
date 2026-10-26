@@ -21,12 +21,6 @@ Reported 2026-10-25 (minor, to check later).
 - **Note:** `specs/lighting.md` takes the lights "at the end of the hour's fade"; the fade itself (`updateTimeOfDay`, map.c:4301, and the background palettes) still has to be reproduced.
 - **Status:** open.
 
-### I-14. Player / Digimon screen: the tab headers all look selected
-- **Seen:** every tab is drawn light; in the original the tabs not shown are darker, with blue labels.
-- **Evidence:** `issues/evidence/dw_issue_card_menu_colors.png`, `issues/evidence/dw_issue_evo_char_menu_color.png` (left original, right port).
-- **Cause (likely):** `renderMenuTab(x, w, layer)` passes `layer` (1 for the tabs not shown) as `renderRectPolyFT4`'s flag, and flag 1 dims the sprite (`game_menu.c:2960`). `MenuDraw.menu_tab` draws every tab undimmed.
-- **Status:** open.
-
 ### I-15. No pause
 - **Seen:** the game can't be paused.
 - **Expected:** the original's pause (START in the field; to find in the decomp).
@@ -47,6 +41,12 @@ Reported 2026-10-25 (minor, to check later).
 - **Status:** to verify.
 
 ## Fixed
+
+### I-14. Player / Digimon screen: the tab headers all look selected
+- **Seen:** every tab is drawn light; in the original the tabs not shown are darker, with blue labels.
+- **Evidence:** `issues/evidence/dw_issue_card_menu_colors.png`, `issues/evidence/dw_issue_evo_char_menu_color.png` (left original, right port).
+- **Cause:** `renderMenuTab(x, w, layer)` passes `layer` (1 for tabs not shown) as `renderRectPolyFT4`'s flag, and flag 1 dims the sprite (`game_menu.c:2960`, `:4305`). `MenuDraw.menu_tab` did not pass `flags` to `sprite`, defaulting to 0 (undimmed).
+- **Status:** fixed (2026-10-25): `MenuDraw.menu_tab` passes `flags = 0` when `front` is true and `1` (dimmed) when `false` (`scripts/ui/menu_draw.gd`).
 
 ### I-17. Chart and card screens: the cells and columns have no contour
 - **Seen:** the evolution chart's cells and level columns, and the card list's cells, are flat; in the original they have a light top-left and a dark bottom-right edge.

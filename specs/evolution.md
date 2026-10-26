@@ -1,6 +1,6 @@
 # Evolution
 
-Status (2026-10-26): spec written, waiting for approval (`PLANS.md` 5f).
+Status (2026-10-26): approved; **5f-1 (the rules) done** (see "As built" at the end); 5f-2 (the scene) to do (`PLANS.md` 5f).
 
 When and into what the partner evolves, and what evolving does to it. The rules are in `main/evolution.c`, the triggers in `partner_impl.c`, `partner.c` and `item.c`, and applying the evolution and the scene are in the `evl` overlay. The data porter already has the tables and documents the selection in detail (`data_porter/specs/evolution.md` §2). This spec says how the port runs them.
 
@@ -88,8 +88,8 @@ A result ≠ −1 sets `EVOLUTION_TARGET`, tamer state 6 and partner state 13 at
 
 The inventory's Use on an item whose handler is `handleEvoItems`:
 - items 0x7D / 0x7E / 0x7F: target Gigadramon / Panjyamon / MetalEtemon, with no level check;
-- the others (`item_targets`): only if the partner's level is the target's level − 1; else nothing happens (the item stays). The port already refuses the item at that point (`ItemUse._evolution_refused`); the handler keeps the C's check too.
-- then: `HAS_USED_EVOITEM` = 1, the item is removed (`removeTamerItem`), the inventory closes, tamer state 6, partner state 13.
+- the others (`item_targets`): only if the partner's level is the target's level − 1; else nothing happens. The item is still used up: the feeding scene removes it after the handler either way (`removeOneSelectedItem`). The partner refuses most wrong-level items before eating them (`ItemUse._evolution_refused`: target level = its level, + 2 or − 1); the other levels are eaten for nothing.
+- then: `HAS_USED_EVOITEM` = 1, the tamer's held item cleared (`removeTamerItem`), the inventory closes, tamer state 6, partner state 13.
 
 **`HAS_USED_EVOITEM` is never cleared** except at boot. Once an item was used, every later evolution of the session (natural ones too) gets no stat gains and no Ultimate lifetime bonus, until the game is restarted. It isn't saved. The port keeps it the same way (a flag of the running game, not of `GameState`). Open point §6.
 
@@ -130,8 +130,8 @@ So these need no evolution code of their own: once routines 2 and 10 work (5f-1)
 - the scene's data: timer 0, state 0, the target, `digimonId` = `stat_gains[target].targetDigimon`, the height factor;
 - the partner plays animation 0; sounds stop; the evolution sound set (map sounds 18) and the new Digimon's voice bank (`VLALL`) load; the `evl` overlay loads;
 - **the loading object**, each frame (its timer + 1, at most 30000):
-  - state 0: after 55 frames: state 1, timer 0, the partner plays animation 1, condition bubble 7 over it;
-  - state 1: after 55 more frames (and the overlay loaded): the object ends, the music stops (`stopBGM`), the sequence starts (`EVL_initEvoSequence`, §2.9).
+  - state 0: once the timer is past 55 (the 57th frame): state 1, timer 0 (then + 1), the partner plays animation 1, condition bubble 7 over it;
+  - state 1: once the timer is past 55 again (56 more frames; and the overlay loaded): the object ends, the music stops (`stopBGM`), the sequence starts (`EVL_initEvoSequence`, §2.9).
 
 `getEvoSequenceState(…, 1)` returns the timer, which the sequence sets to −1 when it ends.
 
@@ -166,7 +166,7 @@ With `gains` = `stat_gains[target]`, `new` = `gains.targetDigimon`, `oldLevel` =
      - the partner not Sukamon: each base stat × `brains` / 10;
      - the partner Sukamon: each = `backup + (stat − backup / 2) / 2` with the `suka_backup_*` values, and `virus_bar` = 0;
      - then the clamp, and the current HP / MP cut to the new maximums.
-   - **Otherwise**, if no item was used: each stat `s` with gain `g`: `s + g / 10` if `s` ≥ `g`, else `(g + s) / 2`; then the clamp (HP, MP ≤ 9999; the others ≤ 999). During a script (`IS_SCRIPT_PAUSED` = 1): a new Champion gives `addTamerLevel(20, 1)`, a new Ultimate `addTamerLevel(100, 1)` (`Clock.add_tamer_level`).
+   - **Otherwise**, if no item was used: each stat `s` with gain `g`: `s + g / 10` if `s` ≥ `g`, else `(g + s) / 2`; then the clamp (HP, MP ≤ 9999; the others ≤ 999). When **no** script runs (`IS_SCRIPT_PAUSED` = 1, so not the script evolutions): a new Champion gives `addTamerLevel(20, 1)`, a new Ultimate `addTamerLevel(100, 1)` (`Clock.add_tamer_level`).
 2. **Care:** weight = `raise_data[new].default_weight`; care mistakes and battles = 0. An Ultimate without an item: `remaining_lifetime` + 96.
 3. **The new technique:** the element block of `new`'s first element (`special[0]`): ids from `base` to `base + 8` **inclusive** (`base` by element: 0 → 0, 1 → 40, 2 → 8, 3 → 32, 4 → 16, 5 → 24, 6 → 49). Among `new`'s 16 move slots, the moves in that range are the candidates, in slot order. The best starts as the first candidate and is replaced by any candidate with a lower, non-zero power. It is learnt (`learnMove`).
    - The range is 9 ids, so it includes the first technique of the next block (open point §6).
@@ -245,7 +245,20 @@ VERIFY gets "Evolution": with the debugger, set `evo_timer` and stats, wait for 
 
 - **`HAS_USED_EVOITEM` for the whole session** (§2.5): faithful, but it looks like a bug of the original (no gains for every later evolution). The port keeps it; the user may want a fix later as an option.
 - **The technique block's 9th id** (`moveBase + 8` inclusive) reaches the next element's first technique. It only matters if a Digimon has that move in its list; the port keeps the C.
-- **Map 1** for Kunemon: which map id 1 is (from `systems/maps`).
+- **Map 1** for Kunemon: `dw1:mayo02`, Kunemon's Bed (resolved).
 - **The evolution chart's first partner** (I-16) is the new game's job (4e), not evolution's.
 - **Battles** stay 0 until 5d, so battle-based bonuses and Ninjamon can't happen yet.
 - **The debugger** needs a way to set `evo_timer`, stats and the virus bar quickly (the State tab has the stats; the care panel shows `evo_timer`). 5f-1 adds what's missing.
+
+## As built (5f-1, 2026-10-26)
+
+- **Data:** `evolution/rules.json` (data porter, 25/25 checks): keyed rule records (`hours`, `fresh_target`, `fallback`, `virus`, `scaled_target`, `special` in C order, `technique_block`), each checked against the C text; `GameData.evolution_rules(rule)`. Special conditions: `discipline` / `happiness` / `tiredness` / `level` / `evo_timer` (equal), `battles_at_least` / `defense_at_least` / `evo_timer_at_least`, `map {id}`, `nanimon_trigger`.
+- **`Evolution`** (`scripts/systems/evolution.gd`) as §3.1. The selection reads the mapped requirement fields (null = −1 of the C). `_best_average` keeps the quirk; a candidate naming no stat (never in the data) keeps the sum instead of dividing by 0. The `best_average` hours rule runs `rookie_target`, whose fallback is looked up by the partner's level, so the Champion has none. Mastered techniques = the learned list's size (one bit per learned technique id, the pairs included).
+- **Care:** `nanimon_trigger` (set or cleared by a scold, as `handlePraiseScold`; `handle_praise_scold` no longer returns it), `evolution` (the hourly check at the end of `tick_conditions`).
+- **GameState:** `set_raised` / `is_raised` (`TRIGGER_RAISED` 0x200, `RAISED_IDS` 0x3F); the Player screen uses them.
+- **Partner:** `STATE_EVOLVING` (13), `tick_evolving`, `evolution_scene`; `_special_evolution` at the end of waking (mode 2) and of praise / scold (mode 3). Sub-state 0 doesn't close menus: the partner isn't ticked while the △ menu is open, and an item starts the evolution after the menu closed. Without a scene the evolution applies at once.
+- **`EvolutionScene`** (`scripts/field/evolution_scene.gd`, a child of `CareHost`, which also creates `Evolution`): the loading part (57 + 56 frames), the evolution sound set (18) and the new voice bank, `stopBGM`; then the stand-in: `apply_evolution`, `Partner.load_digimon` at the same place, animation 0xB; at its end the map's sound set and `force_update_bgm`, timer −1.
+- **Script:** `CALL_DIGIMON_ROUTINE` 2 / 10 (script values 5 / 0xFE). The Factorial Town remodel doesn't wait on the sync bit: it waits 570 frames (`DELAY`), long enough for the stand-in and the real sequence.
+- **Items:** `ItemUse._handle_evo_items` → `Evolution.item_evolution`; `ItemUse.is_ported` and the inventory's "not ported" message are gone.
+- **Debugger:** the care panel (`C`) has `evo+12` and `virus+4`.
+- **Tests:** `tests/test_evolution.gd` (101 checks): selection with stubbed requirement / path records, the score points and the raised adjustment, the special rules with seeded rolls, the hourly check and Care's call, items, apply (gains, clamps, scaled, Sukamon, item flag, lifetime, tamer level, technique), state 13 with a stub scene, the scene's loading timings with Agumon's model, routines 2 / 10, and the remodel (script 156) end to end (seeded: Mamemon → MetalMamemon). Not run end to end: the Costume House (script 139), which uses routine 10 the same way.

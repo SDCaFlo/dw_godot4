@@ -175,7 +175,7 @@ Field (`GAME_STATE` 0) branches only; the values come from `item_effects` / `hea
 
 ### 2.11 Evolution items
 
-`handleEvoItems`: below 0x7D, only when the target's level − 1 is the partner's level; 0x7D / 0x7E / 0x7F → 0x40 / 0x3F / 0x41. Then `HAS_USED_EVOITEM = 1`, the tamer's item cleared, the inventory closed, tamer state 6, partner state 0xD (evolving). Evolution isn't ported (§6).
+`handleEvoItems`: below 0x7D, only when the target's level − 1 is the partner's level; 0x7D / 0x7E / 0x7F → 0x40 / 0x3F / 0x41. Then `HAS_USED_EVOITEM = 1`, the tamer's item cleared, the inventory closed, tamer state 6, partner state 0xD (evolving). Ported with evolution: `specs/evolution.md` §2.5.
 
 ## 3. Sounds
 
@@ -229,7 +229,7 @@ Headless, like `test_game_menu.gd`:
 
 ## 6. Not in this step
 
-- **Evolution:** an accepted evolution item would start partner state 0xD. Until evolution is ported, Use on an evolution item names "evolution not ported yet" in the help line and does nothing (the item stays, the menu stays open).
+- **Evolution:** an accepted evolution item starts partner state 0xD (`specs/evolution.md` §2.5, done 2026-10-26).
 - **The healing particles** (`addHealingParticleEffect`): with the effects.
 - **Battle:** throwing (`startThrowingItem`, `GAME_STATE` 1), the battle-only items (buff disks, status cures, the shield), the `currentCommand` test.
 - (Resolved while coding.) **The item amount digits:** `setEntityTextDigit` (`utils.c`, asm) sets texture page 0x1E (VRAM (896, 256)) and the palette (256, 484). UV (d·6 + 0x89, 0x9C) is VRAM row 412, inside `ETCDAT/BI_IN.TIM` (asset porter `etctim/00_bi_in`, rows 384–447): its palette 4, image (d·6 + 0x89, 28), 6 × 10.

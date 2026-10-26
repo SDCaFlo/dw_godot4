@@ -14,6 +14,7 @@ godot --headless --path . -s res://tests/test_card_shops.gd
 godot --headless --path . -s res://tests/test_town_services.gd
 godot --headless --path . -s res://tests/test_debug_state.gd
 godot --headless --path . -s res://tests/test_training.gd
+godot --headless --path . -s res://tests/test_evolution.gd
 godot --headless --path . -s res://tests/test_camera.gd
 godot --headless --path . -s res://tests/test_map_objects.gd
 godot --headless --path . -s res://tests/test_lighting.gd
@@ -219,7 +220,7 @@ Sections are added as systems are ported (`PLANS.md`).
 6. **Drop:** "Are you sure?", on No. No keeps it; Yes (left, ✕) throws the whole stack away.
 7. **Back:** △ on the list goes back to the △ menu, on ITEM.
 8. **Feeding:** Use on a food: everything closes, Agumon walks up (or first a few steps away if he was too close), the tamer holds the item out (a sound) and Agumon eats it, or refuses it (a shake) and the tamer puts it away. Eaten, one leaves the bag; the care panel (`C`) shows the effect (Meat: energy, and +2 happiness since it is Agumon's favourite).
-9. **Refusals:** a recovery floppy may be refused when discipline is low; scold right after (△ menu) and the next item is taken. An evolution item says "evolution not ported yet" and stays in the bag.
+9. **Refusals:** a recovery floppy may be refused when discipline is low; scold right after (△ menu) and the next item is taken. An evolution item at the right level starts the evolution (see "Evolution").
 10. **Compare with the game:** the layout, colours and sounds of the boxes, the walk-up, and when the item disappears from his hand.
 
 ## Drop shadows (`scripts/field/drop_shadow.gd`, `scenes/field/drop_shadow.tscn`, `specs/drop_shadow.md`)
@@ -388,6 +389,20 @@ In the game (F5):
    - the butterfly over an unhappy partner;
    - feeding, praise / scold, toilets (menus);
    - the collapse / death script (the help line names it), evolution, the butterfly.
+
+## Evolution (`scripts/systems/evolution.gd`, `scripts/field/evolution_scene.gd`, partner state 13 in `partner.gd`; `specs/evolution.md`)
+
+`test_evolution.gd` prints `OK: evolution checks`. The scene is a stand-in until 5f-2 (no shards, no camera orbit). In the game (F5), care panel `C`:
+1. **Numemon, the quickest:** with the new game's Agumon, press `evo+12` eight times (evo_timer 96; Agumon's stats are too low for any Champion). At once:
+   - the clock stops, the tamer turns to Agumon, and Agumon walks up to him;
+   - Agumon idles about 3 s, then plays his next animation with a bubble over him for about 3 s;
+   - the music stops; Numemon appears where Agumon stood and plays its pose; the music comes back, the clock runs, you can walk.
+   - The panel's first line shows `dw1:numemon`, `evo 0`; the Digimon screen shows Numemon's stats (Agumon's × 0.8 here, Numemon's scale), its technique in slot 1 and its finisher.
+   - Wrong if: the game freezes in state 13 (the panel's `state 13.x`), the model doesn't change, or the music never comes back.
+2. **The virus bar:** `virus+4` four times: the partner turns into Sukamon the same way.
+3. **An item:** the debugger's State tab, Items: give Grey Claws; with a Rookie (a new game's Agumon), △ → ITEM → Use: Agumon takes it, then evolves into Greymon. With a Champion the Grey Claws are refused (a shake).
+4. **The Factorial Town remodel** (optional, needs a Mamemon): set the field's `debug_partner` to `dw1:mamemon`, warp to FACT10 (Maps tab) and talk to the remodel shop's owner, Do it (2000 bits): about half the time the partner evolves into MetalMamemon (one in ten Giromon), and the shop's line follows.
+5. **Compare with the game:** where the tamer and the partner stand and face, how long the build-up lasts before the change.
 
 ## Partner (`scripts/field/partner.gd`, `psx_animator.gd`, `specs/partner.md`)
 

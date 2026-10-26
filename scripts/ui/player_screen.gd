@@ -150,7 +150,7 @@ func playtime_frames() -> int:
 
 ## hasDigimonRaised (script_common.c:3019): trigger 0x200 + id.
 func has_raised(digimon_id: int) -> bool:
-	return game_state.is_trigger_set(0x200 + digimon_id)
+	return game_state.is_raised(digimon_id)
 
 
 ## hasMedal (script_common.c:3033): trigger 0x16C + medal.

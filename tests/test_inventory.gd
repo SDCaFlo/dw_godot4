@@ -325,7 +325,7 @@ func _effects() -> void:
 	_check(c["condition"] & Care.SICK != 0, "a 100 % sickness chance makes it sick")
 	c["condition"] = 0
 	tamer.set_state(Tamer.STATE_FREE)
-	_check(not use.apply(71), "an evolution item: not ported (no effect)")
+	_check(not use.apply(71), "an evolution item without the evolution rules: nothing (tests/test_evolution.gd has the rest)")
 
 
 # --- the inventory --------------------------------------------------------------------------------

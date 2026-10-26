@@ -106,7 +106,7 @@ They run only while the tamer is idle.
 
 ## 3. Mapping
 
-`output/evolution/requirements.json`, `paths.json`, `stat_gains.json` and `item_targets.json`, plus `report.md`. Every record keeps its raw C values in `c`.
+`output/evolution/requirements.json`, `paths.json`, `stat_gains.json`, `item_targets.json` and `rules.json`, plus `report.md`. Every record of the C tables keeps its raw C values in `c`.
 
 - **`requirements`:**
   - `id` (target), `name`, `level`, `has_requirements`
@@ -117,6 +117,14 @@ They run only while the tamer is idle.
 - **`paths`:** `id`, `from`, `to` (ids > 0, in C order); `ignored_values` keeps the other entries that aren't -1 (Phoenixmon's `to` holds -2 and 0).
 - **`stat_gains`:** `applied_as` is `gain` (`gains {hp … brain}`) or `scale` (`scale` = brains / 10). `unused_gains` holds the gain values of a scaled target that also has them (WereGarurumon 62).
 - **`item_targets`:** `item`, `target`, `from` (table entry or code constant), `needs_level`, `can_work`.
+- **`rules`** (added 2026-10-26 for the evolution port, `../specs/evolution.md` §3.3): the literals of the code, one keyed record per rule (`dw1:hours_rookie`, `dw1:special_vademon`, …), field `rule`:
+  - `hours`: `level`, `evo_timer_at_least`, `select` (`fixed`, `best_score`, `best_average`): tickConditions' thresholds;
+  - `fresh_target`: `from`, `target` (getFreshEvolutionTarget);
+  - `fallback`: `level`, `evo_timer_at_least`, `target` (Rookie, 96 → Numemon);
+  - `virus`: `bar_at_least`, `target`, `backup_value` (16 → Sukamon, script value 5);
+  - `scaled_target`: `target` (Devimon, Numemon, Sukamon, Nanimon: stats scaled, not gained);
+  - `special`: `mode`, `chance` (roll < chance, null = none), `from` (empty = any), `conditions`, `target`, in C order (later ones overwrite earlier ones). Conditions: `discipline` / `happiness` / `tiredness` / `level` / `evo_timer` equal, `battles_at_least` / `defense_at_least` / `evo_timer_at_least`, `map {id}` (`CURRENT_SCREEN`), `nanimon_trigger`;
+  - `technique_block`: `element`, `first`, `last` (inclusive, `first + 8`).
 
 ## 4. Godot usage
 
@@ -125,7 +133,7 @@ They run only while the tamer is idle.
 - **Modding:**
   - Requirements, gains and paths can change within their C types.
   - Keep the indexing (requirements and gains by target id; paths by id - 1) and the level order of paths (one level up).
-  - Keep the hard-coded ids of §2 in sync: Numemon 11, Sukamon 0x27, Nanimon 0x35, the scaled targets, the Fresh targets, the special-evolution ids.
+  - The ids of §2 (Numemon 11, Sukamon 0x27, Nanimon 0x35, the scaled targets, the Fresh targets, the special evolutions, the technique blocks) are `rules` records: a pack patches or adds them by key. `GameData.evolution_rules(rule)`.
 
 ## 5. Verification
 
@@ -141,7 +149,8 @@ The converter checks:
   - the bonus Digimon is one the target comes from;
   - every target of a scored path (anything but Fresh) has requirements;
 - `targetDigimon` equals the index, and the scaled targets that can be reached have no gain values;
-- the item table covers items 0x47–0x72, and the constant targets of 0x7d–0x7f are in `handleEvoItems`.
+- the item table covers items 0x47–0x72, and the constant targets of 0x7d–0x7f are in `handleEvoItems`;
+- rules: every rule's literals are still in the C text (the thresholds, the virus bar lines, each special rule's condition and target, the technique bases and the `+ 8` range); each fixed Fresh target is its only path; each special rule's Digimon share one level; the keys are unique.
 
 Tests: `tests/test_evolution.py` (real data).
 
@@ -149,5 +158,5 @@ Tests: `tests/test_evolution.py` (real data).
 
 - **WereGarurumon (62)** has level 0, no technique list, requirements, and four chart `from` entries, but no path leads to it, and its item (Moon mirror) can't work. It looks like content cut from the US data; check the other releases' `DIGIMON_DATA` if this matters.
 - **Phoenixmon's `to` = {-2, 0}**: never used for evolution (Ultimates have no selection). The chart skips them.
-- **Map 1** in the Kunemon rule: which map that is comes from the map list (`CURRENT_SCREEN`); not resolved here.
+- **Map 1** in the Kunemon rule: `systems/maps` id 1 is `dw1:mayo02`, Kunemon's Bed (resolved 2026-10-26).
 - **`hasDigimonRaised`** reads the "raised" bit field, which a save file holds; the Godot save system has to keep it.

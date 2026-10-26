@@ -63,7 +63,6 @@ func start() -> void:
 	menu.open_inventory.connect(inventory.open)
 	inventory.back.connect(menu.reopen)
 	inventory.use_item.connect(start_feeding)
-	inventory.unported.connect(func(what: String): message.emit("items: %s not ported yet" % what))
 	if partner != null:
 		partner.item_use = item_use
 	digivice = DigiviceView.new()

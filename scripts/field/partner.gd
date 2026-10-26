@@ -36,6 +36,8 @@ const STATE_IDLE := 11
 const STATE_SCRIPT := 12
 ## A training station moves it: only the condition bubble (partner.c:244; specs/training.md §2.6).
 const STATE_TRAINING := 10
+## An evolution (partnerTickEvolving, specs/evolution.md §2.7).
+const STATE_EVOLVING := 13
 
 var tamer: Node3D
 var game_state: Node
@@ -51,6 +53,8 @@ var script_ctx: ScriptContext
 var sound: Node
 ## The item rules the feeding scene asks (specs/inventory.md §4).
 var item_use: ItemUse
+## The evolution's scene (getEvoSequenceState); null: the evolution applies at once.
+var evolution_scene: EvolutionScene
 var _tamer_hand_reset := false
 ## PARTNER_STATE / PARTNER_SUB_STATE (partner_impl.c:221), not saved.
 var state := STATE_NORMAL
@@ -141,6 +145,8 @@ func tick() -> void:
 		STATE_TRAINING:
 			if care != null:
 				care.handle_condition_bubble()
+		STATE_EVOLVING:
+			tick_evolving()
 	step = 0.0
 	on_screen = field.is_on_screen(global_position)
 	if care != null:
@@ -224,7 +230,7 @@ func tick_sleep() -> void:
 				set_state(STATE_NORMAL)
 				tamer.state = Tamer.STATE_FREE
 				tamer.camera_follow = true
-				# handleSpecialEvolutions(2): the evolution step.
+				_special_evolution(Evolution.MODE_WAKE_UP)
 				if clock != null:
 					clock.running = true
 
@@ -233,8 +239,7 @@ func tick_sleep() -> void:
 
 ## The menu's Praise (state 15) and Scold (4): it walks up to the tamer; close to him the praise's
 ## sound and the tamer's pat (state 13) or his scold (state 9); when his animation is over,
-## handlePraiseScold; when its own answer ends, both are free. handleSpecialEvolutions(3) comes with
-## evolution.
+## handlePraiseScold; when its own answer ends, both are free, and the special evolutions of mode 3.
 func tick_praise_scold() -> void:
 	match sub_state:
 		0:
@@ -266,6 +271,54 @@ func tick_praise_scold() -> void:
 				set_state(STATE_NORMAL)
 				tamer.set_state(Tamer.STATE_FREE)
 				tamer.camera_follow = true
+				_special_evolution(Evolution.MODE_PRAISE_SCOLD)
+
+
+## handleSpecialEvolutions(mode) (evolution.c:852).
+func _special_evolution(mode: int) -> void:
+	if care != null and care.evolution != null:
+		care.evolution.special_evolution(mode)
+
+
+# --- partnerTickEvolving (partner.c:741) ------------------------------------------------------
+
+## State 13: time stops, the tamer stands and looks at it, it walks to him; close to him the scene
+## starts (EvolutionScene: the evolution is applied inside it); at its end time runs again, and
+## either the script's sync bit is set (a script evolution) or the tamer is free. The C also closes
+## the △ menu, the inventory and box 1 and disables fishing: the partner doesn't tick while the menu
+## is open, and the items start it after the menu closed, so the port has nothing to close.
+func tick_evolving() -> void:
+	match sub_state:
+		0:
+			if clock != null:
+				clock.running = false
+			tamer.camera_follow = false
+			tamer.look_at_psx(int(position.x), int(-position.z))
+			start_animation(ANIM_WALK)
+			sub_state = 1
+		1:
+			look_at_psx(int(tamer.position.x), int(-tamer.position.z))
+			if closeness() > 0:
+				if evolution_scene != null:
+					evolution_scene.start(care.evolution_target)
+				sub_state = 2
+		2:
+			var value := -1
+			if evolution_scene != null:
+				value = evolution_scene.tick()
+			elif care != null and care.evolution != null and care.evolution_target != -1:
+				load_digimon(data, care.evolution.apply_evolution(care.evolution_target))
+			if value == -1:
+				if clock != null:
+					clock.running = true
+				if care != null:
+					care.evolution_target = -1
+				set_state(STATE_NORMAL)
+				if script_ctx != null and script_ctx.sync_bit == 0:
+					script_ctx.sync_bit = 1
+				else:
+					tamer.set_state(Tamer.STATE_FREE)
+					tamer.camera_follow = true
 
 
 # --- partnerTickFeedItem (partner.c:425) ------------------------------------------------------

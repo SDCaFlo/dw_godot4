@@ -27,6 +27,9 @@ var care: Care
 var bars: StatusBars
 var bubbles: ConditionBubbles
 var poop: PoopPiles
+## The evolution rules and their scene (specs/evolution.md §3).
+var evolution: Evolution
+var evolution_scene: EvolutionScene
 
 
 ## The care rules and the fade they use (specs/care.md §3). A new game's partner gets
@@ -56,6 +59,7 @@ func start() -> void:
 		if GameState.state["boot_mode"] == GameState.BOOT_NEW_GAME or debug_partner != "":
 			care.initialize_partner()
 		_start_visuals()
+		_start_evolution()
 	tamer.fade = fade
 
 
@@ -82,6 +86,29 @@ func _start_visuals() -> void:
 	poop.partner = partner
 	world.add_child(poop)
 	care.poop_changed.connect(poop.refresh)
+
+
+## The evolution's rules (Care's hourly check, the special evolutions, the items) and the scene
+## partner state 13 plays.
+func _start_evolution() -> void:
+	evolution = Evolution.new()
+	evolution.game_state = GameState
+	evolution.data = GameData
+	evolution.care = care
+	evolution.clock = clock
+	if interpreter != null:
+		evolution.script_ctx = interpreter.ctx
+	care.evolution = evolution
+	evolution_scene = EvolutionScene.new()
+	evolution_scene.name = "EvolutionScene"
+	evolution_scene.partner = partner
+	evolution_scene.evolution = evolution
+	evolution_scene.game_state = GameState
+	evolution_scene.data = GameData
+	evolution_scene.sound = Sound
+	evolution_scene.bubbles = bubbles
+	add_child(evolution_scene)
+	partner.evolution_scene = evolution_scene
 
 
 ## The bars' slide, then the bubbles; with the menu open (IS_IN_MENU, bubble.c:482, :619) the

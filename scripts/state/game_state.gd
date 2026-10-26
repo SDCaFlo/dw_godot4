@@ -34,6 +34,9 @@ const CONDITION_SICK := 1 << 6
 ## Sizes of the original arrays.
 const INVENTORY_SLOTS := 30
 const TRIGGERS := 800
+## The "raised" marks of the evolution chart: trigger 0x200 + Digimon id, ids < 0x3F.
+const TRIGGER_RAISED := 0x200
+const RAISED_IDS := 0x3F
 const SCRIPT_VALUES := 256
 ## The save copies the first 0x17C bytes of ScriptState: script values 0-34 (main_menu.c:5120).
 const SAVED_SCRIPT_VALUES := 35
@@ -175,6 +178,18 @@ func clear_trigger(trigger: int) -> void:
 		changed.emit("script")
 
 
+## setDigimonRaised (script_common.c:3011): trigger 0x200 + id, for ids below 0x3F.
+func set_raised(digimon: Variant) -> void:
+	var id := _digimon_id(digimon)
+	if id >= 0 and id < RAISED_IDS:
+		set_trigger(TRIGGER_RAISED + id)
+
+
+## hasDigimonRaised (script_common.c:3019).
+func is_raised(digimon: Variant) -> bool:
+	return is_trigger_set(TRIGGER_RAISED + _digimon_id(digimon))
+
+
 ## readPStat (script_interp.c:2722).
 func script_value(index: int) -> int:
 	return state["script"]["values"][index]
@@ -307,6 +322,10 @@ func _with_shared(move: Variant) -> PackedStringArray:
 	for other in (shared if shared is Array else [shared] if shared != null else []):
 		keys.append(data.key_of("moves/move_data", int(other)))
 	return keys
+
+
+func _digimon_id(ref: Variant) -> int:
+	return data.id_of("digimon/digimon_data", ref) if ref is String else int(ref)
 
 
 func _key(table: String, ref: Variant) -> String:

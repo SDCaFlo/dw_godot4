@@ -59,6 +59,12 @@ const OBJECT_SLOT := 12
 const WALK_HIT_LIMIT := 9
 ## CALL_DIGIMON_ROUTINE 0: the toilet scene (partner state 6).
 const ROUTINE_TOILET := 0
+## CALL_DIGIMON_ROUTINE 2 and 10: an evolution (partner state 13) into script value 5 (Sukamon's
+## saved Digimon) or 0xFE (specs/evolution.md §2.6).
+const ROUTINE_EVOLVE_BACK := 2
+const ROUTINE_EVOLVE := 10
+const PSTAT_SUKAMON_BACKUP := 5
+const PSTAT_EVOLUTION := 0xFE
 ## callDigimonRoutine's last case (partner.c:1139-1213).
 const ROUTINE_LAST := 10
 ## tickLookAtEntity's turn per frame (rotateEntity speed).
@@ -1252,12 +1258,20 @@ func _wait_slot(id: int) -> int:
 
 # --- CALL_DIGIMON_ROUTINE (partner.c:1137) ----------------------------------------------------------
 
-## callDigimonRoutine: routine 0 starts the toilet scene (partner state 6, specs/care.md §2.16) and
-## clears the sync bit, which the scene sets when done. The other routines' scenes aren't ported:
-## reported, the bit stays set.
+## callDigimonRoutine: routine 0 starts the toilet scene (partner state 6, specs/care.md §2.16),
+## routines 2 and 10 an evolution (state 13, EVOLUTION_TARGET from a script value); each clears the
+## sync bit, which the scene sets when done. The other routines' scenes aren't ported: reported,
+## the bit stays set.
 func call_digimon_routine(routine: int) -> void:
 	if routine == ROUTINE_TOILET and partner != null:
 		partner.set_state(Partner.STATE_TOILET)
+		ctx.sync_bit = 0
+		_sync_scene = true
+		return
+	if (routine == ROUTINE_EVOLVE_BACK or routine == ROUTINE_EVOLVE) and partner != null and care != null:
+		care.evolution_target = game_state.script_value(
+				PSTAT_SUKAMON_BACKUP if routine == ROUTINE_EVOLVE_BACK else PSTAT_EVOLUTION)
+		partner.set_state(Partner.STATE_EVOLVING)
 		ctx.sync_bit = 0
 		_sync_scene = true
 		return

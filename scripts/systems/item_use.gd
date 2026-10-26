@@ -126,8 +126,8 @@ func remove_one(item: Variant) -> void:
 
 # --- ITEM_FUNCTIONS (item.c:1932) ---------------------------------------------------------------
 
-## ITEM_FUNCTIONS[type](type): the item's handler. Returns false for an item whose effect isn't
-## ported (evolution items: specs/inventory.md §6).
+## ITEM_FUNCTIONS[type](type): the item's handler. Returns false when the handler did nothing (an
+## evolution item at the wrong level).
 func apply(item: Variant) -> bool:
 	var handler = _item(item).get("handler")
 	if handler is Dictionary:
@@ -136,13 +136,6 @@ func apply(item: Variant) -> bool:
 		return true
 	return call(HANDLERS[handler], item) != false
 
-
-## Whether the item's effect is ported (the inventory refuses the others for now).
-func is_ported(item: Variant) -> bool:
-	var handler = _item(item).get("handler")
-	if handler is Dictionary:
-		handler = handler.get("name")
-	return handler != "handleEvoItems"
 
 
 ## handleHPHealingItem (item.c:2377): unless HP is 0, HP + HEALING_VALUES[id].
@@ -283,9 +276,12 @@ func handle_item_sickness(chance: int) -> void:
 		care.show_sick_message()
 
 
-## handleEvoItems (item.c:2190): starts an evolution, which isn't ported (specs/inventory.md §6).
-func _handle_evo_items(_item_ref: Variant) -> bool:
-	return false
+## handleEvoItems (item.c:2190): the item's evolution (specs/evolution.md §2.5). At the wrong level
+## nothing happens; the feeding scene still uses the item up (removeOneSelectedItem).
+func _handle_evo_items(item: Variant) -> bool:
+	if care == null or care.evolution == null:
+		return false
+	return care.evolution.item_evolution(item)
 
 
 # --- helpers ---------------------------------------------------------------------------------------

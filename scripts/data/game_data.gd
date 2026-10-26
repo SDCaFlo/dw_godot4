@@ -479,6 +479,12 @@ func evolution_item_target(item_ref: Variant) -> Dictionary:
 	return find("evolution/item_targets", "item", _item_id(item_ref))
 
 
+## The evolution rules of one kind (`hours`, `fresh_target`, `fallback`, `virus`, `scaled_target`,
+## `special`, `technique_block`), in table order.
+func evolution_rules(rule: String) -> Array:
+	return find_all("evolution/rules", "rule", rule)
+
+
 # --- Moves (specs/moves.md) ------------------------------------------------------------------
 
 func move(ref: Variant) -> Dictionary:

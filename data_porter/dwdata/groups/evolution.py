@@ -56,13 +56,115 @@ EVIDENCE = [
 ]
 # getFreshEvolutionTarget (evolution.c:674-688): fixed In-Training form of each Fresh.
 FRESH_TARGETS = {0x01: 0x02, 0x0F: 0x10, 0x1D: 0x1E, 0x2B: 0x2C}
+PARTNER_IMPL_C = "src/main/partner_impl.c"
+ELEMENTS = {0: "fire", 1: "battle", 2: "air", 3: "earth", 4: "ice", 5: "mech", 6: "filth"}
+# The rules the code writes as literals (specs/evolution.md, ../specs/evolution.md §3.3): each with
+# the C text it comes from, checked by the converter.
+HOURS = [  # tickConditions (partner_impl.c:2108-2119): level, evo_timer threshold, selection
+    (1, "fresh", 6, "fixed"), (2, "in_training", 24, "best_score"), (3, "rookie", 72, "best_average"),
+    (4, "champion", 144, "best_average")]
+FALLBACK = {"level": 3, "evo_timer_at_least": 96, "target": 11}   # getRookieEvolutionTarget
+VIRUS = {"bar_at_least": 16, "target": 0x27, "backup_value": 5}   # tickConditions :2122-2135
+# handleSpecialEvolutions (evolution.c:852-925), in C order: mode, roll < chance (None: no roll),
+# from, conditions, target, the C lines.
+SPECIAL = [
+    (2, 30, [0x15, 0x0A], {"discipline": 100, "happiness": 100, "tiredness": 0}, 7,
+     ["if ((type == 0x15 || type == 0x0a) && discipline == 100 &&", "happiness == 100 && tiredness == 0) {",
+      "evoTarget = 7;"]),
+    (2, 30, [0x19], {"battles_at_least": 50, "discipline": 100}, 58,
+     ["if (type == 0x19 && battles >= 50 && discipline == 100) {", "evoTarget = 58;"]),
+    (2, 30, [0x26], {"defense_at_least": 500, "discipline": 100}, 47,
+     ["if (type == 0x26 && def >= 500 && discipline == 100) {", "evoTarget = 47;"]),
+    (2, 50, [0x02, 0x1E, 0x10, 0x2C], {"map": 1}, 32,
+     ["(type == 0x02 || type == 0x1E || type == 0x10 || type == 0x2c) &&", "CURRENT_SCREEN == 1) {",
+      "evoTarget = 32;"]),
+    (3, 30, [0x18, 0x23], {"level": 4, "evo_timer": 200}, 49,
+     ["if ((type == 0x18 || type == 0x23) && level == 4 && evotimer == 200 &&", "evoTarget = 49;"]),
+    (3, None, [], {"nanimon_trigger": True}, 53,
+     ["if (NANIMON_TRIGGER == 1) {", "evoTarget = 53;", "NANIMON_TRIGGER = 0;"]),
+    (3, 50, [], {"level": 4, "evo_timer_at_least": 240}, 28,
+     ["if (level == 4 && evotimer >= 240 && rand < 50) {", "evoTarget = 28;"]),
+]
+SPECIAL_EVIDENCE = ["case 2: {", "if (rand < 30) {", "if (rand < 50 &&", "case 3: {", "rand < 30) {"]
+# EVL_applyEvolution (evl.c:1418-1440): the first technique id of each element's block; the block
+# is base .. base + 8, inclusive.
+TECHNIQUE_BASES = {0: 0, 1: 40, 2: 8, 3: 32, 4: 16, 5: 24, 6: 49}
+TECHNIQUE_SPAN = 8
 
 TABLE_PURPOSES = {
     "requirements": "What each Digimon needs to be evolved into: stats, care mistakes, weight, one bonus condition",
     "paths": "Evolution chart: which Digimon each one comes from and can evolve into",
     "stat_gains": "Stats an evolution adds (or the factor it scales them by), per target Digimon",
     "item_targets": "Digimon each evolution item turns the partner into",
+    "rules": "The evolution rules the code writes as literals: hourly thresholds, fixed and fallback targets, the "
+             "virus bar, scaled targets, special evolutions, technique blocks",
 }
+
+
+def _key(name: str) -> str:
+    return "dw1:" + "".join(c if c.isalnum() else "_" for c in (name or "").lower()).strip("_")
+
+
+def _rules(out, decomp, dref, to_of, level) -> list:
+    """The rule records (../specs/evolution.md §3.3), each checked against the C text."""
+    text = {p: (decomp.root / p).read_text(encoding="utf-8", errors="replace")
+            for p in (EVO_C, EVL_C, PARTNER_IMPL_C)}
+    missing = []
+    rules = []
+    for lvl, name, hours, select in HOURS:
+        needle = f"level == {lvl} && evoTimer >= {hours})"
+        if needle not in text[PARTNER_IMPL_C]:
+            missing.append(needle)
+        rules.append({"key": f"dw1:hours_{name}", "rule": "hours", "level": lvl, "evo_timer_at_least": hours,
+                      "select": select})
+    for a, b in FRESH_TARGETS.items():
+        rules.append({"key": _key(f"fresh_{dref(a)['name']}"), "rule": "fresh_target", "from": dref(a),
+                      "target": dref(b)})
+    fresh_paths = [f"{a}->{b}" for a, b in FRESH_TARGETS.items() if to_of.get(a) != [b]]
+    out.check("evolution/rules: each fixed Fresh target is its only path", not fresh_paths,
+              "; ".join(fresh_paths) or f"{len(FRESH_TARGETS)} Fresh")
+    rules.append({"key": _key(f"fallback_{dref(FALLBACK['target'])['name']}"), "rule": "fallback",
+                  "level": FALLBACK["level"], "evo_timer_at_least": FALLBACK["evo_timer_at_least"],
+                  "target": dref(FALLBACK["target"])})
+    rules.append({"key": _key(f"virus_{dref(VIRUS['target'])['name']}"), "rule": "virus",
+                  "bar_at_least": VIRUS["bar_at_least"], "target": dref(VIRUS["target"]),
+                  "backup_value": VIRUS["backup_value"]})
+    for needle in ("if (PARTNER_ENTITY.digimonEntity.entity.type != 0x27L) {", "EVOLUTION_TARGET = 0x27;",
+                   "writePStat(5, PARTNER_ENTITY.digimonEntity.entity.type);"):
+        if needle not in text[PARTNER_IMPL_C]:
+            missing.append(needle)
+    for t in SCALE_TARGETS:
+        rules.append({"key": _key(f"scaled_{dref(t)['name']}"), "rule": "scaled_target", "target": dref(t)})
+    seen = set()
+    for mode, chance, sources, conditions, target, needles in SPECIAL:
+        base = _key(f"special_{dref(target)['name']}")
+        key = base if base not in seen else f"{base}_{len(seen)}"
+        seen.add(key)
+        rec = {"key": key, "rule": "special", "mode": mode, "chance": chance, "from": [dref(s) for s in sources],
+               "conditions": dict(conditions), "target": dref(target)}
+        if "map" in conditions:
+            rec["conditions"]["map"] = {"id": conditions["map"]}
+        rules.append(rec)
+        missing += [n for n in needles if n not in text[EVO_C]]
+    missing += [n for n in SPECIAL_EVIDENCE if n not in text[EVO_C]]
+    for element, first in TECHNIQUE_BASES.items():
+        cond = "if (special == 0) {" if element == 0 else f"}} else if (special == {element}) {{"
+        if f"{cond}\n\t\tmoveBase = {first};" not in text[EVL_C]:
+            missing.append(f"{cond} moveBase = {first}")
+        rules.append({"key": f"dw1:technique_block_{ELEMENTS[element]}", "rule": "technique_block",
+                      "element": {"id": element, "name": ELEMENTS[element]}, "first": first,
+                      "last": first + TECHNIQUE_SPAN})
+    if "if (moveBase <= *movePtr && *movePtr <= moveBase + 8) {" not in text[EVL_C]:
+        missing.append("moveBase <= *movePtr && *movePtr <= moveBase + 8")
+    out.check("evolution/rules: every rule's literals are still in the C", not missing,
+              "; ".join(missing)[:400] or f"{len(rules)} rules")
+    bad_levels = [r["key"] for r in rules if r["rule"] == "special" and r["from"]
+                  and len({level[f["id"]] for f in r["from"]}) != 1]
+    out.check("evolution/rules: each special rule's Digimon share one level", not bad_levels,
+              "; ".join(bad_levels) or "ok")
+    keys = [r["key"] for r in rules]
+    out.check("evolution/rules: keys unique", len(keys) == len(set(keys)), str(len(keys)))
+    return rules
 
 
 def _opt(v):
@@ -277,6 +379,9 @@ def convert(input_root, output_root) -> GroupWriter:
               f"{len(raw_items)} entries; missing constants: {const_missing}" if const_missing else
               f"{len(raw_items)} entries (items {FIRST_EVO_ITEM:#x}-{FIRST_EVO_ITEM + len(raw_items) - 1:#x})")
 
+    # -- rules --------------------------------------------------------------------------------
+    rules = _rules(out, decomp, dref, to_of, level)
+
     # -- write --------------------------------------------------------------------------------
     refs = decomp.references(["EVOLUTION_REQS", "EVOLUTION_PATHS", "EVOLUTION_STATS_GAINS", "EVOLUTION_ITEM_TARGET"])
     status = "implemented (scripts/data/game_data.gd)"
@@ -339,6 +444,40 @@ def convert(input_root, output_root) -> GroupWriter:
         "can_work": {"meaning": "false when no partner can have needs_level (target level 0: the item does "
                                 "nothing)"},
     }, item_targets, "EVOLUTION_ITEM_TARGET", [], {"access": "GameData.evolution_item_target(item_id)"})
+
+    out.write_table("rules", {
+        "table": {"name": "evolution/rules", "purpose": TABLE_PURPOSES["rules"]},
+        "source": {"files": sources, "c_file": EVO_C, "symbol": None,
+                   "functions": ["tickConditions (src/main/partner_impl.c:2106-2149)",
+                                 "getFreshEvolutionTarget, getRookieEvolutionTarget, handleSpecialEvolutions "
+                                 "(src/main/evolution.c:674-925)", "EVL_applyEvolution (src/evl/evl.c:1332-1470)"],
+                   "note": "literals of the code, one record per rule; each checked against the C text"},
+        "schema": {
+            "key": {"meaning": "content key of the rule (a pack patches or adds rules by key)"},
+            "rule": {"values": ["hours", "fresh_target", "fallback", "virus", "scaled_target", "special",
+                                "technique_block"]},
+            "level": {"meaning": "hours / fallback: the partner's level (DIGIMON_DATA level id)"},
+            "evo_timer_at_least": {"meaning": "hours / fallback: evo_timer threshold of the hourly check"},
+            "select": {"meaning": "hours: fixed (fresh_target rules), best_score (highest requirement score >= 3), "
+                                  "best_average (highest stat average among scores >= 3)"},
+            "from": {"meaning": "fresh_target: the Fresh; special: the partner Digimon it applies to (empty: any)",
+                     "ref": "digimon/digimon_data"},
+            "target": {"meaning": "the Digimon evolved into", "ref": "digimon/digimon_data"},
+            "bar_at_least": {"meaning": "virus: virus_bar threshold"},
+            "backup_value": {"meaning": "virus: script value storing the partner's Digimon (PSTAT_SUKAMON_BACKUP)"},
+            "mode": {"meaning": "special: 2 after waking up, 3 after praise / scold and Champion evo_timer 360"},
+            "chance": {"meaning": "special: randomLimit(100) < chance (one roll per call); null: no roll"},
+            "conditions": {"meaning": "special: discipline / happiness / tiredness / level / evo_timer equal; "
+                                      "battles_at_least / defense_at_least / evo_timer_at_least; map (CURRENT_SCREEN); "
+                                      "nanimon_trigger (set; cleared when the rule matches)"},
+            "element": {"meaning": "technique_block: special[0] of the new Digimon"},
+            "first": {"meaning": "technique_block: first technique id"},
+            "last": {"meaning": "technique_block: last id, inclusive (first + 8: reaches the next block's first)"},
+        },
+        "records": rules, "used_by": [],
+        "godot": {"status": status, "access": "GameData.evolution_rules(rule)",
+                  "notes": "Records of one rule in table order; special rules apply in order, later ones "
+                           "overwriting earlier ones."}}, symbols=[])
 
     out.write_report("report.md", _report(reqs, paths, gains, item_targets, lambda i: dname(i) or str(i)))
     out.finish(sources, extra={"counts": {"requirements": sum(r["has_requirements"] for r in reqs),

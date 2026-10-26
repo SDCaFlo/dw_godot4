@@ -64,6 +64,9 @@ func _ready() -> void:
 	for entry in [["happy", "happiness"], ["disc", "discipline"], ["tired", "tiredness"], ["energy", "energy_level"]]:
 		_button(values, "%s-" % entry[0], _add.bind(entry[1], -10))
 		_button(values, "%s+" % entry[0], _add.bind(entry[1], 10))
+	# Evolution (specs/evolution.md): evo_timer by half a day, the virus bar towards 16.
+	_button(values, "evo+12", _add.bind("evo_timer", 12))
+	_button(values, "virus+4", _add.bind("virus_bar", 4))
 	if game_loop == null:
 		game_loop = get_node_or_null("/root/GameLoop")
 	_refresh()

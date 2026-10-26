@@ -56,6 +56,21 @@ class RealDataTests(unittest.TestCase):
         self.assertEqual(items[0x47]["target"]["name"], "Greymon")
         self.assertFalse(items[0x72]["can_work"])                    # Moon mirror -> WereGarurumon
 
+    def test_rules(self):
+        rules = {r["key"]: r for r in self.load("rules")}
+        self.assertEqual([(r["level"], r["evo_timer_at_least"]) for r in rules.values() if r["rule"] == "hours"],
+                         [(1, 6), (2, 24), (3, 72), (4, 144)])
+        self.assertEqual(rules["dw1:fresh_botamon"]["target"]["id"], 2)
+        self.assertEqual(rules["dw1:fallback_numemon"]["evo_timer_at_least"], 96)
+        self.assertEqual((rules["dw1:virus_sukamon"]["bar_at_least"], rules["dw1:virus_sukamon"]["target"]["id"]),
+                         (16, 0x27))
+        special = [r for r in rules.values() if r["rule"] == "special"]
+        self.assertEqual([r["target"]["id"] for r in special], [7, 58, 47, 32, 49, 53, 28])   # C order
+        self.assertEqual(rules["dw1:special_kunemon"]["conditions"], {"map": {"id": 1}})
+        self.assertIsNone(rules["dw1:special_nanimon"]["chance"])
+        self.assertEqual((rules["dw1:technique_block_filth"]["first"], rules["dw1:technique_block_filth"]["last"]),
+                         (49, 57))
+
 
 if __name__ == "__main__":
     unittest.main()

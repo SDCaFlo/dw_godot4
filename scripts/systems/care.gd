@@ -60,8 +60,13 @@ var has_butterfly := false
 var sleep_enabled := false
 ## IS_SCRIPT_PAUSED == 0: a script runs (the stand-in for script_requested sets it).
 var script_running := false
-## EVOLUTION_TARGET: -1 until the evolution step computes it.
+## EVOLUTION_TARGET: the Digimon of the evolution that runs or starts, -1 = none (specs/evolution.md).
 var evolution_target := -1
+## NANIMON_TRIGGER: a Rookie scolded at discipline 0 and happiness -100 (handlePraiseScold); the
+## special evolutions read and clear it. Not saved.
+var nanimon_trigger := false
+## The evolution rules (hourly check, special evolutions); null: no evolution.
+var evolution: Evolution
 
 var _raise_key := ""
 var _raise_cache := {}
@@ -214,7 +219,9 @@ func tick_conditions() -> void:
 	if has_immortal_hour:
 		has_immortal_hour = false
 		immortal_hour = -1
-	# Evolution targets and the virus bar evolution (:2106-2149) come with the evolution step.
+	# :2106-2149: the timed evolution, the virus bar, state 13 (specs/evolution.md §2.1).
+	if evolution != null:
+		evolution.hourly_check()
 
 
 ## tickDeathCondition (:1917).
@@ -905,8 +912,9 @@ func skip_hours(hours: int) -> void:
 		_add("sickness_timer", hours)
 
 
-## handlePraiseScold (:1113): partner state 4 = scold, 15 = praise.
-func handle_praise_scold(state: int) -> bool:
+## handlePraiseScold (:1113): partner state 4 = scold, 15 = praise. A scold sets NANIMON_TRIGGER
+## when a Rookie was at discipline 0 and happiness -100 (clears it otherwise).
+func handle_praise_scold(state: int) -> void:
 	var old_discipline := _val("discipline")
 	var old_happiness := _val("happiness")
 	var discipline_delta := 0
@@ -927,8 +935,8 @@ func handle_praise_scold(state: int) -> bool:
 		happiness_delta = _val("discipline") / 10 + 2
 	_add("discipline", discipline_delta)
 	_add("happiness", happiness_delta)
-	# NANIMON_TRIGGER (Rookie scolded at discipline 0 and happiness -100): the evolution step reads it.
-	return state == 4 and _level() == 3 and old_discipline == 0 and old_happiness == -100
+	if state == 4:
+		nanimon_trigger = _level() == 3 and old_discipline == 0 and old_happiness == -100
 
 
 ## handlePostBattleTiredness (:2040). Quirk kept: the MP factor is computed as

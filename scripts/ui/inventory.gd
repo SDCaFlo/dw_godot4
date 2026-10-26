@@ -10,8 +10,6 @@ extends Node
 signal back
 ## Use: the hand-over to the partner (startFeedingItem).
 signal use_item(item: String)
-## Use on an item whose effect isn't ported yet (evolution items).
-signal unported(what: String)
 
 const CENTRE := Vector2(160, 120)
 ## renderItemAmount's digits (setEntityTextDigit: page 0x1E, palette (256, 484)): BI_IN.TIM, p4,
@@ -414,10 +412,7 @@ func _select_option() -> void:
 	match option:
 		OPTION_USE:
 			if item != "" and item_use.can_use(item):
-				if item_use.is_ported(item):
-					action = ACTION_USE
-				else:
-					unported.emit("evolution")
+				action = ACTION_USE
 		OPTION_MOVE:
 			action = ACTION_MOVE
 			move_source = pointer

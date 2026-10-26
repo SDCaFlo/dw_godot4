@@ -102,6 +102,12 @@ EVIDENCE = [
     ("src/main/overworld.c", "if (MAP_ENTRIES[mapId].flags & 0x80) {"),
     (FISH_C, "if (FISHING_DATA_PTR->rod.bait != FISH_KIND_INFO[f->kind].bait) {"),
     (SHOP_MENU, "ITEM_MENU_TYPE = readPStat(PSTAT_249) * 3;"),
+    # jukeboxFillTitleList: the last track only once trigger 50 is set (unlock_trigger), the playing
+    # track found by its MAIN_D_801303B8 pair.
+    (SHOP_MENU, "unlocked = isTriggerSet(TRIGGER_50);"),
+    (SHOP_MENU, "} else if (i != 0x3e && i != 0x3e) {"),
+    (SHOP_MENU, "if (MAIN_D_801303B8[track * 2] == getActiveBGMFont() && MAIN_D_801303B8[track * 2 + 1] == getActiveBGMVariant()) {"),
+    ("include/dw/trigger.h", "#define TRIGGER_50\t50"),
     (SCRIPT_VALUE_C, "cap = STATS_LIMIT_ARRAY[stat];"),
 ]
 
@@ -164,7 +170,7 @@ def convert(input_root, output_root) -> GroupWriter:
             (TRN_HUD, "TRN_TRAINING_SPOTS"), (FISH_C, "FISH_KIND_INFO"), (FISH_C, "FISH_BITE_CHANCE"),
             (FISH_C, "FISH_BAIT_CHANCES"), (FISH_C, "FISHING_MAP_DATA"), (SHOP_MENU, "MOJYAMON_ITEMS_GIVE"),
             (SHOP_MENU, "MOJYAMON_ITEMS_GET"), (SCRIPT_C, "BABY_IDS"), (DOOA_C, "REINCARNATE_BABY_TYPE"),
-            (SCRIPT_C, "BGM_TRACK_NAMES"), (SCRIPT_C, "MAP_LIGHT_UPDATE_DATA"), (VS_DEMO, "VS_DEMO_DIGIMON"), (VS_SELECT, "VS__BATTLE_COUNTS"),
+            (SCRIPT_C, "BGM_TRACK_NAMES"), (SHOP_MENU, "MAIN_D_801303B8"), (SCRIPT_C, "MAP_LIGHT_UPDATE_DATA"), (VS_DEMO, "VS_DEMO_DIGIMON"), (VS_SELECT, "VS__BATTLE_COUNTS"),
             (SCRIPT_VALUE_C, "STATS_LIMIT_ARRAY"), (SCRIPT_VALUE_C, "MULTIPLE_OF_10")]:
         load(c_file, name)
     digimon_l = tables.load(out, index, MAIN_C, "DIGIMON_DATA",
@@ -515,11 +521,23 @@ def convert(input_root, output_root) -> GroupWriter:
         {"access": "GameData.system('babies')"})
 
     tracks = us["BGM_TRACK_NAMES"]
-    write("jukebox", ["BGM_TRACK_NAMES"], {
+    songs = us["MAIN_D_801303B8"]
+    bad_songs = [k for k in range(len(tracks)) if not 1 <= songs[k * 2] <= 0x21]
+    out.check("jukebox: a (font, variant) pair per track, fonts 1-0x21 (playMusic)",
+              len(songs) == 128 and len(tracks) == 63 and not bad_songs,
+              f"{len(songs) // 2} pairs, {len(tracks)} names, bad {bad_songs}")
+    write("jukebox", ["BGM_TRACK_NAMES", "MAIN_D_801303B8"], {
         "track": {"meaning": "track index of the jukebox list"},
         "name": {"meaning": "BGM_TRACK_NAMES[track]; US lists Mt. Panorama's theme at 45 where other releases list "
                             "Mt. Infinity (script_common.c:409-413)"},
-    }, [{"track": k, "name": sref(s)} for k, s in enumerate(tracks)], {"access": "GameData.system('jukebox')"})
+        "font": {"c_name": "MAIN_D_801303B8[track * 2]", "meaning": "playMusic font of the track "
+                                                                    "(tickJukeboxMenu, shop/script_menu.c:2421)"},
+        "variant": {"c_name": "MAIN_D_801303B8[track * 2 + 1]", "meaning": "playMusic track within the font"},
+        "unlock_trigger": {"meaning": "listed only once this trigger is set (jukeboxFillTitleList: track 0x3E and "
+                                      "TRIGGER_50, the game beaten once; shop/script_menu.c:1643-1655), null = always"},
+    }, [{"track": k, "name": sref(s), "font": songs[k * 2], "variant": songs[k * 2 + 1],
+         "unlock_trigger": 50 if k == 0x3E else None} for k, s in enumerate(tracks)],
+        {"access": "GameData.system('jukebox')"})
 
     write("versus", ["VS_DEMO_DIGIMON", "VS__BATTLE_COUNTS", "STD_STAT_BAR_LIMITS"], {
         "demo_digimon": {"meaning": "VS_DEMO_DIGIMON: fighters picked at random for the demo (vs_demo.c:184)"},

@@ -49,6 +49,11 @@ class RealDataTests(unittest.TestCase):
         self.assertEqual(tournaments[0]["grade_image"], "\\STDDAT\\GRADE\\GRADED.TIM")
         transport = self.load("birdramon_transport")
         self.assertEqual((transport[0]["map"]["id"], transport[0]["cost"]), (38, 1000))
+        jukebox = self.load("jukebox")
+        self.assertEqual(len(jukebox), 63)
+        self.assertEqual((jukebox[0]["font"], jukebox[0]["variant"]), (1, 0))
+        self.assertEqual((jukebox[1]["font"], jukebox[1]["variant"]), (1, 1))
+        self.assertEqual([r["track"] for r in jukebox if r["unlock_trigger"] is not None], [0x3E])
         spots = self.load("training_spots")
         self.assertEqual([s["stat"] for s in spots[0]["spots"]], ["hp", "offense", "defense", "mp", "speed", "brain"])
 

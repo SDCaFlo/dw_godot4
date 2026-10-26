@@ -6,6 +6,7 @@ extends RefCounted
 ## item's description. Used by the routine nodes (ShopRoutines); it works on the scripts' text boxes
 ## (TextBoxes: line buffers, entries, pages), the UI boxes and the game state. The card lists (types
 ## 3, 4, 6), the merit list (7) and the card branches of the boxes: specs/card_shops.md §2.7-2.8.
+## The jukebox's and Birdramon's lists (styles 2, 3): specs/town_services.md §2.2-2.3.
 
 ## ITEM_MENU_TYPE.
 const TYPE_BUY := 0
@@ -20,6 +21,8 @@ const TYPE_MERIT := 7
 ## calculateItemListStrings); `row_writers` maps them, a menu of its own adds its style (TradeMenu).
 const STYLE_ITEM := 0
 const STYLE_CARD := 1
+const STYLE_MUSIC := 2
+const STYLE_DESTINATION := 3
 const STYLE_TRADE := 4
 const LIST_BOX := 1
 const BITS_BOX := 2
@@ -60,6 +63,12 @@ const MERIT_MAX := 9999
 const CARD_SECTION := 0x4D3
 const MERIT_SECTION := 0x4D4
 const CONFIRM_SECTION := 0x4D8
+## The jukebox's and Birdramon's lines (and Mojyamon's).
+const SERVICE_SECTION := 0x4D6
+## The jukebox: value 249 = the picked track; padWithSpaces' width for the names (US).
+const PSTAT_TRACK := 249
+const NAME_COLUMNS := 0xC
+const NO_TRACK := 0xFF
 ## renderCardSprite: the rarity's icon on SYSTEM_W, u = rarity x 12, v 0x1C0, CLUT (96, 493).
 const CARD_ICON_V := 0x1C0
 const CARD_ICON_CLUT := (493 << 6) | 6
@@ -115,6 +124,10 @@ var sub_line := 0
 var _busy := false
 ## style -> func(box, row, last).
 var row_writers := {}
+## The MusicPlayer (the jukebox); null without one.
+var music: Node
+## MAIN_D_80134F8F: the jukebox track whose music was started last (0xFF: none).
+var playing_track := NO_TRACK
 
 
 func _init(text_boxes: TextBoxes, state: Node, game_data: Node) -> void:
@@ -127,6 +140,8 @@ func _init(text_boxes: TextBoxes, state: Node, game_data: Node) -> void:
 	data = game_data
 	row_writers[STYLE_ITEM] = _row_string
 	row_writers[STYLE_CARD] = _card_row_string
+	row_writers[STYLE_MUSIC] = _music_row_string
+	row_writers[STYLE_DESTINATION] = _destination_row_string
 
 
 func _sound(id: int) -> void:
@@ -328,6 +343,59 @@ func savannah_sound() -> void:
 		_sound(SAVANNAH_SOUND)
 
 
+## A jukebox track's record (systems/jukebox), {} if none.
+func track(id: int) -> Dictionary:
+	var tracks: Array = data.system("jukebox")
+	return tracks[id] if id >= 0 and id < tracks.size() else {}
+
+
+## jukeboxFillTitleList (script_menu.c:1636): the tracks in order (a track with an unlock trigger only
+## once it is set); value 249 = the row of the music now playing, else 0xFF and the music stops.
+func fill_tracks() -> void:
+	var box := left
+	box.buf = PackedByteArray()
+	box.item_count = 0
+	for record in data.system("jukebox"):
+		var unlock = record.get("unlock_trigger")
+		if unlock != null and not game_state.is_trigger_set(int(unlock)):
+			continue
+		box.item_count += 1
+		box.buf.append_array([int(record["track"]), 0])
+	for i in box.item_count:
+		var r := track(box.item(i))
+		if music != null and int(r.get("font", -1)) == music.active_bgm_font \
+				and int(r.get("variant", -1)) == music.active_bgm_track:
+			game_state.set_script_value(PSTAT_TRACK, i)
+			playing_track = i
+			return
+	game_state.set_script_value(PSTAT_TRACK, NO_TRACK)
+	playing_track = NO_TRACK
+	if music != null:
+		music.stop_bgm()
+
+
+## A Birdramon target's record (systems/birdramon_transport), {} if none.
+func destination(id: int) -> Dictionary:
+	for record in data.system("birdramon_transport"):
+		if int(record.get("id", -1)) == id:
+			return record
+	return {}
+
+
+## birdraFillTargetList (script_menu.c:1721): the targets whose trigger is set, | 0x80 when the
+## cost is affordable.
+func fill_destinations() -> void:
+	var box := left
+	box.buf = PackedByteArray()
+	box.item_count = 0
+	for record in data.system("birdramon_transport"):
+		if not game_state.is_trigger_set(int(record["trigger"])):
+			continue
+		box.item_count += 1
+		var id := int(record["id"])
+		box.buf.append_array([id | 0x80 if int(record["cost"]) <= money() else id, 0])
+
+
 ## getRecycleId: the recycle stock slot of an item (the first, item 0x54 is listed twice), 0xFF.
 func recycle_id(item: int) -> int:
 	var items: Array = data.recyclable_items()
@@ -382,6 +450,53 @@ func create_card_menu() -> void:
 	_init_box(box, LIST_BOX, 9)
 	update_strings(box, 9, STYLE_CARD)
 	ctx.shop_variable = 0
+
+
+## createJukeboxMenu (script_menu.c:1672): on the first open the cursor is on the track of value
+## 249 (row 0 if none).
+func create_music_menu() -> void:
+	textboxes.create_textbox(LIST_BOX, 0xF1, Rect2i(-0x47, -0x62, 0xDE, 0x81), _origin(ctx.read_pstat(0xFE)),
+			tick_music_menu, render_music_menu)
+	textboxes.register_textbox(LIST_BOX, 9, 6, 1, 0)
+	var box := left
+	if not box.is_open:
+		box.is_open = true
+		box.box_id = LIST_BOX
+		var wanted := ctx.read_pstat(PSTAT_TRACK)
+		var row := 0
+		for i in box.item_count:
+			if box.item(i) == wanted:
+				row = i
+				break
+		place(box, row)
+		box.prev_top_row = box.top_row
+		box.prev_cursor = box.cursor
+		box.item_row.clear()
+		for i in box.visible_rows:
+			box.item_row.append(i + 9)
+	update_strings(box, 9, STYLE_MUSIC)
+
+
+## createBirdraTransportMenu (script_menu.c:1742).
+func create_destination_menu() -> void:
+	textboxes.create_textbox(LIST_BOX, 0xF1, Rect2i(-71, -100, 222, 129), _origin(ctx.read_pstat(0xFE)),
+			tick_destination_menu, render_destination_menu)
+	textboxes.register_textbox(LIST_BOX, 9, 6, 1, 0)
+	_init_box(left, LIST_BOX, 9)
+	update_strings(left, 9, STYLE_DESTINATION)
+	ctx.shop_variable = 0
+
+
+## Row `row` brought into the window from outside it: at the top part when it fits, else as the
+## last visible row (createJukeboxMenu, keeperScroll…ToItem).
+static func place(box: ListBox, row: int) -> void:
+	var scroll := row - box.visible_rows
+	if scroll < 0:
+		box.top_row = 0
+		box.cursor = row
+	else:
+		box.top_row = scroll + 1
+		box.cursor = box.visible_rows - 1
 
 
 func _origin(owner: int) -> Rect2i:
@@ -502,6 +617,41 @@ func _card_row_string(box: ListBox, row: int, last: bool) -> void:
 	_terminate(at, last)
 
 
+## padWithSpaces (US): `width - len / 2` full-width spaces (len in bytes). The US loop runs away when
+## that is negative; the port pads nothing then (specs/town_services.md §5).
+func _pad(at: int, width: int, used: int) -> int:
+	for i in maxi(width - (used >> 1), 0):
+		at = _put(at, [0x81, 0x40])
+	return at
+
+
+## calculateMusicMenuStrings (US): the number, the name; colour 6 for the picked track.
+func _music_row_string(box: ListBox, row: int, last: bool) -> void:
+	var at := _line(box, row)
+	var id := box.item(box.top_row + row)
+	at = _put(at, [1, 6 if id == ctx.read_pstat(PSTAT_TRACK) else 1])
+	at = _put(at, TextBoxes.int_to_string_sjis(id + 1, 2, 0))
+	at = _put(at, [0xF, 0])
+	var name := text_area.font.to_bytes(data.localize(track(id).get("name")))
+	at = _put(at, name)
+	at = _pad(at, NAME_COLUMNS, name.size())
+	_terminate(at, last)
+
+
+## calculateBirdramonMenuStrings (US): the map's loading name, the cost; red when too dear.
+func _destination_row_string(box: ListBox, row: int, last: bool) -> void:
+	var at := _line(box, row)
+	var raw := box.item(box.top_row + row)
+	at = _put(at, [1, 1 if raw & 0x80 else 3])
+	var record := destination(raw & 0x7F)
+	var name := text_area.font.to_bytes(data.localize(record.get("map", {}).get("name")))
+	at = _put(at, name)
+	at = _pad(at, NAME_COLUMNS, name.size())
+	at = _put(at, [0xF, 0, 0x1B, 0])
+	at = _put(at, TextBoxes.int_to_string_sjis(int(record.get("cost", 0)), 4, 0))
+	_terminate(at, last)
+
+
 func _write_row(box: ListBox, row: int, last: bool, style: int) -> void:
 	row_writers[style].call(box, row, last)
 
@@ -619,6 +769,29 @@ func cursor_bottom(box: ListBox, start_row: int, style := STYLE_ITEM) -> void:
 		box.cursor = box.visible_rows - 1
 	_sound(2)
 	update_strings(box, start_row, style)
+
+
+## itemMenuCursorMoveToTop: no rewrite (the caller rewrites).
+func move_to_top(box: ListBox) -> void:
+	box.prev_top_row = box.top_row
+	box.prev_cursor = box.cursor
+	box.top_row = 0
+	box.cursor = 0
+	_sound(2)
+
+
+## itemMenuCursorMoveToBottom.
+func move_to_bottom(box: ListBox) -> void:
+	box.prev_top_row = box.top_row
+	box.prev_cursor = box.cursor
+	var diff := box.item_count - box.visible_rows
+	if diff <= 0:
+		box.top_row = 0
+		box.cursor = box.item_count - 1
+	else:
+		box.top_row = diff
+		box.cursor = box.visible_rows - 1
+	_sound(2)
 
 
 func _row_origin(box: ListBox) -> Rect2i:
@@ -789,6 +962,109 @@ func render_card_menu(canvas: CanvasItem, _id: int) -> void:
 		_header(canvas, 3, bx + 0x80, by + 5)
 	_header(canvas, 0, bx + 8, by + 5)
 	PsxDraw.selection_cursor(canvas, bx + 5, by + box.cursor * 0x12 + 0x11, CURSOR_WIDTHS[type], 0x12)
+
+
+## tickJukeboxMenu (script_menu.c:2396): a newly picked track starts here, a frame after ✕.
+func tick_music_menu(_id: int) -> void:
+	var box := left
+	if is_busy(box):
+		return
+	if boxes.boxes[0].state != UIBoxes.STATE_OPEN or boxes.boxes[LIST_BOX].state != UIBoxes.STATE_OPEN:
+		return
+	if not textboxes.is_x_pressed_after_dialogue():
+		return
+	var current := ctx.read_pstat(PSTAT_TRACK)
+	if current != playing_track:
+		playing_track = current
+		if music != null:
+			music.stop_bgm()
+			var r := track(current)
+			music.play_music(int(r.get("font", 0)), int(r.get("variant", 0)))
+	if pad.is_key_down(Pad.CONFIRM):
+		game_state.set_script_value(PSTAT_TRACK, box.item(box.top_row + box.cursor))
+		textboxes.show_maphead_textbox(2, ctx.read_pstat(0xFE), 0, SERVICE_SECTION)
+		ctx.state_2 = 1
+		ctx.textbox_mode = 3
+		update_strings(box, 9, STYLE_MUSIC)
+		_sound(3)
+	elif pad.is_key_down(Pad.CANCEL):
+		ctx.state_2 = 4
+		_sound(4)
+	elif pad.is_key_down(Pad.UP):
+		if pad.polled & Pad.R1:
+			cursor_top(box, 9, STYLE_MUSIC)
+		else:
+			cursor_up(box, STYLE_MUSIC)
+	elif pad.is_key_down(Pad.DOWN):
+		if pad.polled & Pad.R1:
+			cursor_bottom(box, 9, STYLE_MUSIC)
+		else:
+			cursor_down(box, STYLE_MUSIC)
+
+
+## renderJukeboxMenu, in reverse of the C's adds (the cursor over them, as render_list).
+func render_music_menu(canvas: CanvasItem, _id: int) -> void:
+	if left == null:
+		return
+	var b: UIBoxes.Box = boxes.boxes[LIST_BOX]
+	var bx := b.final.position.x
+	var by := b.final.position.y
+	_render_rows(canvas, left, bx + 8, by + 0x13, 0, 0, 2)
+	_render_scroll_bar(canvas, left)
+	_header(canvas, 5, bx + 0x26, by + 5)
+	_header(canvas, 4, bx + 8, by + 5)
+	PsxDraw.selection_cursor(canvas, bx + 5, by + left.cursor * 0x12 + 0x11, 0xCA, 0x12)
+
+
+## tickBirdraTransportMenu (script_menu.c:2471).
+func tick_destination_menu(_id: int) -> void:
+	var box := left
+	if is_busy(box):
+		return
+	if boxes.boxes[0].state != UIBoxes.STATE_OPEN or boxes.boxes[LIST_BOX].state != UIBoxes.STATE_OPEN:
+		return
+	if not textboxes.is_x_pressed_after_dialogue():
+		return
+	if ctx.shop_variable != 0:
+		return
+	if pad.is_key_down(Pad.CONFIRM):
+		var raw := box.item(box.top_row + box.cursor)
+		if raw & 0x80:
+			textboxes.show_maphead_textbox(6, ctx.read_pstat(0xFE), 0, SERVICE_SECTION)
+			ctx.shop_variable = int(destination(raw & 0x7F).get("cost", 0))
+			ctx.state_2 = 1
+			ctx.next_state_2 = 4
+			ctx.textbox_mode = 1
+			_sound(3)
+		else:
+			_sound(0xB)
+	elif pad.is_key_down(Pad.CANCEL):
+		ctx.state_2 = 6
+		_sound(4)
+	elif pad.is_key_down(Pad.UP):
+		if pad.polled & Pad.R1:
+			cursor_top(box, 9, STYLE_DESTINATION)
+		else:
+			cursor_up(box, STYLE_DESTINATION)
+	elif pad.is_key_down(Pad.DOWN):
+		if pad.polled & Pad.R1:
+			cursor_bottom(box, 9, STYLE_DESTINATION)
+		else:
+			cursor_down(box, STYLE_DESTINATION)
+
+
+## renderBirdraTransportMenu, in reverse of the C's adds.
+func render_destination_menu(canvas: CanvasItem, _id: int) -> void:
+	if left == null:
+		return
+	var b: UIBoxes.Box = boxes.boxes[LIST_BOX]
+	var bx := b.final.position.x
+	var by := b.final.position.y
+	_render_rows(canvas, left, bx + 8, by + 0x13, 0, 0, 2)
+	_render_scroll_bar(canvas, left)
+	_header(canvas, 2, bx + 0xA2, by + 5)
+	_header(canvas, 6, bx + 8, by + 5)
+	PsxDraw.selection_cursor(canvas, bx + 5, by + left.cursor * 0x12 + 0x11, 0xCA, 0x12)
 
 
 ## renderCardSprite: the icon of a card's rarity.

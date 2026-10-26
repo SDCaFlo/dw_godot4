@@ -96,7 +96,7 @@ func start() -> void:
 	# The ported builtin routines (shops, ...): the Routines node's children (specs/shops.md §3).
 	var routines := get_node_or_null("Routines") as ScriptRoutines
 	if routines != null:
-		routines.configure(script_ctx, textboxes, GameState, GameData)
+		routines.configure(script_ctx, textboxes, GameState, GameData, Sound)
 		interpreter.routines = routines
 
 

@@ -171,6 +171,10 @@ Per gym map (7 gyms, -1 ends the list): the x / y / z position of each stat's eq
 
 The jukebox list. US shows the Mt. Panorama theme at index 45, where the other releases show Mt. Infinity (`script_common.c:409–413`).
 
+- **`font`, `variant`:** what each track plays, `MAIN_D_801303B8[track × 2]` / `[track × 2 + 1]` (`shop/script_menu.c:211`, 64 pairs, the first 63 used). `tickJukeboxMenu` calls `playMusic(font, variant)` (`:2421`). `jukeboxFillTitleList` finds the track now playing by comparing the pair with `ACTIVE_BGM_FONT` / `ACTIVE_BGM_TRACK` (`:1660`).
+- **`unlock_trigger`:** 50 for track 0x3E, null for the others. `jukeboxFillTitleList` lists track 0x3E only when `TRIGGER_50` (the game beaten once) is set (`:1643–1655`). The converter checks that code text and `#define TRIGGER_50 50`, so a decomp change fails a check. Godot reads the property, not the id (`../specs/town_services.md`).
+- **Checks:** 63 names, 64 pairs, every used font in `playMusic`'s range 1–0x21.
+
 ### `versus` (`VS_DEMO_DIGIMON[48]`, `vs_demo.c:81`; `VS__BATTLE_COUNTS[4]`, `vs_select.c:133`; stat bar limits)
 
 - The demo picks two fighters from the 48 listed (`VS_loadDemoFighters`, `:180–193`).

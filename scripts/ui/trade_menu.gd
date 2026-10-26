@@ -103,9 +103,7 @@ func _row(box: ItemMenu.ListBox, row: int, last: bool) -> void:
 	at = menu._put(at, [1, 1 if give & 0x80 else 3])
 	var name := menu._name_bytes(give & 0x7F)
 	at = menu._put(at, name)
-	# The US loop never ends past 16 bytes (`used` < 0): the port pads nothing then.
-	for i in maxi(NAME_WIDTH - (name.size() >> 1), 0):
-		at = menu._put(at, [0x81, 0x40])
+	at = menu._pad(at, NAME_WIDTH, name.size())
 	at = menu._put(at, [0xF, 0, 1, 1])
 	at = menu._put(at, menu._name_bytes(menu.right.item(index)))
 	menu._terminate(at, last)
@@ -140,29 +138,16 @@ func tick(_id: int) -> void:
 		menu._sound(4)
 	elif pad.is_key_down(Pad.UP):
 		if pad.polled & Pad.R1:
-			_move_to(0, 0)
+			menu.move_to_top(box)
+			update_strings()
 		else:
 			menu.cursor_up(box, ItemMenu.STYLE_TRADE)
 	elif pad.is_key_down(Pad.DOWN):
 		if pad.polled & Pad.R1:
-			var diff := box.item_count - box.visible_rows
-			if diff <= 0:
-				_move_to(0, box.item_count - 1)
-			else:
-				_move_to(diff, box.visible_rows - 1)
+			menu.move_to_bottom(box)
+			update_strings()
 		else:
 			menu.cursor_down(box, ItemMenu.STYLE_TRADE)
-
-
-## itemMenuCursorMoveToTop / …MoveToBottom, then updateMojyaTradeStrings.
-func _move_to(top_row: int, cursor: int) -> void:
-	var box := menu.left
-	box.prev_top_row = box.top_row
-	box.prev_cursor = box.cursor
-	box.top_row = top_row
-	box.cursor = cursor
-	menu._sound(2)
-	update_strings()
 
 
 ## renderMojyaTradeMenu (US), in reverse of the C's adds (the cursor over them, as the item menu's).

@@ -11,18 +11,24 @@ var ctx: ScriptContext
 var textboxes: TextBoxes
 var game_state: Node
 var data: Node
+## The SoundSystem (its `music`: the jukebox); null in tests without one.
+var sound: Node
 ## The one script item menu (the C's item menu is global): every routine node uses it, so the bits
 ## box of builtin 0x0F sees what a later routine buys.
 var menu: ItemMenu
 
 
 ## Hands the script state to the routine nodes (after the ScriptHost made it).
-func configure(script_ctx: ScriptContext, text_boxes: TextBoxes, state: Node, game_data: Node) -> void:
+func configure(script_ctx: ScriptContext, text_boxes: TextBoxes, state: Node, game_data: Node,
+		sound_system: Node = null) -> void:
 	ctx = script_ctx
+	sound = sound_system
 	textboxes = text_boxes
 	game_state = state
 	data = game_data
 	menu = ItemMenu.new(textboxes, game_state, data)
+	if sound != null and "music" in sound:
+		menu.music = sound.music
 	for child in get_children():
 		if child.has_method("configure"):
 			child.configure(self)

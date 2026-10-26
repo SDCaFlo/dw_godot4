@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/script/birdramon_routines.gd" id="1_birdramon"]
+
+[node name="BirdramonRoutines" type="Node"]
+script = ExtResource("1_birdramon")

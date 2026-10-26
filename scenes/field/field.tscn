@@ -15,6 +15,9 @@
 [ext_resource type="PackedScene" path="res://scenes/script/card_shop_routines.tscn" id="12_card_shop_routines"]
 [ext_resource type="PackedScene" path="res://scenes/script/merit_shop_routines.tscn" id="12_merit_shop_routines"]
 [ext_resource type="PackedScene" path="res://scenes/script/mojyamon_routines.tscn" id="12_mojyamon_routines"]
+[ext_resource type="PackedScene" path="res://scenes/script/item_keeper_routines.tscn" id="12_item_keeper_routines"]
+[ext_resource type="PackedScene" path="res://scenes/script/jukebox_routines.tscn" id="12_jukebox_routines"]
+[ext_resource type="PackedScene" path="res://scenes/script/birdramon_routines.tscn" id="12_birdramon_routines"]
 
 [sub_resource type="Environment" id="Environment_bg"]
 background_mode = 3
@@ -87,6 +90,12 @@ script = ExtResource("11_routines")
 [node name="MeritShopRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_merit_shop_routines")]
 
 [node name="MojyamonRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_mojyamon_routines")]
+
+[node name="ItemKeeperRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_item_keeper_routines")]
+
+[node name="JukeboxRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_jukebox_routines")]
+
+[node name="BirdramonRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_birdramon_routines")]
 
 [node name="CareHost" type="Node" parent="Systems"]
 script = ExtResource("7_care_host")

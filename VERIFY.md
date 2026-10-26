@@ -11,6 +11,8 @@ godot --headless --path . -s res://tests/test_digimon_screen.gd
 godot --headless --path . -s res://tests/test_player_screen.gd
 godot --headless --path . -s res://tests/test_shops.gd
 godot --headless --path . -s res://tests/test_card_shops.gd
+godot --headless --path . -s res://tests/test_town_services.gd
+godot --headless --path . -s res://tests/test_debug_state.gd
 godot --headless --path . -s res://tests/test_camera.gd
 godot --headless --path . -s res://tests/test_map_objects.gd
 godot --headless --path . -s res://tests/test_lighting.gd
@@ -129,6 +131,23 @@ Sections are added as systems are ported (`PLANS.md`).
 5. **Equipping:** ✕ on an equipped technique removes it; ✕ on a learned one Agumon can use equips it (up to 3); others give the refusal sound. △ leaves the grid only with an attack equipped. □ opens the help page; △ closes it.
 6. **Back:** △ on a tab: the window shrinks into the tamer, the tamer and Agumon come back, the △ menu opens again.
 7. **Compare with the game:** the layout of both tabs, the model's place and size, the darker cells (the port approximates the PSX's subtracted boxes), and the colours.
+
+## Item keeper, jukebox, Birdramon (`scripts/script/item_keeper_routines.gd`, `jukebox_routines.gd`, `birdramon_routines.gd`, `scripts/ui/keeper_menu.gd`; `specs/town_services.md`)
+
+`test_town_services.gd` prints `OK: town service checks`. In the game (F5), in File City:
+1. **Item keeper** (ROOM02):
+   - Yes opens two boxes side by side, "Keeping" (left) and "In hand" (right). The active side's title bar is lit blue; ← → switch sides.
+   - ✕ moves one item to the other side, ○ ten, □ as many as fit (99 a stack). Holding ✕ keeps moving. Red rows can't move: storage full at 99, or no room in the inventory.
+   - Both lists follow the moved item. START shows the item's description. △ ends: "Come to this shop when you need it."
+2. **Jukebox** (ROOM05B): the track list opens on the song now playing (its row in the highlight colour).
+   - ✕ on a track: "{track}, right?", and it starts playing.
+   - △: "Help me on my next request.", then the room's music comes back.
+   - The last track appears only once the game has been beaten.
+   - **To compare with the game:** the long US names run past the box's right edge here (`specs/town_services.md` §5).
+3. **Birdramon** (ROOM12): the bits box, the destinations unlocked so far with their prices (red when too dear).
+   - ✕ → "Are you sure? Once you go, I can't take you back." → I know: the bits go down, "Hold on tight!", and you arrive in the area.
+   - Cancel or △: "I think that going yourself may be the best way."
+4. **Compare with the game:** the boxes' places, the labels' positions, the sounds.
 
 ## Card shops, merit shop, Mojyamon (`scripts/script/card_shop_routines.gd`, `merit_shop_routines.gd`, `mojyamon_routines.gd`, `scripts/ui/trade_menu.gd`; `specs/card_shops.md`)
 
@@ -271,7 +290,7 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
 6. **The poop** (ISSUES.md I-5): no dark ring around it; a soft shadow darkens the ground under it instead (compare `issues/evidence/dw_real_poop_look.png`).
 7. **Other semi-transparent models** (technique effects, shadows): their glowing or darkening parts blend with what is behind them instead of covering it.
 
-## Debugger and render scale (`scripts/debug/debug_window.gd`, `field.gd`; ISSUES.md D-1, I-3)
+## Debugger and render scale (`scripts/debug/debug_window.gd`, `state_tab.gd`, `field.gd`; ISSUES.md D-1, I-3)
 
 In the game (F5):
 1. **The windows:** the game opens at 1280 × 960 (4:3); a "DW debugger" window opens beside it (F1 hides / shows it, its close button hides it).
@@ -281,6 +300,11 @@ In the game (F5):
 5. **Textures** (ISSUES.md I-6): Palmon (MAYO03) and Aruraumon (MAYO04A) without speckles or a crawling pattern, at 1× and 4×.
 6. **Running** (ISSUES.md I-7): at 4× the picture doesn't shake while the tamer runs; at 1× the scroll is in whole pixels as before.
 7. **Text and windows filter** (ISSUES.md D-3, Render tab checkbox, on by default): the text boxes' letters, the box borders, the clock and the status bars have rounded edges instead of square steps, in their own colours (no blur); the box backgrounds still blend with the scene. Off: square PSX pixels.
+8. **State tab** (`test_debug_state.gd` prints `OK: debug state checks`):
+   - **Triggers:** pick a number; the label says "set" / "not set"; Set / Clear change it, and the list of set triggers below follows.
+   - **Script values:** pick a value; its current number shows; Write changes it. Bits and merit: Apply (capped at 999 999 / 9999); the bits box of the next shop shows them.
+   - **Items:** pick one, Give / Remove the amount; "held" follows. **Cards:** pick one, Set its count; All cards gives one of each (the Player screen's card list fills).
+   - **Unlocks:** "Birdramon: every destination" → Set, then talk to Birdramon (ROOM12): all six places are listed. "Jukebox: the locked tracks" → Set: the jukebox lists 63 tracks.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

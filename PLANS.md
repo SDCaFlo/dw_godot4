@@ -70,7 +70,8 @@ Last updated: 2026-10-24
          4. [ ] The script builtins with their menus, one at a time (shops, item bank, jukebox, Birdramon, training, tournaments, naming, save, ...).
             - [x] 4a. The script item menu, the shop and recycle shop (0x08), the bits box (0x0F), the item picker (0x00), and the routine host the later builtins plug into (`specs/shops.md`; coded 2026-10-25, `tests/test_shops.gd`, VERIFY "Shops").
             - [x] 4b. The card shops (0x0E: pack, single card, selling; Gear Savanna's Market Manager), the merit shop (0x01), Mojyamon's trades (0x02) (`specs/card_shops.md`; coded 2026-10-25, `tests/test_card_shops.gd`, VERIFY "Card shops, merit shop, Mojyamon").
-            - [ ] 4c. The item keeper (0x0B), the jukebox (0x09), Birdramon (0x0A); then training (0x07), tournaments (with 0x16, the medal check), naming / new game, save.
+            - [x] 4c. The item keeper (0x0B), the jukebox (0x09), Birdramon's transport (0x0A) (`specs/town_services.md`; coded 2026-10-25 with the porter's jukebox fields, `tests/test_town_services.gd`, VERIFY "Item keeper, jukebox, Birdramon").
+            - [ ] 4d. Training (0x07), tournaments (with 0x16, the medal check), naming / new game, save.
          - Fishing (the menu's 7th icon) comes with fishing.
        - [ ] To check in the game: the additive sprites' brightness (Godot blends in linear colour), Grey Lord's Mansion doors (YAKA11, models 9 / 10) snapping shut at the end of their swing (`specs/map_objects.md` §6);
      - [ ] 6. death and lives (after the battles): the collapse and the battle loss (`CALL_DIGIMON_ROUTINE` 7 / 9, the `MURD` + `DOOA` scenes, ~2350 lines of C), the collapse script 0x4DE replacing the care stand-in.

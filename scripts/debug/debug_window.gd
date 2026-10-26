@@ -8,6 +8,8 @@ extends Window
 ##   field's debug map change, to the exit chosen.
 ## - Render: the 3D view's resolution (ISSUES.md I-3), 1x (the PSX's) to 4x; the text and windows'
 ##   upscaling filter (ISSUES.md D-3).
+## - State: triggers, script values, bits / merit, items, cards and data-built unlock presets
+##   (DebugStateTab), to test what the story gates.
 
 signal render_scale_changed(value: int)
 signal ui_filter_changed(on: bool)
@@ -49,6 +51,7 @@ func _ready() -> void:
 	tabs.add_child(_status_tab())
 	tabs.add_child(_maps_tab())
 	tabs.add_child(_render_tab())
+	tabs.add_child(DebugStateTab.new())
 	_fill_list("")
 
 

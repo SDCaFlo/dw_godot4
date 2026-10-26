@@ -60,6 +60,22 @@ After a won battle, for each stat (`battleStatsGainsAndDrops`, `battle_ui.c:126�
 
 Enemies 0x43–0x6f play battle theme `MAPPING[type − 0x43]` (1 or 2, 0 for the last 3); other enemies play 1, and scripted battles 0 (`loadBattleData`, `btl.c:360–376`).
 
+### `battle_command_lists` (the switch of `BTL_initializeCombat`, `battle_setup.c:120–175`)
+
+One record per command count: `commands` = `availableCommands[0]` in the menu's order, 11 (finisher) and 1 (Run) first. Counts 3–8 are read from the `case` lines; count 9 is `[11, 1, 7, 6, 5]`, then `technique_slots` `[[2, 10], [1, 9], [0, 8]]` (each appended when that slot is equipped), then `after` `[3]` (its C text checked). `names`: 1 run, 2 attack, 3 your_call, 4 moderate, 5 distance, 6 defensive, 7 change, 8–10 technique_0–2, 11 finisher (`command_shout.c`).
+
+### `battle_hud` (`command_menu.c`, `battle_effect.c`, `btl.c`)
+
+Layout tables for the battle HUD scenes (`../../specs/battle.md` §4), one record per C table (`name`, `values`): the command menu's layouts, slide positions, icon UVs and label strip, the shout's hop / drop offsets, the death countdown's digit UVs, the status bars' slide positions and sprites, the finisher pulse, the start text's 155 positions, `FLEE_BUBBLE_SCALE`. `BTL_BATTLE_START_TEXT_PIECES` is built at run time (bss) and not output.
+
+### `item_throw` (`ITEM_THROW_HEIGHT[24]`, `main.c`)
+
+The thrown item's height per frame (`tickThrownItem`, `main.c:4244`).
+
+### `psx_math` (`SIN_LOOKUP_TABLE[130]`, `ATAN_LOOKUP_TABLE[512]`, `include/dw/*_lookup_table.h`)
+
+The game's own `_sin` / `_cos` / `_atan` tables (`math.c`): `_sin(x)` takes `x & 0x1FF` (512 = a full turn) from a 128-step quarter wave; `_atan(dy, dx)` returns 4096 = a full turn. Read by `PsxMath` (`../../specs/battle_effects.md` §3.3). The GTE's own tables (`RotMatrix`, `rsin`) are in the PSY-Q library, not the decomp.
+
 ## Arena
 
 ### `tournaments` (`TOURNAMENT_NAMES[23]`, `TOURNAMENT_GRADES[23]`, `src/main/script_common.c:507/533`; `STD_GRADES[23]`, `STD_OPPONENT_BASE_STATS[24]`, `src/std/std_setup.c:210/158`)
@@ -119,7 +135,7 @@ Per map id:
 - `toilet` = `toiletId − 1` (`partner.c:542`)
 - `name` = `MAP_NAME_PTR[loadingName]` (area name on entry, save screens, Birdramon menu)
 - `arena`: map 208 or 223, where entering loads the tournament overlay (`checkArenaMap`, `script_common.c:3091`)
-- `light_objects` (`../../specs/map_objects.md` §2.4): `MAP_LIGHT_UPDATE_DATA[1]` (`script_common.c:267`, `updateMapLightState`, `utils2.c:553`) on its map: `{start, count, mode, trigger}` (TWNB04, map 0xB7: instances 0x31–0x32, mode 1 = hidden from 7:00 to 18:59, trigger 0xFFFF → null), each entry `{start, count, mode, trigger, c}`; a check keeps the C's hours (7 ≤ hour < 0x13). `snow` (`{instances: 0x23, random_x_from: 0x14}`): the maps whose first 0x23 object instances are snow (`loadMapObjects`, `overworld.c:364`: ids 0x58–0x60, 0x84–0x87), from the C's literal ids with a check against its text
+- `light_objects` (`../../specs/map_objects.md` §2.4): `MAP_LIGHT_UPDATE_DATA[1]` (`script_common.c:267`, `updateMapLightState`, `utils2.c:553`) on its map: `{start, count, mode, trigger}` (TWNB04, map 0xB7: instances 0x31–0x32, mode 1 = hidden from 7:00 to 18:59, trigger 0xFFFF → null), each entry `{start, count, mode, trigger, c}`; a check keeps the C's hours (7 ≤ hour < 0x13). `concave` (`CONCAVE_SCREENS`, `btl.c`, 18 maps: an extra enemy joins only with a free line of sight, `isScreenConcave`) and `no_battle_drops` (map 0x8F, `battleStatsGainsAndDrops`, `battle_ui.c:192`), with their C text checked. `snow` (`{instances: 0x23, random_x_from: 0x14}`): the maps whose first 0x23 object instances are snow (`loadMapObjects`, `overworld.c:364`: ids 0x58–0x60, 0x84–0x87), from the C's literal ids with a check against its text
 - `change_map_previous`: the fix-ups of `changeMap` (`map.c:5334-5366`), on the map they leave from: `[{to, previous_screen, previous_exit}]` (`previous_exit` null when the C keeps the warp's). Leaving this map for `to` stores `previous_screen` as the previous map, not this one. Ten pairs, from the C's literal ids (constant `CHANGE_MAP_PREVIOUS`); a check compares them with the C text (`CHANGE_MAP_EVIDENCE`, whitespace collapsed). Used by the field's `_change_map` (`../../specs/script.md` §3)
 
 `DEATH_MAP` / `DEATH_MAP_EXIT` are runtime values (-1, set by `setDeathMap`), so they aren't output.

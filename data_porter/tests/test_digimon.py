@@ -56,6 +56,17 @@ class RealDataTests(unittest.TestCase):
         self.assertTrue({0xD, 0x1B, 0x38} <= set(low))
         self.assertEqual(self.load("file_names")["records"][3]["mmd"], "CHDAT/MMD0/AGUM.MMD")
 
+    def test_battle_properties(self):
+        # ../../specs/battle.md §6: from the literal ids of loadBattleData, BTL_resetFlatten, entityGetTechFromAnim
+        records = self.load("digimon_data")["records"]
+        self.assertEqual(records[3]["battle_music"], 1)              # a partner Digimon: the default
+        self.assertEqual(records[0x73]["battle_music"], 3)
+        self.assertIn(records[0x43]["battle_music"], (1, 2))         # ENEMY_MUSIC_MAPPING[0]
+        self.assertEqual([r["id"] for r in records if r["battle_scale"] != 0x1000], [0x71])
+        self.assertEqual(records[0x71]["battle_scale"], 0x1800)
+        self.assertEqual([(r["id"], r["anim_technique"]) for r in records if "anim_technique" in r],
+                         [(0x3C, {"60": 0x70})])
+
     def test_release_differences_and_placeholders(self):
         records = self.load("digimon_data")["records"]
         self.assertEqual(records[111]["release_values"], {"jp": {"dropItem": 4, "dropChance": 10}})

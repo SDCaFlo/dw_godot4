@@ -40,6 +40,29 @@ void f(void)
 """
 
 
+# BTL_applyBuffMove with one self technique (0x29, range 4 below), read by the converter.
+BUFF_FN = """int32_t BTL_applyBuffMove(DigimonEntity *digimon, int32_t slot, int16_t anim);
+
+int32_t BTL_applyBuffMove(DigimonEntity *digimon, int32_t slot, int16_t anim)
+{
+	Stats *stats;
+
+	stats = &digimon->stats;
+	switch (anim) {
+	case 0x29:
+		BTL_buffStats(digimon, slot, (int16_t)(stats->base.off * 3 / 10), &stats->base.off, 0xb, 3);
+		BTL_buffStats(digimon, slot, (int16_t)(stats->base.speed / 10), &stats->base.speed, 0xb, 5);
+		break;
+	default:
+		return 0;
+	}
+
+	return 1;
+}
+"""
+SELF_MOVE = 0x29
+
+
 def move_line(i: int, range_=2) -> str:
     # distance 400^2, power = id, mpCost 10, element id % 7, status 1 with a chance on even ids
     status, chance = (1, 20) if i % 2 == 0 else (0, 0)
@@ -62,7 +85,7 @@ def make_decomp(root: Path, bad_range_at=None) -> None:
     item += ["};", "", "uint8_t MOVE_LEARN_CHANCES[58][3] = {"]
     item += [f"\t{{ {i}, {i // 2}, 0 }}," for i in range(58)]
     item += ["};", "", "Move MOVE_DATA[122] = {"]
-    item += [move_line(i, 7 if i == bad_range_at else 2) for i in range(122)]
+    item += [move_line(i, 7 if i == bad_range_at else 4 if i == SELF_MOVE else 2) for i in range(122)]
     item += ["};", ""]
     (root / "src" / "main").mkdir(parents=True)
     (root / "src" / "main" / "item.c").write_text("\n".join(item), encoding="utf-8")
@@ -78,7 +101,7 @@ def make_decomp(root: Path, bad_range_at=None) -> None:
     (root / "src" / "trn").mkdir(parents=True)
     (root / "src" / "trn" / "trn_reward.c").write_text("\n".join(trn), encoding="utf-8")
     (root / "src" / "btl").mkdir(parents=True)
-    (root / "src" / "btl" / "battle_main.c").write_text(EVIDENCE, encoding="utf-8")
+    (root / "src" / "btl" / "battle_main.c").write_text(EVIDENCE + BUFF_FN, encoding="utf-8")
     names = ["MOVE_NAMES:", "  entries:"]
     for i in range(121):
         names += [f"    - name: STR_MOVE_{i}", f"      ja: わざ{i}", f"      en_us: Move {i}"]
@@ -115,6 +138,10 @@ class MovesConvertTests(unittest.TestCase):
         self.assertEqual([table["records"][i]["category"] for i in (0x39, 0x3a, 0x70, 0x71)],
                          ["technique", "finisher", "finisher", "other"])
         self.assertEqual(table["records"][0x2c]["learned_with"], 0x30)
+        # battle properties (../../specs/battle.md §6): buff fractions from BTL_applyBuffMove, Counter
+        self.assertEqual(table["records"][0x29]["buff"], {"off": [3, 10], "speed": [1, 10]})
+        self.assertEqual([r["id"] for r in table["records"] if "buff" in r], [0x29])
+        self.assertEqual([r["id"] for r in table["records"] if r.get("counter")], [0x2d])
         # the Digimon screen's grid (../specs/status_screens.md §3.4): 58 techniques in 56 cells
         cells = {r["id"]: (r["menu_cell"]["row"], r["menu_cell"]["column"]) for r in table["records"] if "menu_cell" in r}
         self.assertEqual(len(cells), 58)
@@ -150,6 +177,7 @@ class RealDataTests(unittest.TestCase):
             spit_fire = table["records"][2]
             self.assertEqual(spit_fire["name"]["text"]["en_us"], "Spit Fire")
             self.assertEqual((spit_fire["power"], spit_fire["mp"], spit_fire["element"]["name"]), (66, 30, "fire"))
+            self.assertEqual(table["records"][0x2a]["buff"], {"off": [1, 10], "def": [5, 100], "speed": [1, 10]})
             self.assertEqual(table["records"][30]["release_values"], {"jp": {"unk3": 0}})   # Full Potential
             self.assertEqual(len(table["records"]), 122)
 

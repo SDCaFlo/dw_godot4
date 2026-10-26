@@ -37,7 +37,7 @@ Run `python -m dwdata convert font`: it should print `6 tables, 52/52 checks pas
 
 ## Moves (`output/moves/`)
 
-Run `python -m dwdata convert moves`: it should print `4 tables, 32/32 checks passed`. Then open `output/moves/report.md`. It has one row per technique, with MP shown the way the menus show it (mp_cost × 3), plus the element factor grid and the learn chances.
+Run `python -m dwdata convert moves`: it should print `4 tables, 34/34 checks passed`. Then open `output/moves/report.md`. It has one row per technique, with MP shown the way the menus show it (mp_cost × 3), plus the element factor grid and the learn chances.
 
 - **Known techniques:** compare 3–4 techniques with the in-game technique menu (Digimon menu → techniques: power, MP, range icon, status icon):
   - Spit Fire (2): power 66, MP 30, ranged, fire, no status
@@ -46,14 +46,14 @@ Run `python -m dwdata convert moves`: it should print `4 tables, 32/32 checks pa
   - Poop Spd Toss (50): filth
 - **Element names:** ids 0–7 should be the fire techniques, 8–15 air (thunder, wind), 16–23 ice (and water), 24–31 mech, 32–39 earth (insects, plants), 40–48 battle, 49–57 filth (48 and 57 are the second Dynamite Kick and Horizontal Kick ids). Check that the menu icon colours of a few techniques match these names. The names are labels (`specs/moves.md` §3).
 - **Finishers (58–112):** their power is the base of the finisher formula, and they cost no MP in battle even if `mp` shows a value. Pepper Breath (59) is Agumon's finisher.
-- **Buff techniques** (range `self`): Aqua Magic (21), Full Potential (30), Mass Morph (34), Muscle Charge (41), War Cry (42). Release differences under the table should list only Full Potential (`unk3` = 0 in jp).
+- **Buff techniques** (range `self`): Aqua Magic (21), Full Potential (30), Mass Morph (34), Muscle Charge (41), War Cry (42). Release differences under the table should list only Full Potential (`unk3` = 0 in jp). In `move_data.json` each has a `buff` (e.g. Muscle Charge `{"off": [3, 10]}` = +30 % Offense); Counter (45) has `counter: true`. In a battle, a buff technique should raise the numbers shown over the partner by about those percentages.
 - **Element factors:** the fire row should be strong against earth, ice and filth (20) and weak against air (5), if that matches what you know of the game.
 - **Training learning** (`output/moves/training_learning.json`): `records[0]` (fire) lists Spit Fire, Heat Laser, Fire Tower, Magma Bomb, Red Inferno … in that order; `weights` starts `[0, 15, 10], [25, 13, 8]`. In the game, a Brains session crossing 150 Brains may teach Agumon (who knows Spit Fire) Heat Laser.
 - **JSON spot check:** in `output/moves/move_data.json`, `records[2]` is Spit Fire with `name.text` in the three languages and `c` holding the raw C values. `used_by` lists `BTL_calculateDamage` (`src/btl/battle_main.c`) with fields `power`, `special`.
 
 ## Digimon (`output/digimon/`)
 
-Run `python -m dwdata convert digimon`: it should print `7 tables, 40/40 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
+Run `python -m dwdata convert digimon`: it should print `7 tables, 42/42 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
 
 - **Known Digimon:** Agumon (3) is a Rookie, Vaccine, elements fire and battle. Its first techniques are Spit Fire and Fire Tower; it drops Sm.Recovery (50 %). Compare 2–3 Digimon you know with the game's Digimon menu (level, type icon, techniques).
 - **Type names:** Gabumon (17) shows `data`, Agumon `vaccine`, Betamon (4) `virus`. If the menu icons say otherwise, the type labels are swapped (`specs/digimon.md` §3).
@@ -68,6 +68,8 @@ Run `python -m dwdata convert digimon`: it should print `7 tables, 40/40 checks 
 - **Files:** `output/digimon/file_names.json` → `records[3].mmd` is `CHDAT/MMD0/AGUM.MMD`, the file the asset porter converts to Agumon's model; `records[30].mmd` (Tokomon) is `CHDAT/MMD1/TOKO.MMD` (folder = id / 30). The DW Data dock's **Check assets** shows whether every one of them has a model (`../docs/dw_data_dock.md`).
 - **Training animations** (`output/digimon/training_animations.json`): `records[3]` (Agumon) strikes with animation 51 (0x33, technique slot 5) and hits at frame 12. At the Green Gym's Tree Striking, the sparks should come when the blow lands.
 - **JSON spot check:** `output/digimon/digimon_data.json` → `records[3].moves[0]` is `{"slot": 0, "anim": 46, "move": {"id": 2, "name": "Spit Fire"}}`; `used_by` has around 170 functions, with the fields each reads.
+
+- **Battle properties** (`digimon_data.json`): every record has `battle_music` (1 for most, 2 for some wild enemies, 3 for Digimon 115) and `battle_scale` (4096, 6144 for Digimon 113); Digimon 60 has `anim_technique` `{"60": 112}`. If you know which wild enemies play the second battle theme, compare.
 
 ## Items (`output/items/`)
 
@@ -94,11 +96,13 @@ Run `python -m dwdata convert evolution`: it should print `4 tables, 21/21 check
 
 ## Systems (`output/systems/`)
 
-Run `python -m dwdata convert systems`: it should print `20 tables, 73/73 checks passed`. Then open `output/systems/report.md`.
+Run `python -m dwdata convert systems`: it should print `24 tables, 103/103 checks passed`. Then open `output/systems/report.md`.
 
 - **Tournaments:** names and grade letters (Grade D … Beetle Cup) match the arena board; Grade D is held on most days, Grade S on days 6, 13, 20, 27 of the month. If you remember the schedule, compare.
 - **Battle commands:** field battles: 3 commands below brain 100 up to 9 from brain 500; arena: one fewer (no running away). Does that match what you remember of the command menu?
 - **Flee chances:** a Virus partner keeps away other Virus enemies the most (30).
+- **Battle command lists** (`battle_command_lists.json`): brain 200–299 gives finisher, Run, Moderate, Attack, Your Call (5 commands); from brain 500 the equipped techniques appear as their own icons. Compare with the battle command bar in the game.
+- **Battle maps:** `maps.json` has 18 maps with `concave` (caves and rooms where enemies behind walls don't join) and map 143 with `no_battle_drops`.
 - **Maps:** `maps.json` → `records[0]` is `MAYO01` (Native Forest, toilet 0). Map names in the report match the area names shown when entering.
 - **Birdramon transport:** 6 destinations, 1000–2500 bits.
 - **Training spots:** Green Gym lists one spot per stat.

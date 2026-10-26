@@ -65,6 +65,7 @@ The disassembler follows the control flow from initScript, startScript, calls, b
 |---|---|
 | `effect.json` | identity (slot span), header, technique, sections, data area (raw hex), instructions (offset, op, name, flags, operands, raw), entry points, gaps (raw), UV anim records and keyframe tables, sub-effect records (raw), rest of the slot (raw) |
 | `effect.txt` | readable script listing (human check) |
+| `effect.bin` | the raw 0x5000-byte slot (header + data base), which the port's effect VM runs a private copy of (`../../specs/battle_effects.md` §2.4); the sidecar's `raw_slot` names it |
 | `model.gltf` / `.bin` / `model_tex/` + `model.json` | the TMD, textured from the TIM placed in effect texture slot 0 (TMD sidecar as in `tmd_files`) |
 | `texture.png` (+ `.pN.png`) + `texture.json` | the TIM (sidecar records the runtime placement) |
 

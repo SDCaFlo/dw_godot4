@@ -85,7 +85,7 @@ Formats are only known by extension until a spec confirms them. Standard PSX for
 
 ## Specs
 
-Location: `specs/<family>.md`, one per format or asset family. Existing: `specs/tim.md` (TIM format), `specs/card_all.md` (`CARD/CARD.ALL`), `specs/alltim.md` (`CHDAT/ALLTIM.TIM`), `specs/stacked_tim.md` (`ETCDAT/ETCTIM.BIN`, `STDDAT/STDTIM.BIN`), `specs/tim_files.md` (51 standalone `*.TIM`), `specs/tmd.md` (TMD format, glTF export, `tmd_files`), `specs/mmd.md` (Digimon models, skeletons, animations), `specs/map.md` (field maps: backgrounds, camera, collision, objects, entities, doors), `specs/atr.md` (arena collision), `specs/scn.md` (event scripts: opcodes, text, map → script), `specs/sound.md` (VHB/VAB sound banks, SEQ music, `MMM.DAT`), `specs/efe.md` (battle effects: slots, script VM, models), `specs/movies.md` (STR movies).
+Location: `specs/<family>.md`, one per format or asset family. Existing: `specs/tim.md` (TIM format), `specs/card_all.md` (`CARD/CARD.ALL`), `specs/alltim.md` (`CHDAT/ALLTIM.TIM`), `specs/stacked_tim.md` (`ETCDAT/ETCTIM.BIN`, `STDDAT/STDTIM.BIN`), `specs/tim_files.md` (51 standalone `*.TIM`), `specs/tmd.md` (TMD format, glTF export, `tmd_files`), `specs/mmd.md` (Digimon models, skeletons, animations), `specs/map.md` (field maps: backgrounds, camera, collision, objects, entities, doors), `specs/atr.md` (arena collision), `specs/scn.md` (event scripts: opcodes, text, map → script), `specs/sound.md` (VHB/VAB sound banks, SEQ music, `MMM.DAT`), `specs/efe.md` (battle effects: slots, script VM, models), `specs/btl_rel.md` (`BTL_REL.BIN`: the battle overlay's texture and models), `specs/movies.md` (STR movies).
 
 Each spec must contain:
 

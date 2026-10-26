@@ -190,6 +190,12 @@ def convert(input_root, output_root) -> AssetWriter:
         }
         if i == STALE_SLOT:
             record["note"] = "header says effect 344 (slot 88): getEFEDATEntry never returns this slot for 344"
+        # the raw slot, which the port's effect VM runs on (../specs/battle_effects.md §2.4)
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "effect.bin").write_bytes(slot)
+        record["outputs"].append(f"{folder_name}/effect.bin")
+        record["raw_slot"] = {"file": f"{folder_name}/effect.bin", "size": len(slot),
+                              "note": "the 0x5000-byte EFEDAT slot as on disc: header (0x34) then the data base"}
         _dump(folder / "effect.json", record)
         (folder / "effect.txt").write_text(listing(title, h, dis, gaps), encoding="utf-8")
         out.assets.append({"asset_id": record["asset_id"], "sidecar": out._rel(folder / "effect.json"),

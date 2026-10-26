@@ -5,6 +5,7 @@ with cdata.CIndex; technique names come from text/main/item.yaml (MOVE_NAMES, sa
 """
 
 import math
+import re
 from collections import defaultdict
 
 from .. import tables
@@ -57,6 +58,38 @@ MENU_GRID_RULE = ("if (row == 1) { row = 5; } else if (row == 2) { row = 1; } el
                   "else if (row == 4) { row = 2; } else if (row == 5) { row = 3; } moveId = column + row * 8; "
                   "if (moveId >= 0x30) { moveId++; }")
 MENU_GRID_SHARED = {0x30: 0x2C, 0x39: 0x37}
+
+
+# BTL_applyBuffMove (battle_main.c:1887): the self techniques' stat gains, read from the C text
+# (`BTL_buffStats(..., (int16_t)(stats->base.<stat> [* num] / den), &stats->base.<stat>, 0xb, <icon>)`).
+BTL_MAIN_C = "src/btl/battle_main.c"
+BUFF_FUNCTION = "BTL_applyBuffMove"
+BUFF_STATS = {"off": "off", "def": "def", "speed": "speed"}
+_BUFF_CASE = re.compile(r"case (0x[0-9a-fA-F]+|\d+):((?:(?!case |default:).)*)", re.S)
+_BUFF_CALL = re.compile(r"BTL_buffStats\(digimon, slot, \(int16_t\)\(stats->base\.(\w+)(?: \* (\d+))? / (\d+)\), "
+                        r"&stats->base\.(\w+), 0xb, \d+\);")
+
+
+def _buff_table(c_text: str) -> tuple:
+    """{technique id: {stat: [num, den]}} from BTL_applyBuffMove's switch, and the problems found."""
+    definition = re.search(rf"int32_t {BUFF_FUNCTION}\([^;{{]*\)\s*\{{", c_text)
+    start = definition.start() if definition else -1
+    end = c_text.find("\n}\n", start) if definition else -1
+    if start < 0 or end < 0:
+        return {}, [f"{BUFF_FUNCTION} not found"]
+    body, buffs, problems = c_text[start:end], {}, []
+    for case, code in _BUFF_CASE.findall(body):
+        calls = _BUFF_CALL.findall(code)
+        statements = [x for x in code.split(";") if x.strip() and x.strip() != "break"]
+        if len(calls) != len(statements):
+            problems.append(f"case {case}: {len(statements)} statements, {len(calls)} buffs")
+        stats = {}
+        for stat, num, den, target in calls:
+            if stat != target or stat not in BUFF_STATS:
+                problems.append(f"case {case}: {stat} -> {target}")
+            stats[BUFF_STATS.get(stat, stat)] = [int(num or 1), int(den)]
+        buffs[int(case, 0)] = stats
+    return buffs, problems
 
 
 def _menu_cells() -> dict:
@@ -118,6 +151,14 @@ MOVE_SCHEMA = {
                  "meaning": "base hit chance, reduced by the defender's speed (BTL_calculateHitChance)"},
     "status_chance": {"c_name": "statusChance", "c_type": "uint8_t", "unit": "%",
                       "meaning": "chance to inflict `status` on hit; 0 = never"},
+    "buff": {"derived": "BTL_applyBuffMove (battle_main.c:1887), read from its C text",
+             "meaning": "self techniques only: each stat {off, def, speed} rises by stat * num / den (C integer "
+                        "order: (stat * num) / den), capped at 999 (BTL_buffStats); absent = not a buff"},
+    "counter": {"derived": "the code's tests of id 0x2d (BTL_isMoveUsable, BTL_tickAttackHits, BTL_calculateDamage)",
+                "meaning": "true on Counter only: never chosen as a technique, triggered by a melee hit (MP >= 165, "
+                           "speed / level %), the defence counts 3/10; absent = false"},
+    "effect_scene": {"meaning": "optional, for content packs: the technique's BattleEffect scene "
+                                "(../specs/battle_effects.md §3.0); absent (every dw1 move) = the original EFE effect"},
     "flags": {"c_name": "unk3", "c_type": "uint8_t", "bits": FLAG_BITS,
               "meaning": "bit 0 needs_target: unusable without a target, auto-targets when cast without one; "
                          "bit 1 shared_cooldown: starting one blocks all bit-1 techniques for 110 frames"},
@@ -197,6 +238,10 @@ def convert(input_root, output_root) -> GroupWriter:
         text = (decomp.root / path).read_text(encoding="utf-8", errors="replace")
         out.check(f"code still tests the id ranges: {needle}", needle in text, path)
 
+    buff_text = (decomp.root / BTL_MAIN_C).read_text(encoding="utf-8", errors="replace")
+    buffs, buff_problems = _buff_table(buff_text)
+    sources.append(SourceText(decomp.root, BTL_MAIN_C).identity())
+
     move_data = tables.load(out, index, C_FILE, "MOVE_DATA")
     type_factors = tables.load(out, index, C_FILE, "TYPE_FACTORS")
     learn = tables.load(out, index, C_FILE, "MOVE_LEARN_CHANCES")
@@ -261,6 +306,10 @@ def convert(input_root, output_root) -> GroupWriter:
                "unk4": raw["unk4"], "unk5": raw["unk5"]}
         if i in LEARNED_TOGETHER:
             rec["learned_with"] = LEARNED_TOGETHER[i]
+        if i in buffs:
+            rec["buff"] = buffs[i]
+        if i == COUNTER:
+            rec["counter"] = True
         if i in menu_cells:
             rec["menu_cell"] = menu_cells[i]
         rec["c"] = raw
@@ -269,6 +318,13 @@ def convert(input_root, output_root) -> GroupWriter:
             rec["release_values"] = rd
         records.append(rec)
     tables.keys(out, records, "move", tables.name_base("STR_MOVE_NAME_"))
+    out.check(f"{BUFF_FUNCTION}: every case is a list of stat buffs", bool(buffs) and not buff_problems,
+              "; ".join(buff_problems) or ", ".join(f"{k:#x}" for k in buffs))
+    not_self = [f"{k:#x}" for k in buffs if k >= len(records) or records[k]["range"]["id"] != 4]
+    self_moves = [r["id"] for r in records if r["range"]["id"] == 4 and r["category"] == "technique"]
+    out.check("the buff techniques are exactly the self-range techniques",
+              not not_self and sorted(buffs) == sorted(self_moves),
+              f"buffs {sorted(buffs)}, self {self_moves}, not self {not_self}")
     for check in ("distance_squared is a perfect square", "range is a known value", "element is a known value",
                   "status is a known value", "status and status_chance are both set or both 0",
                   "flags use only bits 0-1", "unk4 / unk5 are 0", "techniques and finishers have a name"):

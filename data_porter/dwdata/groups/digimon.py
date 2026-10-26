@@ -53,6 +53,29 @@ SLEEP_FIELDS = ["sleepyHour", "sleepyMinute", "wakeupHour", "wakeupMinute", "awa
 MODEL_DIRS = {"mmd": "CHDAT/MMD{folder}/{name}.MMD", "tmd": "CHDAT/TMD{folder}/{name}.TMD"}
 MODELS_PER_FOLDER = 30
 FOLDER_EVIDENCE = ["path[9] = digiType / 30 + '0';", "path[9] = digimonType / 30 + '0';"]
+# Battle rules on literal Digimon ids, turned into digimon_data properties (../specs/battle.md §6); the C text
+# must still be there (whitespace collapsed).
+BTL_C = "src/main/btl.c"
+BTL_MAIN_C = "src/btl/battle_main.c"
+UTILS2_C = "src/main/utils2.c"
+# loadBattleData (btl.c:358): enemy 1 of type 0x73 -> variant 3; an NPC enemy of type 0x43-0x6f ->
+# ENEMY_MUSIC_MAPPING[type - 0x43]; any other -> 1 (predefined battles -> 0, a rule of the code).
+MUSIC_SPECIAL = {0x73: 3}
+MUSIC_FIRST, MUSIC_END, MUSIC_DEFAULT = 0x43, 0x70, 1
+# BTL_resetFlatten (battle_main.c:857), BTL_tickStatusEffects: type 0x71's normal scale is 0x1800.
+SCALE_DEFAULT, SCALE_SPECIAL = 0x1000, {0x71: 0x1800}
+# entityGetTechFromAnim (utils2.c:333): type 0x3c's animation 0x3c is technique 0x70.
+ANIM_TECHNIQUE = {0x3C: {0x3C: 0x70}}
+BATTLE_EVIDENCE = [
+    (BTL_C, "if (ENTITY_TABLE[COMBAT_DATA_PTR->player.entityIds[1]]->type == 0x73) { playMusic(0x21, 3);"),
+    (BTL_C, "if ((ENTITY_TABLE[entityId]->type >= 0x43) && (ENTITY_TABLE[entityId]->type < 0x70L)) { "
+            "playMusic(0x21, ENEMY_MUSIC_MAPPING[ENTITY_TABLE[entityId]->type - 0x43]); } else { playMusic(0x21, 1); }"),
+    (BTL_MAIN_C, "if (entity->type != 0x71) { entity->posData->scale.vx = 0x1000; entity->posData->scale.vy = 0x1000; "
+                 "entity->posData->scale.vz = 0x1000; } else { entity->posData->scale.vx = 0x1800;"),
+    (BTL_MAIN_C, "if (entity->type == 0x71) { entity->posData->scale.vx = 0x1800;"),
+    (UTILS2_C, "if ((e->type == 0x3cL) && (anim == 0x3c)) { return 0x70; }"),
+]
+
 # Care rules on literal Digimon ids (partner_impl.c), turned into raise_data properties (../specs/content.md §4,
 # ../specs/care.md §4). The C text must still be there (compared with whitespace collapsed).
 # initializePartner: equipped animation and learned technique of the starters
@@ -152,6 +175,14 @@ def _pattern_summary(p: dict) -> str:
     return f"{p['sleepyHour']:02}:{p['sleepyMinute']:02}-{p['wakeupHour']:02}:{p['wakeupMinute']:02}"
 
 
+def _battle_music(digimon_id: int, mapping: list) -> int:
+    if digimon_id in MUSIC_SPECIAL:
+        return MUSIC_SPECIAL[digimon_id]
+    if MUSIC_FIRST <= digimon_id < MUSIC_END:
+        return mapping[digimon_id - MUSIC_FIRST]
+    return MUSIC_DEFAULT
+
+
 def convert(input_root, output_root) -> GroupWriter:
     out = GroupWriter(output_root, NAME, SPEC, PURPOSE)
     out.reset()
@@ -177,6 +208,13 @@ def convert(input_root, output_root) -> GroupWriter:
     vball = tables.load(out, index, SOUND_C, "DIGIMON_VBALL_SOUND_ID")
     vlall = tables.load(out, index, SOUND_C, "DIGIMON_VLALL_SOUND_ID")
     strikes = tables.load(out, index, TRN_C, "TRN_TRAINING_ANIM_IDS")
+    music = tables.load(out, index, BTL_C, "ENEMY_MUSIC_MAPPING")
+    sources += [SourceText(decomp.root, p).identity() for p in (BTL_C, BTL_MAIN_C, UTILS2_C)]
+    battle_text = {p: " ".join((decomp.root / p).read_text(encoding="utf-8", errors="replace").split())
+                   for p in (BTL_C, BTL_MAIN_C, UTILS2_C)}
+    missing = [f"{p}: {needle[:60]}" for p, needle in BATTLE_EVIDENCE if " ".join(needle.split()) not in battle_text[p]]
+    out.check("the battle rules on Digimon ids are still in the code", not missing,
+              "; ".join(missing) or f"{len(BATTLE_EVIDENCE)} rules")
 
     names_model = text_group.load_file(decomp, NAMES_FILE)
     items_model = text_group.load_file(decomp, ITEMS_FILE)
@@ -188,7 +226,7 @@ def convert(input_root, output_root) -> GroupWriter:
               and not names_model.issues and not items_model.issues,
               "; ".join((names_model.issues + items_model.issues)[:5]))
     loaded_all = [data, raise_, sleep, take, files, vball, vlall, strikes]
-    if not all(loaded_all) or not (names and move_names and item_names):
+    if not music or not all(loaded_all) or not (names and move_names and item_names):
         out.finish(sources)
         return out
     for loaded in loaded_all[:-1]:
@@ -243,7 +281,12 @@ def convert(input_root, output_root) -> GroupWriter:
                "drop": {"item": item_ref(raw["dropItem"]), "chance": raw["dropChance"]},
                "moves": [{"slot": k, "anim": MOVE_ANIM_BASE + k, "move": move_ref(m)}
                          for k, m in enumerate(raw["moves"]) if m != NO_VALUE],
-               "padding": raw["padding"], "c": raw}
+               "padding": raw["padding"],
+               "battle_music": _battle_music(i, music[REFERENCE].value),
+               "battle_scale": SCALE_SPECIAL.get(i, SCALE_DEFAULT)}
+        if i in ANIM_TECHNIQUE:
+            rec["anim_technique"] = {str(a): t for a, t in ANIM_TECHNIQUE[i].items()}
+        rec["c"] = raw
         if all(m == 0 for m in raw["moves"]):
             # 16 x technique 0 (NPCs, unused ids): no technique list; real lists end with 0xff
             rec["moves"] = []
@@ -289,6 +332,15 @@ def convert(input_root, output_root) -> GroupWriter:
             "moves": {"c_name": "moves", "c_type": "uint8_t[16]",
                       "meaning": "technique slots: slot k is animation 0x2e + k and holds a technique id; "
                                  "0xff slots are left out here (kept in `c`)", "ref": "moves/move_data"},
+            "battle_music": {"derived": "loadBattleData (btl.c:358): 3 for type 0x73, ENEMY_MUSIC_MAPPING[id - 0x43] "
+                                        "for 0x43-0x6f, else 1",
+                             "meaning": "variant of battle song 0x21 when this Digimon is the opponent (a "
+                                        "predefined battle plays 0, a rule of the code)"},
+            "battle_scale": {"derived": "BTL_resetFlatten (battle_main.c:857): 0x1800 for type 0x71, else 0x1000",
+                             "unit": "4096 = 1.0", "meaning": "the model scale battles restore after a flatten"},
+            "anim_technique": {"derived": "entityGetTechFromAnim (utils2.c:333)",
+                               "meaning": "{animation id (decimal string): technique id} overriding moves[anim - 0x2e]; "
+                                          "absent = none"},
             "no_technique_list": {"meaning": "all 16 slots are 0 (NPCs and unused ids): `moves` is empty"},
             "padding": {"c_name": "padding", "c_type": "uint8_t", "meaning": "0 everywhere"},
             "c": {"meaning": "the record as the C initializer gives it (name = the string id)"},

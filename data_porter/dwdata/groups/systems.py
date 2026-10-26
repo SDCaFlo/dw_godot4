@@ -6,6 +6,7 @@ training spots), minigames and misc (fishing, Mojyamon trades, babies, jukebox, 
 Rendering, effect and UI-layout tables are left out (asset / UI work).
 """
 
+import re
 from collections import defaultdict
 
 from .. import tables
@@ -49,6 +50,38 @@ SNOW_EVIDENCE = ("if (((mapId >= 0x58 && mapId < 0x61) || (mapId >= 0x84 && mapI
 # updateMapLightState (utils2.c:553): the hours the light entries test (7 <= HOUR < 0x13).
 LIGHT_EVIDENCE = "if ((HOUR >= 7) && (HOUR < 0x13)) { if (p->mode == 0) {"
 UTILS2_C = "src/main/utils2.c"
+# Battle (../specs/battle.md §6): the HUD's layout tables, the command lists, the thrown item's arc,
+# the game's sine / arctangent tables (math.c), and two map rules on literal ids.
+BTL_MENU, BTL_EFFECT = "src/btl/command_menu.c", "src/btl/battle_effect.c"
+SIN_H, ATAN_H, MATH_C = "include/dw/sin_lookup_table.h", "include/dw/atan_lookup_table.h", "src/main/math.c"
+BATTLE_HUD_TABLES = [
+    (BTL_MENU, "BTL_COMMAND_MENU_LAYOUTS"), (BTL_MENU, "BTL_COMMAND_MENU_SLIDE_Y"), (BTL_MENU, "BTL_COMMAND_MENU_SLIDE_X"),
+    (BTL_MENU, "BTL_COMMAND_ICON_UVS"), (BTL_MENU, "BTL_SPECIAL_ICON_UVS"), (BTL_MENU, "BTL_COMMAND_LABEL_U"),
+    (BTL_MENU, "BTL_COMMAND_LABEL_W"), (BTL_MENU, "BTL_SHOUT_HOP_OFFSETS"), (BTL_MENU, "BTL_SHOUT_DROP_OFFSETS"),
+    (BTL_MENU, "BTL_DEATH_COUNTDOWN_DIGIT_U"), (BTL_MENU, "BTL_DEATH_COUNTDOWN_DIGIT_V"),
+    (BTL_EFFECT, "BTL_STATUS_BAR_X"), (BTL_EFFECT, "BTL_STATUS_BAR_SPRITES"), (BTL_EFFECT, "BTL_FINISHER_PULSE"),
+    (BTL_EFFECT, "BTL_BATTLE_START_TEXT_POSITIONS"), (BTL_C, "FLEE_BUBBLE_SCALE"),
+]
+# BTL_initializeCombat (battle_setup.c:120-175): the command list for each numCommands, after 11 (finisher) and
+# 1 (Run). Count 9 lists 7, 6, 5, then 10 / 9 / 8 for each equipped technique slot 2 / 1 / 0, then 3.
+COMMAND_PREFIX = [0xB, 1]
+COMMAND_PREFIX_EVIDENCE = ("COMBAT_DATA_PTR->player.availableCommands[0][0] = 0xb; "
+                           "COMBAT_DATA_PTR->player.availableCommands[0][1] = 1;")
+COMMAND_FIXED_COUNTS = (3, 4, 5, 7, 8)
+COMMAND_TECHNIQUES = {"before": [7, 6, 5], "slots": [[2, 0xA], [1, 9], [0, 8]], "after": [3]}
+COMMAND_TECHNIQUES_EVIDENCE = (
+    "case 9: COMBAT_DATA_PTR->player.availableCommands[0][2] = 7; COMBAT_DATA_PTR->player.availableCommands[0][3] = 6; "
+    "COMBAT_DATA_PTR->player.availableCommands[0][4] = 5; i = 5; "
+    "if (PARTNER_ENTITY.digimonEntity.stats.base.moves[2] != 0xff) { COMBAT_DATA_PTR->player.availableCommands[0][i++] = 0xa; } "
+    "if (PARTNER_ENTITY.digimonEntity.stats.base.moves[1] != 0xff) { COMBAT_DATA_PTR->player.availableCommands[0][i++] = 9; } "
+    "if (PARTNER_ENTITY.digimonEntity.stats.base.moves[0] != 0xff) { COMBAT_DATA_PTR->player.availableCommands[0][i++] = 8; } "
+    "COMBAT_DATA_PTR->player.availableCommands[0][i++] = 3;")
+COMMAND_NAMES = {1: "run", 2: "attack", 3: "your_call", 4: "moderate", 5: "distance", 6: "defensive", 7: "change",
+                 8: "technique_0", 9: "technique_1", 10: "technique_2", 11: "finisher"}
+NO_DROPS_MAP = 0x8F            # battleStatsGainsAndDrops (battle_ui.c:192)
+NO_DROPS_EVIDENCE = "if (CURRENT_SCREEN == 0x8f) { droppedItems[i] = 0xff; continue; }"
+CONCAVE_EVIDENCE = "if (CURRENT_SCREEN == CONCAVE_SCREENS[i]) { return 1; }"
+MATH_EVIDENCE = ["return SIN_LOOKUP_TABLE[256 - input];", "tmpVal = 1023 - ATAN_LOOKUP_TABLE[offset];"]
 # The C text of those rules (whitespace collapsed).
 CHANGE_MAP_EVIDENCE = [
     "if (CURRENT_SCREEN == 0xcf) { if (mapId == 0x26) { PREVIOUS_SCREEN = 0x58; } if (mapId == 0x46) { "
@@ -131,6 +164,10 @@ TABLE_PURPOSES = {
     "flee_chances": "Chance an enemy joins a battle, by the partner's and the enemy's type",
     "stat_gain_factors": "Stat gain factor after a won battle, by number of enemies",
     "enemy_music": "Battle music for enemies 0x43-0x6f",
+    "battle_command_lists": "The battle command menu's commands for each command count",
+    "battle_hud": "Layout tables of the battle HUD (command menu, shout, status bars, start text, countdown, bubbles)",
+    "item_throw": "Height of an item thrown to the partner in battle, per frame",
+    "psx_math": "The game's sine and arctangent lookup tables (math.c _sin / _atan)",
     "tournaments": "Arena tournaments: name, grade, grade image, opponent base stat, days held",
     "tournament_schedule": "Which tournaments are held on each day of the 30-day month",
     "tournament_win_chances": "Chance one simulated participant beats another, by their levels",
@@ -159,7 +196,8 @@ def convert(input_root, output_root) -> GroupWriter:
     index = CIndex(decomp)
     files = sorted({BTL_MAIN, BTL_SETUP, BTL_C, BATTLE_UI, STD_MAIN, STD_SETUP, VS_MAIN, VS_SELECT, VS_DEMO,
                     VS_INTRO, SCRIPT_C, TOURNAMENT_C, GAME_MENU, MAP_C, TOILET_C, TRN_HUD, TRN2_HUD, TRN_SLOTS, FISH_C,
-                    SHOP_MENU, DOOA_C, SCRIPT_VALUE_C, SCRIPT_H, OVERWORLD_C, UTILS2_C})
+                    SHOP_MENU, DOOA_C, SCRIPT_VALUE_C, SCRIPT_H, OVERWORLD_C, UTILS2_C, BTL_MENU, BTL_EFFECT, MAIN_C,
+                    SIN_H, ATAN_H, MATH_C})
     sources = [SourceText(decomp.root, p).identity() for p in files]
 
     missing = [f"{p}: {needle}" for p, needle in EVIDENCE
@@ -187,7 +225,9 @@ def convert(input_root, output_root) -> GroupWriter:
             (FISH_C, "FISH_BAIT_CHANCES"), (FISH_C, "FISHING_MAP_DATA"), (SHOP_MENU, "MOJYAMON_ITEMS_GIVE"),
             (SHOP_MENU, "MOJYAMON_ITEMS_GET"), (SCRIPT_C, "BABY_IDS"), (DOOA_C, "REINCARNATE_BABY_TYPE"),
             (SCRIPT_C, "BGM_TRACK_NAMES"), (SHOP_MENU, "MAIN_D_801303B8"), (SCRIPT_C, "MAP_LIGHT_UPDATE_DATA"), (VS_DEMO, "VS_DEMO_DIGIMON"), (VS_SELECT, "VS__BATTLE_COUNTS"),
-            (SCRIPT_VALUE_C, "STATS_LIMIT_ARRAY"), (SCRIPT_VALUE_C, "MULTIPLE_OF_10")]:
+            (SCRIPT_VALUE_C, "STATS_LIMIT_ARRAY"), (SCRIPT_VALUE_C, "MULTIPLE_OF_10"),
+            (BTL_C, "CONCAVE_SCREENS"), (MAIN_C, "ITEM_THROW_HEIGHT"), (SIN_H, "SIN_LOOKUP_TABLE"),
+            (ATAN_H, "ATAN_LOOKUP_TABLE")] + BATTLE_HUD_TABLES:
         load(c_file, name)
     digimon_l = tables.load(out, index, MAIN_C, "DIGIMON_DATA",
                             {"DIGIMON_PARA_NAME": lambda a, r, t: [] if r == "eu" else [Value(a[0], t.line)]})
@@ -320,6 +360,78 @@ def convert(input_root, output_root) -> GroupWriter:
     }, [{"digimon": dref(ENEMY_MUSIC_FIRST + k), "track": v} for k, v in enumerate(music)],
         {"access": "GameData.enemy_music(digimon_id)"})
 
+    # BTL_initializeCombat's command lists (battle_setup.c:120-175), read from the C text.
+    setup_c = " ".join((decomp.root / BTL_SETUP).read_text(encoding="utf-8", errors="replace").split())
+    command_lists, cmd_missing = [], []
+    for count in COMMAND_FIXED_COUNTS:
+        start = setup_c.find(f"case {count}: ")
+        end = setup_c.find("break;", start)
+        body = setup_c[start:end] if start >= 0 and end >= 0 else ""
+        rest = [int(v, 0) for v in re.findall(r"availableCommands\[0\]\[\d+\] = (0x[0-9a-f]+|\d+);", body)]
+        if len(rest) != count - len(COMMAND_PREFIX):
+            cmd_missing.append(f"case {count}: {rest}")
+        command_lists.append({"count": count, "commands": COMMAND_PREFIX + rest,
+                              "names": [COMMAND_NAMES.get(c) for c in COMMAND_PREFIX + rest]})
+    if COMMAND_PREFIX_EVIDENCE not in setup_c:
+        cmd_missing.append("the 11 / 1 prefix")
+    if COMMAND_TECHNIQUES_EVIDENCE not in setup_c:
+        cmd_missing.append("case 9")
+    out.check("BTL_initializeCombat's command lists are still in the code", not cmd_missing,
+              "; ".join(cmd_missing) or f"counts {list(COMMAND_FIXED_COUNTS)} + 9")
+    command_lists.append({"count": 9, "commands": COMMAND_PREFIX + COMMAND_TECHNIQUES["before"],
+                          "technique_slots": COMMAND_TECHNIQUES["slots"], "after": COMMAND_TECHNIQUES["after"],
+                          "names": [COMMAND_NAMES.get(c) for c in COMMAND_PREFIX + COMMAND_TECHNIQUES["before"]]})
+    write("battle_command_lists", ["BRAIN_TO_COMMAND_MAP"], {
+        "count": {"meaning": "numCommands (systems/battle_commands)"},
+        "commands": {"meaning": "availableCommands[0] from index 0 (the menu's order): 1 Run, 2 Attack, 3 Your Call, "
+                                "4 Moderate, 5 Distance, 6 Defensive, 7 Change, 8-10 technique slot 0-2, 11 finisher"},
+        "technique_slots": {"meaning": "count 9 only: [slot, command] appended in this order when the partner has that "
+                                       "technique slot equipped (moves[slot] != 0xff); then `after`. numCommands = the "
+                                       "list's length"},
+        "names": {"meaning": "readable command names (BTL_SHOUTS / BTL_COMMAND_NAMES order, command_shout.c)"},
+    }, command_lists, {"access": "GameData.system('battle_command_lists')",
+                       "notes": "Read from the switch of BTL_initializeCombat; the arena (std) builds its own."},
+        extra={"code": f"{BTL_SETUP}:120-175 BTL_initializeCombat"})
+
+    hud = {}
+    for _, name in BATTLE_HUD_TABLES:
+        hud[name] = us[name]
+    write("battle_hud", [n for _, n in BATTLE_HUD_TABLES], {
+        "BTL_COMMAND_MENU_LAYOUTS": {"meaning": "per layout (numCommands 3/4/5/7/8/9 -> 0-5) the icon order"},
+        "BTL_COMMAND_MENU_SLIDE_Y / _X": {"meaning": "the command menu's slide-in positions, 8 steps each"},
+        "BTL_COMMAND_ICON_UVS": {"meaning": "icon (u, v) per command - 1, tpage (960, 256)"},
+        "BTL_SPECIAL_ICON_UVS": {"meaning": "technique command icon (u, v) per element"},
+        "BTL_COMMAND_LABEL_U / _W": {"meaning": "the hovered command's label strip"},
+        "BTL_SHOUT_HOP_OFFSETS / DROP_OFFSETS": {"meaning": "the shout's motion, 20 frames"},
+        "BTL_DEATH_COUNTDOWN_DIGIT_U / _V": {"meaning": "the countdown digits 4..1"},
+        "BTL_STATUS_BAR_X": {"meaning": "the partner status bars' slide positions"},
+        "BTL_STATUS_BAR_SPRITES": {"meaning": "the bars' sprites (clut, u, v, w, h, x, y)"},
+        "BTL_FINISHER_PULSE": {"meaning": "the full finisher gauge's brightness pulse"},
+        "BTL_BATTLE_START_TEXT_POSITIONS": {"meaning": "the start text's 155 pieces' (x, y) targets"},
+        "FLEE_BUBBLE_SCALE": {"meaning": "the flee bubble's pulse (%), after its 5-frame grow-in"},
+    }, [{"name": name, "values": hud[name]} for _, name in BATTLE_HUD_TABLES],
+        {"access": "GameData.system('battle_hud')", "notes": "Layout data for the battle HUD scenes (../specs/battle.md §4)."},
+        binary="btl")
+
+    write("item_throw", ["ITEM_THROW_HEIGHT"], {
+        "frame": {"meaning": "frame of the throw (TAMER_ITEM.time)"},
+        "height": {"unit": "world units (y down)", "meaning": "tickThrownItem (main.c:4244): the item's y each frame "
+                                                             "while it flies to the partner over 24 frames"},
+    }, [{"frame": k, "height": v} for k, v in enumerate(us["ITEM_THROW_HEIGHT"])],
+        {"access": "GameData.system('item_throw')"})
+
+    text_math = " ".join((decomp.root / MATH_C).read_text(encoding="utf-8", errors="replace").split())
+    out.check("math.c's _sin / _atan still read the tables", all(e in text_math for e in MATH_EVIDENCE),
+              " / ".join(MATH_EVIDENCE))
+    write("psx_math", ["SIN_LOOKUP_TABLE", "ATAN_LOOKUP_TABLE"], {
+        "SIN_LOOKUP_TABLE": {"c_type": "int16_t[130]", "unit": "4096 = 1.0", "meaning": "_sin(x) (math.c:13): "
+                             "x & 0x1ff, a quarter wave of 128 steps (512 = a full turn), mirrored by quadrant"},
+        "ATAN_LOOKUP_TABLE": {"c_type": "int16_t[512]", "meaning": "_atan(dy, dx) (math.c:34): the octant ratio * 512 "
+                              "indexes it; result in 4096 = a full turn, (value + 2048) & 0xfff"},
+    }, [{"name": "SIN_LOOKUP_TABLE", "values": us["SIN_LOOKUP_TABLE"]},
+        {"name": "ATAN_LOOKUP_TABLE", "values": us["ATAN_LOOKUP_TABLE"]}],
+        {"access": "GameData.system('psx_math')", "notes": "Read by PsxMath (../specs/battle_effects.md §3.3)."})
+
     # -- arena --------------------------------------------------------------------------------
     names_l, grades_l, images_l = us["TOURNAMENT_NAMES"], us["TOURNAMENT_GRADES"], us["STD_GRADES"]
     base_stats, schedule = us["STD_OPPONENT_BASE_STATS"], us["TOURNAMENT_SCHEDULE"]
@@ -423,6 +535,17 @@ def convert(input_root, output_root) -> GroupWriter:
         maps[light["mapId"]].setdefault("light_objects", []).append(
             {"start": light["startId"], "count": light["count"], "mode": light["mode"],
              "trigger": None if light["trigger"] == 0xFFFF else light["trigger"], "c": light})
+    # The battle's map rules (../specs/battle.md §2.1, §2.15) as map properties.
+    btl_c = " ".join((decomp.root / BTL_C).read_text(encoding="utf-8", errors="replace").split())
+    battle_ui_c = " ".join((decomp.root / BATTLE_UI).read_text(encoding="utf-8", errors="replace").split())
+    out.check("isScreenConcave and the no-drop map are still in the code",
+              CONCAVE_EVIDENCE in btl_c and NO_DROPS_EVIDENCE in battle_ui_c, f"{CONCAVE_EVIDENCE} / {NO_DROPS_EVIDENCE}")
+    concave = us["CONCAVE_SCREENS"]
+    out.check("CONCAVE_SCREENS holds map ids", all(0 <= k < len(maps) for k in concave), str(concave))
+    for k in concave:
+        if 0 <= k < len(maps):
+            maps[k]["concave"] = True
+    maps[NO_DROPS_MAP]["no_battle_drops"] = True
     # Maps are keyed by file name: the area name is shared by many maps (specs/content.md §2).
     tables.keys(out, maps, "map", lambda r: r["file"].lower() if r["file"] else None)
     map_struct = index.program(MAP_C, REFERENCE).structs["MapEntry"]
@@ -450,6 +573,11 @@ def convert(input_root, output_root) -> GroupWriter:
                           "frame: object instances start .. start + count - 1 get flag 0 (shown) or 1 (hidden) by the "
                           "hour; mode 0 shown from 7:00 to 18:59, mode 1 hidden then. Only while `trigger` is set "
                           "(null = always). Absent = none"},
+        "concave": {"c_name": "CONCAVE_SCREENS", "meaning": "handleBattleStart (btl.c:209, isScreenConcave): an extra "
+                    "enemy joins only if the straight tile path from the tamer and from the partner to it is free; "
+                    "absent = false"},
+        "no_battle_drops": {"meaning": "battleStatsGainsAndDrops (battle_ui.c:192): enemies drop nothing here (the "
+                            "original tests map 0x8f); absent = false"},
         "_struct": {"c_type": "MapEntry", "fields": describe_type(map_struct)},
     }, maps, {"access": "GameData.map(id)", "notes": "Cross-check with the asset porter's map table."})
 

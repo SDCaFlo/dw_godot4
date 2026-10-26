@@ -20,6 +20,8 @@ Field maps are **pre-rendered 2D backgrounds** with a 3D camera: Digimon, doors 
 | 4bpp images | TIMs; image loaded; only image 0's CLUT, row i → (i × 16, 486) | `loadMapImage2` overworld.c:394 |
 | objects | i16 count; per object: tex x, tex y, width, height, pos3d xyz, clut, transparency; i16 instance count; per instance: sprites[8], times[8], x, y, flag | `loadMapObjects` overworld.c:331 |
 | entities | i16 spawn x[10], y[10], z[10], rotation[10], warp target map[10], target spawn[10]; i16 digimon count; per digimon (if flag 0x80): 42 i16 (type, follow mode, position, rotation, tracking range, unk2, script id, hp, mp, current hp/mp, off, def, speed, brains, bits, charge mode, unk1, moves[4], priorities[4], flee xyz, waypoint count, ai sections[8]) + waypoints xyz | `loadMapEntities` tamer.c:379, `loadMapDigimon` overworld.c:1026 |
+
+Each exported Digimon keeps the raw `unk1` and adds `targets_partner` (`unk1 == 1`): in battle (`NPC_ENTITIES[].unk1`, `BTL_selectFighterTarget` `battle_main.c:3696`) such an enemy never turns to the fighter that hit it, and with `unk1 == 0` an enemy gets +20 weight on area techniques while another enemy is alive (`BTL_selectEnemyMove`, `:3846`). `../../specs/battle.md` §2.10.
 | collision | 100 × 100 bytes; cell (tx, tz) = world x ∈ [(tx−50)·100, +100), z ∈ [(50−tz)·100 − 100, +100) | `loadMapCollisionData` map_collision.c:23, `getTileTrigger` |
 
 Every MAP byte is one of these sections (YAKA22 has one 40-byte gap). Collision values: `0` walkable, `128` blocked, others (`51`, `81`, `110`–`112`, …) trigger cells.

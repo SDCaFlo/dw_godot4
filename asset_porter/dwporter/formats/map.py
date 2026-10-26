@@ -145,7 +145,7 @@ def parse_map(data: bytes, num8: int, num4: int, has_digimon: bool) -> dict:
                 "type": v[0], "follow_mode": v[1], "position": v[2:5], "rotation": v[5:8], "tracking_range": v[8],
                 "unk2": v[9], "script_id": v[10], "hp": v[11], "mp": v[12], "current_hp": v[13], "current_mp": v[14],
                 "offense": v[15], "defense": v[16], "speed": v[17], "brains": v[18], "bits": v[19],
-                "charge_mode": v[20], "unk1": v[21], "moves": v[22:26], "move_priority": v[26:30], "flee": v[30:33],
+                "charge_mode": v[20], "unk1": v[21], "targets_partner": v[21] == 1, "moves": v[22:26], "move_priority": v[26:30], "flee": v[30:33],
                 "ai_sections": v[34:42], "waypoints": [waypoints[3 * i:3 * i + 3] for i in range(n)],
             })
     spans.append((entities_off, pos))

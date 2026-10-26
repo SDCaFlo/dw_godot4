@@ -99,8 +99,11 @@ One folder per technique: `output/efe/<slot>_<technique>/` (slot = technique id)
 - `model.gltf` in Blender (Material Preview): `000_Fire_Tower` = a fire pillar on a scorched ring, `004_Magma_Bomb` = a lava rock, `015_Hurricane` = a tornado. Models are static; the script animates them (UV scrolling, spawning, scaling).
 - `effect.txt`: the effect script. Expect readable flow: `SPAWN_SUB_EFFECT`, `BUILTIN 28 playEFESound`, `BUILTIN 3 drawTMD`, frame counters compared with `BRANCH_IF`, hit checks (`applyRadiusAttackHit`...).
 - Known: slot 110 is an unused older copy of effect 344; slot 121 is empty fill.
+- `effect.bin`: 20,480 bytes in every folder (the raw slot, for the port's effect VM; nothing to look at).
 
 Wrong if: textures that look like noise or another technique, models inside-out or untextured where a texture exists.
+
+**Battle overlay models** (`output/btl_rel/`, `specs/btl_rel.md`): `texture.png` is a small strip (136 × 48) with the finisher aura's glow; `finisher_aura.gltf` should look like a ring / column of glow layers around a standing Digimon's size; `confusion.gltf` a small flat-coloured shape that circles a head; `stun.gltf` a few stars; `buff.gltf` rings and a disk. Wrong if a model is a jumble of far-apart triangles (a wrong offset) or textured with something unrelated (the stun stars' palette is an open question: they may get their colours at run time).
 
 ## 4e. Movies — 5 minutes
 

@@ -120,6 +120,11 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
 - `sound_ids`: `vball`, and `vlall` (null where the code doesn't read it; the raw array is under `raw`).
 - **Labels:** type names (Data / Vaccine / Virus) are the game's names, not from the decomp: the menu draws them as icons. They fit known Digimon: Gabumon 1, Agumon 2, Betamon 3. Level names come from the menu text (§2). Element names: see `specs/moves.md`.
 
+- **Battle properties** (`../../specs/battle.md` §6), from literal ids of the battle code (each C text checked):
+  - `battle_music`: the variant of battle song 0x21 when this Digimon is the opponent (`loadBattleData`, `btl.c:358`): 3 for 0x73, `ENEMY_MUSIC_MAPPING[id − 0x43]` for 0x43–0x6F, else 1. A predefined battle plays 0 (a rule of the code). The mapping's last 3 entries (0x70–0x72) are never read;
+  - `battle_scale`: 0x1800 for 0x71, else 0x1000 (`BTL_resetFlatten`, `battle_main.c:857`; `BTL_tickStatusEffects`);
+  - `anim_technique`: `{"60": 112}` on 0x3C (`entityGetTechFromAnim`, `utils2.c:333`: animation 0x3C is technique 0x70), absent elsewhere.
+
 ## 4. Godot usage
 
 - `GameData.digimon(id)`, `GameData.raise_data(id)`, `GameData.sleep_pattern(id)`, `GameData.digimon_file(id)` (links to the asset porter's model names), `GameData.digimon_sounds(id)`, `GameData.training_animation(digimon)` (the Offense stations; a Digimon without a record uses 0x2e / 10).

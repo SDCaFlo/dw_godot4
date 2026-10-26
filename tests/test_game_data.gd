@@ -83,6 +83,16 @@ func _init() -> void:
 	_eq(data.entity("digimon", "dw1:sukamon")["care"]["raise"]["raises_virus_bar"], false, "Sukamon's poop doesn't raise the virus bar")
 	_eq(data.item("dw1:rest_pillow")["passive"], "sleep_boost", "Rest Pillow property")
 
+	# Battle properties (specs/battle.md §6) replace the literal ids of the battle code.
+	_eq(data.move(0x29)["buff"]["off"].map(func(v): return int(v)), [3, 10], "Muscle Charge buff")
+	_eq(data.move(2).has("buff"), false, "Spit Fire is no buff")
+	_eq(data.move(0x2D).get("counter", false), true, "Counter property")
+	_eq(int(data.digimon(0x73)["battle_music"]), 3, "Machinedramon's battle music")
+	_eq(int(data.digimon(0x71)["battle_scale"]), 0x1800, "Meteormon's battle scale")
+	_eq(data.map(0x8F).get("no_battle_drops", false), true, "map 0x8f has no battle drops")
+	_eq(data.system("battle_command_lists").size(), 6, "battle command lists")
+	_eq(data.system("psx_math")[0]["values"].size(), 130, "sine table")
+
 	# The game's font (data_porter/specs/font.md).
 	_eq([data.font("en_us").size(), data.font("ja").size(), data.font("en_eu").size()], [79, 992, 188], "glyph counts")
 	_eq([int(data.font()[0]["code"]), data.font()[0]["char"], int(data.font()[0]["width"])], [0x8260, "Ａ", 12], "US glyph 0")

@@ -69,6 +69,14 @@ def make_decomp(root: Path, bad_range_at=None) -> None:
     (root / "src" / "main" / "utils2.c").write_text(EVIDENCE, encoding="utf-8")
     # the technique grid's row mapping (getEquippedSlot), checked by the converter
     (root / "src" / "main" / "game_menu.c").write_text(moves.MENU_GRID_RULE, encoding="utf-8")
+    # the Brains training's learn order (8 techniques per element: id % 7 is the element here) and weights
+    trn = ["uint8_t TRN_D_8008F14C[56] = {",
+           "\t" + ", ".join(str(e + 7 * k) for e in range(7) for k in range(8)), "};", "",
+           "int8_t TRN_D_8008F184[8][3] = {"]
+    trn += [f"\t{{ {25 - k}, {15 - k}, {10 - k} }}," for k in range(8)]
+    trn += ["};", ""]
+    (root / "src" / "trn").mkdir(parents=True)
+    (root / "src" / "trn" / "trn_reward.c").write_text("\n".join(trn), encoding="utf-8")
     (root / "src" / "btl").mkdir(parents=True)
     (root / "src" / "btl" / "battle_main.c").write_text(EVIDENCE, encoding="utf-8")
     names = ["MOVE_NAMES:", "  entries:"]
@@ -118,6 +126,10 @@ class MovesConvertTests(unittest.TestCase):
         self.assertEqual(factors["records"][0]["against"][1], {"defender": {"id": 1, "name": "battle"},
                                                                "factor": 15, "multiplier": 1.5})
         self.assertEqual(self.load("learn_chances")["records"][9]["chances"], [9, 4, 0])
+        learning = self.load("training_learning")
+        self.assertEqual(learning["records"][2]["element"], {"id": 2, "name": "air"})
+        self.assertEqual([m["move"]["id"] for m in learning["records"][2]["moves"]], [2 + 7 * k for k in range(8)])
+        self.assertEqual(learning["weights"][1], [24, 14, 9])
         self.assertTrue((self.output / "moves" / "report.md").is_file())
 
     def test_unknown_range_fails(self):

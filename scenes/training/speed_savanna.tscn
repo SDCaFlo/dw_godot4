@@ -1,0 +1,13 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/training/speed.gd" id="1_station"]
+
+[node name="SpeedSavanna" type="Node"]
+script = ExtResource("1_station")
+map = 78
+point = Vector2i(50, -287)
+rotation = 0
+wrap_x = false
+wrap_value = 2000
+award_variant = 6
+counts_counter = false

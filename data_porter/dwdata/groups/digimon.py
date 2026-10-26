@@ -19,12 +19,13 @@ from . import text as text_group
 NAME = "digimon"
 SPEC = "specs/digimon.md"
 PURPOSE = "Digimon data (size, type, level, elements, drops, techniques), partner care data, model files, sounds"
-SOURCE_GLOB = "src/main/{main,partner_impl,model,sound}.c"
+SOURCE_GLOB = "src/{main/main,main/partner_impl,main/model,main/sound,trn/trn_reward}.c"
 
 MAIN_C = "src/main/main.c"
 PARTNER_C = "src/main/partner_impl.c"
 MODEL_C = "src/main/model.c"
 SOUND_C = "src/main/sound.c"
+TRN_C = "src/trn/trn_reward.c"
 TAMER_C = "src/main/tamer.c"
 HEADERS = ["include/dw/params.h", "include/dw/partner.h"]
 NAMES_FILE = "text/main/main.yaml"
@@ -81,7 +82,10 @@ TABLE_PURPOSES = {
     "item_take_distance": "Partner: distance at which it takes an item thrown to it (index = Digimon id - 1)",
     "file_names": "Model / texture file name of every Digimon (CHDAT/MMD<id / 30>/<name>.MMD, CHDAT/TMD<id / 30>/<name>.TMD)",
     "sound_ids": "Sound banks of every Digimon: VBALL bank (all Digimon), VLALL voice bank (partners)",
+    "training_animations": "Partner Digimon: the strike animation and the frame its hit lands at the Offense training "
+                           "stations (TRN_TRAINING_ANIM_IDS)",
 }
+NUM_TRAINING_ANIMS = 67     # TRN_TRAINING_ANIM_IDS[67][2] (trn_reward.c:55), indexed by the partner's type
 
 
 def _name_hook(args, release, tok):
@@ -157,7 +161,7 @@ def convert(input_root, output_root) -> GroupWriter:
         return out
     index = CIndex(decomp)
     sources = [SourceText(decomp.root, p).identity() for p in
-               [MAIN_C, PARTNER_C, MODEL_C, SOUND_C, TAMER_C] + HEADERS + [NAMES_FILE, ITEMS_FILE]]
+               [MAIN_C, PARTNER_C, MODEL_C, SOUND_C, TAMER_C, TRN_C] + HEADERS + [NAMES_FILE, ITEMS_FILE]]
 
     _fields_check(out, index, MAIN_C, "DigimonPara", DIGIMON_FIELDS,
                   lambda r: DIGIMON_FIELDS[1:] if r == "eu" else DIGIMON_FIELDS)
@@ -172,6 +176,7 @@ def convert(input_root, output_root) -> GroupWriter:
     files = tables.load(out, index, MODEL_C, "PTR_DIGIMON_FILE_NAMES")
     vball = tables.load(out, index, SOUND_C, "DIGIMON_VBALL_SOUND_ID")
     vlall = tables.load(out, index, SOUND_C, "DIGIMON_VLALL_SOUND_ID")
+    strikes = tables.load(out, index, TRN_C, "TRN_TRAINING_ANIM_IDS")
 
     names_model = text_group.load_file(decomp, NAMES_FILE)
     items_model = text_group.load_file(decomp, ITEMS_FILE)
@@ -182,12 +187,13 @@ def convert(input_root, output_root) -> GroupWriter:
               all(b is not None for b in (names, move_names, item_names))
               and not names_model.issues and not items_model.issues,
               "; ".join((names_model.issues + items_model.issues)[:5]))
-    loaded_all = [data, raise_, sleep, take, files, vball, vlall]
+    loaded_all = [data, raise_, sleep, take, files, vball, vlall, strikes]
     if not all(loaded_all) or not (names and move_names and item_names):
         out.finish(sources)
         return out
-    for loaded in loaded_all:
+    for loaded in loaded_all[:-1]:
         tables.size_check(out, decomp, loaded)
+    tables.size_check(out, decomp, strikes, binary="trn")
 
     counts = {"DIGIMON_DATA": len(data[REFERENCE].value), "DIGIMON_NAMES": len(names["items"]),
               "PTR_DIGIMON_FILE_NAMES": len(files[REFERENCE].value),
@@ -253,7 +259,8 @@ def convert(input_root, output_root) -> GroupWriter:
         out.check(f"DIGIMON_DATA: {check}", not bad[check], "; ".join(bad[check][:10]) or f"{len(digimon)} records")
 
     refs = decomp.references(["DIGIMON_DATA", "RAISE_DATA", "SLEEP_PATTERN", "ITEM_TAKE_DISTANCE",
-                              "PTR_DIGIMON_FILE_NAMES", "DIGIMON_VBALL_SOUND_ID", "DIGIMON_VLALL_SOUND_ID"])
+                              "PTR_DIGIMON_FILE_NAMES", "DIGIMON_VBALL_SOUND_ID", "DIGIMON_VLALL_SOUND_ID",
+                              "TRN_TRAINING_ANIM_IDS"])
     struct = index.program(MAIN_C, REFERENCE).structs["DigimonPara"]
     status = "implemented (scripts/data/game_data.gd)"
     out.write_table("digimon_data", {
@@ -505,6 +512,39 @@ def convert(input_root, output_root) -> GroupWriter:
         "godot": {"status": status, "access": "GameData.digimon_sounds(id)",
                   "notes": "Bank numbers index the asset porter's VBALL / VLALL sound banks."},
     }, symbols=["DIGIMON_VBALL_SOUND_ID", "DIGIMON_VLALL_SOUND_ID"])
+
+    # -- training_animations ------------------------------------------------------------------
+    strike_rows, sbad = [], []
+    for i, (anim, hit) in enumerate(strikes[REFERENCE].value):
+        if i and not (MOVE_ANIM_BASE <= anim < MOVE_ANIM_BASE + 16 and hit > 0):
+            sbad.append(f"{i}: {anim}, {hit}")
+        strike_rows.append({"id": i, "digimon": {"id": i, "key": digimon[i].get("key"),
+                                                 "name": digimon[i]["name"]["text"]["en_us"]
+                                                 if digimon[i]["name"] else None},
+                            "strike_anim": anim, "hit_frame": hit, "c": [anim, hit]})
+    out.check(f"TRN_TRAINING_ANIM_IDS has {NUM_TRAINING_ANIMS} entries",
+              len(strike_rows) == NUM_TRAINING_ANIMS, str(len(strike_rows)))
+    out.check("TRN_TRAINING_ANIM_IDS: the strikes are technique animations (0x2e-0x3d) with a hit frame > 0 "
+              "(entry 0, the tamer, is 0, 0)", not sbad, "; ".join(sbad[:10]) or f"{len(strike_rows)} records")
+    out.write_table("training_animations", {
+        "table": {"name": "digimon/training_animations", "purpose": TABLE_PURPOSES["training_animations"]},
+        "source": tables.source(decomp, strikes, sources, binary="trn"),
+        "schema": {"id": {"meaning": "C index = the partner's Digimon id"},
+                   "digimon": {"meaning": "the Digimon the entry applies to", "ref": "digimon/digimon_data"},
+                   "strike_anim": {"c_name": "[0]", "c_type": "int8_t",
+                                   "meaning": "animation started for each strike (one of its technique animations, "
+                                              "0x2e + slot; trn_off.c:121, :151)"},
+                   "hit_frame": {"c_name": "[1]", "c_type": "int8_t",
+                                 "meaning": "frames from the strike's start to the hit: sparks, sound and the "
+                                            "target's shake (trn_off.c:136, :210)"},
+                   "c": {"meaning": "the C pair"}},
+        "records": strike_rows,
+        "release_values": tables.diffs(strikes, lambda l: l.value),
+        "used_by": tables.used_by(decomp, refs["TRN_TRAINING_ANIM_IDS"], [], strikes),
+        "godot": {"status": status, "access": "GameData.training_animation(digimon)",
+                  "notes": "Only the Offense stations read it. A Digimon without a record strikes with 0x2e and "
+                           "hits at frame 10 (the table's most common values)."},
+    }, symbols=["TRN_TRAINING_ANIM_IDS"])
 
     out.write_report("report.md", _report(digimon, raise_rows, patterns))
     out.finish(sources, extra={"counts": {"digimon": len(digimon), "partners": len(raise_rows),

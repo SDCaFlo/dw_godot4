@@ -14,6 +14,7 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
 | `DIGIMON_VBALL_SOUND_ID` | `src/main/sound.c:127` | `uint8_t[NUM_DIGIMON]` | — |
 | `DIGIMON_VLALL_SOUND_ID` | `src/main/sound.c:58` | `uint8_t[NUM_PARTNER_DIGIMON]` | 66 |
 | names | `text/main/main.yaml` → `DIGIMON_NAMES` (same index) | see `specs/text.md` | |
+| `TRN_TRAINING_ANIM_IDS` | `src/trn/trn_reward.c:55` | `int8_t[67][2]` (trn overlay) | 134 |
 
 - `NUM_DIGIMON` = 180 and `NUM_PARTNER_DIGIMON` = 66 (`params.h:7–8`). Ids 0–65 can be the partner; 0 is the tamer ("main character").
 - **Names:** `DIGIMON_PARA_NAME(STR_DIGIMON_NAME_X)` embeds the name in the record as `char name[20]`, except in EU, where the struct has no `name` field (`params.h:19`) and the code uses `DIGIMON_NAMES[type]` instead (`params.h:103–108`). The converter expands the macro to the string id for non-EU releases and to nothing for EU. The parse check proves the layout: no excess or missing values in any release.
@@ -87,11 +88,12 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
 - **`ITEM_TAKE_DISTANCE`**: read as `[type - 1]` (`partner.c:434–456`), the distance `checkEatDistance` allows when the tamer gives the partner an item. Entry 65 (Digimon 66) is never read.
 - **`PTR_DIGIMON_FILE_NAMES`**: pointers to 4-letter file names (`AGUM`). The model is `CHDAT\MMD<id / 30>\<name>.MMD`: the loaders start from the string `"CHDAT\\MMD0\\"` (`model.c:2695`) and then patch its folder digit, `path[9] = digiType / 30 + '0'` (`:3409`, `:3445`, `:3631`), so ids 0–29 are in `MMD0`, 30–59 in `MMD1` … 150–179 in `MMD5`. The model-only variant is `CHDAT\TMD<id / 30>\<name>.TMD` the same way (`:3680–3682`; no `TMD` folders exist on the US disc). These are the files the asset porter converts (`mmd_files/MMD<n>/<name>.gltf`). Before 2026-10-23 the output wrote `MMD0` for every id; the converter now checks the `path[9]` lines and the cross-check test compares the paths with the asset porter's `mmd_path`.
 - **`DIGIMON_VBALL_SOUND_ID`**: bank of the Digimon's sounds in `VBALL` (7 sectors per bank, `sound.c:702`, `sound_async.c:227`).
+- **`TRN_TRAINING_ANIM_IDS[type]`** (`trn_off.c:121`, `:136`, `:151`, `:210`): the Offense stations start animation `[0]` (a technique animation, 0x2e–0x35) for each strike and count `[1]` frames to the hit. Entry 0 (the tamer) is 0, 0; entry 66 isn't a partner.
 - **`DIGIMON_VLALL_SOUND_ID`**: the partner's voice bank in `VLALL` (15 sectors per bank, `sound.c:681–686`). Only ids 1–65 read it; the others use bank 15.
 
 ## 3. Mapping
 
-`output/digimon/digimon_data.json`, `raise_data.json`, `sleep_patterns.json`, `item_take_distance.json`, `file_names.json` and `sound_ids.json`, in the common table shape, plus `report.md`.
+`output/digimon/digimon_data.json`, `raise_data.json`, `sleep_patterns.json`, `item_take_distance.json`, `file_names.json`, `sound_ids.json` and `training_animations.json`, in the common table shape, plus `report.md`.
 
 - The records hold the US values; `release_values` lists what other releases change (C names). Each record keeps its raw C values in `c`.
 - `digimon_data` record:
@@ -114,12 +116,13 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
     `slot` is the technique slot the starter has equipped (battle animation `anim` = 0x2e + slot). A second check confirms that slot holds the technique the starter learns.
 - `item_take_distance`: `index` (C index), `digimon {id = index + 1, name}`, `distance`.
 - `file_names`: `symbol`, `file_name`, and the `mmd` / `tmd` paths.
+- `training_animations`: `id`, `digimon {id, key, name}`, `strike_anim`, `hit_frame`, `c`.
 - `sound_ids`: `vball`, and `vlall` (null where the code doesn't read it; the raw array is under `raw`).
 - **Labels:** type names (Data / Vaccine / Virus) are the game's names, not from the decomp: the menu draws them as icons. They fit known Digimon: Gabumon 1, Agumon 2, Betamon 3. Level names come from the menu text (§2). Element names: see `specs/moves.md`.
 
 ## 4. Godot usage
 
-- `GameData.digimon(id)`, `GameData.raise_data(id)`, `GameData.sleep_pattern(id)`, `GameData.digimon_file(id)` (links to the asset porter's model names), `GameData.digimon_sounds(id)`.
+- `GameData.digimon(id)`, `GameData.raise_data(id)`, `GameData.sleep_pattern(id)`, `GameData.digimon_file(id)` (links to the asset porter's model names), `GameData.digimon_sounds(id)`, `GameData.training_animation(digimon)` (the Offense stations; a Digimon without a record uses 0x2e / 10).
 - Systems that use them:
   - field and battle: collision size, shadow, markers
   - battle: elements, type, level, drops, technique slots
@@ -147,6 +150,7 @@ The converter checks:
   - padding is 0;
 - `RAISE_DATA`: hunger hours are ascending hours, then -1; the sleep cycle is a `SLEEP_PATTERN` index; the favourite food is an item id;
 - every file name pointer resolves to a string;
+- `TRN_TRAINING_ANIM_IDS` has 67 entries, technique animations with a hit frame > 0 (entry 0 aside);
 - the care rules behind `first_technique`, `eats_poop` and `raises_virus_bar` are still in `partner_impl.c`, and each starter's equipped slot holds the technique it learns.
 
 Tests: `tests/test_digimon.py` (real data when `dw_decomp` is present), `tests/test_cross_asset_porter.py` (names, file names, bone counts, radius and height match `asset_porter/dwporter/data`).

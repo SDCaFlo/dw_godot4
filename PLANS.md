@@ -73,7 +73,7 @@ Last updated: 2026-10-24
             - [x] 4c. The item keeper (0x0B), the jukebox (0x09), Birdramon's transport (0x0A) (`specs/town_services.md`; coded 2026-10-25 with the porter's jukebox fields, `tests/test_town_services.gd`, VERIFY "Item keeper, jukebox, Birdramon").
             - [ ] 4d. Training (0x07, `specs/training.md`):
                 - [x] 4d-1. The core (gains, the hour, the stats box) and HP at the Green Gym, with the field pieces (coded 2026-10-25, `tests/test_training.gd`, VERIFY "Training").
-                - [ ] 4d-2. Offense, Speed, Defense, MP, Brains (new orders, move learning).
+                - [x] 4d-2. Offense, Speed, Defense, MP, Brains (new orders, move learning): the eight stations of TRAI00, GIAS09 and MIST05, hit sparks, two data tables (`specs/training.md` §6).
                 - [ ] 4d-3. The slot-machine bonus (Bonus Try).
                 - [ ] 4d-4. The TRN2 stations (maps 0x63, 0x6B, 0x6C, 0xA5).
             - [ ] 4e. Tournaments (with 0x16, the medal check), naming / new game, save.

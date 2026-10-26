@@ -16,6 +16,7 @@ const PSTAT_SLOTS := 0xF6
 
 var training := Training.new()
 var stats_box := TrainingStatsBox.new()
+var brains_box := TrainingBrainsBox.new()
 ## The station running (its object in the list), or null.
 var station: TrainingStation
 
@@ -31,6 +32,11 @@ func configure(routine_host: ScriptRoutines) -> void:
 	stats_box.pad = textboxes.pad
 	stats_box.data = data
 	stats_box.origin = _partner_on_screen
+	training.brains_box = brains_box
+	brains_box.boxes = textboxes.boxes
+	brains_box.text_area = textboxes.text_area
+	brains_box.data = data
+	brains_box.tamer_rect = _tamer_rect
 
 
 ## getEntityScreenPos(partner, bone 1), centred, for the box to grow from.
@@ -40,6 +46,17 @@ func _partner_on_screen() -> Vector2i:
 		if p is Vector2i:
 			return p
 	return Vector2i.ZERO
+
+
+## getEntityScreenPos(tamer, bone): the 10 x 10 rect around it (centred coords).
+func _tamer_rect(bone: int) -> Rect2i:
+	var t: Tamer = host.interpreter.tamer if host != null and host.interpreter != null else null
+	if t == null or t.camera == null or not t.camera.is_inside_tree():
+		return Rect2i(-5, -5, 10, 10)
+	if bone == 1:
+		return t.screen_rect()
+	var s := FieldMap.unproject(t.camera, t.bone_position(bone))
+	return Rect2i(roundi(s.x) - 160 - 5, roundi(s.y) - 120 - 5, 10, 10)
 
 
 ## The station for a map and stat (the last child listing them, so a mod's station wins).
@@ -64,6 +81,7 @@ func start(routine: int) -> bool:
 		found.training = training
 		found.interpreter = interpreter
 		found.clouds = host.clouds
+		found.sparks = host.sparks
 		found.pad = textboxes.pad
 		found.sound = host.sound
 		found.game_state = game_state

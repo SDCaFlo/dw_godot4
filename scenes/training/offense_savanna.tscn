@@ -1,0 +1,15 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/training/offense.gd" id="1_station"]
+
+[node name="OffenseSavanna" type="Node"]
+script = ExtResource("1_station")
+map = 78
+point = Vector2i(-1319, 3289)
+rotation = 2048
+spark_points = [Vector3i(-1200, -200, 3500), Vector3i(-1300, -200, 3500), Vector3i(-1400, -200, 3500)]
+overlay_start = 43
+overlay_count = 30
+special = true
+award_variant = 6
+counts_counter = false

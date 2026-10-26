@@ -1,13 +1,15 @@
 # Training
 
-Status (2026-10-25): step 5e-4d-1 coded (`PLANS.md` 5e-4). Code:
-- `Training` (`scripts/systems/training.gd`), `TrainingStatsBox` (`scripts/ui/training_stats_box.gd`);
-- `scenes/script/training_routines.tscn` (`scripts/script/training_routines.gd`) with its station `scenes/training/hp_boulder.tscn` (`scripts/training/hp_boulder.gd`, on `scripts/training/training_station.gd`);
-- `CloudFX` (`scripts/field/cloud_fx.gd`);
-- `MapOverlays.store_positions` / `load_positions` / `move`;
-- `Tamer.STATE_TRAINING`, `Partner.STATE_TRAINING`;
-- `ScriptInterpreter.tick_walk_to`;
-- `ScriptRoutines.tick_objects` (from `Field._frame` after the pans).
+Status (2026-10-26): steps 5e-4d-1 and 4d-2 coded (`PLANS.md` 5e-4). Code:
+- `Training` (`scripts/systems/training.gd`), `TrainingStatsBox` (`scripts/ui/training_stats_box.gd`), `TrainingBrainsBox` (`scripts/ui/training_brains_box.gd`);
+- `scenes/script/training_routines.tscn` (`scripts/script/training_routines.gd`) with its stations, scenes in `scenes/training/` on the scripts of `scripts/training/` (`TrainingStation`; `HpBoulderStation`, `OffenseStation`, `SpeedStation`, `DefenseStation`, `MpStation`, `BrainsStation`);
+- `CloudFX` (`scripts/field/cloud_fx.gd`), `ParticleFX` (`scripts/field/particle_fx.gd`);
+- `MapOverlays.store_positions` / `load_positions` / `move` / `move_with_limit`;
+- `Tamer.STATE_TRAINING`, `Tamer.STATE_NONE`, `Partner.STATE_TRAINING`;
+- `ScriptInterpreter.tick_walk_to`, `ScriptInterpreter.actor`;
+- `ScriptRoutines.tick_objects` (from `Field._frame` after the pans);
+- data: `digimon/training_animations`, `moves/training_learning` (`GameData.training_animation`, `training_learning`, `training_learn_weight`);
+- the debugger's State tab edits the partner's base stats.
 
 Tests: `tests/test_training.gd`. Checks: VERIFY "Training".
 
@@ -17,6 +19,12 @@ As built:
 - **The finish flag stays set:** once ✕ / △ finished the count, `MAIN_D_80135394` stays set until the next box. Any gain left is added at once.
 - **The station's animations clear the held step:** `startAnimation` sets `animFlag = 1` (`anim.c:231`), which clears the held root motion. The station's `partner_animation` does that; the port's `start_animation` doesn't, for the other systems' sake.
 - **`CALL_DIGIMON_ROUTINE` past 10** (the gyms' 214) is no longer reported as unported: it isn't a case of the C's switch.
+- **4d-2, checked in the real field** (movies of TRAI00 sections 0x52–0x56, GIAS09 0x53 / 0x55, MIST05 Cherrymon): every station runs to the end with the gains of §6.2, and the tamer is free after the script. Tree Striking and Striking Special strike with the partner's technique animation, with the flash and the spark burst at the hit. The glove punches and knocks the partner back with dust. The fall pours on the partner. The Classroom's lesson and Cherrymon's loop play. Brains 95 → 103 opens "Give it all you got! / New orders!" under the stats box, and both close at the end.
+- **`_sin` takes 512 units per turn** (`math.c:13`, 4096 = 1), not 4096 like the GTE's angles: the burst grows to `d` = 31, about 390 world units for a 6400-unit direction. The first draft used 4096, and the movie showed the particles packed together.
+- **The flash** is built once as a 128 × 128 texture from SPOT256's quarter (u 64, v 64), mirrored four ways, and drawn as one rect. Drawing the quarters with negative rect sizes broke into tiles under the UI filter.
+- **The session's shared states** (the box counted, then 20 frames) are one helper, `TrainingStation.gains_counted`; the stations' state numbers after the award differ from the C's where two C states became one (Offense 4–5 → 4, Speed 3–4 → 3, Defense 12–13 → 12, MP 5–6 → 5, Brains 4–5 → 4).
+- **Without Spit Fire known**, a Brains session at a technique threshold teaches Agumon Sonic Jab, not Heat Laser: fire's first candidate is then Spit Fire with weight 0. `initializePartner` normally teaches Spit Fire, so the game's usual case is Heat Laser.
+- **The tamer's walk at the Classroom** (state −1) plays his animation 2 with its root motion, as in `STATE_SCRIPT`.
 
 The gyms: the partner trains a stat at a station, the stats it gains count up in a box, and an hour passes. Builtin 0x07 of `CALL_ROUTINE` runs it. This spec ports the shared core and one station end to end, **HP at the Green Gym** (TRAI00, map 0x70, the "Boulder Moving" station). It also adds the field pieces a station needs. Later steps add the rest:
 - **4d-2:** the other five stations (Offense, Speed, Defense, MP, Brains), including the Brains "new orders" box and move learning (`TRN_tryLearnMove`);
@@ -320,3 +328,409 @@ VERIFY gets a "Training" section: TRAI00's HP station in the game.
 - **`TRN_D_8008F320`, the HP point,** is set by the setup only on map 0x70. The other TRN maps (0x4E, 0x77) have no HP station.
 - **The partner's model needs animations 0x1B and 0x12.** If a model lacks one, the port's `start_animation` behaviour applies (to check with the Digimon whose models are converted).
 - **△ to stop** is `POLLED_INPUT & CANCEL_BUTTON`: held, not pressed. The tests use the port's `Pad.CANCEL`.
+
+## 6. Step 4d-2: the other stations
+
+The eight stations still missing outside TRN2: five at the Green Gym, two at Gear Savanna, one at Misty Trees. They reuse the core of §2–§5. This part adds their scenes, their gains, the hit sparks, the Brains boxes and move learning, and two data tables.
+
+### 6.1 The C code
+
+| C (US) | What |
+|---|---|
+| `TRN_setupOffenseTraining`, `TRN_tickOffenseTraining` (`trn/trn_off.c:43`, `:98`) | Offense: Tree Striking (0x70), Striking Special (0x4E) (§6.3) |
+| `TRN_setupSpeedTraining`, `TRN_tickSpeedTraining` (`trn/trn_speed.c:35`, `:62`) | Speed: Running (0x70), Savanna Course (0x4E) (§6.4) |
+| `TRN_setupDefenseTraining`, `TRN_tickDefenseTraining` (`trn/trn_def.c:67`, `:100`) | Defense: Punching Glove (0x70) (§6.5) |
+| `TRN_setupMpTraining`, `TRN_tickMpTraining` (`trn/trn_mp.c:150`, `:60`) | MP: Waterfall (0x70) (§6.6) |
+| `TRN_setupBrainsTraining`, `TRN_tickBrainsTraining` (`trn/trn_brain.c:37`, `:71`) | Brains: Classroom (0x70), The Teachings of the Forest (0x77) (§6.7) |
+| `TRN_award{Offense,Speed,Defense,Mp,Brains}TrainingGains` (`trn/trn_reward.c:234`, `:308`, `:374`, `:422`, `:474`) | the gains (§6.2) |
+| `TRN_renderNewOrdersBox`, `TRN_tryLearnMove`, `TRN_renderMoveLearnedBox` (`trn/trn_reward.c:806`, `:811`, `:877`); `TRN_TRAINING_ANIM_IDS`, `TRN_D_8008F14C`, `TRN_D_8008F184` (`:55`, `:77`, `:87`) | Brains: new orders, move learning (§6.8) |
+| `createParticleFX`, `tickParticleFX`, `renderParticleFX`, `initializeParticleFX` (`efe.c:370`, `:463`, `:536`, `:350`); `renderParticleFlash` (`efe.c:1055`); `renderFXParticle`, `addFXPrim`, `lerp` (`effect_common.c:761`, `:537`, `:278`) | the hit sparks (§6.9) |
+| `moveMapObjects`, `moveMapObjectsWithLimit`, `setMapObjectsFlag`, `resetMapObjectAnimation`, `getDrawPosition` (`overworld.c`) | the equipment (§6.10) |
+| `createMenuBox` (`game_menu.c:1684`), `entityLookAtLocation`, `playSound2` / `thunkStopSoundMask` | already ported: `GameMenu._create_menu_box`, `FieldDigimon.look_at_psx`, `SoundSystem.play_sound` (returns the voice mask) / `stop_sound_mask` |
+| The scripts | TRAI00 (script 108), GIAS09 (script 75), MIST05 (script 115, Cherrymon's "Please train" choice) |
+
+### 6.2 What value 0xFE means, and the gains
+
+**Value 0xFE is not the multiplier's mode.** Builtin 0x07 (`script_interp.c:1705–1722`) maps it as **0 HP, 1 Offense, 2 Speed, 3 Defense, 4 MP, 5 Brains**. `TRN_calculateTrainingMultiplier` numbers its modes 0 HP, 1 MP, 2 Offense, 3 Defense, 4 Speed, 5 Brains (§2.3). The two only agree for HP.
+
+The scripts set 0xFE so: TRAI00 sections 0x51 HP (Boulder Moving), 0x52 MP 4 (Waterfall), 0x53 Offense 1 (Tree Striking), 0x54 Defense 3 (Punching Glove), 0x55 Speed 2 (Running), 0x56 Brains 5 (Classroom); GIAS09 Offense 1 (Striking Special) and Speed 2 (Savanna Course); MIST05 Brains 5.
+
+**The gains.** Each award takes `(type, b, c)`: `b` is the station's instance id (0 at the Green Gym, 6 at Gear Savanna, 9 at Misty Trees), `c` the slot result (10 without slots). `b` is also the multiplier's `flag`: away from the Green Gym, the revision triggers and the upgrade counters give nothing.
+
+Each gain is `base × v / 10`, or `base × v × train_boost_value / 100` when its boost bit is set (§2.3), then `× c / 10`.
+
+| Award | mode | b | gains (stat, base, boost bit) | tired / energy / happy | tiredness 100 | cap 999 |
+|---|---|---|---|---|---|---|
+| Offense | 2 | 0 | Offense 8 (0x01), Speed 2 (0x04) | 9 / 1 / 1 | Speed 1, Offense 1 | none |
+| | | 6 | HP 10 (0x10), Offense 8 (0x01) | 9 / 1 / 1 | HP 1, Offense 1 | none |
+| Speed | 4 | 0, 6 | HP 10 (0x10), Speed 8 (0x04) | 8 / 1 / 1 | both 1 | HP |
+| Defense | 3 | 0 | Defense 8 (0x02), Brains 2 (0x08) | 9 / 1 / 1 | both 1 | none |
+| MP | 1 | 0 | MP 80 (0x20), Defense 2 (0x02) | 7 / 1 / 1 | both 1 | MP |
+| Brains | **1** | 0 | MP 10 (0x20), Brains 8 (0x08) | 6 / 1 / 1 | MP 1, Brains 1 | both |
+| | **1** | 9 | Brains 15 (0x08) | 6 / 1 / 1 | Brains 1 | both |
+
+- **Any other `b`:** every base is 0 and so are the costs. Only the stations above call the awards.
+- **Brains is computed as MP** (mode 1). It gets the bonus of trigger 0xFB and of `upgrade_mp_counter` ≥ 10, never `upgrade_brain_counter`, which the Classroom still increments. The port keeps the C.
+- **After the gains**, as for HP: the base stats are saved, the gains set, the stats box opened, and an hour passes (`advance_time(tired, energy, happy)`).
+- **Brains then checks its thresholds** (§6.8).
+
+**The setups.** A Fresh or In-Training partner (level < 3) gets the stat's upgrade counter + 1 at the Green Gym only:
+
+| Station | Counter |
+|---|---|
+| Offense | `upgrade_off_counter` |
+| Speed | `upgrade_speed_counter` |
+| Defense | `upgrade_defense_counter` |
+| MP | `upgrade_mp_counter` |
+| Brains | `upgrade_brain_counter` |
+
+Every setup sets `TRAINING_COMPLETE` = 0 for its maps; the Speed setup always does. All save the start time and set state 0, as in §2.2.
+
+**The end of a session**, unless a station says otherwise: counter (`MAIN_D_8013537A`) ≥ 1200, or △ held (`POLLED_INPUT & CANCEL`), with `slots` = 0. (Slots: the session's result ≥ 0, 4d-3.)
+
+**Shared states.** After its award, every station:
+1. waits for the box to count the gains (`gains_are_zero`), then wait = 0;
+2. counts wait to 20;
+3. does its own finish.
+
+All say "→ 4" etc. below for their own numbers.
+
+### 6.3 Offense (`trn_off.c`)
+
+**Setup.**
+
+| | 0x70 Tree Striking (instance 0) | 0x4E Striking Special (instance 6) |
+|---|---|---|
+| point (F320) | (−0x3D6, −0xA14) | (−0x527, 0xCD9) |
+| unused (F330) | (−0x12F, −0xA1A) | (−0x527, 0xB85) |
+| sparks (F340, x y z) | (−0x44C, −0x258, −0xB22), (−0x44C, −0x1F4, −0xB22), (−0x44C, −0x190, −0xB22) | (−0x4B0, −0xC8, 0xDAC), (−0x514, −0xC8, 0xDAC), (−0x578, −0xC8, 0xDAC) |
+| overlays | 0x64 × 8 (the tree) | 0x2B × 0x1E |
+| rotation at the point | 0x200 | 0x800 |
+
+`TRN_TRAINING_ANIM_IDS[partner type]` gives the partner's strike: `[0]` its animation (0x2E–0x35: one of its technique animations), `[1]` the frame of the hit (8–0x1E).
+
+**Tick:**
+- **0:**
+  - the overlays' positions are saved;
+  - tamer state 8; camera follow off; partner state 10, animation 4;
+  - the camera moves to the point over 10 frames;
+  - `playSound(8, 9)`; counter = 0; → 1.
+- **1:**
+  - (Slots: if the session was aborted, −2, the partner gets animation 4, the camera returns to the tamer and the state is 4: `TRN_func_800888A0(4)`.)
+  - The partner walks to the point. There: the strike animation, held root motion (`animFlag |= 2`), hit counter = 0, the rotation, → 2 (instance 0) or → 7 (instance 6).
+- **2** (Tree Striking), every frame:
+  - hit counter + 1, counter + 1, root motion held;
+  - at the hit frame: three sparks (§6.9) at the three points, hit counter = 0, `playSound(8, 5)`, → 3.
+- **3**, every frame: hit counter + 1, counter + 1. The tree shakes:
+  - hit counter < 4: (−4, +2);
+  - < 7: (+4, −2);
+  - otherwise, on even counters (`(100 − h) / 20`, `−(100 − h) / 50`), on odd ones the opposite.
+
+  At hit counter ≥ 0x29: hit counter = 0, the strike animation again, → 2.
+
+  **The end** (tested in state 3 only, so after a hit):
+  - `TRN_awardOffenseTrainingGains(type, 0, r)`;
+  - animation 0x12;
+  - the overlays' positions back;
+  - `playSound(8, 0xA)`;
+  - the camera to the tamer; → 4.
+- **7** (Striking Special), every frame: counter + 1, hit counter + 1. At the hit frame:
+  - the three sparks; `playSound(8, 0x10)`;
+  - overlays 0x27 × 4 hidden (flag 1), the station's 0x2B × 0x1E shown (flag 0);
+  - their animation reset: `resetMapObjectAnimation(0x2B, 0x2B)`. The C passes the start as the count, so 0x2B–0x55 are reset. The port does the same.
+  - hit counter = 0, → 8.
+- **8:** counter + 1, hit counter + 1:
+  - at 0x2E: 0x27 × 4 shown again, the station's overlays hidden, the strike animation again, hit counter = 0, → 7;
+  - **the end** (tested in state 8): the same flags put back, `TRN_awardOffenseTrainingGains(type, 6, r)`, animation 0x12, the camera to the tamer, `playSound(8, 0xA)`, → 4, wait = 0.
+- **4, 5:** the shared states; at 20, animation 2 (walk), → 6.
+- **6:** the partner walks back to the tamer. There:
+  - the base stats applied; box 1 closed;
+  - partner state 1; tamer state 0; camera follow on;
+  - counter = 0; the object removed; `TRAINING_COMPLETE` = 1.
+
+### 6.4 Speed (`trn_speed.c`)
+
+**Setup:**
+- point: (0x2D, −0x184) at 0x70 (instance 0), (0x32, −0x11F) at 0x4E (instance 6);
+- no overlays.
+
+**Tick:**
+- **0:**
+  - tamer state 8; camera follow off; partner state 10, animation 4;
+  - the camera to the point; `playSound(8, 9)`; counter = 0; → 1.
+- **1:**
+  - (Slots: `TRN_func_800888A0(4)`.)
+  - The partner walks to the point. There: rotation 0xC00 (instance 0) or 0 (instance 6), animation 4 (it runs on with the animation's root motion), → 2.
+- **2:** counter + 1.
+  - **The wrap:** when the partner is off screen (`isOnScreen == 0`) on a counter divisible by 60, it is put back at the start of the course: x = −0xBB8 (instance 0) or z = 0x7D0 (instance 6), the other coordinate kept. Then animation 4 again.
+  - **The end:** `TRN_awardSpeedTrainingGains(type, instance, r)`, animation 0x12, `playSound(8, 0xA)`, the camera to the tamer, → 3.
+- **3, 4:** the shared states; at 20, animation 4, → 5.
+- **5:** the partner walks back to the tamer. There:
+  - the base stats applied; box 1 closed;
+  - partner state 1; camera follow on; counter = 0; the object removed; `TRAINING_COMPLETE` = 1.
+
+  **The tamer isn't set back to state 0** here. The script's end does it (`setMovementEnabled(−1, false)`, as for every script).
+
+### 6.5 Defense (`trn_def.c`)
+
+**Setup (0x70 only):**
+- point (−0x33B, −0x662);
+- sparks at (−0x384, −0x1F4, −0x7D0), (−0x3B6, −0x1F4, −0x76C), (−0x3B6, −0x1F4, −0x834);
+- the glove = overlays 0x47 × 0xD;
+- the counter; `TRAINING_COMPLETE` = 0.
+
+`saved` below is the first overlay's saved x (`TRN_D_8008F368[0]`).
+
+**Tick.** In states 2–10, △ held sets counter = 1200 first. "Moves to L" is `moveMapObjectsWithLimit(start, count, dx, 0, L, 0)`: + dx every frame, done when the first overlay's x reaches L (≥ for dx > 0, ≤ for dx < 0).
+- **0:**
+  - the overlays' positions saved;
+  - tamer state 8; camera follow off; partner state 10, animation 4;
+  - the camera to the point; `playSound(8, 9)`; counter = 0; → 1.
+- **1:** the partner walks to the point. There: rotation 0x400, animation 0x25, → 2.
+- **2:** counter + 1; the glove moves +0x32 to saved + 0x64. Done: three sparks; the punch's sound `mask = playSound2(8, 4)`; → 3.
+- **3:** counter + 1; the knock-back:
+  - the partner x + 0x64, rotation 0x400, animation 0x25 again;
+  - a cloud at (partner x, 0, partner z − 0x64);
+  - the glove moves −0x32 to saved + 0x32; done → 4.
+- **4:** the same knock-back; the glove moves +0x32 to saved + 0x5A; done → 5.
+- **5–9:** counter + 1; the glove swings:
+  - 5: −0x1E to + 0x3C;
+  - 6: +0x14 to + 0x5A;
+  - 7: −0xA to + 0x46;
+  - 8: +5 to + 0x5A;
+  - 9: −4 to + 0. Done: the positions put back, animation 4, → 10.
+- **10:** the partner walks back to the point. There:
+  - **the end** if counter ≥ 1200 with `slots` = 0 (slots: result ≥ 0):
+    - `TRN_awardDefenseTrainingGains(type, 0, r)`;
+    - animation 0x12; `playSound(8, 0xA)`;
+    - the punch sound stopped (`thunkStopSoundMask(mask)`);
+    - the camera to the tamer; → 12.
+  - otherwise: rotation 0x400, animation 0x25, → 2 (another punch).
+- **12, 13:** the shared states; at 20, animation 4, → 14.
+- **14:** the partner walks back to the tamer. There:
+  - the base stats applied; box 1 closed; the positions put back;
+  - tamer state 0; camera follow on; partner state 1;
+  - counter = 0; the object removed; `TRAINING_COMPLETE` = 1.
+
+A session is whole punches: △ only takes effect when the partner is back at the point.
+
+### 6.6 MP (`trn_mp.c`)
+
+**Setup (0x70 only):**
+- the approach (F330) (0x290, 0x2EE), then the point (F320) (0x2AC, 0x868);
+- the splash = overlays 0xA4 × 8;
+- the waterfall's two looks: 0x93 × 0x10 (calm) and 0xA3 × 0x18 (pouring on the partner). The ranges overlap: 0xA4–0xAB belong to both.
+- the counter; `TRAINING_COMPLETE` = 0.
+
+**Tick:**
+- **0:**
+  - the overlays 0xA4 × 8 saved;
+  - tamer state 8; partner state 10, animation 4 (camera follow is not touched);
+  - the camera to the point; `playSound(8, 9)`; counter = 0; → 1.
+- **1:** the partner walks to the approach; → 2.
+- **2:** it walks to the point. There:
+  - 0x93 × 0x10 hidden, 0xA3 × 0x18 shown;
+  - the splash moves by (0, `head − 0x14`), where `head` is the background pixel y of the partner's head (`getDrawPosition` of (x, y − `digimon_data.height`, z));
+  - rotation 0; animation 0; the waterfall's sound `mask = playSound2(8, 2)`; → 3.
+- **3:** counter + 1. **The end:**
+  - `TRN_awardMpTrainingGains(type, 0, r)`;
+  - the two looks put back (0x93 shown, 0xA3 hidden);
+  - the splash's positions put back;
+  - the camera to the tamer; animation 2; `playSound(8, 0xA)`; the sound stopped; → 4.
+- **4:** the partner walks to the approach; there animation 0x12, → 5.
+- **5, 6:** the shared states. At 20 the session ends where the partner is:
+  - the base stats applied; box 1 closed;
+  - tamer state 0; partner state 1;
+  - counter = 0; the object removed; `TRAINING_COMPLETE` = 1.
+
+  The partner doesn't walk back: in state 1 it follows the tamer on its own.
+
+### 6.7 Brains (`trn_brain.c`)
+
+**Setup:**
+
+| | 0x70 Classroom (instance 0) | 0x77 The Teachings of the Forest (instance 9) |
+|---|---|---|
+| the tamer's place (F358) | (−0x5AC, 0x61B) | (−0x564, 0x3C4) |
+| the partner's place (F320) | (−0x4E1, 0x3F3) | (−0x5E3, 0x2CE) |
+| counter | `upgrade_brain_counter` | none |
+
+Both set `TRAINING_COMPLETE` = 0.
+
+**Tick:**
+- **0:**
+  - tamer state −1 (no case in `tamerTick`: the tamer does nothing on his own), tamer animation 2;
+  - partner state 10, animation 0;
+  - `playSound(8, 9)`; the camera to the tamer's place; counter = 0; → 1.
+- **1:** the tamer walks to his place (`tickEntityWalkTo(0xFD, 0xFF, …)`). There: tamer animation 0, he looks at the partner, partner animation 2, → 2.
+- **2:** the partner walks to its place. There:
+  - **instance 0:** each looks at the other; tamer animation 9, partner animation 0x16;
+  - **instance 9:** the tamer looks at the partner, the partner at the map's first NPC (`NPC_ENTITIES[0]`, Cherrymon), the NPC at the partner; partner animation 0x16, NPC animation 0x1E;
+  - → 3.
+- **3:** counter + 1:
+  - instance 0: every 30 frames `playSound(8, 3)` and tamer animation 9 again; the tamer's root motion held;
+  - instance 9: the NPC's animation 0x1E again whenever it has played to its end (`animFrame ≥ frameCount`); every 60 frames `playSound(8, 0x12)`;
+  - every 35 frames, partner animation 0x16 again.
+
+  **The end:**
+  - `TRN_awardBrainsTrainingGains(type, 0, r)` (`b` is 0 for both instances: see the open points);
+  - partner animation 0x12; the camera to the tamer;
+  - the first NPC's animation 0 (on TRAI00 as well, whatever that NPC is);
+  - → 4; `playSound(8, 0xA)`.
+- **4, 5:** the shared states. At 20 the session ends:
+  - the base stats applied; box 1 closed;
+  - box 2, if open (state 1), closes towards the tamer's screen position (a 10 × 10 rect);
+  - tamer state 0; partner state 1;
+  - counter = 0; the object removed; `TRAINING_COMPLETE` = 1.
+
+  Nobody walks back.
+
+### 6.8 New orders and move learning (`TRN_awardBrainsTrainingGains`, `TRN_tryLearnMove`)
+
+Brains before the gain is `base`, after it `total = base + gain`. `MAIN_D_80135388` = 0, then 1 when a box opens (nothing reads it).
+
+**New orders.** For each threshold crossed (`base < T ≤ total`), in this order, a line is drawn in the text area at y 0x78 (row 10) in text colour 7:
+
+| T | Text (`text/trn/trn_reward`) |
+|---|---|
+| 100 | `TRN_D_8008F0D8` "Give it all you got!" |
+| 200 | `TRN_D_8008F0F0` "Take it easy!" |
+| 300 | `TRN_D_8008F100` "Get back!", and `TRN_D_8008F10C` "Change target!" at y 0x84 |
+| 400 | `TRN_D_8008F11C` "Hang in there!" |
+| 500 | `TRN_D_8008F12C` "Technique mastered." |
+
+A later one is drawn over an earlier one (same row). When any was drawn:
+- `TRN_D_8008F140` "New orders!" is drawn in text colour 1 at y 0x84, or at 0x94 after the 300 one;
+- box 2 opens: `createMenuBox(2, −0x58, 0x12, 0xB0, 0x30, features 2)` (colour 1, grown from the tamer, no tick);
+- it renders `renderString(0, −78, 24, 240, 48, u 0, v 120)`: the text area's rows from y 120, 240 × 48, at (−78, 24).
+
+**Otherwise, a move may be learnt.** It is tried when `total` crosses 150, 250, 350, 450, 550, 650, 750, 800, 850, 900 or 950, or when `total` is 999. `TRN_tryLearnMove(type)`:
+1. For each of the partner's 3 elements `i` (`digimon_data.special`; 0xFF skipped):
+   - walk its 8 moves in training order, `TRN_D_8008F14C[element × 8 + k]` for k = 0–7;
+   - skip a move the partner has (`hasMove`);
+   - the first one in the partner's 16-slot move list is the candidate `moveId[i]`, with weight `TRN_D_8008F184[k][i]`.
+2. The best weight wins; on a tie the lower `i` is kept. No candidate: weight −1.
+3. `r = randomLimit(100)`. If `best > r`:
+   - `learnMove(move)` (`GameState.learn_move`, which also learns the moves sharing its flag);
+   - the move's name is drawn at y 0x78 and "was mastered!" (`TRN_D_8008F19C`) at 0x84, both in the current text colour (there is no `setTextColor` before them);
+   - the name's length `len` is kept;
+   - box 2 opens: `createMenuBox(2, −0x58, 0x12, 0xB0, 0x23, 2)`.
+
+   The box renders (`TRN_renderMoveLearnedBox`):
+   - `renderString(3, −78, 24, (len / 2) × 12, 12, 0, 120)`: the name;
+   - `renderString(0, (len / 2) × 12 − 78, 24, 12, 12, 0, 132)`: the second line's first 12 pixels, after the name;
+   - `renderString(0, −78, 36, 48, 12, 12, 132)`: its next 48 pixels, on the line below.
+
+   These sizes fit the JP text: a name in 12-pixel glyphs, then "を", and "おぼえた" below. With the US proportional font they cut the text. The port draws what the C draws (open point).
+
+The weights (`TRN_D_8008F184[k][i]`, in %, by the move's rank `k` and the element's slot `i`):
+
+| k | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|---|
+| first element (`i` 0) | 0 | 25 | 22 | 20 | 18 | 15 | 12 | 10 |
+| second | 15 | 13 | 11 | 9 | 8 | 7 | 6 | 5 |
+| third | 10 | 8 | 7 | 5 | 2 | 0 | 0 | 0 |
+
+The first move of the first element has weight 0, so training never teaches it.
+
+### 6.9 The hit sparks (`createParticleFX(kind, mode, pos, entity, lifetime)`)
+
+Four slots. The stations call `createParticleFX(0, 0, point, NULL, 0)`. The port takes the effect as the C has it with `entity` = null. The entity parts (`addEntityParticleFX`, mode 1's ring of clouds) are battle effects and are not ported here.
+
+- **Create:**
+  - the first free slot, or nothing;
+  - per flash `i` (2 in mode 0): x / y / z offsets of `rand() % 200 − 100`, and a size of `rand() % 170 + 250` (mode 1 adds a third flash, size `rand() % 200 + 300`);
+  - timer: 0x13 (mode 0), 0x16 (1), 0xE (2);
+  - colour by kind: 0 and 1 (0xFF, 0x6E, 0x46); 2 (0xC8, 0xC8, 0x64); 3 (0xCC, 0, 0x88); 4 (0x32, 0x32, 0xFF); 5 (0x96, 0x96, 0x96); 6 (0xFF, 0x6E, 0x6E). Any other kind or mode: nothing;
+  - state 0; `endFrame` = lifetime + 4.
+- **Tick:** state + 1, `endFrame` − 1. The slot is freed once state ≥ timer and `endFrame` < 0.
+- **The particles** (`initializeParticleFX`, once): 50 directions. Each is the vector (0, 0, (`rand() % 150 + 250`) × 16) turned by three random angles (`((rand() & 0x7F) − 0x40) × 4096 / 64` each, `RotMatrixZYX`).
+- **Render**, each frame:
+  - **in state 2 only, the flashes:**
+    - each at position + its offsets, through `worldPosToScreenPos`;
+    - `scale = size × (VIEWPORT_DISTANCE × 8) / depth`; drawn when `depth >> 4` is in (0x20, 0x1000);
+    - `renderParticleFlash`: the 64 × 64 texture at SPOT256 (u 64, v 64, its palette, CLUT 0,487) is one quarter, mirrored into the four quarters around the point;
+    - each quarter is `(scale × 63 >> 10) + 1` pixels on a side (the PSX splits quads larger than 1024 × 512 into cells; that size doesn't occur here);
+    - colour × 0x80 / 0x80, additive.
+  - **while state < timer, the burst:**
+    - colour = `lerp(c, 0, 0, timer, state)` per channel;
+    - `d = _sin(lerp(0, 0x6E, 0, timer, state)) >> 7` (`_sin`, `math.c:13`: 512 units per turn, 4096 = 1; so `d` grows to 31);
+    - each particle at position + (`d × direction >> 9`);
+    - drawn by `renderFXParticle`: DEFEFF u 0, v 32, 15 × 15, palette 1 (CLUT 192,489), additive, a quad of `0x28 × VIEWPORT_DISTANCE / depth` pixels centred on the point (`addFXPrim`, drawn when `(depth >> 4) − 0x37` is in (0x20, 0x1000)).
+  - `lerp(a, b, t0, t1, t)` is `a + (b − a)(t − t0) / (t1 − t0)` with the C's remainder correction (`effect_common.c:278`), ported as it is.
+
+### 6.10 The field pieces
+
+- **`MapOverlays`:**
+  - `move_with_limit(start, count, dx, dy, limit_x, limit_y) -> bool`, the C's test on the first instance;
+  - the stations use `set_flag` and `reset_animation`, which exist.
+- **`FieldMap.background_pixel`:** `getDrawPosition`, exists.
+- **`Tamer`:**
+  - `STATE_NONE` (−1), whose tick does nothing;
+  - the stations start his animations with `start_animation`.
+- **`ScriptInterpreter.actor(slot)`:** made public, for the first NPC (slot 2).
+- **The stations' helpers** (`TrainingStation`): `tamer_animation`, `walk_tamer`, `npc(0)`, `look_at`, `sparks(points)`, `play_loop(id) -> mask` / `stop_loop(mask)`, `set_camera_follow`.
+- **Order:** the sparks are ticked with the clouds (`ScriptRoutines.tick_objects` → `ParticleFX.tick`) and drawn in the HUD layer like them.
+
+### 6.11 Godot design
+
+- **`Training`** gets:
+  - the five awards (`award_offense_gains(digimon, b, c)` …), sharing one `_award(values, tired, energy, happy)`;
+  - `STAT_*`, the 0xFE values, beside `MODE_*`;
+  - the Brains thresholds.
+- **`TrainingBrainsBox`** (`scripts/ui/training_brains_box.gd`): box 2's "new orders" and "mastered" contents and its render. `Training.award_brains_gains` asks it to open.
+- **`TrainingStation`** gets the helpers of §6.10. `stat` now holds the 0xFE value; `HpBoulderStation` keeps 0 (`Training.STAT_HP`).
+- **The scenes** (`scenes/training/`, scripts in `scripts/training/`), all children of `TrainingRoutines`:
+
+  | Scene | Class |
+  |---|---|
+  | `offense_tree.tscn`, `offense_savanna.tscn` | `OffenseStation` |
+  | `speed_running.tscn`, `speed_savanna.tscn` | `SpeedStation` |
+  | `defense_glove.tscn` | `DefenseStation` |
+  | `mp_waterfall.tscn` | `MpStation` |
+  | `brains_classroom.tscn`, `brains_forest.tscn` | `BrainsStation` |
+
+  **The C's instance id becomes exported settings**, read as properties, never compared as ids:
+  - Offense: `strike_states` (tree / special) and `award_variant` (0 / 6);
+  - Speed: `wrap_axis` and `wrap_value`; its award variant;
+  - Brains: `with_npc`.
+
+  The points, overlay ranges, rotations and sounds are exports with the C's values.
+- **`ParticleFX`** (`scripts/field/particle_fx.gd`, a Control in the HUD like `CloudFX`): 4 slots, `create(kind, mode, pos)`, `tick()`, and its draw (the SPOT256 flash quarters and the DEFEFF particles, additive). `ScriptHost` creates and wires it like the clouds.
+- **Data (data porter, two new tables):**
+  - **`digimon/training_animations.json`** (`TRN_TRAINING_ANIM_IDS`, 67 records keyed by Digimon): `{digimon, strike_anim, hit_frame}`. Read with `GameData.training_animation(digimon)`. A Digimon without a record (a mod's) strikes with 0x2E and hits at frame 10, the table's most common values.
+  - **`moves/training_learning.json`** (`TRN_D_8008F14C`, `TRN_D_8008F184`): per element, its 8 moves in training order; and the 8 × 3 weights. Read with `GameData.training_learning()`. A mod's element without a list learns nothing here.
+
+  Both get checks (sizes against `symbols.txt`, every move id known, each element's 8 moves of that element), their sections in the data porter's specs and their PROGRESS lines.
+- **Unchanged:** the C's constants (gains, costs, thresholds, counters, the shake and glove tables) stay code, with their references.
+
+### 6.12 Tests (`tests/test_training.gd`, more cases)
+
+- **The awards:**
+  - each row of §6.2 (a Rookie with tt 0);
+  - the boost bits; tiredness 100 per variant; the caps; the costs;
+  - `flag` = 6 / 9 dropping the 0xDB / 0xFB bonuses;
+  - Brains reading `upgrade_mp_counter`.
+- **The routine:** value 0xFE 1–5 on 0x70 starts the matching station; 1 and 2 on 0x4E; 5 on 0x77; 4 on 0x4E starts nothing.
+- **Each station**, with the stub walker:
+  - **Offense:** the strike at the hit frame (from the data); three sparks; the shake values; the end only in state 3 / 8; the 0x27 / 0x2B flags and the reset range.
+  - **Speed:** the wrap only off screen, on multiples of 60; the tamer left in state 8.
+  - **Defense:** the glove's limits in order; the knock-back of + 0x64 and its clouds; △ ending only back at the point; the loop sound stopped.
+  - **MP:** the two looks swapped and back; the splash moved by the head's pixel; no walk back.
+  - **Brains:** the tamer walks first; the animations; the NPC loop (instance 9); box 2 closed at the end.
+- **The Brains boxes:**
+  - each threshold; the 300 case's two lines and "New orders!" at 0x94;
+  - the learn thresholds and 999;
+  - `try_learn_move` with a set seed: candidates, weights, ties, known moves skipped, no candidate.
+- **The sparks:** slots, timers, colours, freeing, the burst's `lerp`.
+
+VERIFY "Training" gets the eight stations, the Brains boxes and a learnt move.
+
+### 6.13 Open points
+
+- **The "mastered" box in US:** its render sizes come from the JP text. A movie will show what the US box looks like; the port keeps the C either way.
+- **The teaching at Misty Trees** passes `b` = 0 to the award (`trn_brain.c:143`), not 9. It gives MP 10 + Brains 8 with the Green Gym's bonuses, and the award's "Brains 15" case is never used. The port keeps the C.
+- **Speed's tamer** stays in state 8 until the script's end. The script ends right after builtin 0x07, so nothing shows.
+- **Camera follow** (`CAMERA_FOLLOW_PLAYER`) only matters while the tamer is in state 0. It is set and cleared as in the C.
+- **NPC 0 on TRAI00** gets animation 0 at the Classroom's end. Which NPC that is depends on the map's load order; the port uses the same first NPC.
+- **Animation ids** 0x16, 0x1E, 0x25, 0x12 and the strike animations must exist in the models. A missing one behaves as `start_animation` does today.

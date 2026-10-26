@@ -22,6 +22,14 @@ const MODE_OFFENSE := 2
 const MODE_DEFENSE := 3
 const MODE_SPEED := 4
 const MODE_BRAINS := 5
+## Script value 0xFE, the stat a station trains (builtin 0x07, script_interp.c:1705-1722): not the
+## multiplier's mode numbers.
+const STAT_HP := 0
+const STAT_OFFENSE := 1
+const STAT_SPEED := 2
+const STAT_DEFENSE := 3
+const STAT_MP := 4
+const STAT_BRAINS := 5
 const UPGRADE_COUNTERS := ["upgrade_hp_counter", "upgrade_mp_counter", "upgrade_off_counter",
 		"upgrade_defense_counter", "upgrade_speed_counter", "upgrade_brain_counter"]
 ## The gyms' "revision" upgrades: × 6 / 5 for modes 0, 3, 4 (0xDB) and 2, 1, 5 (0xFB).
@@ -48,6 +56,14 @@ const YEARS := 100
 const HAPPY_LIFETIME := 0x50
 const STAT_CAP_HP := 9999
 const STAT_CAP := 999
+## TRN_awardBrainsTrainingGains: the Brains that bring new orders (each with its line(s) of
+## text/trn/trn_reward), and those that may teach a technique (TRN_tryLearnMove), or exactly 999.
+const ORDER_THRESHOLDS := [[100, ["TRN_D_8008F0D8"]], [200, ["TRN_D_8008F0F0"]],
+		[300, ["TRN_D_8008F100", "TRN_D_8008F10C"]], [400, ["TRN_D_8008F11C"]], [500, ["TRN_D_8008F12C"]]]
+const LEARN_THRESHOLDS := [150, 250, 350, 450, 550, 650, 750, 800, 850, 900, 950]
+## TRN_tryLearnMove: 8 techniques per element in its training order; 0xFF = no element.
+const LEARN_RANKS := 8
+const NO_ELEMENT := 0xFF
 
 var game_state: Node
 var data: Node
@@ -55,6 +71,8 @@ var clock: Clock
 var care: Care
 ## Opened by the awards (TRN_createPostTrainingStatsBox); null in the logic tests.
 var stats_box: TrainingStatsBox
+## Box 2 of the Brains award (new orders, a technique mastered); null in the logic tests.
+var brains_box: TrainingBrainsBox
 
 ## TRAINING_COMPLETE.
 var complete := false
@@ -193,16 +211,190 @@ func _boosted(amount: int, v: int, boost_bit: int) -> int:
 ## energy and happiness - 1.
 func award_hp_gains(digimon: Variant, b: int, c: int) -> void:
 	var v := multiplier(digimon, MODE_HP, b)
-	var hp := _boosted(80, v, BOOST_HP)
-	var offense := _boosted(2, v, BOOST_OFFENSE)
-	hp = _s16((hp * c) / 10)
-	offense = _s16((offense * c) / 10)
-	if int(_care()["tiredness"]) == TIRED_MAX:
+	var hp := _gain(80, v, BOOST_HP, c)
+	var offense := _gain(2, v, BOOST_OFFENSE, c)
+	if _tired():
 		hp = 1
 		offense = 1
 	if hp >= 1000:
 		hp = GAIN_CAP
 	_award([hp, 0, offense, 0, 0, 0], 10, 1, 1)
+
+
+## A gain boosted, then scaled by the slot result `c` (10 = × 1).
+func _gain(amount: int, v: int, boost_bit: int, c: int) -> int:
+	return _s16((_boosted(amount, v, boost_bit) * c) / 10)
+
+
+func _tired() -> bool:
+	return int(_care()["tiredness"]) == TIRED_MAX
+
+
+## TRN_awardOffenseTrainingGains (trn_reward.c:234): b 0 (the Green Gym) Offense 8 + Speed 2, b 6
+## (Gear Savanna) HP 10 + Offense 8; tiredness + 9. Any other b gains and costs nothing.
+func award_offense_gains(digimon: Variant, b: int, c: int) -> void:
+	var hp := 0
+	var offense := 0
+	var speed := 0
+	var costs := [0, 0, 0]
+	match b:
+		0:
+			offense = 8
+			speed = 2
+			costs = [9, 1, 1]
+		6:
+			hp = 10
+			offense = 8
+			costs = [9, 1, 1]
+	var v := multiplier(digimon, MODE_OFFENSE, b)
+	hp = _gain(hp, v, BOOST_HP, c)
+	offense = _gain(offense, v, BOOST_OFFENSE, c)
+	speed = _gain(speed, v, BOOST_SPEED, c)
+	if _tired():
+		if b == 0:
+			speed = 1
+		else:
+			hp = 1
+		offense = 1
+	_award([hp, 0, offense, 0, speed, 0], costs[0], costs[1], costs[2])
+
+
+## TRN_awardSpeedTrainingGains (trn_reward.c:308): b 0 or 6, HP 10 + Speed 8; tiredness + 8.
+func award_speed_gains(digimon: Variant, b: int, c: int) -> void:
+	var hp := 0
+	var speed := 0
+	var costs := [0, 0, 0]
+	if b == 0 or b == 6:
+		hp = 10
+		speed = 8
+		costs = [8, 1, 1]
+	var v := multiplier(digimon, MODE_SPEED, b)
+	hp = _gain(hp, v, BOOST_HP, c)
+	speed = _gain(speed, v, BOOST_SPEED, c)
+	if _tired():
+		hp = 1
+		speed = 1
+	if hp >= 1000:
+		hp = GAIN_CAP
+	_award([hp, 0, 0, 0, speed, 0], costs[0], costs[1], costs[2])
+
+
+## TRN_awardDefenseTrainingGains (trn_reward.c:374): Defense 8 + Brains 2; tiredness + 9.
+func award_defense_gains(digimon: Variant, b: int, c: int) -> void:
+	var v := multiplier(digimon, MODE_DEFENSE, b)
+	var defense := _gain(8, v, BOOST_DEFENSE, c)
+	var brains := _gain(2, v, BOOST_BRAINS, c)
+	if _tired():
+		defense = 1
+		brains = 1
+	_award([0, 0, 0, defense, 0, brains], 9, 1, 1)
+
+
+## TRN_awardMpTrainingGains (trn_reward.c:422): MP 80 + Defense 2; tiredness + 7.
+func award_mp_gains(digimon: Variant, b: int, c: int) -> void:
+	var v := multiplier(digimon, MODE_MP, b)
+	var mp := _gain(80, v, BOOST_MP, c)
+	var defense := _gain(2, v, BOOST_DEFENSE, c)
+	if _tired():
+		mp = 1
+		defense = 1
+	if mp >= 1000:
+		mp = GAIN_CAP
+	_award([0, mp, 0, defense, 0, 0], 7, 1, 1)
+
+
+## TRN_awardBrainsTrainingGains (trn_reward.c:474): b 0 MP 10 + Brains 8, b 9 Brains 15; tiredness
+## + 6. The multiplier is computed as MP's (mode 1), as in the C. Then the new orders, or a
+## technique (TRN_tryLearnMove), by the Brains thresholds crossed.
+func award_brains_gains(digimon: Variant, b: int, c: int) -> void:
+	var before := int(game_state.state["partner"]["stats"]["base"]["brains"])
+	var mp := 0
+	var brains := 0
+	var costs := [0, 0, 0]
+	match b:
+		0:
+			mp = 10
+			brains = 8
+			costs = [6, 1, 1]
+		9:
+			brains = 15
+			costs = [6, 1, 1]
+	var v := multiplier(digimon, MODE_MP, b)
+	mp = _gain(mp, v, BOOST_MP, c)
+	brains = _gain(brains, v, BOOST_BRAINS, c)
+	if _tired():
+		if b == 0:
+			mp = 1
+		brains = 1
+	if mp >= 1000:
+		mp = GAIN_CAP
+	if brains >= 1000:
+		brains = GAIN_CAP
+	_award([0, mp, 0, 0, 0, brains], costs[0], costs[1], costs[2])
+	var total := _s16(before + brains)
+	var orders := new_orders(before, total)
+	if not orders.is_empty():
+		if brains_box != null:
+			brains_box.show_orders(orders)
+	elif teaches_technique(before, total):
+		var move := try_learn_move(digimon)
+		if move >= 0 and brains_box != null:
+			brains_box.show_mastered(move)
+
+
+## The new orders crossed from `before` to `total`, in the C's order: an array of text id lists.
+static func new_orders(before: int, total: int) -> Array:
+	var found := []
+	for t in ORDER_THRESHOLDS:
+		if before < t[0] and total >= t[0]:
+			found.append(t[1])
+	return found
+
+
+## Whether the Brains crossed a technique threshold, or are exactly 999.
+static func teaches_technique(before: int, total: int) -> bool:
+	for t in LEARN_THRESHOLDS:
+		if before < t and total >= t:
+			return true
+	return total == GAIN_CAP
+
+
+## TRN_tryLearnMove (trn_reward.c:811): per element slot, the first technique of its training
+## order the partner lacks and has in its technique list; the best weighted one is learnt when its
+## weight beats randomLimit(100). Returns its id, or -1.
+func try_learn_move(digimon: Variant) -> int:
+	var raw: Dictionary = data.digimon(digimon).get("c", {})
+	var special: Array = raw.get("special", [])
+	var slots: Array = raw.get("moves", [])
+	var move_id := [-1, -1, -1]
+	var weight := [-1, -1, -1]
+	for i in mini(special.size(), 3):
+		if int(special[i]) == NO_ELEMENT:
+			continue
+		var order: Array = data.training_learning(int(special[i])).get("moves", [])
+		for k in mini(order.size(), LEARN_RANKS):
+			var candidate := int(order[k]["move"]["id"])
+			if game_state.has_move(candidate):
+				continue
+			for slot in slots:
+				if int(slot) == candidate:
+					move_id[i] = candidate
+					weight[i] = data.training_learn_weight(k, i)
+			if move_id[i] != -1 and weight[i] != -1:
+				break
+	var move: int = move_id[0]
+	var best: int = weight[0]
+	if best < weight[1]:
+		move = move_id[1]
+		best = weight[1]
+	if best < weight[2]:
+		move = move_id[2]
+		best = weight[2]
+	var r := Rng.random_limit(100)
+	if best > r:
+		game_state.learn_move(move)
+		return move
+	return -1
 
 
 ## The awards' common end: the copy, the gains, the box, the hour.

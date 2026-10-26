@@ -30,6 +30,9 @@ const STATE_PICKUP := 7
 const STATE_CHEST := 14
 ## A training station runs (tamerTickTraining, specs/training.md §2.6): his cheer, facing the partner.
 const STATE_TRAINING := 8
+## tamerSetState(-1) (the Brains stations): no case in tamerTick, so nothing but his animation, as
+## STATE_SCRIPT: the station walks and turns him.
+const STATE_NONE := -1
 const ANIM_TRAINING := 10
 ## startAnimation(tamer, 0xC): the pick-up animation.
 const ANIM_PICKUP := 0xC
@@ -185,7 +188,7 @@ func _process(delta: float) -> void:
 	var held := 0
 	if _scene_playing:
 		motion = _scene.advance(delta)
-	elif (state == STATE_CHANGE_MAP and sub_state < 2) or state == STATE_SCRIPT:
+	elif (state == STATE_CHANGE_MAP and sub_state < 2) or state == STATE_SCRIPT or state == STATE_NONE:
 		# startAnimationTamer(2): he runs on in his direction through the fade out; in STATE_SCRIPT
 		# the script's animation (a walk turned to its point each frame). Only the walk state checks
 		# the map's walls (checkMapInteraction), so nothing stops him.
@@ -657,7 +660,7 @@ func animation_id() -> int:
 	if _scene_playing and _scene != null:
 		return _scene.anim_id
 	if _player == null:
-		return _script_animation if state == STATE_SCRIPT else 0
+		return _script_animation if state == STATE_SCRIPT or state == STATE_NONE else 0
 	return int(_player.current_animation.trim_prefix("anim_")) if _player.current_animation != "" else 0
 
 

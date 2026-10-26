@@ -559,6 +559,11 @@ func tick_look_at_entity(entity_id: int, target_script_id: int) -> bool:
 	return turned[1]
 
 
+## ENTITY_TABLE[slot], for the training stations (slot 2 = NPC_ENTITIES[0]).
+func actor(slot: int) -> Node3D:
+	return _actor(slot)
+
+
 ## The entity a movement slot moves: 0 the tamer, 1 the partner, 2-9 the NPCs.
 func _actor(slot: int) -> Node3D:
 	if slot == 0:

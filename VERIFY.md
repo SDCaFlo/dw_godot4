@@ -133,7 +133,7 @@ Sections are added as systems are ported (`PLANS.md`).
 6. **Back:** △ on a tab: the window shrinks into the tamer, the tamer and Agumon come back, the △ menu opens again.
 7. **Compare with the game:** the layout of both tabs, the model's place and size, the darker cells (the port approximates the PSX's subtracted boxes), and the colours.
 
-## Training (`scripts/systems/training.gd`, `scripts/training/`, `scripts/script/training_routines.gd`, `scripts/ui/training_stats_box.gd`, `scripts/field/cloud_fx.gd`; `specs/training.md`)
+## Training (`scripts/systems/training.gd`, `scripts/training/`, `scripts/script/training_routines.gd`, `scripts/ui/training_stats_box.gd`, `scripts/ui/training_brains_box.gd`, `scripts/field/cloud_fx.gd`, `scripts/field/particle_fx.gd`; `specs/training.md`)
 
 `test_training.gd` prints `OK: training checks`. In the game (F5), at the Green Gym (TRAI00; the debugger's Maps tab):
 1. **The HP station** ("Boulder Moving", the boulder by the sign): Begin, then Normal.
@@ -144,7 +144,19 @@ Sections are added as systems are ported (`PLANS.md`).
    - ✕ or △ adds the rest at once.
 3. **After the box:** the partner walks back, the boulder is in its place again, and you can move. The partner's HP and Offense went up (a Rookie with training type 0: +80 / +2), the clock moved one hour from when the session started, and the partner is more tired.
 4. **Bonus Try** runs like Normal until the slot machine is ported (4d-3).
-5. **Other stations** (Offense, Speed, Defense, MP, Brains) and the other gyms don't start yet: the script waits after "Begin". Leave with the debugger's Maps tab (4d-2).
+5. **The other Green Gym stations** (Begin, Normal; hold △ to end each sooner). The gains are those of a Rookie with training type 0:
+   - **Tree Striking** (the tree by the boulder): the partner strikes the tree with one of its technique animations. At each hit, three sparks flash and burst, and the tree shakes. △ only ends the session after a hit. Offense +8, Speed +2.
+   - **Running** (by the middle sign): the partner runs off in its direction. Once off screen it comes back from the course's start, every 3 seconds. HP +10, Speed +8. After it walks back, the tamer stays turned to it until the script ends.
+   - **Punching Glove:** the glove punches the guarding partner: sparks, a punch sound, and the partner is knocked back with dust. The glove swings back, and the partner walks to its point for the next punch. △ ends the session only once it is back at the point. Defense +8, Brains +2.
+   - **Waterfall:** the partner walks under the fall by its approach. The fall pours on it, with the splash at its head and the water's sound. At the end the fall is calm again and the partner stays at the approach, without walking back. MP +80, Defense +2.
+   - **Classroom:** the tamer walks to the blackboard, then the partner sits in front of him. He teaches (a sound every 1.5 seconds) and it listens. MP +10, Brains +8; nobody walks back.
+6. **Gear Savanna** (GIAS09): Striking Special (the pillar: the flash and sparks at each strike; HP +10, Offense +8, no "revision" bonus) and Savanna Course (the run comes back from the course's far end; HP +10, Speed +8).
+7. **Misty Trees** (MIST05): Cherrymon, "Please train". The tamer walks to his place, the partner faces Cherrymon, and Cherrymon teaches in a loop. The gains are the Classroom's (MP +10, Brains +8), as in the original.
+8. **Brains boxes:** under the stats box, a second box opens from the tamer.
+   - **New orders:** when Brains cross 100, 200, 300, 400 or 500, it shows the order ("Give it all you got!" …) and "New orders!".
+   - **A technique:** at 150, 250, 350, 450, 550, 650, 750, 800, 850, 900, 950 or exactly 999, the partner may learn one; the box then shows its name and "was mastered!". Its sizes come from the Japanese text, so the US lines may be cut off: compare with the game. The technique appears in the Digimon screen.
+   - The box closes when the station ends.
+   - To try it: give the partner 95 Brains (the debugger's State tab, "Partner base stats", Apply stats), then do the Classroom.
 
 ## Item keeper, jukebox, Birdramon (`scripts/script/item_keeper_routines.gd`, `jukebox_routines.gd`, `birdramon_routines.gd`, `scripts/ui/keeper_menu.gd`; `specs/town_services.md`)
 
@@ -317,6 +329,7 @@ In the game (F5):
 8. **State tab** (`test_debug_state.gd` prints `OK: debug state checks`):
    - **Triggers:** pick a number; the label says "set" / "not set"; Set / Clear change it, and the list of set triggers below follows.
    - **Script values:** pick a value; its current number shows; Write changes it. Bits and merit: Apply (capped at 999 999 / 9999); the bits box of the next shop shows them.
+   - **Partner base stats:** the six numbers show the partner's stats; change them and Apply stats (each capped: HP / MP 9999, the others 999); the Digimon screen shows them.
    - **Items:** pick one, Give / Remove the amount; "held" follows. **Cards:** pick one, Set its count; All cards gives one of each (the Player screen's card list fills).
    - **Unlocks:** "Birdramon: every destination" → Set, then talk to Birdramon (ROOM12): all six places are listed. "Jukebox: the locked tracks" → Set: the jukebox lists 63 tracks.
 

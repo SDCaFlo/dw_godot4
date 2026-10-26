@@ -14,9 +14,11 @@ var data: Node
 ## The SoundSystem (its `music`: the jukebox); null in tests without one.
 var sound: Node
 ## Set by the host after configure: the interpreter (the training stations walk, pan and move the
-## map's sprites through it) and the dust clouds (CloudFX). Null in tests without a field.
+## map's sprites through it), the dust clouds (CloudFX) and the hit sparks (ParticleFX). Null in
+## tests without a field.
 var interpreter: ScriptInterpreter
 var clouds: CloudFX
+var sparks: ParticleFX
 ## The one script item menu (the C's item menu is global): every routine node uses it, so the bits
 ## box of builtin 0x0F sees what a later routine buys.
 var menu: ItemMenu

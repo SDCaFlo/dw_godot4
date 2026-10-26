@@ -2,8 +2,32 @@
 
 [ext_resource type="Script" path="res://scripts/script/training_routines.gd" id="1_training"]
 [ext_resource type="PackedScene" path="res://scenes/training/hp_boulder.tscn" id="2_hp"]
+[ext_resource type="PackedScene" path="res://scenes/training/offense_tree.tscn" id="3_offense_tree"]
+[ext_resource type="PackedScene" path="res://scenes/training/offense_savanna.tscn" id="4_offense_savanna"]
+[ext_resource type="PackedScene" path="res://scenes/training/speed_running.tscn" id="5_speed_running"]
+[ext_resource type="PackedScene" path="res://scenes/training/speed_savanna.tscn" id="6_speed_savanna"]
+[ext_resource type="PackedScene" path="res://scenes/training/defense_glove.tscn" id="7_defense_glove"]
+[ext_resource type="PackedScene" path="res://scenes/training/mp_waterfall.tscn" id="8_mp_waterfall"]
+[ext_resource type="PackedScene" path="res://scenes/training/brains_classroom.tscn" id="9_brains_classroom"]
+[ext_resource type="PackedScene" path="res://scenes/training/brains_forest.tscn" id="10_brains_forest"]
 
 [node name="TrainingRoutines" type="Node"]
 script = ExtResource("1_training")
 
 [node name="HpBoulder" parent="." instance=ExtResource("2_hp")]
+
+[node name="OffenseTree" parent="." instance=ExtResource("3_offense_tree")]
+
+[node name="OffenseSavanna" parent="." instance=ExtResource("4_offense_savanna")]
+
+[node name="SpeedRunning" parent="." instance=ExtResource("5_speed_running")]
+
+[node name="SpeedSavanna" parent="." instance=ExtResource("6_speed_savanna")]
+
+[node name="DefenseGlove" parent="." instance=ExtResource("7_defense_glove")]
+
+[node name="MpWaterfall" parent="." instance=ExtResource("8_mp_waterfall")]
+
+[node name="BrainsClassroom" parent="." instance=ExtResource("9_brains_classroom")]
+
+[node name="BrainsForest" parent="." instance=ExtResource("10_brains_forest")]

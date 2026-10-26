@@ -316,8 +316,8 @@ func load_positions(positions: Array, start: int) -> void:
 		_show(inst)
 
 
-## moveMapObjectsWithLimit (overworld.c:844) without its limit test (the stations ignore it):
-## `count` instances from `start` move by (dx, dy) background pixels.
+## moveMapObjects (overworld.c:925), or moveMapObjectsWithLimit (:844) without its limit test (most
+## stations ignore it): `count` instances from `start` move by (dx, dy) background pixels.
 func move(start: int, count: int, dx: int, dy: int) -> void:
 	for k in range(start, start + count):
 		if k < 0 or k >= _instances.size():
@@ -326,6 +326,24 @@ func move(start: int, count: int, dx: int, dy: int) -> void:
 		inst["x"] += dx
 		inst["y"] += dy
 		_show(inst)
+
+
+## moveMapObjectsWithLimit (overworld.c:844): the move, then whether the first instance reached the
+## limit in the direction it moves (x first, then y).
+func move_with_limit(start: int, count: int, dx: int, dy: int, limit_x: int, limit_y: int) -> bool:
+	move(start, count, dx, dy)
+	var first := instance(start)
+	if first.is_empty():
+		return false
+	if dx > 0 and int(first["x"]) >= limit_x:
+		return true
+	if dx < 0 and int(first["x"]) <= limit_x:
+		return true
+	if dy > 0 and int(first["y"]) >= limit_y:
+		return true
+	if dy < 0 and int(first["y"]) <= limit_y:
+		return true
+	return false
 
 
 ## spawnSpriteAtLocation (overworld.c:952): `count` instances from `start` get their top-left

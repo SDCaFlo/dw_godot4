@@ -1,4 +1,4 @@
-# Moves (`MOVE_DATA`, `TYPE_FACTORS`, `MOVE_LEARN_CHANCES` → `output/moves/`)
+# Moves (`MOVE_DATA`, `TYPE_FACTORS`, `MOVE_LEARN_CHANCES`, training learning → `output/moves/`)
 
 Techniques (power, MP, range, element, status), the element damage factors and the technique learn chances. Converter: `dwdata/groups/moves.py` (`python -m dwdata convert moves`), C reader `dwdata/cdata.py`.
 
@@ -10,8 +10,10 @@ Techniques (power, MP, range, element, status), the element damage factors and t
 | `TYPE_FACTORS` | `src/main/item.c:94` | `uint8_t[7][7]` | `0x80125F70`, size 0x31 |
 | `MOVE_LEARN_CHANCES` | `src/main/item.c:104` | `uint8_t[58][3]` | `0x80125FA4`, size 0xAE |
 | names | `text/main/item.yaml` → `MOVE_NAMES` (same index) | `char *[122]` | see `specs/text.md` |
+| `TRN_D_8008F14C` | `src/trn/trn_reward.c:77` | `uint8_t[56]` (7 elements × 8) | trn overlay |
+| `TRN_D_8008F184` | `src/trn/trn_reward.c:87` | `int8_t[8][3]` | trn overlay |
 
-All three are linked into **main**. They are read once per release (`#if VERSION_…` branches applied). The only difference between releases: `MOVE_DATA[30]` (Full Potential) has `unk3 = 0` in `jp` and `1` in every later release (`item.c:275–287`).
+The first three are linked into **main**, the two `TRN_` tables into the training overlay (**trn**). They are read once per release (`#if VERSION_…` branches applied). The only difference between releases: `MOVE_DATA[30]` (Full Potential) has `unk3 = 0` in `jp` and `1` in every later release (`item.c:275–287`).
 
 `struct Move` (`move.h:6`): `int32_t distance; int16_t power; uint8_t mpCost, iframes, range, special, status, accuracy, statusChance, unk3, unk4, unk5;`
 
@@ -77,6 +79,16 @@ The battle code exists three times with the same logic: `src/btl/battle_main.c` 
   - Bit 1, `shared_cooldown`: starting such a technique sets `FLEE_DISABLED[1] = 110`. While that counter is above 0 (it counts down once per battle tick, `:658`), no bit-1 technique can start (`BTL_startQueuedMove`, `:2469`; `BTL_isMoveOnCooldown`, `:2487`).
 - **`unk4`, `unk5`**: read nowhere, 0 everywhere.
 
+### Training learning (`TRN_D_8008F14C`, `TRN_D_8008F184`)
+
+`TRN_tryLearnMove(type)` (`trn_reward.c:811`), called by the Brains award when the partner's Brains cross 150, 250, 350, 450, 550, 650, 750, 800, 850, 900, 950 or reach 999 (`:582`):
+
+- For each element slot `i` of the partner (`DIGIMON_DATA[type].special[i]`, 0xff skipped), it walks `TRN_D_8008F14C[special[i] * 8 + k]` for k = 0–7. It skips the techniques the partner has (`hasMove`); the first one in the partner's 16-slot list is that slot's candidate, with weight `TRN_D_8008F184[k][i]`.
+- The candidate with the highest weight wins (ties keep the lower slot) and is learnt if `weight > randomLimit(100)`.
+- Each element's 8 entries are the techniques of its block in another order (checked). Rank 0 of slot 0 has weight 0.
+
+See `../specs/training.md` §6.8.
+
 ### `TYPE_FACTORS[attacker][defender]`
 
 The first index is the element of the technique (or of the attacker, in `BTL_calculateTargetScore`, `:3348`); the second is the defender's element. The values are 2, 5, 10, 15, 20, i.e. ×0.2 to ×2.0. `BTL_calculateElementBonus` (`:3570`) maps them to the AI bonuses 1, 3, 5, 7, 10; `BTL_calculateTargetScore` inverts them for target choice.
@@ -96,12 +108,13 @@ The first index is the element of the technique (or of the attacker, in `BTL_cal
   - `c`: the record with its C field names, exactly as the initializer gives it
 - `type_factors`: 7 records (attacker element), each with 7 `against` cells: `defender`, `factor`, `multiplier` (factor / 10).
 - `learn_chances`: 58 records: `id`, `name` (en_us, for reading), `chances[3]`.
+- `training_learning`: 7 records (one per element): `element {id, name}`, `moves [{rank, move {id, key, name}}]`, `c` (the 8 C ids); the top-level `weights` is `TRN_D_8008F184` as `[rank][slot]`.
 - `used_by`: every function that reads the table, its lines, the struct fields used on those lines (a text match of `.field` / `->field`, so fields read through a pointer on another line are missed) and the releases.
 - **Element names are labels, not from the decomp.** The ids are certain: they are the TYPE_FACTORS indices, and the technique blocks of `EVL_applyEvolution` match them. The names Fire, Battle, Air, Earth, Ice, Mech, Filth are the game's names for those blocks (the menus draw them from a texture, not from text). The status and range names describe what the code does.
 
 ## 4. Godot usage
 
-- `GameData.move(id)` returns the record; the name comes through `GameData.text_entry("main/item", "MOVE_NAMES", id)` or the record's `name`. `GameData.type_factor(attacker, defender)` and `GameData.learn_chance(id, slot)` cover the other two tables.
+- `GameData.move(id)` returns the record; the name comes through `GameData.text_entry("main/item", "MOVE_NAMES", id)` or the record's `name`. `GameData.type_factor(attacker, defender)` and `GameData.learn_chance(id, slot)` cover the other two tables. `GameData.training_learning(element)` and `GameData.training_learn_weight(rank, slot)` serve the Brains training (`Training.try_learn_move`).
 - The battle system ports the formulas of §2: damage, hit chance, MP with the brain and condition modifiers, status, range behaviour, the shared cooldown and the finisher rules by id range. Each GDScript function names the C function it reproduces.
 - **Modding:**
   - Values can change freely within the C types: power ≤ 32767, the other fields ≤ 255.
@@ -119,7 +132,8 @@ The converter checks:
 - every record has known values: `range` 0–4, element 0–6 or 0xff, `status` 0–4, `distance` a perfect square, `status` and `statusChance` both set or both 0, flags only bits 0–1, `unk4` and `unk5` 0;
 - techniques and finishers have a name;
 - `TYPE_FACTORS` is 7 × 7 with values in {2, 5, 10, 15, 20} (the cases `BTL_calculateElementBonus` handles);
-- `MOVE_LEARN_CHANCES` has 58 rows (techniques 0x00–0x39).
+- `MOVE_LEARN_CHANCES` has 58 rows (techniques 0x00–0x39);
+- `TRN_D_8008F14C` has 8 entries per element and `TRN_D_8008F184` is 8 × 3; each element's entries are techniques of that element.
 
 Tests: `tests/test_cdata.py` (reader), `tests/test_moves.py` (a generated decomp with 122 moves, a failing value, and real data when `dw_decomp` is present).
 

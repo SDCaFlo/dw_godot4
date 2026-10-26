@@ -12,24 +12,13 @@ extends TrainingStation
 ## The three dust lines of state 2 (TRN_createCloudFXLine): every, x, z, dx, dz, count.
 @export var dust_lines: Array = [[0xF, 0x550, -0x604, 0x64, -0x32, 8], [0x14, 0x5B5, -0x667, 0x32, -0x32, 6],
 		[0x12, 0x514, -0x525, 0x14, -0x32, 4]]
-## The session: a push every 120 frames, at most 1200 frames.
+## A push every 120 frames (the session is SESSION_FRAMES).
 const PUSH_FRAMES := 120
-const SESSION_FRAMES := 0x4B0
-## The partner's rotation while pushing; its animations: walk, push, done.
+## The partner's rotation while pushing, and its push animation (walk and done: the base's).
 const PUSH_ROTATION := 0xA00
-const ANIM_WALK := 4
 const ANIM_PUSH := 0x1B
-const ANIM_DONE := 0x12
-## The wait between the counted gains and the walk back.
-const AFTER_GAINS := 0x14
-## playSound(8, …): start, push, end.
-const SOUND_START := 9
+## playSound(8, 0): the push (start and end: the base's).
 const SOUND_PUSH := 0
-const SOUND_END := 0xA
-## A Fresh / In-Training partner trains its HP upgrade counter (level < 3).
-const COUNTER_LEVEL := 3
-## The slot result without the slots (r = 10: × 1).
-const NORMAL_RESULT := 10
 
 ## TRN_D_8008F368 / 388: the boulder's saved positions.
 var _saved: Array = []
@@ -37,14 +26,12 @@ var _saved: Array = []
 
 func _init() -> void:
 	map = 0x70
-	stat = Training.MODE_HP
+	stat = Training.STAT_HP
 
 
 ## TRN_setupHpTraining's part for its map.
 func setup() -> void:
-	if partner_level() < COUNTER_LEVEL:
-		var care: Dictionary = game_state.state["partner"]["care"]
-		care["upgrade_hp_counter"] = int(care["upgrade_hp_counter"]) + 1
+	count_upgrade("upgrade_hp_counter")
 	training.complete = false
 
 

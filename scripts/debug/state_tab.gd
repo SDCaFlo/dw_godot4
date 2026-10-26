@@ -5,6 +5,7 @@ extends ScrollContainer
 ## - triggers: one by number, set / clear, and the list of the set ones;
 ## - script values (readPStat / writePStat), bits and merit points;
 ## - items (give / remove) and cards (their count);
+## - the partner's six base stats (to try the training thresholds);
 ## - unlocks: presets built from the data (every trigger a table gates on, e.g. all of Birdramon's
 ##   destinations), so a mod's tables give their own presets.
 
@@ -27,6 +28,8 @@ var _item_amount: SpinBox
 var _item_held: Label
 var _card: OptionButton
 var _card_count: SpinBox
+## The partner's base stats, in Training.STATS order.
+var _stats: Array[SpinBox] = []
 
 
 func _init() -> void:
@@ -45,6 +48,8 @@ func _ready() -> void:
 	_triggers_part(box)
 	box.add_child(HSeparator.new())
 	_values_part(box)
+	box.add_child(HSeparator.new())
+	_stats_part(box)
 	box.add_child(HSeparator.new())
 	_items_part(box)
 	box.add_child(HSeparator.new())
@@ -126,6 +131,14 @@ func _values_part(box: Control) -> void:
 	_button(row, "Apply", func(): set_money(int(_money.value), int(_merit.value)))
 
 
+func _stats_part(box: Control) -> void:
+	_title(box, "Partner base stats (HP MP Off Def Speed Brains)")
+	var row := _row(box)
+	for i in Training.STATS.size():
+		_stats.append(_spin(row, 0, Training.stat_cap(i), 70))
+	_button(_row(box), "Apply stats", func(): set_stats(_stats.map(func(spin): return int(spin.value))))
+
+
 func _items_part(box: Control) -> void:
 	_title(box, "Items and cards")
 	_item = OptionButton.new()
@@ -195,6 +208,14 @@ func set_money(money: int, merit: int) -> void:
 	game_state.changed.emit("money")
 
 
+## The partner's base stats (Training.STATS order), each within its cap.
+func set_stats(values: Array) -> void:
+	var base: Dictionary = game_state.state["partner"]["stats"]["base"]
+	for i in mini(values.size(), Training.STATS.size()):
+		base[Training.STATS[i]] = clampi(int(values[i]), 0, Training.stat_cap(i))
+	game_state.changed.emit("partner")
+
+
 func give(item: int, amount: int) -> bool:
 	return game_state.give_item(item, amount)
 
@@ -246,6 +267,9 @@ func refresh() -> void:
 	_value.set_value_no_signal(game_state.script_value(int(_value_index.value)))
 	_money.set_value_no_signal(int(game_state.state["money"]))
 	_merit.set_value_no_signal(int(game_state.state["merit"]))
+	var base: Dictionary = game_state.state["partner"]["stats"]["base"]
+	for i in _stats.size():
+		_stats[i].set_value_no_signal(int(base.get(Training.STATS[i], 0)))
 	if _item.item_count > 0:
 		_item_held.text = "held %d" % game_state.item_count(_item.get_selected_id())
 	if _card.item_count > 0:

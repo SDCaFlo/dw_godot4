@@ -451,6 +451,11 @@ func item_take_distance(digimon_ref: Variant) -> int:
 	return find("digimon/item_take_distance", "digimon", _digimon_id(digimon_ref)).get("distance", -1)
 
 
+## TRN_TRAINING_ANIM_IDS[type]: {strike_anim, hit_frame} of the Offense stations, or {}.
+func training_animation(digimon_ref: Variant) -> Dictionary:
+	return find("digimon/training_animations", "digimon", _digimon_id(digimon_ref))
+
+
 func _digimon_id(ref: Variant) -> int:
 	return id_of("digimon/digimon_data", ref) if ref is String else int(ref)
 
@@ -494,6 +499,20 @@ func learn_chance(move_ref: Variant, element_slot: int) -> int:
 	var move_id := id_of("moves/move_data", move_ref) if move_ref is String else int(move_ref)
 	var chances: Array = record("moves/learn_chances", move_id).get("chances", [])
 	return chances[element_slot] if element_slot >= 0 and element_slot < chances.size() else -1
+
+
+## TRN_D_8008F14C: an element's 8 techniques in the order the Brains training teaches them
+## ({element, moves [{rank, move}]}), or {}.
+func training_learning(element: int) -> Dictionary:
+	return find("moves/training_learning", "element", element)
+
+
+## TRN_D_8008F184[rank][slot] (%); -1 outside the table.
+func training_learn_weight(rank: int, element_slot: int) -> int:
+	var weights: Array = table("moves/training_learning").get("weights", [])
+	if rank < 0 or rank >= weights.size() or element_slot < 0 or element_slot >= weights[rank].size():
+		return -1
+	return int(weights[rank][element_slot])
 
 
 # --- Items (specs/items.md) ------------------------------------------------------------------

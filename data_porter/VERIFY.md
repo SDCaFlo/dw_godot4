@@ -37,7 +37,7 @@ Run `python -m dwdata convert font`: it should print `6 tables, 52/52 checks pas
 
 ## Moves (`output/moves/`)
 
-Run `python -m dwdata convert moves`: it should print `3 tables, 25/25 checks passed`. Then open `output/moves/report.md`. It has one row per technique, with MP shown the way the menus show it (mp_cost × 3), plus the element factor grid and the learn chances.
+Run `python -m dwdata convert moves`: it should print `4 tables, 32/32 checks passed`. Then open `output/moves/report.md`. It has one row per technique, with MP shown the way the menus show it (mp_cost × 3), plus the element factor grid and the learn chances.
 
 - **Known techniques:** compare 3–4 techniques with the in-game technique menu (Digimon menu → techniques: power, MP, range icon, status icon):
   - Spit Fire (2): power 66, MP 30, ranged, fire, no status
@@ -48,11 +48,12 @@ Run `python -m dwdata convert moves`: it should print `3 tables, 25/25 checks pa
 - **Finishers (58–112):** their power is the base of the finisher formula, and they cost no MP in battle even if `mp` shows a value. Pepper Breath (59) is Agumon's finisher.
 - **Buff techniques** (range `self`): Aqua Magic (21), Full Potential (30), Mass Morph (34), Muscle Charge (41), War Cry (42). Release differences under the table should list only Full Potential (`unk3` = 0 in jp).
 - **Element factors:** the fire row should be strong against earth, ice and filth (20) and weak against air (5), if that matches what you know of the game.
+- **Training learning** (`output/moves/training_learning.json`): `records[0]` (fire) lists Spit Fire, Heat Laser, Fire Tower, Magma Bomb, Red Inferno … in that order; `weights` starts `[0, 15, 10], [25, 13, 8]`. In the game, a Brains session crossing 150 Brains may teach Agumon (who knows Spit Fire) Heat Laser.
 - **JSON spot check:** in `output/moves/move_data.json`, `records[2]` is Spit Fire with `name.text` in the three languages and `c` holding the raw C values. `used_by` lists `BTL_calculateDamage` (`src/btl/battle_main.c`) with fields `power`, `special`.
 
 ## Digimon (`output/digimon/`)
 
-Run `python -m dwdata convert digimon`: it should print `6 tables, 35/35 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
+Run `python -m dwdata convert digimon`: it should print `7 tables, 40/40 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
 
 - **Known Digimon:** Agumon (3) is a Rookie, Vaccine, elements fire and battle. Its first techniques are Spit Fire and Fire Tower; it drops Sm.Recovery (50 %). Compare 2–3 Digimon you know with the game's Digimon menu (level, type icon, techniques).
 - **Type names:** Gabumon (17) shows `data`, Agumon `vaccine`, Betamon (4) `virus`. If the menu icons say otherwise, the type labels are swapped (`specs/digimon.md` §3).
@@ -65,6 +66,7 @@ Run `python -m dwdata convert digimon`: it should print `6 tables, 35/35 checks 
 - **Placeholders:** the tamer (0) and NPC ids such as Jijimon or the Market Manager show `— (all slots 0)` instead of techniques.
 - **Release differences** under the first table: only jp changes (four drop items, SkullGreymon's first slot).
 - **Files:** `output/digimon/file_names.json` → `records[3].mmd` is `CHDAT/MMD0/AGUM.MMD`, the file the asset porter converts to Agumon's model; `records[30].mmd` (Tokomon) is `CHDAT/MMD1/TOKO.MMD` (folder = id / 30). The DW Data dock's **Check assets** shows whether every one of them has a model (`../docs/dw_data_dock.md`).
+- **Training animations** (`output/digimon/training_animations.json`): `records[3]` (Agumon) strikes with animation 51 (0x33, technique slot 5) and hits at frame 12. At the Green Gym's Tree Striking, the sparks should come when the blow lands.
 - **JSON spot check:** `output/digimon/digimon_data.json` → `records[3].moves[0]` is `{"slot": 0, "anim": 46, "move": {"id": 2, "name": "Spit Fire"}}`; `used_by` has around 170 functions, with the fields each reads.
 
 ## Items (`output/items/`)

@@ -184,7 +184,7 @@ func _start_debug() -> void:
 	debug.window.ui_filter_changed.connect(func(on: bool) -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
-	for node: Node in [care_host.bars, care_host.bubbles, scripts.clouds, debug.panel, scripts.boxes, care_host.fade,
+	for node: Node in [care_host.bars, care_host.bubbles, scripts.clouds, scripts.sparks, debug.panel, scripts.boxes, care_host.fade,
 			scripts.map_name]:
 		if node != null:
 			_hud.add_child(node)

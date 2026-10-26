@@ -30,6 +30,8 @@ var interpreter: ScriptInterpreter
 var map_name: MapName
 ## The dust clouds of the training stations (CloudFX); the field puts them into the HUD.
 var clouds: CloudFX
+## The hit sparks of the training stations (ParticleFX); in the HUD too.
+var sparks: ParticleFX
 ## TALKED_TO_ENTITY: the entity (2-9) of the last NPC talk.
 var talked_to_entity := 0
 
@@ -100,11 +102,16 @@ func start() -> void:
 	clouds.name = "CloudFX"
 	clouds.camera = camera
 	clouds.field = field_map
+	sparks = ParticleFX.new()
+	sparks.name = "ParticleFX"
+	sparks.camera = camera
+	sparks.field = field_map
 	var routines := get_node_or_null("Routines") as ScriptRoutines
 	if routines != null:
 		routines.configure(script_ctx, textboxes, GameState, GameData, Sound)
 		routines.interpreter = interpreter
 		routines.clouds = clouds
+		routines.sparks = sparks
 		interpreter.routines = routines
 
 
@@ -114,12 +121,14 @@ func tick_script() -> void:
 		interpreter.tick_script()
 
 
-## The routines' objects (the training stations) and the dust, one game frame.
+## The routines' objects (the training stations), the dust and the sparks, one game frame.
 func tick_objects() -> void:
 	if interpreter != null and interpreter.routines != null:
 		interpreter.routines.tick_objects()
 	if clouds != null:
 		clouds.tick()
+	if sparks != null:
+		sparks.tick()
 
 
 ## The UI boxes' object pass.

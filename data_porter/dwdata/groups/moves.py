@@ -18,7 +18,7 @@ from . import text as text_group
 NAME = "moves"
 SPEC = "specs/moves.md"
 PURPOSE = "Techniques (power, MP, range, element, status), element damage factors, technique learn chances"
-SOURCE_GLOB = "src/main/item.c"
+SOURCE_GLOB = "src/{main/item,trn/trn_reward}.c"
 C_FILE = "src/main/item.c"
 TEXT_FILE = "text/main/item.yaml"
 STRUCT_HEADER = "include/dw/move.h"
@@ -80,7 +80,11 @@ TABLE_PURPOSES = {
     "move_data": "Techniques: power, MP cost, preferred distance, range, element, status effect, accuracy, flags",
     "type_factors": "Element damage factors: attacker technique element x defender element (10 = x1.0)",
     "learn_chances": "Chance (%) to learn a technique seen in battle, by which of the partner's 3 elements matches",
+    "training_learning": "Brains training: per element, its 8 techniques in the order training teaches them, and "
+                         "the chances (%) by rank and element slot (TRN_D_8008F14C, TRN_D_8008F184)",
 }
+TRN_C = "src/trn/trn_reward.c"
+TRAINING_RANKS = 8          # TRN_D_8008F14C[k + special * 8] (trn_reward.c:823), TRN_D_8008F184[8][3]
 
 MOVE_SCHEMA = {
     "id": {"meaning": "technique id = index in MOVE_DATA and MOVE_NAMES; DIGIMON_DATA[].moves hold these ids"},
@@ -177,7 +181,7 @@ def convert(input_root, output_root) -> GroupWriter:
     index = CIndex(decomp)
     src = SourceText(decomp.root, C_FILE)
     sources = [src.identity(), SourceText(decomp.root, STRUCT_HEADER).identity(),
-               SourceText(decomp.root, TEXT_FILE).identity()]
+               SourceText(decomp.root, TEXT_FILE).identity(), SourceText(decomp.root, TRN_C).identity()]
 
     # Struct layout must be the one the spec maps.
     struct = index.program(C_FILE, REFERENCE).structs.get("Move")
@@ -196,16 +200,19 @@ def convert(input_root, output_root) -> GroupWriter:
     move_data = tables.load(out, index, C_FILE, "MOVE_DATA")
     type_factors = tables.load(out, index, C_FILE, "TYPE_FACTORS")
     learn = tables.load(out, index, C_FILE, "MOVE_LEARN_CHANCES")
+    trn_order = tables.load(out, index, TRN_C, "TRN_D_8008F14C")
+    trn_weights = tables.load(out, index, TRN_C, "TRN_D_8008F184")
 
     names_model = text_group.load_file(decomp, TEXT_FILE)
     names_block = text_group.block_of(names_model, "MOVE_NAMES")
     out.check("MOVE_NAMES found in " + TEXT_FILE, names_block is not None and not names_model.issues,
               "; ".join(names_model.issues[:5]))
-    if not (move_data and type_factors and learn and names_block):
+    if not (move_data and type_factors and learn and trn_order and trn_weights and names_block):
         out.finish(sources)
         return out
 
-    refs = decomp.references(["MOVE_DATA", "TYPE_FACTORS", "MOVE_LEARN_CHANCES"])
+    refs = decomp.references(["MOVE_DATA", "TYPE_FACTORS", "MOVE_LEARN_CHANCES", "TRN_D_8008F14C",
+                              "TRN_D_8008F184"])
     us = move_data[REFERENCE]
     counts = {r: len(l.value) for r, l in move_data.items()}
     out.check("MOVE_DATA has one record per MOVE_NAMES entry in every release",
@@ -213,6 +220,8 @@ def convert(input_root, output_root) -> GroupWriter:
               f"MOVE_DATA {counts}, MOVE_NAMES {len(names_block['items'])}")
     for loaded in (move_data, type_factors, learn):
         tables.size_check(out, decomp, loaded)
+    for loaded in (trn_order, trn_weights):
+        tables.size_check(out, decomp, loaded, binary="trn")
 
     # -- move_data ----------------------------------------------------------------------------
     game_menu_c = _collapsed((decomp.root / GAME_MENU_C).read_text(encoding="utf-8", errors="replace"))
@@ -337,6 +346,52 @@ def convert(input_root, output_root) -> GroupWriter:
         "godot": {"status": "implemented (scripts/data/game_data.gd)", "access": "GameData.learn_chance(move_id, element_slot)",
                   "notes": "Only techniques 0x00-0x39 can be learned this way."},
     }, symbols=["MOVE_LEARN_CHANCES"])
+
+    # -- training_learning --------------------------------------------------------------------
+    order = trn_order[REFERENCE].value
+    weights = trn_weights[REFERENCE].value
+    elements = [e for e in ELEMENTS if e != 255]
+    out.check("TRN_D_8008F14C holds 8 techniques per element, TRN_D_8008F184 8 ranks x 3 element slots",
+              len(order) == TRAINING_RANKS * len(elements) and len(weights) == TRAINING_RANKS
+              and all(len(w) == 3 for w in weights), f"{len(order)} ids, {len(weights)} rows")
+    tbad = []
+    learning_records = []
+    for e in elements:
+        ids = order[e * TRAINING_RANKS:(e + 1) * TRAINING_RANKS]
+        for k, m in enumerate(ids):
+            if m >= len(records) or records[m]["element"]["id"] != e:
+                tbad.append(f"element {e} rank {k}: {m}")
+        learning_records.append({"element": _enum(e, ELEMENTS),
+                                 "moves": [{"rank": k, "move": {"id": m, "key": records[m].get("key"),
+                                                                "name": records[m]["name"]["text"]["en_us"]
+                                                                if records[m]["name"] else None}}
+                                           for k, m in enumerate(ids) if m < len(records)],
+                                 "c": ids})
+    out.check("TRN_D_8008F14C: each element's 8 entries are techniques of that element", not tbad,
+              "; ".join(tbad[:10]) or f"{len(order)} ids")
+    out.write_table("training_learning", {
+        "table": {"name": "moves/training_learning", "purpose": TABLE_PURPOSES["training_learning"]},
+        "source": tables.source(decomp, trn_order, sources, {"weights": f"{TRN_C}:{trn_weights[REFERENCE].decl.line}"
+                                                            " TRN_D_8008F184"}, binary="trn"),
+        "schema": {"element": {"meaning": "the technique element (DIGIMON_DATA[].special values)",
+                               "values": ELEMENTS},
+                   "moves": {"meaning": "TRN_D_8008F14C[element * 8 + rank]: TRN_tryLearnMove walks them in rank "
+                                        "order and takes the first the partner lacks and has in its 16-slot list "
+                                        "(trn_reward.c:819-835)", "ref": "moves/move_data"},
+                   "weights": {"c_name": "TRN_D_8008F184[rank][slot]", "c_type": "int8_t[8][3]", "unit": "%",
+                               "meaning": "the chance of the candidate of rank `rank` found through the partner's "
+                                          "element slot `slot` (0-2); the best one is learnt if > randomLimit(100)"},
+                   "c": {"meaning": "the element's 8 C ids"}},
+        "records": learning_records,
+        "weights": weights,
+        "release_values": {"order": tables.diffs(trn_order, lambda l: l.value),
+                           "weights": tables.diffs(trn_weights, lambda l: l.value)},
+        "used_by": tables.used_by(decomp, refs["TRN_D_8008F14C"] + refs["TRN_D_8008F184"], [], trn_order),
+        "godot": {"status": "implemented (scripts/data/game_data.gd)",
+                  "access": "GameData.training_learning(element) -> record; GameData.training_learn_weight(rank, slot)",
+                  "notes": "Only the Brains stations read it (TRN_tryLearnMove). An element without a record "
+                           "learns nothing there."},
+    }, symbols=["TRN_D_8008F14C", "TRN_D_8008F184"])
 
     out.write_report("report.md", _report(records, factor_records, chance_records))
     out.finish(sources, extra={"counts": {"moves": len(records), "categories": {

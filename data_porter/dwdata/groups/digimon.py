@@ -64,6 +64,11 @@ MUSIC_SPECIAL = {0x73: 3}
 MUSIC_FIRST, MUSIC_END, MUSIC_DEFAULT = 0x43, 0x70, 1
 # BTL_resetFlatten (battle_main.c:857), BTL_tickStatusEffects: type 0x71's normal scale is 0x1800.
 SCALE_DEFAULT, SCALE_SPECIAL = 0x1000, {0x71: 0x1800}
+# getOriginalType (effect_common.c:320): ORIGINAL_DIGIMON_TYPES[type], or the type itself when < 0 (and -1 above
+# 0xb0); the battle effects pick their per-Digimon bone offsets by it (BTL_checkTechCompatibility).
+EFFECT_COMMON_C = "src/main/effect_common.c"
+ORIGINAL_LIMIT = 0xB0
+ORIGINAL_EVIDENCE = "if ((type < 0) || (type > 0xb0)) { return -1; } originalType = ORIGINAL_DIGIMON_TYPES[type]; if (originalType < 0) { return type; } return originalType;"
 # entityGetTechFromAnim (utils2.c:333): type 0x3c's animation 0x3c is technique 0x70.
 ANIM_TECHNIQUE = {0x3C: {0x3C: 0x70}}
 BATTLE_EVIDENCE = [
@@ -175,6 +180,13 @@ def _pattern_summary(p: dict) -> str:
     return f"{p['sleepyHour']:02}:{p['sleepyMinute']:02}-{p['wakeupHour']:02}:{p['wakeupMinute']:02}"
 
 
+def _original_type(digimon_id: int, table: list) -> int:
+    if digimon_id < 0 or digimon_id > ORIGINAL_LIMIT:
+        return -1
+    value = table[digimon_id] if digimon_id < len(table) else -1
+    return digimon_id if value < 0 else value
+
+
 def _battle_music(digimon_id: int, mapping: list) -> int:
     if digimon_id in MUSIC_SPECIAL:
         return MUSIC_SPECIAL[digimon_id]
@@ -209,6 +221,10 @@ def convert(input_root, output_root) -> GroupWriter:
     vlall = tables.load(out, index, SOUND_C, "DIGIMON_VLALL_SOUND_ID")
     strikes = tables.load(out, index, TRN_C, "TRN_TRAINING_ANIM_IDS")
     music = tables.load(out, index, BTL_C, "ENEMY_MUSIC_MAPPING")
+    originals = tables.load(out, index, EFFECT_COMMON_C, "ORIGINAL_DIGIMON_TYPES")
+    sources.append(SourceText(decomp.root, EFFECT_COMMON_C).identity())
+    effect_c = " ".join((decomp.root / EFFECT_COMMON_C).read_text(encoding="utf-8", errors="replace").split())
+    out.check("getOriginalType is still the table lookup", ORIGINAL_EVIDENCE in effect_c, ORIGINAL_EVIDENCE[:60])
     sources += [SourceText(decomp.root, p).identity() for p in (BTL_C, BTL_MAIN_C, UTILS2_C)]
     battle_text = {p: " ".join((decomp.root / p).read_text(encoding="utf-8", errors="replace").split())
                    for p in (BTL_C, BTL_MAIN_C, UTILS2_C)}
@@ -226,7 +242,7 @@ def convert(input_root, output_root) -> GroupWriter:
               and not names_model.issues and not items_model.issues,
               "; ".join((names_model.issues + items_model.issues)[:5]))
     loaded_all = [data, raise_, sleep, take, files, vball, vlall, strikes]
-    if not music or not all(loaded_all) or not (names and move_names and item_names):
+    if not music or not originals or not all(loaded_all) or not (names and move_names and item_names):
         out.finish(sources)
         return out
     for loaded in loaded_all[:-1]:
@@ -283,7 +299,8 @@ def convert(input_root, output_root) -> GroupWriter:
                          for k, m in enumerate(raw["moves"]) if m != NO_VALUE],
                "padding": raw["padding"],
                "battle_music": _battle_music(i, music[REFERENCE].value),
-               "battle_scale": SCALE_SPECIAL.get(i, SCALE_DEFAULT)}
+               "battle_scale": SCALE_SPECIAL.get(i, SCALE_DEFAULT),
+               "original_type": _original_type(i, originals[REFERENCE].value)}
         if i in ANIM_TECHNIQUE:
             rec["anim_technique"] = {str(a): t for a, t in ANIM_TECHNIQUE[i].items()}
         rec["c"] = raw
@@ -338,6 +355,10 @@ def convert(input_root, output_root) -> GroupWriter:
                                         "predefined battle plays 0, a rule of the code)"},
             "battle_scale": {"derived": "BTL_resetFlatten (battle_main.c:857): 0x1800 for type 0x71, else 0x1000",
                              "unit": "4096 = 1.0", "meaning": "the model scale battles restore after a flatten"},
+            "original_type": {"c_name": "ORIGINAL_DIGIMON_TYPES", "derived": "getOriginalType (effect_common.c:320)",
+                              "meaning": "the Digimon this one is a variant of (NPC copies -> the partner Digimon), "
+                                         "or itself; -1 above 0xb0. The battle effects choose their bone offsets "
+                                         "by it (BTL_checkTechCompatibility)"},
             "anim_technique": {"derived": "entityGetTechFromAnim (utils2.c:333)",
                                "meaning": "{animation id (decimal string): technique id} overriding moves[anim - 0x2e]; "
                                           "absent = none"},

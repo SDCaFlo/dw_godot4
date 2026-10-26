@@ -123,6 +123,7 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
 - **Battle properties** (`../../specs/battle.md` §6), from literal ids of the battle code (each C text checked):
   - `battle_music`: the variant of battle song 0x21 when this Digimon is the opponent (`loadBattleData`, `btl.c:358`): 3 for 0x73, `ENEMY_MUSIC_MAPPING[id − 0x43]` for 0x43–0x6F, else 1. A predefined battle plays 0 (a rule of the code). The mapping's last 3 entries (0x70–0x72) are never read;
   - `battle_scale`: 0x1800 for 0x71, else 0x1000 (`BTL_resetFlatten`, `battle_main.c:857`; `BTL_tickStatusEffects`);
+  - `original_type`: `getOriginalType` (`effect_common.c:320`): `ORIGINAL_DIGIMON_TYPES[id]`, or the id itself when that is negative, −1 above 0xB0; the battle effects find their per-Digimon bone offsets by it (`BTL_checkTechCompatibility`, `../../specs/battle_effects.md` §2.5). The lookup's C text is checked;
   - `anim_technique`: `{"60": 112}` on 0x3C (`entityGetTechFromAnim`, `utils2.c:333`: animation 0x3C is technique 0x70), absent elsewhere.
 
 ## 4. Godot usage

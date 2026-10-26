@@ -42,7 +42,7 @@ Each instruction starts with an int16 word: low byte = opcode, high byte = flags
 | 3 | LOAD_INDEXED | 10 | table, –, index offset, index scope (size flags: element `(w>>8)&0xF`, index `w>>12`) |
 | 4 | VARIABLE_OPERATOR | 6 | offset, scope; size `(w>>8)&0xF`, operator `w>>12`: set, add, sub, mul, div, mod, shl, shr (with the register) |
 | 5, 6, 8 | STOP | 2 | end of script |
-| 7 | BRANCH_IF | 10 | offset, scope, target if false, –; compare `w>>12`: ==, !=, <, <=, >, >= against the register |
+| 7 | BRANCH_IF | 10 | offset, scope, target, –; compare `w>>12`: ==, !=, <, <=, >, >= (variable against the register); jumps when the comparison is **true** (`BTL_EFE_COMPARISONS` return 0 when true, `BTL_branchEFEOnComparison` jumps on 0) |
 | 9 | JUMP | 4 | target |
 | 10 | PUSH_IMMEDIATE | 6 | value |
 | 11 | PUSH_VARIABLE | 6 | offset, scope (size flag) |

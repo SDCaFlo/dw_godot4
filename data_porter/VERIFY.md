@@ -53,7 +53,7 @@ Run `python -m dwdata convert moves`: it should print `4 tables, 34/34 checks pa
 
 ## Digimon (`output/digimon/`)
 
-Run `python -m dwdata convert digimon`: it should print `7 tables, 42/42 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
+Run `python -m dwdata convert digimon`: it should print `7 tables, 44/44 checks passed`. Then open `output/digimon/report.md` (one row per Digimon, then partner care data and sleep cycles).
 
 - **Known Digimon:** Agumon (3) is a Rookie, Vaccine, elements fire and battle. Its first techniques are Spit Fire and Fire Tower; it drops Sm.Recovery (50 %). Compare 2–3 Digimon you know with the game's Digimon menu (level, type icon, techniques).
 - **Type names:** Gabumon (17) shows `data`, Agumon `vaccine`, Betamon (4) `virus`. If the menu icons say otherwise, the type labels are swapped (`specs/digimon.md` §3).

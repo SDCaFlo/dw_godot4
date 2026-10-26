@@ -51,7 +51,7 @@ def _operand_text(insn: dict) -> str:
     if op == 4:
         return f"{where('offset', 'scope')} {o['operator']}= register ({o['size']})"
     if op == 7:
-        return f"if not ({where('offset', 'scope')} {o['compare']} register) goto L_{o['target'] & 0xFFFF:04X} ({o['size']})"
+        return f"if ({where('offset', 'scope')} {o['compare']} register) goto L_{o['target'] & 0xFFFF:04X} ({o['size']})"
     if op in (9, 13):
         return f"L_{o['target'] & 0xFFFF:04X}"
     if op == 14:

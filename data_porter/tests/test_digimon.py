@@ -66,6 +66,9 @@ class RealDataTests(unittest.TestCase):
         self.assertEqual(records[0x71]["battle_scale"], 0x1800)
         self.assertEqual([(r["id"], r["anim_technique"]) for r in records if "anim_technique" in r],
                          [(0x3C, {"60": 0x70})])
+        self.assertEqual(records[3]["original_type"], 3)                # Agumon is itself
+        self.assertEqual(records[0xB1]["original_type"], -1)            # above 0xb0
+        self.assertTrue(any(r["original_type"] not in (r["id"], -1) for r in records))
 
     def test_release_differences_and_placeholders(self):
         records = self.load("digimon_data")["records"]

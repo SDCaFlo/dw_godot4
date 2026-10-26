@@ -102,21 +102,23 @@ static func box(canvas: CanvasItem, x: int, y: int, w: int, h: int, r: int, g: i
 
 
 ## renderInsetBox (game_menu.c:3801): absolute PSX coordinates (0-320, 0-240).
+## The ordering table draws in reverse of its adds: box, bottom-right, top-left.
 static func inset_box(canvas: CanvasItem, x: int, y: int, w: int, h: int) -> void:
 	x -= 0xA0
 	y -= 0x78
-	PsxDraw.line3(canvas, 0x020202, x, y + h, x, y, x + w, y)
-	PsxDraw.line3(canvas, 0xA08769, x, y + h, x + w, y + h, x + w, y)
 	box(canvas, x, y, w, h, 0x35, 0x4B, 0x5C)
+	PsxDraw.line3(canvas, 0xA08769, x, y + h, x + w, y + h, x + w, y)
+	PsxDraw.line3(canvas, 0x020202, x, y + h, x, y, x + w, y)
 
 
 ## renderBorderBox (game_menu.c:3849): absolute PSX coordinates; c1 the top-left lines, c2 the others.
+## The ordering table draws in reverse of its adds: box, c2, c1.
 static func border_box(canvas: CanvasItem, x: int, y: int, w: int, h: int, c1: int, c2: int, r: int, g: int, b: int) -> void:
 	x -= 0xA0
 	y -= 0x78
-	PsxDraw.line3(canvas, _word(c1), x, y + h, x, y, x + w, y)
-	PsxDraw.line3(canvas, _word(c2), x, y + h, x + w, y + h, x + w, y)
 	box(canvas, x, y, w, h, r, g, b)
+	PsxDraw.line3(canvas, _word(c2), x, y + h, x + w, y + h, x + w, y)
+	PsxDraw.line3(canvas, _word(c1), x, y + h, x, y, x + w, y)
 
 
 ## renderSeparatorLines: [x1, y1, x2, y2, colour index] each.

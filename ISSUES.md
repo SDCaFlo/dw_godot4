@@ -38,12 +38,6 @@ Reported 2026-10-25 (minor, to check later).
 - **Cause:** the new game marks the first partner raised (`setDigimonRaised(partnerId)`, `main.c:3452`, trigger 0x200 + id); `GameState.new_game` doesn't.
 - **Status:** open.
 
-### I-17. Chart and card screens: the cells and columns have no contour
-- **Seen:** the evolution chart's cells and level columns, and the card list's cells, are flat; in the original they have a light top-left and a dark bottom-right edge.
-- **Evidence:** `issues/evidence/dw_issue_card_menu_colors.png`, `issues/evidence/dw_issue_evo_char_menu_color.png`.
-- **Cause (likely):** `renderBorderBox` adds its two lines and then its box, so on the PSX the lines are drawn over the box. `MenuDraw.border_box` draws the lines first and the box over them, which hides the edges. The same may apply to `inset_box`.
-- **Status:** open.
-
 ### I-18. To verify: the inventory cursor at the top
 - **Question:** in the original inventory, does ↑ on the first row wrap to the bottom, or stay at the top? Compare with the port (`specs/inventory.md`).
 - **Status:** to verify.
@@ -53,6 +47,12 @@ Reported 2026-10-25 (minor, to check later).
 - **Status:** to verify.
 
 ## Fixed
+
+### I-17. Chart and card screens: the cells and columns have no contour
+- **Seen:** the evolution chart's cells and level columns, and the card list's cells, are flat; in the original they have a light top-left and a dark bottom-right edge.
+- **Evidence:** `issues/evidence/dw_issue_card_menu_colors.png`, `issues/evidence/dw_issue_evo_char_menu_color.png`.
+- **Cause:** `renderBorderBox` and `renderInsetBox` (`game_menu.c:3801`, `:3849`) add their border lines to the ordering table bucket first, then the filled box; because the PSX GPU traverses each bucket in reverse of its additions, the box is drawn first and the lines are drawn over it. `MenuDraw.border_box` and `MenuDraw.inset_box` drew the lines first and the box over them, which covered the highlight edges.
+- **Status:** fixed (2026-10-25; checked in the game): `MenuDraw.border_box` and `MenuDraw.inset_box` now draw the fill box first, then the bottom-right line, then the top-left line over it (`scripts/ui/menu_draw.gd`).
 
 ### I-10. Feeding: the tamer takes the item out of the bag again and again
 - **Seen:** Use on an item: while the partner comes and takes it, the tamer keeps pulling the item out of the bag, over and over (reported 2026-10-25 with step 5e-2).

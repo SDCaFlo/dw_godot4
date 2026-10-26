@@ -75,10 +75,11 @@ Last updated: 2026-10-24
                 - [x] 4d-1. The core (gains, the hour, the stats box) and HP at the Green Gym, with the field pieces (coded 2026-10-25, `tests/test_training.gd`, VERIFY "Training").
                 - [x] 4d-2. Offense, Speed, Defense, MP, Brains (new orders, move learning): the eight stations of TRAI00, GIAS09 and MIST05, hit sparks, two data tables (`specs/training.md` §6).
                 - [x] 4d-3. The slot-machine bonus (Bonus Try): `SlotMachine`, `SlotSession`, `TrainingSlotsBox` (box 3), the stations' hooks, the `systems/slot_machine` table and the gym maps' slot textures (2026-10-26, `specs/training.md` §7, VERIFY "Training" 4).
-                - [ ] 4d-4. The TRN2 stations (maps 0x63, 0x6B, 0x6C, 0xA5).
+                - [ ] 4d-4. The TRN2 stations (maps 0x63, 0x6B, 0x6C, 0xA5). **On hold** (2026-10-26: evolution first); it keeps its place here.
             - [ ] 4e. Tournaments (with 0x16, the medal check), naming / new game, save.
          - Fishing (the menu's 7th icon) comes with fishing.
        - [ ] To check in the game: the additive sprites' brightness (Godot blends in linear colour), Grey Lord's Mansion doors (YAKA11, models 9 / 10) snapping shut at the end of their swing (`specs/map_objects.md` §6);
+     - [ ] 5f. Evolution (decided 2026-10-26, before 4d-4 and the battles; `specs/evolution.md`): the rules of `main/evolution.c` (when and into what the partner evolves: stats, care, weight, battles, the evolution items), then the evolution scene (`evl` overlay). Battles won read the counter, 0 until 5d. Unblocks the evolution items (5e-2) and I-16.
      - [ ] 6. death and lives (after the battles): the collapse and the battle loss (`CALL_DIGIMON_ROUTINE` 7 / 9, the `MURD` + `DOOA` scenes, ~2350 lines of C), the collapse script 0x4DE replacing the care stand-in.
    - [ ] To check in the real game (`specs/npc.md` §6): after a scene that walks or animates an NPC, on a map with a slot-7 NPC (script id 12, e.g. File City's Whamon on TWNA02–13), can you still walk into it and talk to it? It tells the leftover value of the original's `setActiveAnim(0xC)` bug.
    - [ ] To check in the real game (`specs/npc.md` §6, step 3b): DGHA02's slot-2 Tsukaimon (path `1 1 0 0`, only 2 waypoints) and FACT04's slot-6 NPC (path `0`, no waypoint) read a path step the map data doesn't have; the C uses the slot's value from the previous map. Watch them after entering from different maps: how long do they wait, where do they walk? The port waits 0 frames.

@@ -29,8 +29,8 @@ Reported 2026-10-25 (minor, to check later).
 ### I-16. The partner (Agumon) isn't in the evolution chart
 - **Seen:** in a new game the Player screen's chart is empty; the original shows Agumon.
 - **Evidence:** `issues/evidence/dw_issue_evo_char_menu_color.png`.
-- **Cause:** the new game marks the first partner raised (`setDigimonRaised(partnerId)`, `main.c:3452`, trigger 0x200 + id); `GameState.new_game` doesn't.
-- **Status:** open.
+- **Cause:** in the original, the first partner is marked raised (`setDigimonRaised(partnerId)`, `main.c:3452`, trigger `0x200 + id`) when the new game intro process (`newGameScene()`, Jijimon's questionnaire and naming) completes, and subsequent Digimon are marked upon evolution (`evl.c:1489`) or reincarnation (`evolution.c:1079`). Neither the new game intro sequence nor the evolution system has been ported yet (PLANS.md step 4e / milestone 5).
+- **Status:** on hold (waiting for the new game sequence in step 4e).
 
 ### I-18. To verify: the inventory cursor at the top
 - **Question:** in the original inventory, does ↑ on the first row wrap to the bottom, or stay at the top? Compare with the port (`specs/inventory.md`).

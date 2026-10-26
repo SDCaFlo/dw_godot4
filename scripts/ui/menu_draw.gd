@@ -102,21 +102,23 @@ static func box(canvas: CanvasItem, x: int, y: int, w: int, h: int, r: int, g: i
 
 
 ## renderInsetBox (game_menu.c:3801): absolute PSX coordinates (0-320, 0-240).
+## The ordering table draws in reverse of its adds: box, bottom-right, top-left.
 static func inset_box(canvas: CanvasItem, x: int, y: int, w: int, h: int) -> void:
 	x -= 0xA0
 	y -= 0x78
-	PsxDraw.line3(canvas, 0x020202, x, y + h, x, y, x + w, y)
-	PsxDraw.line3(canvas, 0xA08769, x, y + h, x + w, y + h, x + w, y)
 	box(canvas, x, y, w, h, 0x35, 0x4B, 0x5C)
+	PsxDraw.line3(canvas, 0xA08769, x, y + h, x + w, y + h, x + w, y)
+	PsxDraw.line3(canvas, 0x020202, x, y + h, x, y, x + w, y)
 
 
 ## renderBorderBox (game_menu.c:3849): absolute PSX coordinates; c1 the top-left lines, c2 the others.
+## The ordering table draws in reverse of its adds: box, c2, c1.
 static func border_box(canvas: CanvasItem, x: int, y: int, w: int, h: int, c1: int, c2: int, r: int, g: int, b: int) -> void:
 	x -= 0xA0
 	y -= 0x78
-	PsxDraw.line3(canvas, _word(c1), x, y + h, x, y, x + w, y)
-	PsxDraw.line3(canvas, _word(c2), x, y + h, x + w, y + h, x + w, y)
 	box(canvas, x, y, w, h, r, g, b)
+	PsxDraw.line3(canvas, _word(c2), x, y + h, x + w, y + h, x + w, y)
+	PsxDraw.line3(canvas, _word(c1), x, y + h, x, y, x + w, y)
 
 
 ## renderSeparatorLines: [x1, y1, x2, y2, colour index] each.
@@ -128,10 +130,11 @@ static func lines(canvas: CanvasItem, entries: Array) -> void:
 ## renderMenuTab (game_menu.c:2960): a tab over the box's top edge; `front` the current one.
 static func menu_tab(canvas: CanvasItem, x: int, w: int, front: bool) -> void:
 	var h := 0x10 if front else 0xF
-	sprite(canvas, x, -0x68, 7, h, 0xD4, 0x8C - 0x80, 0x7B06)
+	var flags := 0 if front else 1
+	sprite(canvas, x, -0x68, 7, h, 0xD4, 0x8C - 0x80, 0x7B06, flags)
 	for i in (w - 0xE) / 4:
-		sprite(canvas, x + 7 + i * 4, -0x68, 4, h, 0xE2, 0x8C - 0x80, 0x7B06)
-	sprite(canvas, x + w - 9, -0x68, 7, h, 0xDB, 0x8C - 0x80, 0x7B06)
+		sprite(canvas, x + 7 + i * 4, -0x68, 4, h, 0xE2, 0x8C - 0x80, 0x7B06, flags)
+	sprite(canvas, x + w - 9, -0x68, 7, h, 0xDB, 0x8C - 0x80, 0x7B06, flags)
 
 
 ## renderNumber (utils.c:214): `value` in `n` digits without leading zeros, right-aligned, cut

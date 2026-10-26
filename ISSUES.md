@@ -8,51 +8,27 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Open
 
-Reported 2026-10-25 (minor, to check later).
-
-### I-12. No mist in the misty trees
-- **Seen:** the Misty Trees maps have no mist.
-- **Expected:** the original's mist over those maps (not ported yet: find its effect in the decomp).
-- **Status:** open.
-
-### I-13. Time-of-day changes are a hard cut
-- **Seen:** the light jumps when the time of day changes (afternoon → night, night → day, day → afternoon).
-- **Expected:** the original fades the lighting softly from one time of day to the next.
-- **Note:** `specs/lighting.md` takes the lights "at the end of the hour's fade"; the fade itself (`updateTimeOfDay`, map.c:4301, and the background palettes) still has to be reproduced.
-- **Status:** open.
-
-### I-14. Player / Digimon screen: the tab headers all look selected
-- **Seen:** every tab is drawn light; in the original the tabs not shown are darker, with blue labels.
-- **Evidence:** `issues/evidence/dw_issue_card_menu_colors.png`, `issues/evidence/dw_issue_evo_char_menu_color.png` (left original, right port).
-- **Cause (likely):** `renderMenuTab(x, w, layer)` passes `layer` (1 for the tabs not shown) as `renderRectPolyFT4`'s flag, and flag 1 dims the sprite (`game_menu.c:2960`). `MenuDraw.menu_tab` draws every tab undimmed.
-- **Status:** open.
-
-### I-15. No pause
-- **Seen:** the game can't be paused.
-- **Expected:** the original's pause (START in the field; to find in the decomp).
-- **Status:** open.
+Reported 2026-10-25.
 
 ### I-16. The partner (Agumon) isn't in the evolution chart
 - **Seen:** in a new game the Player screen's chart is empty; the original shows Agumon.
 - **Evidence:** `issues/evidence/dw_issue_evo_char_menu_color.png`.
-- **Cause:** the new game marks the first partner raised (`setDigimonRaised(partnerId)`, `main.c:3452`, trigger 0x200 + id); `GameState.new_game` doesn't.
-- **Status:** open.
+- **Cause:** in the original, the first partner is marked raised (`setDigimonRaised(partnerId)`, `main.c:3452`, trigger `0x200 + id`) when the new game intro process (`newGameScene()`, Jijimon's questionnaire and naming) completes, and subsequent Digimon are marked upon evolution (`evl.c:1489`) or reincarnation (`evolution.c:1079`). Neither the new game intro sequence nor the evolution system has been ported yet (PLANS.md step 4e / milestone 5).
+- **Status:** on hold (waiting for the new game sequence in step 4e).
+
+## Fixed
+
+### I-14. Player / Digimon screen: the tab headers all look selected
+- **Seen:** every tab is drawn light; in the original the tabs not shown are darker, with blue labels.
+- **Evidence:** `issues/evidence/dw_issue_card_menu_colors.png`, `issues/evidence/dw_issue_evo_char_menu_color.png` (left original, right port).
+- **Cause:** `renderMenuTab(x, w, layer)` passes `layer` (1 for tabs not shown) as `renderRectPolyFT4`'s flag, and flag 1 dims the sprite (`game_menu.c:2960`, `:4305`). `MenuDraw.menu_tab` did not pass `flags` to `sprite`, defaulting to 0 (undimmed).
+- **Status:** fixed (2026-10-25, `1e38bdf`): `MenuDraw.menu_tab` passes `flags = 0` when `front` is true and `1` (dimmed) when `false` (`scripts/ui/menu_draw.gd`).
 
 ### I-17. Chart and card screens: the cells and columns have no contour
 - **Seen:** the evolution chart's cells and level columns, and the card list's cells, are flat; in the original they have a light top-left and a dark bottom-right edge.
 - **Evidence:** `issues/evidence/dw_issue_card_menu_colors.png`, `issues/evidence/dw_issue_evo_char_menu_color.png`.
-- **Cause (likely):** `renderBorderBox` adds its two lines and then its box, so on the PSX the lines are drawn over the box. `MenuDraw.border_box` draws the lines first and the box over them, which hides the edges. The same may apply to `inset_box`.
-- **Status:** open.
-
-### I-18. To verify: the inventory cursor at the top
-- **Question:** in the original inventory, does ↑ on the first row wrap to the bottom, or stay at the top? Compare with the port (`specs/inventory.md`).
-- **Status:** to verify.
-
-### I-19. To verify: the partner's mood animations too often
-- **Question:** the partner may play its hungry / happy / poop animation and sound more often than the original. Compare the timers with the game (`specs/partner.md`, `specs/care.md`).
-- **Status:** to verify.
-
-## Fixed
+- **Cause:** `renderBorderBox` and `renderInsetBox` (`game_menu.c:3801`, `:3849`) add their border lines to the ordering table bucket first, then the filled box; because the PSX GPU traverses each bucket in reverse of its additions, the box is drawn first and the lines are drawn over it. `MenuDraw.border_box` and `MenuDraw.inset_box` drew the lines first and the box over them, which covered the highlight edges.
+- **Status:** fixed (2026-10-25, `1569541`; checked in the game): `MenuDraw.border_box` and `MenuDraw.inset_box` now draw the fill box first, then the bottom-right line, then the top-left line over it (`scripts/ui/menu_draw.gd`).
 
 ### I-10. Feeding: the tamer takes the item out of the bag again and again
 - **Seen:** Use on an item: while the partner comes and takes it, the tamer keeps pulling the item out of the bag, over and over (reported 2026-10-25 with step 5e-2).
@@ -124,6 +100,35 @@ Reported 2026-10-25 (minor, to check later).
 - **Evidence:** `issues/evidence/dw_issue_missing_background_sprite_texture.png`
 - **Cause:** texel colour 0x0000 is transparent on the PSX, so those background pixels show what is behind them: the frame's black clear on the PSX (`GsSortClear(0, 0, 0)`, main.c:3960), Godot's default grey clear colour in the port. The night palettes have more pure-black colours, so more holes (MAYO01: 958 at night, none by day).
 - **Status:** fixed (2026-10-24, `fbcf612`): the project's default clear colour is black (`project.godot`). `tests/render_check.gd -- MAYO01 200 200 20 2` renders the night palette: the 501 transparent texels on screen are black.
+
+## Won't fix
+
+### I-12. No mist in the misty trees
+- **Seen:** the Misty Trees maps have no mist.
+- **Expected:** the original's mist over those maps.
+- **Status:** won't fix (not a bug: unimplemented feature). In the original, the mist overlay (`renderMist`, `overworld.c:550–660`) is a screen rendering routine using scrolling semi-transparent polygon layers over maps `MIST01`–`MIST07`. Belongs in `PLANS.md` under field rendering features.
+
+### I-13. Time-of-day changes are a hard cut
+- **Seen:** the light jumps when the time of day changes.
+- **Expected:** the original fades the lighting softly from one time of day to the next.
+- **Status:** won't fix (dropped, 2026-10-25). Verified that under normal clock progression the transition fades smoothly; the hard cut seen was an artifact of using the debug hour-skip key.
+
+### I-15. No pause
+- **Seen:** the game can't be paused.
+- **Expected:** the original's pause (START in the field).
+- **Status:** won't fix (not a bug: unimplemented feature). In the original, pause is handled by `handlePause()` (`utils2.c:402`), opening static UI box 5, looping `pauseFrame()`, and polling START input (0x800). Belongs in `PLANS.md` as an unported field feature.
+
+### I-18. The inventory cursor at the top
+- **Question:** in the original inventory, does ↑ on the first row wrap to the bottom, or stay at the top?
+- **Status:** won't fix (verified normal behavior, 2026-10-25). In the original PSX game, pressing ↑ on the first row wraps to the bottom row, matching the current port implementation.
+
+### I-19. The partner's mood animations too often
+- **Question:** the partner may play its hungry / happy / poop animation and sound more often than the original. Compare the timers with the game (`specs/partner.md`, `specs/care.md`).
+- **Status:** won't fix (verified with decomp, 2026-10-25). Double-checked `partner.c:888` (`partnerTickWalking`), `partner_impl.c:482` and `partner_impl.c:1012` (`updateConditionAnimation`). The implementation is an exact 1:1 match to the decomp C code:
+  - In a new game, happiness is 50. Since 50 ≥ 31 (`0x1F`), the partner is classified as happy.
+  - When standing close to the tamer (closeness 2), the partner idles for `anim->frameCount * EMOTION_ANIM_TIMEOUT` ticks. For Agumon, idle (anim 0) has 17 frames, and `EMOTION_ANIM_TIMEOUT` is `randomLimit(5) + 1` (1 to 5).
+  - This means it idles for 1 to 5 idle loops (17 to 85 frames at 20 Hz = 0.85 to 4.25 seconds, average 2.55s) before triggering the happy animation (anim 5, 67 frames = 3.35s) with its roar sound. Once anim 5 finishes, it idles again for 1 to 5 loops (average 2.55s) and repeats.
+  - This frequent repetition of mood animations when happy, hungry, or needing to poop is authentic original PSX game design.
 
 ## Ideas (not bugs)
 

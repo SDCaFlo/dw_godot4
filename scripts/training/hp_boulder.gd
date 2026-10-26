@@ -2,7 +2,8 @@ class_name HpBoulderStation
 extends TrainingStation
 ## The Green Gym's HP station, "Boulder Moving" (TRN_setupHpTraining, TRN_tickHpTraining;
 ## trn/trn_hp.c; specs/training.md §2.2): the partner pushes the boulder (map overlay instances)
-## while the dust rises, for a minute or until △ is held; then the gains, and it walks back.
+## while the dust rises, for a minute or until △ is held (with the Bonus Try: until the slot
+## machine has paid out); then the gains, and it walks back.
 
 ## TRN_D_8008F320: where the partner pushes (PSX x, z).
 @export var point := Vector2i(0x58C, -0x6D0)
@@ -52,13 +53,16 @@ func tick() -> void:
 			play(SOUND_START)
 			counter = 0
 			state = 1
+			start_slot_session()
 		1:
+			# TRN_func_800888A0(4), the slot result −2, is dead code: nothing sets −2 (not ported).
 			if walk_partner(ScriptInterpreter.FREE, point.x, point.y):
 				partner_animation(ANIM_PUSH)
 				if p != null:
 					p.set_direction(PUSH_ROTATION)
 				play(SOUND_PUSH)
 				state = 2
+				start_slot_spin()
 		2:
 			_push(o, p)
 		3:
@@ -108,13 +112,12 @@ func _push(o: MapOverlays, p: Partner) -> void:
 		for line in dust_lines:
 			Training.cloud_line(counter, line[0], line[1], line[2], line[3], line[4], line[5], clouds.create)
 	counter += 1
-	# The slot session (4d-3) replaces this test with its result.
-	if counter >= SESSION_FRAMES or cancel_held():
+	if session_over():
 		counter = (counter % SESSION_FRAMES) / PUSH_FRAMES
 		play(SOUND_END)
 		state = 3
 		partner_animation(ANIM_DONE)
-		training.award_hp_gains(partner_digimon(), 0, NORMAL_RESULT)
+		training.award_hp_gains(partner_digimon(), 0, result())
 		var t := tamer()
 		if t != null:
 			pan_to(t.position, 10)

@@ -53,6 +53,7 @@ func tick() -> void:
 			pan_to(Content.psx_to_godot([tamer_place.x, 0, tamer_place.y]), 10)
 			counter = 0
 			state = 1
+			start_slot_session()
 		1:
 			if walk_tamer(ScriptInterpreter.FREE, tamer_place.x, tamer_place.y):
 				tamer_animation(ANIM_STAND)
@@ -74,6 +75,7 @@ func tick() -> void:
 					tamer_animation(ANIM_TEACH)
 					partner_animation(ANIM_LISTEN)
 				state = 3
+				start_slot_spin()
 		3:
 			counter += 1
 			if with_npc:

@@ -2,7 +2,7 @@
 
 Update this file whenever a format or family changes status. Status values: `todo`, `investigating` (reading the decomp / scanning), `spec` (spec written), `done` (converter + checks + tests), `blocked`.
 
-Last updated: 2026-10-22
+Last updated: 2026-10-26
 
 ## Formats (parsers / exporters)
 
@@ -35,7 +35,7 @@ Last updated: 2026-10-22
 | `tim_files` | 51 standalone `*.TIM` (ETCDAT, ETCHI, ETCNA, STDDAT, GRADE) | done | 54 | 271/271 | `specs/tim_files.md` | Loader + code refs per file; T_TOGI has 4 TIMs; 9 ETCDAT files are also inside ETCTIM.BIN; SLOT/TAKA/EX have no loader |
 | `tmd_files` | 66 `*.TMD` (DOOR, ETCDAT, ETCHI, ETCNA, STDDAT) | done | 66 | 221/221 | `specs/tmd.md` | glTF + texture pages; 22 field/effect/arena/result models textured, 1 untextured, 43 use map textures (bound when maps are done) |
 | `mmd_files` | 178 `CHDAT/MMD*/*.MMD` | done | 178 | 1071/1071 | `specs/mmd.md` | Rigid bone hierarchy, 4,843 animations (loops, sounds, texture moves as events), textures from the ALLTIM slot; matches DW1ModelConverter within 1 unit / <1° |
-| `maps` | 241 `MAP/MAP*/*.MAP` + `.TFS` | done | 241 | 1252/1252 | `specs/map.md` | Backgrounds per time of day, sprites, textured doors, `overview.png` for human checks; GIAS06B/ICSA05 sprites need VRAM loaded by events |
+| `maps` | 241 `MAP/MAP*/*.MAP` + `.TFS` | done | 244 | 1256/1256 | `specs/map.md` | Backgrounds per time of day, sprites, textured doors, `overview.png` for human checks; GIAS06B/ICSA05 sprites need VRAM loaded by events; training slot strips (`training/slots_p3/p4.png`) for the 3 gym maps |
 | `efe` | `ETCHI/EFEDAT.EFE` | done | 331 | 1029/1029 | `specs/efe.md` | 120 technique effects (slot = technique id, named), 89 textured models, 121 textures, scripts as JSON + listings; slot 110 stale copy of 344, slot 121 fill |
 | `atr_files` | `STDDAT/B_TOGI.ATR`, `E_TOGI.ATR` | done | 2 | 7/7 | `specs/atr.md` | Arena collision; walkable disc (B) / diamond (E) checked against the arena models; T_TOGI arena reuses B_TOGI.ATR |
 | `scripts` | `SCN/MAPHEAD.SCN`, `SCN/DG.SCN` | done | 223 | 1571/1571 | `specs/scn.md` | 222 DG scripts + MAPHEAD (map setup); 39,797 instructions, 4,844 texts; map → script links; JSON + readable listings |
@@ -85,3 +85,4 @@ Last updated: 2026-10-22
 - 2026-10-24 — `maps`: door slots kept in `map.json` (`slot`; tables 1 and 6 start with an empty one), and object sprites get an STP mask (`object_<k>[_p<p>].stp.png`, `objects[k].stp_files`; `Vram.sample_page_stp`) for the semi-transparent blending (`../specs/map_objects.md`).
 - 2026-10-24 — Models (`tmd_files`, `mmd_files`, `efe`, map doors): texture pages with STP texels get a `.stp.png` mask, named by the semi-transparent materials' `extras.stp_texture` (ISSUES.md I-5: the poop's subtractive shadow).
 - 2026-10-24 — `music`: the songs rendered offline (`formats/libsnd.py` + `formats/spu.py`, `tests/test_music.py`). libsnd checked against DW's asm (key-on volume squared for songs only, `_SsVmSetVol` reads the voice's own tone, NRPN 20/30 loops with the count from data entry, the 240 Hz tick); `_svm_ptable` and `_spu_rev_param` (Studio B = entry 3) read from `SLUS_010.32`. ~2x real time per song in pure Python, one process per song.
+- 2026-10-26 — `maps`: training slot machine textures for the maps that load the TRN overlay (0x70 TRAI00, 0x4E GIAS09, 0x77 MIST05; `loadTrainingLibrary`). The 4bpp page (704, 0) composed in load order, rows v 0xD8–0xF7 exported as `training/slots_p3.png` (symbols, CLUT (48, 486)) and `slots_p4.png` (reel window, CLUT (64, 486)) + `.stp.png` + `slots.json` (`Vram.page_indices`). All three maps give byte-identical strips (informational check); 244 assets, 1256/1256 checks; p3 has no STP colours, p4 all STP.

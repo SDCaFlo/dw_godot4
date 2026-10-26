@@ -189,8 +189,10 @@ func step() -> void:
 		else:
 			_render_static(i)
 	queue_redraw()
-	if _additive != null:
-		_additive.queue_redraw()
+	# The blend layers: the additive one and those a box's contents add (TrainingSlotsBox).
+	for child in get_children():
+		if child is CanvasItem:
+			child.queue_redraw()
 
 
 ## renderUIBoxAnimated (ui.c:234): frames 0-4 while opening, 4-0 while closing, then the open box

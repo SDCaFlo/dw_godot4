@@ -74,7 +74,7 @@ Last updated: 2026-10-24
             - [ ] 4d. Training (0x07, `specs/training.md`):
                 - [x] 4d-1. The core (gains, the hour, the stats box) and HP at the Green Gym, with the field pieces (coded 2026-10-25, `tests/test_training.gd`, VERIFY "Training").
                 - [x] 4d-2. Offense, Speed, Defense, MP, Brains (new orders, move learning): the eight stations of TRAI00, GIAS09 and MIST05, hit sparks, two data tables (`specs/training.md` §6).
-                - [ ] 4d-3. The slot-machine bonus (Bonus Try).
+                - [x] 4d-3. The slot-machine bonus (Bonus Try): `SlotMachine`, `SlotSession`, `TrainingSlotsBox` (box 3), the stations' hooks, the `systems/slot_machine` table and the gym maps' slot textures (2026-10-26, `specs/training.md` §7, VERIFY "Training" 4).
                 - [ ] 4d-4. The TRN2 stations (maps 0x63, 0x6B, 0x6C, 0xA5).
             - [ ] 4e. Tournaments (with 0x16, the medal check), naming / new game, save.
          - Fishing (the menu's 7th icon) comes with fishing.

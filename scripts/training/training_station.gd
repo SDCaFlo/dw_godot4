@@ -22,7 +22,7 @@ var data: Node
 
 ## The station's object is in the list (addObject … removeObject).
 var running := false
-## MAIN_D_80135370: value 0xF6, the slot-machine bonus (4d-3; until then the station runs as Normal).
+## MAIN_D_80135370: value 0xF6, the slot-machine bonus ("Bonus Try", specs/training.md §7).
 var slots := false
 ## TRAINING_STATE, MAIN_D_8013537A, MAIN_D_8013537C.
 var state := 0
@@ -154,14 +154,37 @@ func set_camera_follow(on: bool) -> void:
 		t.camera_follow = on
 
 
-## The session's end without the slots: a minute, or △ held. (4d-3: the slot result.)
+## The session's end: without the slots a minute, or △ held; with them, the session's result.
 func session_over() -> bool:
-	return not slots and (counter >= SESSION_FRAMES or cancel_held())
+	return (not slots and (counter >= SESSION_FRAMES or cancel_held())) or slot_result_ready()
 
 
-## The slot result, 10 without the slots.
+## The slots' session has paid out (r >= 0).
+func slot_result_ready() -> bool:
+	return slots and result() >= 0
+
+
+## The awards' `c`: the slot session's result with the slots (−1 until it has paid out), else 10.
 func result() -> int:
-	return NORMAL_RESULT
+	return training.slot_session.result() if slots else NORMAL_RESULT
+
+
+## The station's multiplier mode (the slots' stat), from its script stat.
+func slot_mode() -> int:
+	return Training.mode_of_stat(stat)
+
+
+## TRN_startSlotSessionIfEnabled(mode): in the station's state 0, after its own work.
+func start_slot_session() -> void:
+	if slots:
+		training.slot_session.configure(data, play)
+		training.slot_session.start(slot_mode())
+
+
+## TRN_startSlotSpin, if MAIN_D_80135370 == 1: when the partner reaches its point.
+func start_slot_spin() -> void:
+	if slots:
+		training.slot_session.machine.start_spin()
 
 
 ## Fresh / In-Training: the upgrade counter `field` of the care + 1.

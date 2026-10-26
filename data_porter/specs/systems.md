@@ -140,6 +140,15 @@ Choosing one writes the map to `PSTAT_247` and `unk_0x1` (9 for five destination
 
 Per gym map (7 gyms, -1 ends the list): the x / y / z position of each stat's equipment (stat 0 HP, 1 MP, 2 Off, 3 Def, 4 Speed, 5 Brain; -1 ends), used for the training HUD (`TRN_getTrainingSpotScreenPos`, `trn_hud.c:376–400`). The `trn2` overlay has the same list (checked).
 
+### `slot_machine` (`TRN_D_8008F1AC[3][13]`, `src/trn/trn_hud.c:80`; `TRN_D_8008F2CC[10]`, `src/trn/trn_slots.c:50`)
+
+The training bonus game ("Bonus Try", `../../specs/training.md` §7): one record.
+- **`reels`:** the symbols of each reel. The symbol on the pay line is `reels[i][reelPos[i]]`; the strip scrolls towards lower indices. Each reel holds all seven symbols (a check).
+- **`assist_draw`:** `assist = assist_draw[rand() % 10]` when the machine opens (`TRN_createSlotMachineBox`): 0 five times in ten (honest), 1 four times (helps the first symbol), 2 once (the jackpot). `TRN_chooseReelStop` reads it.
+- **`symbols`:** 1-6 with the stat they stand for (the mode names of `training_spots`: hp, mp, offense, defense, speed, brain), 7 the jackpot. The C tests `symbol - 1 == stat` (`TRN_tickSlotMachine`, state 5); the record makes it a property.
+- **`payouts`** (code constants of state 5): `jackpot` 100 (three 7s, sound 12), `own_stat` 40 (three of the station's stat, sound 11), `other_match` 20 (sound 11), `none` 5 (sound 13); each with the C text. The payout is the awards' `c`.
+- **Checks:** sizes from `symbols_trn.txt` (0x27, 0xA), 3 × 13, symbols 1-7 on each reel, draw values 0-2, and the C text of the uses (`EVIDENCE`).
+
 ## Minigames and misc
 
 ### `fishing` (`FISH_KIND_INFO[7]`, `FISH_BITE_CHANCE[200]`, `FISH_BAIT_CHANCES[6]`, `FISHING_MAP_DATA[2]`, `src/fish/fish.c`)
@@ -193,7 +202,7 @@ Every table is in the common shape. Ids are resolved to names: Digimon, items, t
 
 ## Godot usage
 
-`GameData.system(name)` returns the records of any of these tables (one-record tables: `system("fishing")[0]`), with helpers where an index is computed: `flee_chance(partner_type, enemy_type)`, `battle_commands(brain, arena)`, `enemy_music(digimon_id)`, `tournament(id)`, `tournaments_on_day(day)` (day % 30, before `isTournamentEnabled`), `tournament_win_chance(level_a, level_b)`, `map(id)`, `map_id(file)`, `toilet(id)`, `training_spots(map)`, `script_stat_limit(stat)`. Lookups that find nothing return `-1` or `{}`. The formulas above are ported with the system that uses them (battle, arena, care, fishing, menus).
+`GameData.system(name)` returns the records of any of these tables (one-record tables: `system("fishing")[0]`), with helpers where an index is computed: `flee_chance(partner_type, enemy_type)`, `battle_commands(brain, arena)`, `enemy_music(digimon_id)`, `tournament(id)`, `tournaments_on_day(day)` (day % 30, before `isTournamentEnabled`), `tournament_win_chance(level_a, level_b)`, `map(id)`, `map_id(file)`, `toilet(id)`, `training_spots(map)`, `slot_machine()` (the one record), `script_stat_limit(stat)`. Lookups that find nothing return `-1` or `{}`. The formulas above are ported with the system that uses them (battle, arena, care, fishing, menus).
 
 ## Verification
 

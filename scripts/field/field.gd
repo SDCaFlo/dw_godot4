@@ -184,7 +184,8 @@ func _start_debug() -> void:
 	debug.window.ui_filter_changed.connect(func(on: bool) -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
-	for node: Node in [care_host.bars, care_host.bubbles, debug.panel, scripts.boxes, care_host.fade, scripts.map_name]:
+	for node: Node in [care_host.bars, care_host.bubbles, scripts.clouds, debug.panel, scripts.boxes, care_host.fade,
+			scripts.map_name]:
 		if node != null:
 			_hud.add_child(node)
 
@@ -208,6 +209,7 @@ func _frame() -> void:
 		map_session.update_map_light_state()
 		scripts.tick_script()
 		_field.tick_pan()
+		scripts.tick_objects()
 		_field.overlays.tick()
 	debug.tick_message()
 	care_host.tick_visuals(in_menu)

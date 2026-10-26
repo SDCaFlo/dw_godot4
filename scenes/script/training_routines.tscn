@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/script/training_routines.gd" id="1_training"]
+[ext_resource type="PackedScene" path="res://scenes/training/hp_boulder.tscn" id="2_hp"]
+
+[node name="TrainingRoutines" type="Node"]
+script = ExtResource("1_training")
+
+[node name="HpBoulder" parent="." instance=ExtResource("2_hp")]

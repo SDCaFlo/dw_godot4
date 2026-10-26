@@ -1,6 +1,22 @@
 # Training
 
-Status (2026-10-25): spec written for step 5e-4d-1 (`PLANS.md` 5e-4). Not coded yet.
+Status (2026-10-25): step 5e-4d-1 coded (`PLANS.md` 5e-4). Code:
+- `Training` (`scripts/systems/training.gd`), `TrainingStatsBox` (`scripts/ui/training_stats_box.gd`);
+- `scenes/script/training_routines.tscn` (`scripts/script/training_routines.gd`) with its station `scenes/training/hp_boulder.tscn` (`scripts/training/hp_boulder.gd`, on `scripts/training/training_station.gd`);
+- `CloudFX` (`scripts/field/cloud_fx.gd`);
+- `MapOverlays.store_positions` / `load_positions` / `move`;
+- `Tamer.STATE_TRAINING`, `Partner.STATE_TRAINING`;
+- `ScriptInterpreter.tick_walk_to`;
+- `ScriptRoutines.tick_objects` (from `Field._frame` after the pans).
+
+Tests: `tests/test_training.gd`. Checks: VERIFY "Training".
+
+As built:
+- **Checked in the real field** (a movie of TRAI00, section 81): Agumon walks to the boulder and pushes it while the dust rises; △ ends the push; the box counts HP +80 / Offense +2; it walks back; the clock goes 8:02 → 9:02.
+- **A box ticks only once it is open:** the box's 100-frame delay starts after its 5-frame opening, in the C as here.
+- **The finish flag stays set:** once ✕ / △ finished the count, `MAIN_D_80135394` stays set until the next box. Any gain left is added at once.
+- **The station's animations clear the held step:** `startAnimation` sets `animFlag = 1` (`anim.c:231`), which clears the held root motion. The station's `partner_animation` does that; the port's `start_animation` doesn't, for the other systems' sake.
+- **`CALL_DIGIMON_ROUTINE` past 10** (the gyms' 214) is no longer reported as unported: it isn't a case of the C's switch.
 
 The gyms: the partner trains a stat at a station, the stats it gains count up in a box, and an hour passes. Builtin 0x07 of `CALL_ROUTINE` runs it. This spec ports the shared core and one station end to end, **HP at the Green Gym** (TRAI00, map 0x70, the "Boulder Moving" station). It also adds the field pieces a station needs. Later steps add the rest:
 - **4d-2:** the other five stations (Offense, Speed, Defense, MP, Brains), including the Brains "new orders" box and move learning (`TRN_tryLearnMove`);

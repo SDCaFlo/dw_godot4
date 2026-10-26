@@ -13,6 +13,7 @@ godot --headless --path . -s res://tests/test_shops.gd
 godot --headless --path . -s res://tests/test_card_shops.gd
 godot --headless --path . -s res://tests/test_town_services.gd
 godot --headless --path . -s res://tests/test_debug_state.gd
+godot --headless --path . -s res://tests/test_training.gd
 godot --headless --path . -s res://tests/test_camera.gd
 godot --headless --path . -s res://tests/test_map_objects.gd
 godot --headless --path . -s res://tests/test_lighting.gd
@@ -131,6 +132,19 @@ Sections are added as systems are ported (`PLANS.md`).
 5. **Equipping:** ✕ on an equipped technique removes it; ✕ on a learned one Agumon can use equips it (up to 3); others give the refusal sound. △ leaves the grid only with an attack equipped. □ opens the help page; △ closes it.
 6. **Back:** △ on a tab: the window shrinks into the tamer, the tamer and Agumon come back, the △ menu opens again.
 7. **Compare with the game:** the layout of both tabs, the model's place and size, the darker cells (the port approximates the PSX's subtracted boxes), and the colours.
+
+## Training (`scripts/systems/training.gd`, `scripts/training/`, `scripts/script/training_routines.gd`, `scripts/ui/training_stats_box.gd`, `scripts/field/cloud_fx.gd`; `specs/training.md`)
+
+`test_training.gd` prints `OK: training checks`. In the game (F5), at the Green Gym (TRAI00; the debugger's Maps tab):
+1. **The HP station** ("Boulder Moving", the boulder by the sign): Begin, then Normal.
+   - The tamer cheers and faces the partner. The partner walks to the boulder while the camera pans there.
+   - It pushes: the boulder shakes, steps forward every 6 seconds, and dust rises at its feet, with the pushing sounds.
+2. **The end:** after a minute, or at once while you hold △. The camera goes back to the tamer.
+   - The stats box opens from the partner: HP and Offense have blue bars and "+" gains. After about 5 seconds they count up one point a frame, with a ticking sound.
+   - ✕ or △ adds the rest at once.
+3. **After the box:** the partner walks back, the boulder is in its place again, and you can move. The partner's HP and Offense went up (a Rookie with training type 0: +80 / +2), the clock moved one hour from when the session started, and the partner is more tired.
+4. **Bonus Try** runs like Normal until the slot machine is ported (4d-3).
+5. **Other stations** (Offense, Speed, Defense, MP, Brains) and the other gyms don't start yet: the script waits after "Begin". Leave with the debugger's Maps tab (4d-2).
 
 ## Item keeper, jukebox, Birdramon (`scripts/script/item_keeper_routines.gd`, `jukebox_routines.gd`, `birdramon_routines.gd`, `scripts/ui/keeper_menu.gd`; `specs/town_services.md`)
 

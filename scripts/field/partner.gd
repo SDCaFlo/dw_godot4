@@ -34,6 +34,8 @@ const STATE_WILD_POOP := 7
 const STATE_IDLE := 11
 ## A script moves it (scriptSetEntityWalking): nothing ticks but the animation (partner.c:246).
 const STATE_SCRIPT := 12
+## A training station moves it: only the condition bubble (partner.c:244; specs/training.md §2.6).
+const STATE_TRAINING := 10
 
 var tamer: Node3D
 var game_state: Node
@@ -136,6 +138,9 @@ func tick() -> void:
 			tick_wild_poop()
 		STATE_IDLE:
 			tick_idle()
+		STATE_TRAINING:
+			if care != null:
+				care.handle_condition_bubble()
 	step = 0.0
 	on_screen = field.is_on_screen(global_position)
 	if care != null:

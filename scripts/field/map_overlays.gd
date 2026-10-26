@@ -294,6 +294,40 @@ static func _snap(value: int, delta: int, target: int) -> int:
 	return target
 
 
+## storeMapObjectPosition (overworld.c:790): the x / y of `count` instances from `start`.
+func store_positions(start: int, count: int) -> Array:
+	var out := []
+	for k in range(start, start + count):
+		var inst := instance(k)
+		out.append(Vector2i(int(inst.get("x", 0)), int(inst.get("y", 0))))
+	return out
+
+
+## loadMapObjectPosition (overworld.c:832): the positions back; the flag loses bit 0x10.
+func load_positions(positions: Array, start: int) -> void:
+	for i in positions.size():
+		var k := start + i
+		if k < 0 or k >= _instances.size():
+			continue
+		var inst: Dictionary = _instances[k]
+		inst["x"] = positions[i].x
+		inst["y"] = positions[i].y
+		inst["flag"] = _s8(inst["flag"] & ~0x10)
+		_show(inst)
+
+
+## moveMapObjectsWithLimit (overworld.c:844) without its limit test (the stations ignore it):
+## `count` instances from `start` move by (dx, dy) background pixels.
+func move(start: int, count: int, dx: int, dy: int) -> void:
+	for k in range(start, start + count):
+		if k < 0 or k >= _instances.size():
+			continue
+		var inst: Dictionary = _instances[k]
+		inst["x"] += dx
+		inst["y"] += dy
+		_show(inst)
+
+
 ## spawnSpriteAtLocation (overworld.c:952): `count` instances from `start` get their top-left
 ## corner half their first non-blank sprite above-left of the background pixel; the flag loses bit
 ## 0x10 (loadMapObjectPosition). They aren't shown: the scripts show them.

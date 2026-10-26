@@ -13,6 +13,10 @@ var game_state: Node
 var data: Node
 ## The SoundSystem (its `music`: the jukebox); null in tests without one.
 var sound: Node
+## Set by the host after configure: the interpreter (the training stations walk, pan and move the
+## map's sprites through it) and the dust clouds (CloudFX). Null in tests without a field.
+var interpreter: ScriptInterpreter
+var clouds: CloudFX
 ## The one script item menu (the C's item menu is global): every routine node uses it, so the bits
 ## box of builtin 0x0F sees what a later routine buys.
 var menu: ItemMenu
@@ -32,6 +36,14 @@ func configure(script_ctx: ScriptContext, text_boxes: TextBoxes, state: Node, ga
 	for child in get_children():
 		if child.has_method("configure"):
 			child.configure(self)
+
+
+## The routines' objects (the training stations), one game frame: Field._frame calls it after the
+## script and the camera's pans.
+func tick_objects() -> void:
+	for child in get_children():
+		if child.has_method("tick_objects"):
+			child.tick_objects()
 
 
 ## The node running a builtin (the last child listing it, so a mod's node added later wins).

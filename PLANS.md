@@ -72,7 +72,7 @@ Last updated: 2026-10-24
             - [x] 4b. The card shops (0x0E: pack, single card, selling; Gear Savanna's Market Manager), the merit shop (0x01), Mojyamon's trades (0x02) (`specs/card_shops.md`; coded 2026-10-25, `tests/test_card_shops.gd`, VERIFY "Card shops, merit shop, Mojyamon").
             - [x] 4c. The item keeper (0x0B), the jukebox (0x09), Birdramon's transport (0x0A) (`specs/town_services.md`; coded 2026-10-25 with the porter's jukebox fields, `tests/test_town_services.gd`, VERIFY "Item keeper, jukebox, Birdramon").
             - [ ] 4d. Training (0x07, `specs/training.md`):
-                - [ ] 4d-1. The core (gains, the hour, the stats box) and HP at the Green Gym, with the field pieces (spec written 2026-10-25).
+                - [x] 4d-1. The core (gains, the hour, the stats box) and HP at the Green Gym, with the field pieces (coded 2026-10-25, `tests/test_training.gd`, VERIFY "Training").
                 - [ ] 4d-2. Offense, Speed, Defense, MP, Brains (new orders, move learning).
                 - [ ] 4d-3. The slot-machine bonus (Bonus Try).
                 - [ ] 4d-4. The TRN2 stations (maps 0x63, 0x6B, 0x6C, 0xA5).

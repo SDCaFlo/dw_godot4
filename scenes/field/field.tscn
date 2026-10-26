@@ -18,6 +18,7 @@
 [ext_resource type="PackedScene" path="res://scenes/script/item_keeper_routines.tscn" id="12_item_keeper_routines"]
 [ext_resource type="PackedScene" path="res://scenes/script/jukebox_routines.tscn" id="12_jukebox_routines"]
 [ext_resource type="PackedScene" path="res://scenes/script/birdramon_routines.tscn" id="12_birdramon_routines"]
+[ext_resource type="PackedScene" path="res://scenes/script/training_routines.tscn" id="12_training_routines"]
 
 [sub_resource type="Environment" id="Environment_bg"]
 background_mode = 3
@@ -96,6 +97,8 @@ script = ExtResource("11_routines")
 [node name="JukeboxRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_jukebox_routines")]
 
 [node name="BirdramonRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_birdramon_routines")]
+
+[node name="TrainingRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_training_routines")]
 
 [node name="CareHost" type="Node" parent="Systems"]
 script = ExtResource("7_care_host")

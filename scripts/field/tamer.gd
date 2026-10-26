@@ -28,6 +28,9 @@ const STATE_AWARD := 20
 ## Picking up an item from the ground (tamerTickPickupItem) and opening a chest (tamerTickTakeChest).
 const STATE_PICKUP := 7
 const STATE_CHEST := 14
+## A training station runs (tamerTickTraining, specs/training.md §2.6): his cheer, facing the partner.
+const STATE_TRAINING := 8
+const ANIM_TRAINING := 10
 ## startAnimation(tamer, 0xC): the pick-up animation.
 const ANIM_PICKUP := 0xC
 ## tamerTickPraiseScold: the scold, the low and high pats; the partner's answers.
@@ -259,6 +262,8 @@ func tick() -> void:
 			tick_pickup_item()
 		STATE_CHEST:
 			tick_take_chest()
+		STATE_TRAINING:
+			tick_training()
 	if state != STATE_FREE:
 		step_blocked = false
 	step = 0.0
@@ -274,6 +279,15 @@ func _check_open_menu() -> bool:
 	camera_follow = false
 	stored_position = position
 	return true
+
+
+## tamerTickTraining (tamer.c:1610): animation 10, then he keeps turning to the partner.
+func tick_training() -> void:
+	if sub_state == 0:
+		start_animation(ANIM_TRAINING)
+		sub_state = 1
+	elif partner != null:
+		look_at_psx(int(partner.position.x), int(-partner.position.z))
 
 
 ## tamerTickIdle (tamer.c:1602): animation 0 once.

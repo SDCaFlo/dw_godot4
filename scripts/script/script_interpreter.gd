@@ -59,6 +59,8 @@ const OBJECT_SLOT := 12
 const WALK_HIT_LIMIT := 9
 ## CALL_DIGIMON_ROUTINE 0: the toilet scene (partner state 6).
 const ROUTINE_TOILET := 0
+## callDigimonRoutine's last case (partner.c:1139-1213).
+const ROUTINE_LAST := 10
 ## tickLookAtEntity's turn per frame (rotateEntity speed).
 const LOOK_AT_SPEED := 0x200
 ## setTrigger(0x2C) skips scriptPauseGame's turn to each other (TRIGGER_44 in trigger.h).
@@ -369,6 +371,16 @@ static func tick_entity_walk_to(actor: Node3D, x: int, z: int) -> bool:
 	var from := FieldMap.model_tile(int(actor.position.x), int(-actor.position.z))
 	actor.look_at_psx(x, z)
 	return from == FieldMap.model_tile(x, z)
+
+
+## tickEntityWalkTo(scriptId, targetId, x, z, useCamera) for the callers outside the scripts (the
+## training stations, specs/training.md §2.6): true when there, or when there is no such entity.
+func tick_walk_to(script_id: int, target_id: int, x: int, z: int, use_camera := false) -> bool:
+	var slot := script_id_to_entity_id(script_id)
+	var actor := _actor(slot) if slot != FREE else null
+	if actor == null:
+		return true
+	return _tick_walk_to(slot, actor, target_id, x, z, use_camera)
 
 
 ## tickEntityWalkTo(id, target, x, z, useCamera) for a slot: to the point, or to the target entity's
@@ -1243,6 +1255,9 @@ func call_digimon_routine(routine: int) -> void:
 		partner.set_state(Partner.STATE_TOILET)
 		ctx.sync_bit = 0
 		_sync_scene = true
+		return
+	# Routines past 10 aren't cases of the C's switch: nothing happens (the gyms call 214).
+	if routine > ROUTINE_LAST:
 		return
 	_report(0x49, "CALL_DIGIMON_ROUTINE %d" % routine)
 

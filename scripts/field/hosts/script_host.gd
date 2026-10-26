@@ -28,6 +28,8 @@ var textboxes: TextBoxes
 var interpreter: ScriptInterpreter
 ## The map name during a map change.
 var map_name: MapName
+## The dust clouds of the training stations (CloudFX); the field puts them into the HUD.
+var clouds: CloudFX
 ## TALKED_TO_ENTITY: the entity (2-9) of the last NPC talk.
 var talked_to_entity := 0
 
@@ -94,9 +96,15 @@ func start() -> void:
 	interpreter.map_items = map_items
 	interpreter.map_chests = map_chests
 	# The ported builtin routines (shops, ...): the Routines node's children (specs/shops.md §3).
+	clouds = CloudFX.new()
+	clouds.name = "CloudFX"
+	clouds.camera = camera
+	clouds.field = field_map
 	var routines := get_node_or_null("Routines") as ScriptRoutines
 	if routines != null:
 		routines.configure(script_ctx, textboxes, GameState, GameData, Sound)
+		routines.interpreter = interpreter
+		routines.clouds = clouds
 		interpreter.routines = routines
 
 
@@ -104,6 +112,14 @@ func start() -> void:
 func tick_script() -> void:
 	if interpreter != null:
 		interpreter.tick_script()
+
+
+## The routines' objects (the training stations) and the dust, one game frame.
+func tick_objects() -> void:
+	if interpreter != null and interpreter.routines != null:
+		interpreter.routines.tick_objects()
+	if clouds != null:
+		clouds.tick()
 
 
 ## The UI boxes' object pass.

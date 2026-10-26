@@ -146,6 +146,7 @@ func npc_autotalk(npc: Npc) -> void:
 ## TALKED_TO_ENTITY and callScriptSection(CURRENT_SCRIPT_ID, npc.scriptId, 1).
 func talk_to(npc: Npc) -> void:
 	talked_to_entity = npc.slot + 2
+	script_ctx.talked_to_entity = talked_to_entity
 	interpreter.call_section(script_ctx.current_script_id, npc.script_id(), 1)
 
 

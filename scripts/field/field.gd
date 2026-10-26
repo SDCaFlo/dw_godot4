@@ -59,6 +59,7 @@ var _maps: PackedStringArray
 @onready var care_host: CareHost = $Systems/CareHost
 @onready var clock_host: ClockHost = $Systems/ClockHost
 @onready var menu_host: MenuHost = $Systems/MenuHost
+@onready var battle_host: BattleHost = $Systems/BattleHost
 @onready var debug: DebugHost = $Debug
 
 
@@ -151,6 +152,21 @@ func _start() -> void:
 	menu_host.item_use = item_use
 	menu_host.start()
 	menu_host.message.connect(debug.show_message)
+	# The battles (specs/battle.md §5.2): START_BATTLE starts one, the field runs only its frame.
+	battle_host.world = _world
+	battle_host.field_map = _field
+	battle_host.camera = _camera
+	battle_host.tamer = _tamer
+	battle_host.partner = partner
+	battle_host.entities = entities.entities
+	battle_host.care = care_host.care
+	battle_host.clock = clock
+	battle_host.menu_host = menu_host
+	battle_host.map_items = map_session.map_items
+	battle_host.fade = care_host.fade
+	battle_host.message.connect(debug.show_message)
+	if scripts.interpreter != null:
+		scripts.interpreter.battles = battle_host
 	map_session.partner = partner
 	map_session.entities = entities.entities
 	map_session.scripts = scripts
@@ -197,6 +213,14 @@ func _start_debug() -> void:
 ## (specs/camera.md §6), the overlay sprites where the map renders; the HUD; the UI boxes after
 ## everything that opens and closes them; the fade last.
 func _frame() -> void:
+	# A battle runs its own loop in the original (BTL_battleMain): only the battle's frame, then the
+	# boxes and the fade (specs/battle.md §5.3).
+	if battle_host.active:
+		battle_host.frame()
+		if battle_host.active:
+			scripts.step_boxes()
+			care_host.tick_fade()
+			return
 	_tamer.tick()
 	var in_menu := menu_host.is_open()
 	entities.freeze_npcs(in_menu)

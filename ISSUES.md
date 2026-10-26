@@ -16,7 +16,20 @@ Reported 2026-10-25.
 - **Cause:** in the original, the first partner is marked raised (`setDigimonRaised(partnerId)`, `main.c:3452`, trigger `0x200 + id`) when the new game intro process (`newGameScene()`, Jijimon's questionnaire and naming) completes, and subsequent Digimon are marked upon evolution (`evl.c:1489`) or reincarnation (`evolution.c:1079`). Neither the new game intro sequence nor the evolution system has been ported yet (PLANS.md step 4e / milestone 5).
 - **Status:** on hold (waiting for the new game sequence in step 4e).
 
+Reported 2026-10-26.
+
+### I-21. Recovery items show no healing effect
+- **Seen:** giving the partner a recovery item (e.g. Sm. recovery) heals it, but nothing shows on the partner.
+- **Cause:** the original draws a healing particle effect over the partner (`addHealingParticleEffect(partner, variant)`, `main/particle.c:209`), called by the item handlers (`item.c:2236`, `:2242`, `:2348`, `:2362`, `:2373`; variants `HEAL_EFFECT_VARIANT`). The inventory step left it for later (`specs/inventory.md` §6: "with the effects"); it was not in the plans.
+- **Status:** open. A small field effect of its own (main binary, not the battle's effect engine): planned in `PLANS.md` (5e follow-ups).
+
 ## Fixed
+
+### I-20. Battle start: the tamer runs off the screen
+- **Seen:** when a battle starts after walking about the map, the tamer runs towards where he entered the map and leaves the screen (reported 2026-10-26 with step 5d-3).
+- **What the original does:** the intro sends him back along his way to the map entry (his waypoints, then his start tile), but each frame tests his next step against a combat area of 310 x 230 screen pixels around the battle (`entityCheckCollision(partner, tamer, 0x136, 0xE6)`, `battle_setup.c:261`); at its edge (result 11) he stops, turns to the partner and stands (`specs/battle.md` §2.4).
+- **Cause:** the port has that test (`FieldBattleWorld.check_collision`), but it measures the step his animation's root motion made in the last game frame, and the tamer's scripted-walk movement (the state the battle drives him in) moved him without recording that step. The probe always saw a step of 0, never hit the area's edge, and he ran on.
+- **Status:** fixed (2026-10-26, with 5d-3): `Tamer._process` records the step in that state too and keeps a held step still. `tests/battle_scan.tscn` now starts each battle with the tamer far from his entry and checks he is on screen when the fight begins (it fails without the fix on 2 of its 3 maps).
 
 ### I-14. Player / Digimon screen: the tab headers all look selected
 - **Seen:** every tab is drawn light; in the original the tabs not shown are darker, with blue labels.

@@ -404,6 +404,20 @@ In the game (F5):
 4. **The Factorial Town remodel** (optional, needs a Mamemon): set the field's `debug_partner` to `dw1:mamemon`, warp to FACT10 (Maps tab) and talk to the remodel shop's owner, Do it (2000 bits): about half the time the partner evolves into MetalMamemon (one in ten Giromon), and the shop's line follows.
 5. **Compare with the game:** where the tamer and the partner stand and face, how long the build-up lasts before the change.
 
+## Battles (`scripts/systems/battle/`, `scripts/field/field_battle_world.gd`, `hosts/battle_host.gd`; `specs/battle.md`)
+
+`test_battle.gd` prints `OK: battle checks`, `test_efe.gd` `OK: 41 effect checks`; `godot --headless --fixed-fps 60 --path . res://tests/battle_scan.tscn` ends with `battle_scan: OK` (three wins in the real field). **There is no battle HUD yet (5d-4)**: no command menu, bars or numbers on screen, and the techniques' effects aren't drawn (5d-5). The help line shows the commands given and the damage dealt. In the game (F5):
+1. **Starting a battle:** go to a map with wild Digimon near File City (e.g. Tropical Jungle, TROP01) and walk into one, or let it charge you. Its talk section starts the battle:
+   - the music changes to the battle theme; the enemy turns to the partner, which runs up to the tamer (about 2 s);
+   - Digimon on screen that don't join run off; the tamer backs off towards where he entered the map;
+   - after the start text's time (invisible for now) the fight begins.
+2. **The fight:** the partner and the enemy walk towards each other, attack with their technique animations, get hit (front / back reactions), block, sometimes stand distracted (the "thinking" pose). The help line shows the damage numbers.
+3. **Commands, blind:** ← / → move the hovered command (sound), ✕ gives it (the tamer points; "command N" on the help line). From the start the hovered one is Your Call. With a partner below 100 Brains the list is finisher, Run, Your Call: press ← once then ✕ to run away.
+4. **Running away:** the tamer runs back the way he came, the partner follows, the screen fades out and you arrive on the previous map.
+5. **Winning:** the enemy falls, the tamer cheers and the partner poses; the bits are counted into your money (one per frame, ✕ skips), the stats rise by the gains, the enemy gets up and runs off. Then the camera pans back to the tamer and you can walk. 20 minutes have passed on the clock. The debugger's State tab shows the partner's new stats, money and battles.
+6. **Losing:** with a weak partner the partner falls; after about 9 s the battle ends and the battle-loss script runs (its scenes come with step 6, "death and lives").
+7. **Compare with the game:** how close the fighters stand, how fast they attack, how often a technique hits, how long the end takes.
+
 ## Partner (`scripts/field/partner.gd`, `psx_animator.gd`, `specs/partner.md`)
 
 `test_partner.gd` prints `OK: Partner checks`. Then run the project (F5):

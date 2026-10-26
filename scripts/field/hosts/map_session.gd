@@ -85,6 +85,8 @@ func _load_map_at_exit(map_name: String, exit: int) -> bool:
 		entities.load_map_digimon(field_map.data.get("digimon", []), bool(entry.get("has_digimon", false)))
 	var spawn_point := field_map.spawn(clampi(exit, 0, field_map.data["spawns"].size() - 1))
 	tamer.place(spawn_point)
+	# loadMap's initializeTamerWaypoints (map.c:4091): the way back starts at the entry.
+	tamer.initialize_waypoints()
 	if partner != null:
 		partner.place_for_spawn(spawn_point)
 	var id := -1 if Engine.is_editor_hint() or not GameData.available() else GameData.map_id(map_name)

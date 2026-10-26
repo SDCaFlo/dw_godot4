@@ -25,7 +25,7 @@ const DEFAULT_SCENE := "res://scenes/battle/effects/efe_effect.tscn"
 var ctx: BattleEffectContext
 var data: Node
 ## Where the effect nodes go (the battle's 3D world); null headless.
-var world: Node3D
+var world: Node
 ## A test hook: when set, every technique uses this scene (a mod's effect in the tests).
 var scene_override := ""
 

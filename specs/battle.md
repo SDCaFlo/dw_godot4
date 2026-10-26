@@ -1,6 +1,6 @@
 # Battles
 
-Status (2026-10-26): approved. Step 5d of `PLANS.md`. The technique effects, which also make the hits, have their own spec: `specs/battle_effects.md`.
+Status (2026-10-26): approved; **5d-1, 5d-2 and 5d-3 done**, see "As built" at the end. Step 5d of `PLANS.md`. The technique effects, which also make the hits, have their own spec: `specs/battle_effects.md`.
 
 The field battles of the original: a wild or scripted enemy starts a fight on the map where it stands. The partner fights on its own (its AI). The tamer gives it orders from the command menu and throws items. The battle ends when every enemy faints, when the partner faints and the countdown runs out, or when the tamer runs away. Rewards (bits, stat gains, items, techniques), the care changes and 20 minutes of game time follow.
 
@@ -543,3 +543,29 @@ VERIFY gets "Battles": walk into a wild Digimon on a map near File City, watch t
 - **The pause** in battle waits for the field pause (`PLANS.md` §6).
 - **Map `unk1`** of the NPC record: its name `targets_partner` is from its two uses here; to confirm on maps where it is 1.
 - **The arena** (`std`) copies this code with changes: when 4e comes, `Battle` gets an arena mode rather than a copy.
+
+## As built (5d-3, 2026-10-26)
+
+- **Logic** (`scripts/systems/battle/`, headless):
+  - `Battle` (`battle.gd`): `battle_setup.c` and `battle_main.c` under the C names: set-up, both AIs, the fighter states, movement (melee, ranged band, backing away, `BTL_findUnblockedRotation`), choosing / starting techniques, hits, damage, statuses, finishers, the damage buffers. It reads properties: `category` finisher, `counter`, `buff`, `flags`, `battle_scale`, `anim_technique`, the command lists. Visual and HUD events go out through `visual(kind, args)`.
+  - `BattleFighter` (`FighterData`), `BattleRewards` (`battle_ui.c`: gains, drops, injury, the texts, learning, the stats / bits counting), `BattleStartText` (the start text's motion, which ends the intro and draws random numbers).
+  - `BattleSession`: the C's blocking loops as phases (`LOADING` 40 frames, `INTRO`, `INTRO_BURST`, `FIGHT`, `VICTORY_WAIT`, `VICTORY_POSE`, `END_BOX`, `ENEMIES_UP` / `ENEMIES_LEAVE`, `MENU_CLOSE`, `DONE`), `handleBattleStart`, `loadBattleData`, `tamerTickBattle`, `handleCommands`, `handleFleeing`, `BTL_isBattleFinished`, `BTL_deinitializeCombat`.
+  - `BattleWorld` (extends `BattleEffectContext`): everything the logic reads or changes in the world.
+- **Field** (`scripts/field/`):
+  - `FieldBattleWorld`: the world on the field's entities, map, camera, `GameState` and `Sound`. NPC stats come from their map record into the slot (`stats`, the partner's layout), and last for the map visit as `NPC_ENTITIES` does. `entityCheckCombatArea` tests the two corners the C's loop reads (it indexes `QUADRANTS[i]` for `i` 0–1 only).
+  - `BattleHost` (`Systems/BattleHost`): starts the session for `START_BATTLE`, runs its frame (the field runs only that while it's active, then the boxes and the fade), then `startBattle`'s tail and `advanceBattleTime`; `item_loss` (`handleItemLoss`).
+  - `ScriptInterpreter`: `START_BATTLE` counts, converts the predefined enemies, stops the music, waits for the battle, then the outcome: −1 item loss, lives, script 0 section 0x4DE; 0 the map change back; 1 trigger 1 or the camera pan back (slot 10).
+  - `Tamer`: `tickTamerWaypoints` in his walking state, `initializeTamerWaypoints` at each map load.
+- **Corrections to this spec:**
+  - In the US release ✕ (`CONFIRM`) gives a command and **△** (`CANCEL`) opens the inventory (§2.6 said ✕).
+  - After a won battle, the fleeing enemies that are off screen **stay on the map** at their flee point; only those still on screen leave it (§2.15).
+- **Not yet (moved to 5d-4 with the HUD):** items in battle (the inventory's battle mode, throwing; △ shows a message), the flee bubbles, start text, menu, bars, numbers, countdown and end boxes on screen (their state is in the logic; the end box's text waits 60 frames per text or a press). `handlePause` waits for the field pause.
+- **Approximations to revisit:**
+  - the loading run-in uses the field's partner collision, plus "idle on reaching the tamer" (`partnerTickCollision` in `GAME_STATE` 3);
+  - `world_screen_matrix` (`GsWSMATRIX`) is the identity until the field exposes its camera matrix, so the effects' screen-projection built-ins aren't exact yet (5d-5);
+  - `SKIP_DAYTIME_TRANSITION` isn't ported;
+  - the aura projectile (a flattened fighter's attack, effect 0x179) is emitted as an event but not run.
+- **Tests:**
+  - `tests/test_battle.gd` (49 checks): damage (technique, finisher with charge-up), hit chance branches, `damageTick`, MP costs with brain and sickness, buffs, Your Call's sort, the command lists per brain band, set-up values, the injury penalty, poison / stun / the flatten timeline, the start text, and three whole battles on a stub world (a win with gains and bits, running away, a loss through the death countdown).
+  - `tests/battle_scan.tscn`: battles in the real field scene on TROP01, TROP02 and MAYO03.
+  - Seen in the tests: a hit cancels the victim's technique (`BTL_removeMoveEffect`), so a slow technique (Fire Tower strikes after 21 frames) can lose every exchange to a faster one, as in the C.

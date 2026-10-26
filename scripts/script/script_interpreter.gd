@@ -74,6 +74,14 @@ const TRIGGER_NO_TURN := 0x2C
 const MONEY_MAX := 999999
 const MERIT_MAX := 9999
 const OP_WAIT_FOR_ENTITY := 0x4A
+const OP_START_BATTLE := 0x66
+## START_BATTLE: the predefined battle's flag and enemies (script values 0xFA, 0xFB-0xFD), the
+## outcome (0xFF), the battle-loss section of script 0, the won battle's camera pan back (slot 10).
+const PSTAT_PREDEFINED := 0xFA
+const PSTAT_OUTCOME := 0xFF
+const SECTION_BATTLE_LOST := 0x4DE
+const BATTLE_CAMERA_SLOT := 10
+const COUNTER_MAX := 0x270F
 const OP_ENTITY_WALK_TO := 0x4E
 ## A frame that runs this many instructions is a loop the original would hang in.
 const MAX_PER_FRAME := 20000
@@ -146,6 +154,9 @@ var sound: Node
 ## them those opcodes are skipped and reported.
 var map_items: MapItems
 var map_chests: MapChests
+## The field's battles (BattleHost, specs/battle.md §5.3): start_battle(talked_entity),
+## battle_done() and battle_outcome(). Without it START_BATTLE is skipped and reported.
+var battles: Object
 ## The entity table (the NPCs, specs/npc.md); null: only the tamer and the partner.
 var entities: FieldEntities
 ## Field hooks for the map change (step 2): func(map, exit, show_name) -> bool done, called every
@@ -296,6 +307,10 @@ func _tick_waiting_instruction() -> void:
 		OP_WAIT_FOR_ENTITY:
 			if _wait_done():
 				ctx.active_instruction = 0
+		OP_START_BATTLE:
+			if battles.battle_done():
+				ctx.active_instruction = 0
+				_after_battle(battles.battle_outcome())
 
 
 func _wait_done() -> bool:
@@ -1124,6 +1139,8 @@ func _op_64_7e(op: int) -> int:
 			return _call_routine(ctx.next_byte())
 		0x65:
 			game_state.set_condition(ctx.next_byte(), false)
+		OP_START_BATTLE when battles != null:
+			return _start_battle()
 		ScriptContext.OP_DELAY:
 			ctx.pointer += 1
 			textboxes.delay_frames = _u16()
@@ -1653,3 +1670,75 @@ static func _s8(v: int) -> int:
 
 func _partner_type() -> int:
 	return data.id_of("digimon/digimon_data", game_state.state["partner"]["digimon"]) if game_state != null else 0
+
+
+# --- START_BATTLE (script_interp.c:1897-1957; specs/battle.md §2.17) ---------------------------------
+
+## The opcode's head: the counter, the predefined enemies' script ids turned into entity ids, the
+## music stopped, the battle started; the script waits for its end (startBattle's call).
+func _start_battle() -> int:
+	ctx.next_byte()
+	var counters: Dictionary = game_state.state["counters"]
+	if int(counters["battles_started"]) < COUNTER_MAX:
+		counters["battles_started"] = int(counters["battles_started"]) + 1
+	if ctx.read_pstat(PSTAT_PREDEFINED) != 0:
+		for v in range(0xFB, 0xFE):
+			var id := ctx.read_pstat(v)
+			if id != 0xFF:
+				game_state.set_script_value(v, script_id_to_entity_id(id))
+	if sound != null:
+		sound.music.stop_bgm()
+	battles.start_battle(ctx.talked_to_entity)
+	ctx.active_instruction = OP_START_BATTLE
+	return STOP
+
+
+## The opcode's tail: the outcome into script value 0xFF, then by outcome (-1 lost, 0 ran, 1 won).
+func _after_battle(outcome: int) -> void:
+	game_state.set_script_value(PSTAT_OUTCOME, outcome & 0xFF)
+	var counters: Dictionary = game_state.state["counters"]
+	match outcome:
+		-1:
+			# handleItemLoss, a life lost, and script 0's battle-loss section (step 6's scenes).
+			if battles.has_method("item_loss"):
+				battles.item_loss()
+			var p: Dictionary = game_state.state["partner"]
+			p["lives"] = int(p["lives"]) - 1
+			if int(p["lives"]) == 0:
+				p["care"]["remaining_lifetime"] = 0
+			ctx.code = load_script(0)
+			ctx.code_id = 0
+			var at := ScriptFiles.section(ctx.code, SECTION_BATTLE_LOST)
+			if at >= 0:
+				ctx.pointer = at
+			else:
+				ctx.is_paused = true
+		0:
+			# Back to the previous map, without its name (the stack entry {4, 0xff}, longjmp 3).
+			if int(counters["battles_fled"]) < COUNTER_MAX:
+				counters["battles_fled"] = int(counters["battles_fled"]) + 1
+			var world: Dictionary = game_state.state["world"]
+			ctx.script_param_1 = int(data.id_of("systems/maps", world["previous_screen"])) if data != null else 0
+			ctx.state_2 = int(world["previous_exit"])
+			world["previous_exit"] = int(world["exit"])
+			_show_map_name = 0
+			_push({"type": AFTER_MAP_CHANGE, "arg": 0xFF})
+			textboxes.close_all_textboxes()
+			game_state.set_script_value(0, ctx.saved_pstat0)
+			if tick_map_change.is_valid():
+				ctx.map_change = 0x4B
+			else:
+				_report(OP_START_BATTLE, "map change after running away")
+				ctx.stack.clear()
+				ctx.is_paused = true
+		_:
+			if game_state.is_trigger_set(1):
+				set_movement_enabled(-1, true)
+				textboxes.initialize_textbox()
+				return
+			# The camera pans back to the tamer: slot 10, type 7, entity 0xFD, speed 10.
+			_set_movement(BATTLE_CAMERA_SLOT, MOVE_CAMERA_TO_ENTITY, {"id": ScriptContext.OWNER_TAMER, "speed": 10})
+			ctx.active_instruction = OP_WAIT_FOR_ENTITY
+			ctx.wait_for_entity_id = BATTLE_CAMERA_SLOT
+			textboxes.initialize_textbox()
+

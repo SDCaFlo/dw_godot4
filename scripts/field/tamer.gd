@@ -194,7 +194,12 @@ func _process(delta: float) -> void:
 		# the map's walls (checkMapInteraction), so nothing stops him.
 		_play(ANIM_RUN if state == STATE_CHANGE_MAP else _animation_name(_script_animation))
 		_player.advance(delta)
-		position += _skeleton.global_basis * _player.get_root_motion_position()
+		var script_motion := _skeleton.global_basis * _player.get_root_motion_position()
+		# entityMoveForward's step for the collision probes (the battle's combat area, specs/battle.md
+		# §2.4); a held step (animFlag & 2) doesn't move.
+		step += Vector2(script_motion.x, script_motion.z).length()
+		if not step_blocked:
+			position += script_motion
 		return
 	elif state == STATE_CHANGE_MAP:
 		# setupTamerOnWarp: placed on the new map with animation 0; he stands through the fade in.
@@ -244,6 +249,7 @@ func set_state(value: int) -> void:
 func tick() -> void:
 	match state:
 		STATE_FREE:
+			tick_waypoints()
 			if not _check_open_menu():
 				# tamerTickWalkingState (tamer.c:586): checkItemPickup, then checkMapInteraction.
 				check_item_pickup()
@@ -734,3 +740,68 @@ func _move(motion: Vector3) -> void:
 
 func _blocked(x: float, z: float, dx: float, dz: float) -> bool:
 	return field.blocked(int(x), int(z), int(signf(dx)), int(signf(dz)), radius)
+
+
+# --- the way back to the map entry (map.c:3111-3131, :3527) -----------------------------------------
+
+## GameState's tamer.waypoints (TAMER_WAYPOINT_*): the tiles that lead back to the start tile.
+func _waypoints() -> Dictionary:
+	return game_state.state["tamer"]["waypoints"] if game_state != null else {}
+
+
+## initializeTamerWaypoints (map.c:3111), at each map load: the start tile is where he stands.
+func initialize_waypoints() -> void:
+	var wp := _waypoints()
+	if wp.is_empty():
+		return
+	var here := tile()
+	wp["current"] = 0
+	wp["count"] = 0
+	wp["start_tile"] = [here.x, here.y]
+	wp["previous_tile"] = [here.x, here.y]
+	wp["active"] = 0
+
+
+## tickTamerWaypoints (map.c:3527), every frame of his walking state: on a tile change, the
+## previous tile becomes a waypoint when the straight way back (to the start tile, then to the last
+## waypoint) is blocked; a clear way back to the start tile clears them; a shortcut check keeps
+## the list short (the battle's intro and Run walk them back, specs/battle.md §2.14).
+func tick_waypoints() -> void:
+	var wp := _waypoints()
+	if field == null or wp.is_empty():
+		return
+	var here := tile()
+	var previous := Vector2i(int(wp["previous_tile"][0]), int(wp["previous_tile"][1]))
+	var start := Vector2i(int(wp["start_tile"][0]), int(wp["start_tile"][1]))
+	var count := int(wp["count"])
+	var current := int(wp["current"])
+	if here != previous:
+		if field.is_linear_path_blocked(here, start):
+			if count != 0:
+				var index := (current + count - 1) % 30
+				if field.is_linear_path_blocked(here, Vector2i(int(wp["x"][index]), int(wp["y"][index]))):
+					_add_waypoint((current + count) % 30, previous)
+			else:
+				_add_waypoint(0, previous)
+		else:
+			wp["current"] = 0
+			wp["count"] = 0
+			wp["active"] = 0
+	count = int(wp["count"])
+	if count > 1:
+		var active := int(wp["active"])
+		if not field.is_linear_path_blocked(here, Vector2i(int(wp["x"][active]), int(wp["y"][active]))):
+			wp["count"] = active + 1
+			wp["active"] = active - 1 if active + 1 > 1 else active
+		else:
+			active -= 1
+			wp["active"] = count - 2 if active < 0 else active
+	wp["previous_tile"] = [here.x, here.y]
+
+
+## addTamerWaypoint (map.c:2949).
+func _add_waypoint(index: int, at: Vector2i) -> void:
+	var wp := _waypoints()
+	wp["x"][index] = at.x
+	wp["y"][index] = at.y
+	wp["count"] = int(wp["count"]) + 1

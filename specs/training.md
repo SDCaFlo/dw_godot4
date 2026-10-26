@@ -1,6 +1,6 @@
 # Training
 
-Status (2026-10-26): steps 5e-4d-1 and 4d-2 coded (`PLANS.md` 5e-4). Code:
+Status (2026-10-26): steps 5e-4d-1 and 4d-2 coded; 4d-3 specced in §7, approved 2026-10-26 (`PLANS.md` 5e-4). Code:
 - `Training` (`scripts/systems/training.gd`), `TrainingStatsBox` (`scripts/ui/training_stats_box.gd`), `TrainingBrainsBox` (`scripts/ui/training_brains_box.gd`);
 - `scenes/script/training_routines.tscn` (`scripts/script/training_routines.gd`) with its stations, scenes in `scenes/training/` on the scripts of `scripts/training/` (`TrainingStation`; `HpBoulderStation`, `OffenseStation`, `SpeedStation`, `DefenseStation`, `MpStation`, `BrainsStation`);
 - `CloudFX` (`scripts/field/cloud_fx.gd`), `ParticleFX` (`scripts/field/particle_fx.gd`);
@@ -734,3 +734,262 @@ VERIFY "Training" gets the eight stations, the Brains boxes and a learnt move.
 - **Camera follow** (`CAMERA_FOLLOW_PLAYER`) only matters while the tamer is in state 0. It is set and cleared as in the C.
 - **NPC 0 on TRAI00** gets animation 0 at the Classroom's end. Which NPC that is depends on the map's load order; the port uses the same first NPC.
 - **Animation ids** 0x16, 0x1E, 0x25, 0x12 and the strike animations must exist in the models. A missing one behaves as `start_animation` does today.
+
+## 7. Step 4d-3: the slot machine ("Bonus Try")
+
+Spec approved 2026-10-26. With value 0xF6 = 1 ("Bonus Try"), a station runs with a slot machine in box 3. The station ends when the machine has paid out, not after a minute or on △, and the payout is the awards' `c`: × 0.5, × 2, × 4 or × 10.
+
+### 7.1 The C code
+
+| C (US) | What |
+|---|---|
+| `TRN_startSlotSessionIfEnabled(stat)`, `TRN_func_800888A0` (`trn/trn_reward.c:108`, `:116`) | the station starts the session when value 0xF6 = 1; the abort check (§7.6) |
+| `TRN_startSlotSession`, `TRN_getSlotSessionResult` (`trn/trn_slots.c`), `TRN_tickSlotSession` (`trn/trn_hud.c:345`) | the session object (0xFDC): opens the machine, waits for its payout and for box 3 to close (§7.2) |
+| `TRN_createSlotMachineBox`, `TRN_startSlotSpin`, `TRN_getSlotMachineResult`, `TRN_tickSlotMachine`, `TRN_chooseReelStop`, `TRN_renderSlotMachine` (`trn/trn_slots.c`) | the machine in box 3 (§7.3–7.5) |
+| `TRN_getTrainingSpotScreenPos` (`trn/trn_hud.c:374`), `TRN_TRAINING_SPOTS` | where box 3 grows from and shrinks to: the station's spot on screen (§7.2) |
+| Data | `TRN_D_8008F1AC[3][13]` (the reels, `trn_hud.c:80`); `TRN_D_8008F2CC[10]` (the assist draw); `SLOTS_UI_START` {−82, −87, 164, 90}; `TRN_SLOT_SPRITE1` / `2`; the textures in the gym map's VRAM (§7.5) |
+| The stations | `trn_hp.c:95–129`, `trn_off.c:113–229`, `trn_speed.c:76–110`, `trn_def.c:120–243`, `trn_mp.c:77–109`, `trn_brain.c:87–143` (§7.6) |
+| Script | TRAI00 (script 108) and the other gyms: Bonus Try is `SET_TEXTBOX_MODE 1`, the "Slot Game / Use △ to match three pictures." box, value 0xF6 = 1, builtin 0x07, `SET_TEXTBOX_MODE 0`. The help box stays open during the session; the machine closes it (`closeBox(0)`) |
+
+`MAIN_D_80135370` = value 0xF6, read by every setup (§2.1). Below:
+- `slots` is that flag;
+- `stat` is the **multiplier's mode** (0 HP, 1 MP, 2 Offense, 3 Defense, 4 Speed, 5 Brains);
+- ✕ is `CONFIRM_BUTTON` (US 0x40), pressed this frame (`POLLED_INPUT & ~POLLED_INPUT_PREVIOUS`).
+
+### 7.2 The session (`MAIN_D_801353A0[4]`: result, state, stat, payout)
+
+- **Start** (`TRN_startSlotSession(stat)`): result = −1, state 0, the stat kept; the session object is added.
+- **Its tick:**
+  - **0:** the machine box opens (`TRN_createSlotMachineBox(stat)`, §7.3); → 1.
+  - **1:** payout = the machine's result; once it isn't −1, → 2.
+  - **2:** once box 3 is free (`UI_BOX_DATA[3].state == 0`, after its closing animation): result = payout; the object is removed.
+- **`TRN_getSlotSessionResult()`** is that result: −1 until the box has closed, then 5, 20, 40 or 100.
+
+**Box 3's start rect** (`TRN_getTrainingSpotScreenPos(map, stat)`):
+- The spot is the station's entry in `systems/training_spots` (already ported, `GameData.training_spots(map)`). Its (x, 0, z) is projected to the screen in centred coordinates (`worldPosToScreenPos`).
+- The rect is (x − (0xA8 − `DRAWING_OFFSET_X`), y − (0x7E − `DRAWING_OFFSET_Y`), 16, 16). With the usual offset (160, 120), that is (x − 8, y − 6, 16, 16).
+- Without a spot for (map, stat), it is {−8, −8, 16, 16}.
+
+The position is computed again when the box closes, so the box shrinks back to where the camera now shows the spot.
+
+### 7.3 The machine (`SlotMachine TRN_SLOT_MACHINE`)
+
+**Opening** (`TRN_createSlotMachineBox(stat)`):
+- result = payout = −1, state 0, `stat` kept, `autoStart` = −1;
+- `assist` = `TRN_D_8008F2CC[rand() % 10]`: 0 five times in ten, 1 four times, 2 once;
+- per reel: `reelPos` = `rand() % 13`; `scrollY`, `spinSpeed`, `settling` = 0;
+- `createAnimatedUIBox(3, colour 0, features 2 (half fill), SLOTS_UI_START, start rect, tick, render)`. It plays `playSound(0, 0)`; `UIBoxes` already does.
+
+**`TRN_startSlotSpin()`**: `autoStart` = 0. The station calls it when the partner reaches its point.
+
+**The tick** runs as box 3's tick, so only while the box is open.
+
+- **0 (waiting):** on ✕ or `autoStart` ≥ 0:
+  - state 1;
+  - every `spinSpeed` = 0x400 and every `stopSteps` = 0;
+  - `playSound(8, 6)`.
+
+  ✕ can start it early, before the partner has arrived.
+- **1–4 (spinning; state − 1 = the number of reels told to stop so far).** For each reel `i`:
+  1. `settling[i]` = 0; `scrollY[i]` += `spinSpeed[i] >> 6` (16 pixels a frame). A value of exactly 0x20 becomes 0x1F.
+  2. If `scrollY[i]` ≥ 0x20: − 0x20, and `reelPos[i]` = (`reelPos[i]` + 12) % 13 (the next symbol comes in). If the reel is stopping (`i < state − 1`):
+     - `stopSteps[i]` > 0 → − 1;
+     - else `scrollY[i]` = 0, `spinSpeed[i]` = 0, `playSound(8, 8)`.
+
+     A stopping reel therefore stops on the next symbol plus `stopSteps`.
+  3. If `i == state − 1` and ✕: `TRN_chooseReelStop(i)` (§7.4).
+  4. **Settling** (only used by the render): if `scrollY[i] + (spinSpeed[i] >> 6)` ≥ 0x20 (with 0x20 → 0x1F), `settling[i]` + 1 when either:
+     - the reel stops on that step (`i < state − 1` and `stopSteps[i]` ≤ 0);
+     - it is the reel told to stop this frame, with `stopSteps[i]` ≤ 0.
+
+  After the reels:
+  - if state < 4 and ✕: `playSound(8, 7)`, state + 1;
+  - if all three speeds are 0: `resultTimer` = 0, state + 1 (→ 5).
+
+  The first ✕ after the start stops reel 0, the next reel 1, the next reel 2.
+- **5 (the payout):**
+  - **On its first frame** (`resultTimer` = 0), take `s` = the symbol on the line of each reel (`TRN_D_8008F1AC[i][reelPos[i]]`):
+    - three 7s: payout 100, `playSound(8, 0xC)`;
+    - three of a kind where `s − 1 == stat` (the station's own stat): payout 40 (0x28), `playSound(8, 0xB)`;
+    - any other three of a kind: payout 20 (0x14), `playSound(8, 0xB)`;
+    - anything else: payout 5, `playSound(8, 0xD)`.
+  - **Afterwards**, at `resultTimer` ≥ 30 (0x1E) or on ✕: state 6.
+  - `resultTimer` + 1 every frame.
+- **6:**
+  - box 3 shrinks back to the spot (`removeAnimatedUIBox(3, spot rect)`, §7.2);
+  - the script's text box 0 closes (`closeBox(0)`);
+  - result = payout.
+
+  The box is now closing, so the tick doesn't run again.
+
+The symbols: 1 HP, 2 MP, 3 Offense, 4 Defense, 5 Speed, 6 Brains (`s − 1` is the multiplier's mode), 7 the jackpot.
+
+### 7.4 Stopping a reel (`TRN_chooseReelStop(i)`): the assist
+
+Terms used below:
+- `next(i, j)` = `TRN_D_8008F1AC[i][(reelPos[i] + 13 − j) % 13]`, the symbol `j` steps ahead. Without help, the reel stops on `next(i, 1)`.
+- `target[i]` (`targetSymbol`) records what reel `i` aims at.
+- `stopSteps[i]` is how many more symbols it rolls before stopping.
+
+**Assist 0 (honest; half the sessions):**
+- **Reels 0 and 1:** `target[i]` = `next(i, 1)`.
+- **Reel 2:** if `target[0] == target[1]` and `next(2, 1) == target[0]`, `stopSteps[2]` = `rand() % 2 + 1`. **The machine skips the match**, so an honest session never wins when reel 2 would land on it.
+
+**Assist 1 (help with the first symbol; 4 in 10):**
+- **Reel 0, *shift*:** `j` = 0 if `scrollY[0] == 0`, else 1; `target[0]` = `next(0, j)`. Where the reel stops doesn't change.
+- **Reel 1:** if `target[0] == 7`, *shift* on reel 1. Otherwise take the first `j` in 1–2 with `next(1, j) == target[0]`:
+  - found: `stopSteps[1]` = `j − 1` and `target[1]` = `target[0]` (the reel rolls on to the match);
+  - not found: `stopSteps[1]` = 0 and `target[1]` = −2.
+- **Reel 2**, only if `target[0] == target[1]`:
+  - if they aren't 7: the same search for `target[0]` on reel 2 (match, or −2);
+  - if they are 7 and `next(2, 1)` is 7: `stopSteps[2]` = `rand() % 2 + 1`, so the jackpot is skipped.
+
+**Assist 2 (the jackpot; 1 in 10):**
+- **Reel 0, *scan*:** take the first `j` in 1–2 with `next(0, j) == 7`:
+  - found: `stopSteps[0]` = `j − 1` and `target[0]` = 7;
+  - not found: `stopSteps[0]` = 0 and `target[0]` = −1.
+- **Reel 1:** if `target[0] == 7`, *scan* on reel 1; else `target[1]` = −2.
+- **Reel 2:** if `target[0]` and `target[1]` are both 7, *scan* on reel 2; else `target[2]` = −3.
+
+The C shares *shift* and *scan* between the reels with `goto`; the port writes them as two helpers that take the reel. `targetSymbol` isn't reset when the box opens, but every path for reels 0 and 1 sets it before reel 2 reads it.
+
+### 7.5 The render (`TRN_renderSlotMachine`, box 3 open; layer 6 − 3)
+
+All positions are centred PSX screen coordinates. The three reels are at x = −41, 0, 41 (`41 × i − 41`). For each reel:
+- **The window** (`TRN_SLOT_SPRITE2`):
+  - u 0xE0, v 0xD8, 8 × 32 texels;
+  - scaled × 4 across and × 2 down (`scalex` 0x4000, `scaley` 0x2000) around (`mx` 4, `my` 0), so 32 × 64 pixels at (x − 16, −0x4A);
+  - colour 0x40 (half), semi-transparent mode 2, which is **subtractive**: screen − texel for texels with the STP bit, the others drawn opaque.
+
+  It darkens the reel's strip.
+- **The symbols** (`TRN_SLOT_SPRITE1`):
+  - 32 × 32, u = (symbol − 1) × 32, v 0xD8, centred on x (`mx` 0x10);
+  - colour 0x80, semi-transparent mode 1 (additive, for STP texels).
+
+  There are four rows, `k` = 0–3, each showing symbol `TRN_D_8008F1AC[i][(reelPos[i] + 11 + k) % 13]`:
+  - **Position:** the first row's y = `scrollY[i]` − 0x7A, then + `spinSpeed[i] >> 6` (− 1 when `scrollY + step` is exactly 0x20). When `settling[i]` ≠ 0, + 2 instead of the step. Each next row is + 0x20.
+  - **Clipping** to the window, y −0x4A … −0xA:
+    - a row starting above the window (y < −0x4A) is drawn at −0x4A, with v = 0x8E − y and h = 0x20 − (v − 0xD8);
+    - a row reaching below it (y + 0x20 ≥ −9) gets h = 0x20 − (y + 0x2A);
+    - any other row is drawn whole.
+  - A row is drawn only if y < −9 and y + 0x20 ≥ −0x49.
+
+  Row `k` = 2 is `reelPos[i]`, centred in the window: the pay line.
+- **Draw order:** the window is sorted before the symbols, on the same layer. By the ordering-table rule (I-17), the symbols added after the window are drawn first, and the window then subtracts over them. The port follows that; a movie should compare it with the original if possible.
+
+**The textures are in the gym map's VRAM**, not in ETCTIM:
+- `tpage` 0x2B / 0x4B: the 4 bpp page at (704, 0), with semi-transparency rates 1 / 2;
+- the symbols use CLUT (48, 486), the map's 4 bpp palette 3; the window uses CLUT (64, 486), palette 4;
+- the texels are u 0–0xE7, v 0xD8–0xF7: VRAM (704, 216)–(762, 248).
+
+Each map loads the strip itself:
+- TRAI00 with its 4 bpp image 1 (704, 0, 256 tall);
+- GIAS09 with its image 0;
+- MIST05 with its image 2 (704, 216, 32 tall).
+
+The CLUT rows come from each map's image 0 (`loadMapImage2`, see the asset porter's `specs/map.md`).
+
+### 7.6 The stations
+
+Every station already has the hooks (`slots`, §3). With slots:
+- **State 0**, after its own work: `TRN_startSlotSessionIfEnabled(mode)`, with the station's multiplier mode (HP 0, MP 1, Offense 2, Defense 3, Speed 4, Brains 5).
+- **When the partner reaches its point** (state 1 for HP / Offense / Speed / Defense, state 2 for MP / Brains): `TRN_startSlotSpin()`.
+- **The session's end:** the session result is ≥ 0, instead of "1200 frames or △". `r` (the awards' `c`) is the session result, not 10.
+  - HP: the pushes are still `(counter % 1200) / 120`.
+  - Offense: in its state 3 or 8, as without slots.
+  - Defense: the result is checked in state 10, back at the point. △ still sets the counter to 1200, which does nothing with slots.
+  - Speed, MP, Brains: in their session state.
+- **`TRN_func_800888A0(4)`** (state 1 of HP, Offense and Speed) would end a session whose result is −2: partner animation 4, the camera back to the tamer, state 4. **No code sets −2**: the result is −1 or the payout. The port leaves it out and notes it.
+
+Every award multiplies by `c / 10` (§2.3, §6.2):
+- c = 5 halves the gains and 100 gives × 10;
+- the award caps (999) still apply;
+- a Rookie at HP with the jackpot gets 80 × 10 = 800 HP.
+
+### 7.7 Godot design
+
+- **`SlotMachine`** (`scripts/systems/slot_machine.gd`, `RefCounted`; logic only, tested headless):
+  - **State:** that of §7.3: `state`, `reel_pos`, `scroll_y`, `spin_speed`, `stop_steps`, `target`, `settling`, `assist`, `stat`, `auto_start`, `result_timer`, `payout`, `result`.
+  - **Methods:**
+    - `open(stat)`, `start_spin()`;
+    - `tick(confirm_pressed)`, which returns the sounds played this frame (or calls a `sound` callable, like the stations);
+    - `choose_reel_stop(i)`, `line_symbol(i)`;
+    - `rows(i)`: the four rows' symbols and y, for the render and the tests.
+  - It reads the reels and the assist draw from data (below), and draws its random numbers with `Rng`.
+- **`TrainingSlotsBox`** (`scripts/ui/training_slots_box.gd`), built like `TrainingStatsBox`:
+  - box 3 on `UIBoxes`: `create_animated(3, 0, FEATURE_HALF_FILL, SLOTS_UI_START, spot rect, tick, render)`;
+  - its tick runs `SlotMachine.tick` with the pad's ✕;
+  - at state 6 it calls `remove_animated(3, spot rect)` and closes text box 0 (`TextBoxes.close_box(0)`);
+  - it draws the windows on a subtractive layer (`PsxUiFilter.material("sub")`), and the symbols as a base layer plus an additive STP layer, like `CloudFX`.
+- **The session** (`TRN_tickSlotSession`): `Training.slot_session`, or a small `SlotSession` in `training.gd`, with `start(mode)`, `tick()` (states 0–2 of §7.2) and `result()`. `TrainingRoutines` ticks it after the running station, as the C's object list does.
+- **`TrainingStation`:**
+  - `start_slot_session()`, called in each station's state 0, and `start_slot_spin()`, called on arrival;
+  - with slots, `session_over()` returns `slot_result() >= 0`, and `result()` returns the session result;
+  - `slot_mode` is the station's multiplier mode, taken from its `stat` through `Training`'s mapping (no new id checks);
+  - Defense's state 10 uses the same helpers.
+- **The spot rect:** `GameData.training_spots(map)` → the spot of `slot_mode` → `FieldMap.unproject` → centred → (x − 8, y − 6, 16, 16). The −8 / −6 come from the C's `0xA8 / 0x7E − DRAWING_OFFSET`. Without a spot: (−8, −8, 16, 16).
+- **Data (data porter, one new table): `systems/slot_machine.json`**:
+  - `reels`: `TRN_D_8008F1AC`, 3 × 13 symbol ids;
+  - `assist_draw`: `TRN_D_8008F2CC`, 10 entries;
+  - `symbols`: 1–6 with their stat (the mode names of `training_spots`), 7 the jackpot;
+  - `payouts`: jackpot 100, own stat 40, other match 20, none 5 (from `TRN_tickSlotMachine`).
+
+  The table gets:
+  - checks: sizes from `symbols.txt`, every symbol is 1–7, each reel has all seven;
+  - a spec section, plus PROGRESS and VERIFY lines;
+  - a reader, `GameData.slot_machine()`.
+
+  The logic reads `symbols[s].stat` and `payouts`, never "s − 1 == stat" or the numbers.
+- **Textures (asset porter, maps family):**
+  - **Which maps:** those that load the TRN library (`loadTrainingLibrary`, `map.c:5459`): 0x70, 0x4E and 0x77, kept as a list with that reference.
+  - **What:** the map's composed 4 bpp VRAM page (704, 0), rows 216–247 (u 0–255, v 0xD8–0xF7), built the way the GPU does from the map's 4 bpp images in load order (`vram.py`).
+  - **Outputs:** `maps/<NAME>/training/slots_p3.png` (CLUT (48, 486)) and `slots_p4.png` (CLUT (64, 486)), both indexed, each with its `.stp.png` mask. The sidecar keeps the VRAM rect, tpage and CLUT ids.
+  - **Check:** whether the three maps' strips are equal, reported but not required.
+  - **Docs:** the asset porter's `specs/map.md`, PROGRESS and VERIFY get the outputs.
+
+  Godot loads them from the current map's folder through `Content`. If a map has none (a mod's gym), the box draws without symbols rather than failing.
+- **Unchanged:** the stations' scenes, the stats and Brains boxes, and the awards. The help text box is the script's own; box 3 closes it at state 6.
+
+### 7.8 Tests (`tests/test_training.gd`, plus the data and asset porter tests)
+
+- **`SlotMachine`, with a set seed:**
+  - opening: the positions and the assist draw;
+  - ✕ or `start_spin` starts it, with sound 6;
+  - 16 pixels a frame, and the 0x20 → 0x1F rule;
+  - ✕ stops reels 0, 1 and 2 in order: sound 7 for each press, sound 8 for each stop;
+  - a reel stops on the next symbol plus `stop_steps`.
+- **`choose_reel_stop`**, for each assist and reel from a set position:
+  - assist 0's skip on reel 2;
+  - assist 1's match search (found at 1 or 2; not found gives −2), and its 7s case;
+  - assist 2's scan (−1, −3).
+- **Payouts**, each with its sound:
+  - three 7s: 100;
+  - the station's own stat: 40 (HP three of a kind at HP; MP three of a kind at HP gives 20);
+  - a mismatch: 5;
+  - state 6 comes at 30 frames or on ✕.
+- **The render rows:** the four rows' symbols and y, the clipping cases, and the settling + 2.
+- **The session:** −1 until box 3 has closed, then the payout.
+- **The stations** (stub walker, as in 4d-2):
+  - with slots, HP doesn't end at 1200 frames or on △;
+  - it ends when the result is set, with gains × c / 10 for c = 5, 20, 40, 100 (HP 800 for the jackpot, and the 999 cap);
+  - Defense ends only back at the point;
+  - the spin starts on arrival;
+  - without slots nothing changes (the 4d-2 tests stay).
+- **The spot rect:** the spot of (0x70, HP); without a spot, (−8, −8, 16, 16).
+- **Data porter:** the table's records and checks.
+- **Asset porter:** the strip's size, CLUTs and VRAM sidecar, on a fixture map.
+
+VERIFY "Training" gets a Bonus Try item:
+- the box flies out of the station;
+- ✕ stops the reels one by one;
+- the payout sounds play;
+- the box flies back and the help text closes;
+- the gains are × c / 10.
+
+### 7.9 Open points
+
+- **"Use △ to match three pictures."** The US text says △, but the US code stops the reels with `CONFIRM_BUTTON` (0x40, ✕). The port follows the code; this needs checking on the original.
+- **The honest machine skips a match on reel 2** (assist 0, `stopSteps` = 1–2). It looks deliberate: a payout stays rare unless the session draws an assist. The port keeps it.
+- **The −2 abort** (`TRN_func_800888A0`) is dead code (§7.6).
+- **The window's draw order** against the symbols (§7.5): by the ordering-table rule, the subtractive window goes over the symbols. A movie should compare it with the original.
+- **Defense with slots:** △ still sets the counter, which only matters without slots.

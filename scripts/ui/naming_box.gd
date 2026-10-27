@@ -72,7 +72,8 @@ var partner := false
 var renaming := false
 
 var _pages: Array = []
-var _cursor: PsxTexture
+static var _cell_cursor: Texture2D
+static var _button_cursor: Texture2D
 
 
 func _init(text_boxes: TextBoxes, script_ctx: ScriptContext, game_data: Node) -> void:
@@ -367,16 +368,17 @@ func render_selector(canvas: CanvasItem, _id := 0) -> void:
 			ty += TextBoxes.ROW_HEIGHT
 
 
-## renderSelectionBox: the frame around the cell or the button.
+## renderSelectionBox (shop/script_menu.c:3170): the frame around the cell (20 x 18) or button (50 x 18).
+## Built from the UI page at (896, 448), CLUT row 508 (etctim/04_fi_info palette 12, rows 60-63):
+## a 4x4 rounded corner, 4x3 horizontal edge (rows 60-62), and 4x4 vertical edge (cols 8-11).
 func _render_cursor(canvas: CanvasItem, bx: int, by: int) -> void:
-	if _cursor == null:
-		_cursor = PsxTexture.load_palette(CURSOR_PAGE, CURSOR_PALETTE)
-	if _cursor == null:
+	_ensure_cursor_textures()
+	if _cell_cursor == null or _button_cursor == null:
 		return
+
 	var x := 0
 	var y := 0
-	var piece_x: Array = CELL_PIECE_X
-	var piece_w: Array = CELL_PIECE_W
+	var tex: Texture2D = _cell_cursor
 	if selector & BUTTON == 0:
 		var row := selector / COLUMNS
 		var column := selector % COLUMNS
@@ -390,20 +392,52 @@ func _render_cursor(canvas: CanvasItem, bx: int, by: int) -> void:
 		var label: Array = LABELS[(selector & 0x7FFF) + 1]
 		x = bx + label[0] - 4
 		y = by + label[1] - 4
-		piece_x = BUTTON_PIECE_X
-		piece_w = BUTTON_PIECE_W
-	for i in 8:
-		var src := Rect2(mini(U0[i], U1[i]), mini(V0[i], V1[i]) - CURSOR_V, absi(U1[i] - U0[i]),
-				absi(V1[i] - V0[i]))
-		var dst := Rect2(PsxDraw.CENTRE + Vector2(x + piece_x[i], y + PIECE_Y[i]), Vector2(piece_w[i], PIECE_H[i]))
-		# A reversed u / v pair mirrors the piece.
-		if U0[i] > U1[i]:
-			dst.position.x += dst.size.x
-			dst.size.x = -dst.size.x
-		if V0[i] > V1[i]:
-			dst.position.y += dst.size.y
-			dst.size.y = -dst.size.y
-		canvas.draw_texture_rect_region(_cursor.base, dst, src)
+		tex = _button_cursor
+	canvas.draw_texture(tex, PsxDraw.CENTRE + Vector2(x, y))
+
+
+## Loads the source texture and builds the cell and button cursor textures if not cached yet.
+static func _ensure_cursor_textures() -> void:
+	if _cell_cursor != null and _button_cursor != null:
+		return
+	var tex := PsxTexture.load_palette(CURSOR_PAGE, CURSOR_PALETTE)
+	if tex == null:
+		return
+	var img := tex.base.get_image()
+	_cell_cursor = _build_cursor_texture(img, 20, 18)
+	_button_cursor = _build_cursor_texture(img, 50, 18)
+
+
+## Composites the closed rounded frame of the given width and height from the 4-pixel pieces.
+static func _build_cursor_texture(src_img: Image, width: int, height: int) -> ImageTexture:
+	var img := Image.create(width, height, false, Image.FORMAT_RGBA8)
+	# 1. Top and bottom horizontal edges (rows 60-62 of cols 4-7: black, yellow, black).
+	for y in 3:
+		for x in range(4, width - 4):
+			var c := src_img.get_pixel(4 + (x % 4), 60 + y)
+			img.set_pixel(x, y, c)
+			img.set_pixel(x, height - 3 + y, c)
+	# 2. Left and right vertical edges (cols 8-11: black, orange, yellow, black; right is mirrored).
+	for y in range(4, height - 4):
+		for x in 4:
+			img.set_pixel(x, y, src_img.get_pixel(8 + x, 60 + (y % 4)))
+			img.set_pixel(width - 4 + x, y, src_img.get_pixel(11 - x, 60 + (y % 4)))
+	# 3. Four 4x4 rounded corners (rows 60-63, cols 0-3), drawn over edges.
+	for y in 4:
+		for x in 4:
+			var c_tl := src_img.get_pixel(x, 60 + y)
+			if c_tl.a > 0.0:
+				img.set_pixel(x, y, c_tl)
+			var c_tr := src_img.get_pixel(3 - x, 60 + y)
+			if c_tr.a > 0.0:
+				img.set_pixel(width - 4 + x, y, c_tr)
+			var c_bl := src_img.get_pixel(x, 63 - y)
+			if c_bl.a > 0.0:
+				img.set_pixel(x, height - 4 + y, c_bl)
+			var c_br := src_img.get_pixel(3 - x, 63 - y)
+			if c_br.a > 0.0:
+				img.set_pixel(width - 4 + x, height - 4 + y, c_br)
+	return ImageTexture.create_from_image(img)
 
 
 ## renderNameDisplayBox: the name (row 0), six cells after it (US: the row's empty end; quirk

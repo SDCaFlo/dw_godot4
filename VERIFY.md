@@ -323,7 +323,7 @@ Every map is entered through its MAPHEAD script, as in the original. Run the pro
 6. **The poop** (ISSUES.md I-5): no dark ring around it; a soft shadow darkens the ground under it instead (compare `issues/evidence/dw_real_poop_look.png`).
 7. **Other semi-transparent models** (technique effects, shadows): their glowing or darkening parts blend with what is behind them instead of covering it.
 
-## Debugger and render scale (`scripts/debug/debug_window.gd`, `state_tab.gd`, `field.gd`; ISSUES.md D-1, I-3)
+## Debugger and render scale (`scripts/debug/debug_window.gd`, `state_tab.gd`, `partner_tab.gd`, `field.gd`; ISSUES.md D-1, I-3)
 
 In the game (F5):
 1. **The windows:** the game opens at 1280 × 960 (4:3); a "DW debugger" window opens beside it (F1 hides / shows it, its close button hides it).
@@ -339,6 +339,10 @@ In the game (F5):
    - **Partner base stats:** the six numbers show the partner's stats; change them and Apply stats (each capped: HP / MP 9999, the others 999); the Digimon screen shows them.
    - **Items:** pick one, Give / Remove the amount; "held" follows. **Cards:** pick one, Set its count; All cards gives one of each (the Player screen's card list fills).
    - **Unlocks:** "Birdramon: every destination" → Set, then talk to Birdramon (ROOM12): all six places are listed. "Jukebox: the locked tracks" → Set: the jukebox lists 63 tracks.
+9. **Partner tab** (`test_partner_tools.gd` prints `OK: partner tools checks`):
+   - **Digivolve to:** pick a Digimon (64: every partner Digimon with a level), Digivolve. The partner walks to the tamer, the evolution scene plays, and it is the new Digimon with its evolution gains and first technique. The top line names it. While the partner or the tamer is busy (not in its normal / free state, e.g. during feeding or an evolution) the tab says why it can't, and nothing happens.
+   - **Learn its techniques:** the count of learnt techniques goes up; the Digimon screen's Techniques page shows the partner's whole list learnt, ready to equip. **Learn every technique:** all 58 cells of the page are learnt (those the partner's Digimon can't use stay unusable, as in the original).
+   - **In battle:** equip a newly learnt technique, start a fight: the partner uses it.
 
 ## Care (`scripts/systems/care.gd`, `specs/care.md`)
 

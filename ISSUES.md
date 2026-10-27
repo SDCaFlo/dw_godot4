@@ -36,6 +36,11 @@ Reported 2026-10-26.
 - **What the original does:** to check: the battle's walking (moving into range, `BTL_tickMeleeAttack` / `BTL_tickRangedAttack`, the move-forward probe `entityCheckCollision` like the knock-back's).
 - **Status:** open. The scan's runs differ (frame pacing), so it is intermittent; the next step is a run that dumps the partner's state when it happens.
 
+### I-31. Winter Blast draws away from the battle
+- **Seen:** 2026-10-27, in a real battle: Winter Blast's visual appears somewhere else on the map, not where the fighters are.
+- **To check:** its pieces are the 5d-5b screen primitives (the scrolling snowy backdrop, `renderScrollingBackground` / `renderParallaxSprites`, placed through `FieldMap.drawing_offset()` and `screen_to_world`) and its models / sprites at the instance positions. Compare in the Effects gallery against a battle on the same map: whether the drawing offset or the depth slot puts the backdrop off the camera's view, or the instance's start position (its bone / caster table) is off.
+- **Status:** open.
+
 ### I-30. Most techniques look very transparent
 - **Seen:** after 5d-5a / 5d-5b (2026-10-27), in the Effects gallery and in battle: most techniques' models and sprites are drawn, but very faint, almost invisible.
 - **To check against the original** (in the gallery, one technique at a time): the blend modes of the models' and sprites' STP texels (half / add on a bright background; `WorldSprites`, `PsxLit`), the sprites' tint (128 = 1.0), the textures' palettes and which texels carry the STP bit, the sRGB conversion of the additive passes.

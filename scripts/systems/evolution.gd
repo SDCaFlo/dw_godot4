@@ -86,8 +86,9 @@ func _virus_target() -> int:
 	return _ref_id(_rule("virus").get("target"))
 
 
-## tamerSetState(6) + partnerSetState(13) with EVOLUTION_TARGET set.
-func _start(target: int) -> void:
+## tamerSetState(6) + partnerSetState(13) with EVOLUTION_TARGET set. Also the debugger's
+## "Digivolve to" (DebugPartnerTools).
+func start(target: int) -> void:
 	care.evolution_target = target
 	if care.tamer != null:
 		care.tamer.set_state(Tamer.STATE_STILL)
@@ -282,7 +283,7 @@ func special_evolution(mode: int) -> int:
 		if rule.get("conditions", {}).get("nanimon_trigger", false):
 			care.nanimon_trigger = false
 	if target != -1:
-		_start(target)
+		start(target)
 	return target
 
 
@@ -355,7 +356,7 @@ func hourly_check() -> void:
 			c[BACKUP[i]] = int(_base()[BASE[i]])
 		c["virus_bar"] = 0
 	if care.evolution_target != -1 and (care.partner == null or care.partner.state != Partner.STATE_EVOLVING):
-		_start(care.evolution_target)
+		start(care.evolution_target)
 
 
 # --- handleEvoItems (item.c:2190) ------------------------------------------------------------------
@@ -371,7 +372,7 @@ func item_evolution(item: Variant) -> bool:
 	if entry.get("needs_level") != null and _level_of(target) - 1 != _level_of(_partner_id()):
 		return false
 	used_item = true
-	_start(target)
+	start(target)
 	return true
 
 

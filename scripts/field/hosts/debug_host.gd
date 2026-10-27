@@ -71,6 +71,7 @@ func start() -> void:
 	add_child(gallery)
 	window = DebugWindow.new()
 	window.gallery = gallery
+	window.care = care_host.care if care_host != null else null
 	window.maps = maps
 	window.map_label = func(map_name: String) -> String: return _map_list_label(map_name)
 	window.teleport = func(map_name: String, exit: int) -> void: map_session.debug_change_map(map_name, exit)

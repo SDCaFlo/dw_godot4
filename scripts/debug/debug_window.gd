@@ -11,6 +11,7 @@ extends Window
 ## - State: triggers, script values, bits / merit, items, cards and data-built unlock presets
 ##   (DebugStateTab), to test what the story gates.
 ## - Effects: the technique gallery (DebugEffectsTab, EffectGallery).
+## - Partner: Digivolve to any Digimon, learn techniques (DebugPartnerTab).
 
 signal render_scale_changed(value: int)
 signal ui_filter_changed(on: bool)
@@ -26,6 +27,8 @@ var render_scale := 4
 var ui_filter := true
 ## The technique gallery the Effects tab drives (null without a field).
 var gallery: EffectGallery
+## The partner's care, for the Partner tab's evolution (null without a field).
+var care: Care
 
 var _status: Label
 var _filter: LineEdit
@@ -58,6 +61,9 @@ func _ready() -> void:
 	var effects := DebugEffectsTab.new()
 	effects.gallery = gallery
 	tabs.add_child(effects)
+	var partner := DebugPartnerTab.new()
+	partner.care = care
+	tabs.add_child(partner)
 	_fill_list("")
 
 

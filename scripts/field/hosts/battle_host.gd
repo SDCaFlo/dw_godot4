@@ -22,6 +22,8 @@ var care: Care
 var clock: Clock
 var menu_host: MenuHost
 var map_items: MapItems
+## The map's objects a technique may hide (Field.map_layer_nodes).
+var map_layer_nodes := Callable()
 var fade: Node
 ## The windows the HUD and the inventory draw on.
 var text_area: TextArea
@@ -74,6 +76,7 @@ func start_battle(talked_entity: int) -> void:
 	battle_world.map_sound_loader = func() -> void:
 		Sound.load_map_sounds(int(GameData.map(GameState.state["world"]["screen"]).get("sound_bank", 0)))
 	battle_world.tamer = tamer
+	battle_world.map_layer_nodes = map_layer_nodes
 	_setup_items()
 	PsxMath.setup(GameData)
 	effects = EffectHost.new(battle_world)
@@ -134,6 +137,7 @@ func _finish() -> void:
 	if fx_view != null:
 		fx_view.queue_free()
 		fx_view = null
+	battle_world.restore_view()
 	var values: Dictionary = GameState.state["partner"]["care"]
 	tamer.set_state(_tamer_state)
 	partner.set_state(_partner_state)

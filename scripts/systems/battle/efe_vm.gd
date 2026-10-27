@@ -398,9 +398,9 @@ func _builtin(id: int) -> void:
 		75: _select_random_target_entity()
 		76: _get_camera_rotation()
 		77: _draw("drawTMDYXZ", _pops(2))
-		78: _draw("loadClutColors", _pops(4))
+		78: _load_clut_colors()
 		79: _draw("drawTMDScreenSpace", _pops(2))
-		80: _draw("addClutLoadPrim", _pops(4))
+		80: _add_clut_load_prim()
 		81, 94: fx.write(pop(), 4, _ectx().viewport_distance())
 		82: _draw("renderRadialWaves", _pops(1))
 		83: _initialize_ribbon_points()
@@ -942,6 +942,33 @@ func _add_particle_emitter() -> void:
 func _create_flash() -> void:
 	var a := _pops(8)
 	_ectx().effect("flash", [a[0], fx.read_vec(a[1]), a[2], a[3], a[4], a[5], fx.read_vec(a[6]), fx.read_vec(a[7])])
+
+
+## BTL_loadClutColors (battle_effect.c:2744): `count` (1-16) colours, each four int16 (r, g, b, stp)
+## packed r + g << 5 + b << 10 + stp << 15 (uint16), into CLUT row y from column x. Pushed: y, x,
+## count, colours*.
+func _load_clut_colors() -> void:
+	var a := _pops(4)
+	if a[2] > 0 and a[2] <= 16:
+		var colors := []
+		for i in a[2]:
+			var at: int = a[3] + i * 8
+			colors.append((fx.read(at, 2) + (fx.read(at + 2, 2) << 5) + (fx.read(at + 4, 2) << 10)
+					+ (fx.read(at + 6, 2) << 15)) & 0xFFFF)
+		fx.write_clut(a[0], a[1], colors)
+	_draw("loadClutColors", a)
+
+
+## BTL_addClutLoadPrim (battle_effect.c:2700): a DR_LOAD of 16 raw colours from colours* + 2 · index
+## into CLUT row y, at an OT slot: the port applies it at once (the C's later primitives see it
+## the same frame, the earlier ones the next). Pushed: OT slot, y, colours*, index.
+func _add_clut_load_prim() -> void:
+	var a := _pops(4)
+	var colors := []
+	for i in 16:
+		colors.append(fx.read(a[2] + a[3] * 2 + i * 2, 2) & 0xFFFF)
+	fx.write_clut(a[1], 0, colors)
+	_draw("addClutLoadPrim", a)
 
 
 ## BTL_setEFEModelObjectColor (battle_effect.c:4327): the object's colour (EfeColor: three int32)

@@ -49,6 +49,13 @@ var draw_calls: Array = []
 ## setEFEModelObjectColor's colours by TMD object (Vector3i, 128 = 1.0): they rewrite the slot's
 ## own model, so they last for the slot's later uses. Objects never coloured keep the porter's.
 var object_colors := {}
+## The CLUT rows the scripts rewrote (loadClutColors, addClutLoadPrim: the slot's palettes in VRAM,
+## kept for its later uses): row (from the slot's CLUT) -> PackedInt32Array of raw 16-bit colours;
+## `clut_version` counts the writes, for the view.
+var clut_rows := {}
+var clut_version := 0
+var _tim := {}
+var _tim_read := false
 ## The draw sink that draws (EfeView, the scene's `View` child): used while the effect is in the
 ## tree; headless the draw calls go nowhere.
 var view: EfeView
@@ -220,6 +227,37 @@ func draw_call(name: String, args: Array, instance: int) -> void:
 		draw_calls.append([name] + args)
 	if view != null and view.drawing:
 		view.draw_call(name, args, instance)
+
+
+## The slot's TIM read from its bytes (EfeTexture.parse), {} without one.
+func tim() -> Dictionary:
+	if not _tim_read:
+		_tim_read = true
+		if header(H_TIM_END) > header(H_TIM_START):
+			_tim = EfeTexture.parse(mem, HEADER + header(H_TIM_START))
+	return _tim
+
+
+## A CLUT row as it is now: rewritten, else the TIM's, else empty.
+func clut_row(row: int) -> PackedInt32Array:
+	if clut_rows.has(row):
+		return clut_rows[row]
+	var rows: Array = tim().get("rows", [])
+	if row >= 0 and row < rows.size():
+		return rows[row]
+	var empty := PackedInt32Array()
+	empty.resize(16 if int(tim().get("bpp", 4)) == 4 else 256)
+	return empty
+
+
+## LoadImage of `colors` into CLUT row `row` from column `x` (the row's width bounds it).
+func write_clut(row: int, x: int, colors: Array) -> void:
+	var r := clut_row(row).duplicate()
+	for i in colors.size():
+		if x + i >= 0 and x + i < r.size():
+			r[x + i] = int(colors[i]) & 0xFFFF
+	clut_rows[row] = r
+	clut_version += 1
 
 
 func set_object_color(object: int, color: Vector3i) -> void:

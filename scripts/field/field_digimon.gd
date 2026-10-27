@@ -140,6 +140,14 @@ func bone_position(node: int) -> Vector3:
 	return _skeleton.global_transform * _skeleton.get_bone_global_pose(node).origin
 
 
+## posData[node].posMatrix.workm's rotation: the bone's world basis (Godot axes) from the skeleton,
+## animated as the C's bone matrices (calculateBoneMatrix); the battle effects fire along it.
+func bone_basis(node: int) -> Basis:
+	if _skeleton == null or node < 0 or node >= _skeleton.get_bone_count():
+		return global_basis
+	return _skeleton.global_basis * _skeleton.get_bone_global_pose(node).basis
+
+
 ## entityLookAtLocation (map.c:3389): rotation.vy = _atan(dz, dx) = 0x800 + atan2(dx, dz).
 func look_at_psx(target_x: int, target_z: int) -> void:
 	var dx := target_x - int(position.x)

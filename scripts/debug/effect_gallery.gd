@@ -22,6 +22,7 @@ var world: Node
 var field_map: FieldMap
 var camera: Camera3D
 var hidden_nodes := Callable()
+var map_layer_nodes := Callable()
 ## What went wrong at the last open(), for the tab.
 var last_error := ""
 
@@ -75,13 +76,14 @@ static func user_of(data: Node, id: int) -> int:
 	return -1
 
 
-## Places the two Digimon and loads the technique. "" or what went wrong (also in last_error).
-func open(technique_id: int, caster: int, target: int) -> String:
-	last_error = _open(technique_id, caster, target)
+## Places the two Digimon and loads the technique, `percent` of the C's attack distance apart (a
+## fighter starts a technique anywhere within it). "" or what went wrong (also in last_error).
+func open(technique_id: int, caster: int, target: int, percent := 100) -> String:
+	last_error = _open(technique_id, caster, target, percent)
 	return last_error
 
 
-func _open(technique_id: int, caster: int, target: int) -> String:
+func _open(technique_id: int, caster: int, target: int, percent: int) -> String:
 	close()
 	PsxMath.setup(GameData)
 	technique = technique_id
@@ -92,12 +94,14 @@ func _open(technique_id: int, caster: int, target: int) -> String:
 	var reach := radii
 	if int(move.get("range", {}).get("id", 1)) != 1:
 		reach = int(sqrt(float(int(move.get("distance_squared", 0)) + radii * radii)))
+	reach = maxi(radii, reach * clampi(percent, 1, 100) / 100)
 	ctx = GalleryWorld.new()
 	ctx.data = GameData
 	ctx.field_map = field_map
 	ctx.camera = camera
 	ctx.game_state = GameState
 	ctx.sound = Sound
+	ctx.map_layer_nodes = map_layer_nodes
 	_hidden = hidden_nodes.call() if hidden_nodes.is_valid() else []
 	# Across the screen at the tamer's place, facing each other.
 	var centre: Vector3 = _hidden[0].global_position if not _hidden.is_empty() and _hidden[0] != null else Vector3.ZERO
@@ -193,6 +197,7 @@ func close() -> void:
 		fx_view.queue_free()
 		fx_view = null
 	if ctx != null:
+		ctx.restore_view()
 		for d in ctx.digimon.values():
 			if is_instance_valid(d):
 				d.queue_free()

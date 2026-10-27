@@ -8,6 +8,9 @@ extends BattleWorld
 const SCREEN := Vector2(320, 240)
 ## QUADRANTS (map.c:339).
 const QUADRANTS := [Vector2i(-1, 1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1)]
+## BTL_setupFixedCamera's view: the eye's z and the projection.
+const FIXED_EYE_Z := -0x7D0
+const FIXED_PROJECTION := 0x200
 
 var entities: FieldEntities
 var field_map: FieldMap
@@ -28,6 +31,13 @@ var tamer: Tamer
 
 ## COMBAT_AREA_X / Y: the screen centre (160 - DRAWING_OFFSET).
 var _area := Vector2(160, 120)
+## The map layer's objects (doors, overlays, items, chests, poop): func() -> Array, set by the host.
+var map_layer_nodes := Callable()
+var _map_layer := true
+## The nodes the map layer hid, with their visibility before.
+var _hidden_layer := {}
+## BTL_setupFixedCamera's view is up: the projections the scripts make use it.
+var _fixed := false
 
 
 func _node(id: int) -> Node3D:
@@ -95,7 +105,10 @@ func rotation_y(id: int) -> int:
 	return int(n.get("direction")) if n != null and n.get("direction") != null else 0
 
 
-## The bone's world matrix from the model's skeleton, in PSX units (posData[bone].workm).
+## The bone's world matrix from the model's skeleton, in PSX units (posData[bone].workm): its
+## rotation the bone's own (the skeleton's world basis taken back to the PSX's axes: F · B · F with
+## F the flip (x, -y, -z)), its translation the bone's position. The effects aim along it (a mouth,
+## a hand: getSourceBoneTransform).
 func bone_matrix(id: int, bone: int) -> PackedInt32Array:
 	var n := _node(id)
 	if n == null:
@@ -105,7 +118,19 @@ func bone_matrix(id: int, bone: int) -> PackedInt32Array:
 		bone = 0
 	var p: Vector3 = n.call("bone_position", bone) if n.has_method("bone_position") else n.global_position
 	var m := PsxMath.rot_matrix_yxz(Vector3i(0, rotation_y(id), 0))
+	if n.has_method("bone_basis"):
+		m = psx_matrix(n.call("bone_basis", bone))
 	return PsxMath.trans_matrix(m, Vector3i(roundi(p.x), roundi(-p.y), roundi(-p.z)))
+
+
+## A Godot basis as a PSX rotation matrix (4096 = 1.0; int16 entries): F · B · F.
+static func psx_matrix(b: Basis) -> PackedInt32Array:
+	var f := [1.0, -1.0, -1.0]
+	var m := PsxMath.identity()
+	for i in 3:
+		for j in 3:
+			m[i * 3 + j] = PsxMath.s16(roundi(f[i] * b[j][i] * f[j] * 4096.0))
+	return m
 
 
 func look_at(id: int, target: int) -> void:
@@ -113,17 +138,62 @@ func look_at(id: int, target: int) -> void:
 
 
 func world_screen_matrix() -> PackedInt32Array:
+	if _fixed:
+		return PsxMath.trans_matrix(PsxMath.identity(), Vector3i(0, 0, -FIXED_EYE_Z))
 	return field_map.world_screen_matrix() if field_map != null and field_map.has_method("world_screen_matrix") \
 			else PsxMath.identity()
 
 
-## VIEWPORT_DISTANCE: the map camera's projection distance.
+## getDrawingOffsetCopy: the field's drawing offset, also while the fixed view is up (the C keeps
+## its copy; the screen primitives land relative to the frame's offset).
+func drawing_offset() -> Vector2i:
+	return Vector2i(field_map.drawing_offset().round()) if field_map != null else super()
+
+
+## Where a screen primitive lands: on the frame's screen, through the field camera.
+func screen_to_world(relative: Vector2, depth: float) -> Vector3:
+	return field_map.screen_to_world(relative, depth) if field_map != null else super(relative, depth)
+
+
+## VIEWPORT_DISTANCE: the map camera's projection distance (the fixed view's 0x200).
 func viewport_distance() -> int:
+	if _fixed:
+		return FIXED_PROJECTION
 	return roundi(field_map.projection()) if field_map != null else super()
 
 
-func set_map_layer(_enabled: bool) -> void:
-	pass
+## setMapLayerEnabled: off (BTL_disableMapLayer, for a frame) hides the map's objects, not its
+## background (MAP_LAYER_ENABLED: renderDoors, renderChest, the overlays, the dropped items, the
+## poop...); the effect engine's tick turns it back on.
+func set_map_layer(enabled: bool) -> void:
+	if enabled == _map_layer:
+		return
+	_map_layer = enabled
+	if not enabled:
+		var nodes: Array = map_layer_nodes.call() if map_layer_nodes.is_valid() else []
+		for n in nodes:
+			if n != null and is_instance_valid(n) and "visible" in n:
+				_hidden_layer[n] = n.visible
+				n.visible = false
+	else:
+		for n in _hidden_layer:
+			if is_instance_valid(n):
+				n.visible = _hidden_layer[n]
+		_hidden_layer.clear()
+
+
+## BTL_setupFixedCamera (battle_effect.c:3199): GsSetProjection(0x200) and a view from (0, 0,
+## -2000) looking down +z; BTL_restoreCameraView puts the field's back. The scripts bracket a few
+## primitives with it within one pass (DG Dimension's grid and fade): it is the projection those
+## are made with (GsWSMATRIX, the projection), not a camera the frame is drawn with.
+func set_fixed_camera(fixed: bool) -> void:
+	_fixed = fixed
+
+
+## The effects' view states back as the field's (a battle or the gallery ending in the middle).
+func restore_view() -> void:
+	set_fixed_camera(false)
+	set_map_layer(true)
 
 
 func play_sound(bank: int, id: int) -> void:

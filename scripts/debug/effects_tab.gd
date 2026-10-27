@@ -2,7 +2,8 @@ class_name DebugEffectsTab
 extends VBoxContainer
 ## The debugger window's "Effects" tab, not part of the original: the technique gallery
 ## (EffectGallery, specs/battle_effects.md §7.4). Pick a technique (the caster defaults to a
-## Digimon that has it), a caster and a target; Place puts them on the map, Play starts the effect
+## Digimon that has it), a caster, a target and their distance (a share of the technique's range: a
+## fighter starts it anywhere within); Place puts them on the map, Play starts the effect
 ## (again to replay), Close ends the gallery. Below: the effect's frame, its hits and its draw calls.
 
 var gallery: EffectGallery
@@ -11,6 +12,7 @@ var data: Node
 var _technique: OptionButton
 var _caster: OptionButton
 var _target: OptionButton
+var _distance: SpinBox
 var _status: Label
 
 
@@ -35,6 +37,17 @@ func _ready() -> void:
 		_target.add_item("%d  %s" % [d[0], d[1]], d[0])
 	_select(_target, 17)
 	_pick_caster()
+	var distance_row := HBoxContainer.new()
+	add_child(distance_row)
+	var distance_label := Label.new()
+	distance_label.text = "Distance, % of the technique's range"
+	distance_row.add_child(distance_label)
+	_distance = SpinBox.new()
+	_distance.min_value = 10
+	_distance.max_value = 100
+	_distance.step = 5
+	_distance.value = 100
+	distance_row.add_child(_distance)
 	var row := HBoxContainer.new()
 	add_child(row)
 	for b in [["Place", _place], ["Play", _play], ["Close", _close]]:
@@ -79,7 +92,7 @@ func _pick_caster() -> void:
 func _place() -> void:
 	if gallery == null:
 		return
-	gallery.open(_technique.get_selected_id(), _caster.get_selected_id(), _target.get_selected_id())
+	gallery.open(_technique.get_selected_id(), _caster.get_selected_id(), _target.get_selected_id(), int(_distance.value))
 
 
 func _play() -> void:

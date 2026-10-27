@@ -18,7 +18,8 @@ render_mode unshaded, cull_disabled%s;
 uniform sampler2D sprite_texture : filter_nearest;
 uniform float alpha_scale = 1.0;
 uniform float color_scale = 1.0;
-// The texels drawn (x, y, w, h; a negative size mirrors) and the colour (1.0 = 128).
+// The texels drawn (x, y, w, h; a negative size mirrors) and the colour (1.0 = 128); the vertex
+// colours (a gouraud polygon's, 1.0 = 128) multiply it.
 instance uniform vec4 region;
 instance uniform vec4 tint;
 
@@ -36,16 +37,25 @@ void fragment() {
 	if (texel.a < 0.5) {
 		discard;
 	}
-	ALBEDO = srgb_to_linear(clamp(texel.rgb * tint.rgb, 0.0, 1.0)) * color_scale;
+	ALBEDO = srgb_to_linear(clamp(texel.rgb * tint.rgb * COLOR.rgb, 0.0, 1.0)) * color_scale;
 	%s
 }
 """
 
 static var _shaders := {}
+static var _solids := {}
 
 var _quad: QuadMesh
 var _pool: Array[MeshInstance3D] = []
 var _used := 0
+## The free-form quads (quad()): their own meshes.
+var _quads: Array[MeshInstance3D] = []
+var _quads_used := 0
+## This frame's lines by blend mode (-1 opaque, 0-3 the abr): [a, b, colour] each.
+var _lines := {}
+var _line_mesh: ImmediateMesh
+var _line_node: MeshInstance3D
+static var _line_materials := {}
 var _materials := {}
 ## The camera the quads face (the viewport's), found at begin().
 var _camera: Camera3D
@@ -58,6 +68,8 @@ func _init() -> void:
 
 func begin() -> void:
 	_used = 0
+	_quads_used = 0
+	_lines.clear()
 	_camera = get_viewport().get_camera_3d() if is_inside_tree() else null
 
 
@@ -80,13 +92,118 @@ func sprite(texture: PsxTexture, abr: int, at: Vector3, size: Vector2, region: R
 	quad.visible = true
 
 
+## A quad with free corners (Godot world; top-left, top-right, bottom-left, bottom-right): a
+## POLY_FT4 / POLY_F4 / POLY_GT4. Its texels are `region`, or with `uvs` (4 texel positions, one per
+## corner) any four; `colors` are a gouraud polygon's corner colours (1.0 = 128).
+func quad(texture: PsxTexture, abr: int, corners: Array, region: Rect2, tint := Color.WHITE, uvs := [],
+		colors := []) -> void:
+	if texture == null or corners.size() != 4:
+		return
+	if _quads_used == _quads.size():
+		var node := MeshInstance3D.new()
+		node.mesh = ArrayMesh.new()
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(node)
+		_quads.append(node)
+	var node := _quads[_quads_used]
+	_quads_used += 1
+	var mesh := node.mesh as ArrayMesh
+	mesh.clear_surfaces()
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = PackedVector3Array([corners[0], corners[1], corners[2], corners[1], corners[3], corners[2]])
+	var uv: Array = uvs if uvs.size() == 4 else [Vector2(0, 0), Vector2(1, 0), Vector2(0, 1), Vector2(1, 1)]
+	if uvs.size() == 4:
+		region = Rect2(0, 0, 1, 1)
+	arrays[Mesh.ARRAY_TEX_UV] = PackedVector2Array([uv[0], uv[1], uv[2], uv[1], uv[3], uv[2]])
+	if colors.size() == 4:
+		arrays[Mesh.ARRAY_COLOR] = PackedColorArray([colors[0], colors[1], colors[2], colors[1], colors[3], colors[2]])
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	node.material_override = _material(texture, abr)
+	node.global_transform = Transform3D.IDENTITY
+	node.set_instance_shader_parameter("region", Vector4(region.position.x, region.position.y, region.size.x,
+			region.size.y))
+	node.set_instance_shader_parameter("tint", tint)
+	node.visible = true
+
+
+## A one-pixel line (LINE_F2) between two Godot points, in a blend mode (-1 opaque, 0-3 the abr).
+func line(a: Vector3, b: Vector3, color: Color, abr := -1) -> void:
+	if not _lines.has(abr):
+		_lines[abr] = []
+	_lines[abr].append([a, b, color])
+
+
 func end() -> void:
 	for i in range(_used, _pool.size()):
 		_pool[i].visible = false
+	for i in range(_quads_used, _quads.size()):
+		_quads[i].visible = false
+	_end_lines()
 
 
+func _end_lines() -> void:
+	if _line_mesh == null:
+		_line_mesh = ImmediateMesh.new()
+		_line_node = MeshInstance3D.new()
+		_line_node.mesh = _line_mesh
+		_line_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_line_node)
+	_line_mesh.clear_surfaces()
+	for abr in _lines:
+		_line_mesh.surface_begin(Mesh.PRIMITIVE_LINES, _line_material(abr))
+		for l in _lines[abr]:
+			_line_mesh.surface_set_color(l[2])
+			_line_mesh.surface_add_vertex(l[0])
+			_line_mesh.surface_set_color(l[2])
+			_line_mesh.surface_add_vertex(l[1])
+		_line_mesh.surface_end()
+	_line_node.global_transform = Transform3D.IDENTITY
+
+
+## The lines' material of a blend mode: the vertex colour (sRGB, 1.0 = 255), blended as the abr.
+static func _line_material(abr: int) -> Material:
+	if not _line_materials.has(abr):
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.vertex_color_use_as_albedo = true
+		m.vertex_color_is_srgb = true
+		match abr:
+			PsxLit.HALF:
+				m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				m.albedo_color = Color(1, 1, 1, 0.5)
+			PsxLit.ADD:
+				m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+			PsxLit.SUBTRACT:
+				m.blend_mode = BaseMaterial3D.BLEND_MODE_SUB
+			PsxLit.ADD_QUARTER:
+				m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+				m.albedo_color = Color(0.25, 0.25, 0.25)
+		_line_materials[abr] = m
+	return _line_materials[abr]
+
+
+## The sprites, quads and lines this frame shows.
 func used() -> int:
-	return _used
+	var lines := 0
+	for abr in _lines:
+		lines += _lines[abr].size()
+	return _used + _quads_used + lines
+
+
+## A flat colour for the untextured polygons (POLY_F4): one white texel, opaque, or with the STP
+## bit when the polygon is semi-transparent (an untextured polygon blends all of it).
+static func solid(semi: bool) -> PsxTexture:
+	var key := 1 if semi else 0
+	if not _solids.has(key):
+		var white := Image.create(1, 1, false, Image.FORMAT_RGBA8)
+		white.set_pixel(0, 0, Color.WHITE)
+		var empty := Image.create(1, 1, false, Image.FORMAT_RGBA8)
+		var t := PsxTexture.new()
+		t.base = ImageTexture.create_from_image(empty if semi else white)
+		t.stp = ImageTexture.create_from_image(white if semi else empty)
+		_solids[key] = t
+	return _solids[key]
 
 
 func _take() -> MeshInstance3D:

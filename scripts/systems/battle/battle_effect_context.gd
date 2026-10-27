@@ -114,6 +114,17 @@ func world_to_screen(pos: Vector3i) -> Dictionary:
 	return {"screen": Vector2i(PsxMath.div(v.x * h, z), PsxMath.div(v.y * h, z)), "sz": v.z}
 
 
+## The drawing offset: the projection centre's screen pixel (getDrawingOffsetCopy).
+func drawing_offset() -> Vector2i:
+	return Vector2i(160, 120)
+
+
+## The Godot point drawn at `relative` (screen pixels from the projection centre) at view depth
+## `depth`: where the views put the effects' screen primitives.
+func screen_to_world(relative: Vector2, depth: float) -> Vector3:
+	return Vector3(relative.x, -relative.y, -depth)
+
+
 ## setMapLayerEnabled (BTL_disableMapLayer: off for this frame; the engine's tick turns it back on).
 func set_map_layer(_enabled: bool) -> void:
 	pass

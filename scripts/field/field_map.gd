@@ -517,6 +517,18 @@ func projection() -> float:
 	return _projection
 
 
+## The drawing offset (DRAWING_OFFSET_X / Y): the projection centre's screen pixel. The battle
+## effects' screen primitives are placed relative to it.
+func drawing_offset() -> Vector2:
+	return background_size / 2 - scroll
+
+
+## The Godot point at view depth `depth` drawn at screen position `relative` (pixels from the
+## projection centre, as the GTE gives them and the primitives use them).
+func screen_to_world(relative: Vector2, depth: float) -> Vector3:
+	return world_at_pixel(relative + background_size / 2, depth)
+
+
 ## GsWSMATRIX of the map's camera (GsSetRefView2), in PsxMath's layout: the rows are the camera's
 ## right, down and forward axes (4096 = 1.0), the translation -R · eye. The screen x / y it gives
 ## are relative to the projection centre.

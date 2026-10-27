@@ -5,7 +5,9 @@ extends Node
 ## Prints per technique the frames, the hits, the most nodes its view showed in a frame (models and
 ## sprites), the most the shared effects showed, the calls not drawn yet and the VM's faults.
 ## Exits 1 if the script errors, an effect faults, or a technique with a model or sprites draws
-## nothing. Env: EFFECT_IDS=0,2,17 some techniques; EFFECT_MAP=TROP01 the map.
+## nothing. Env: EFFECT_IDS=0,2,17 some techniques; EFFECT_MAP=TROP01 the map; EFFECT_TRACE=1 prints
+## every 5th frame each live instance's position relative to the target (where a technique goes);
+## EFFECT_DISTANCE=50 stands the target at that share of the technique's range (default 100).
 
 const MAP := "TROP01"
 ## Game frames to let the map set up, and a technique's longest run.
@@ -22,6 +24,10 @@ var _failed := false
 var _most_view := 0
 var _most_fx := 0
 var _calls := {}
+## The camera before the technique (no technique moves it), and a fixed view left on between frames
+## (DG Dimension brackets its primitives with it within a pass).
+var _camera := Transform3D()
+var _fixed_seen := false
 
 
 func _ready() -> void:
@@ -60,6 +66,16 @@ func _process(_delta: float) -> void:
 	if _gallery.effect != null:
 		for c in _gallery.effect.draw_calls:
 			_calls[c[0]] = true
+	if _gallery.ctx != null and _gallery.ctx._fixed:
+		_fixed_seen = true
+	if OS.get_environment("EFFECT_TRACE") != "" and _gallery.effect != null and _gallery.frame % 5 == 0:
+		var target := _gallery.ctx.location(2)
+		var caster := _gallery.ctx.location(1)
+		var live := []
+		for c in _gallery.effect.contexts:
+			if c["inst"] != 0:
+				live.append(_gallery.effect.read_vec(c["instance"] + EfeEffect.I_POS) - target)
+		print("  f%d caster-target %s, instances - target %s" % [_gallery.frame, caster - target, live])
 	if not _gallery._running or frames > TIMEOUT:
 		_report(frames)
 		_next()
@@ -78,12 +94,15 @@ func _next() -> void:
 		return
 	var id: int = _ids[_index]
 	var caster := EffectGallery.user_of(GameData, id)
-	var error := _gallery.open(id, caster if caster >= 0 else 3, 17 if caster != 17 else 3)
+	var percent := int(OS.get_environment("EFFECT_DISTANCE")) if OS.get_environment("EFFECT_DISTANCE") != "" else 100
+	var error := _gallery.open(id, caster if caster >= 0 else 3, 17 if caster != 17 else 3, percent)
 	if error != "":
 		print("%3d: %s" % [id, error])
 		_next()
 		return
 	_start = GameLoop.frame_count
+	_camera = _gallery.camera.global_transform
+	_fixed_seen = false
 
 
 func _report(frames: int) -> void:
@@ -107,4 +126,11 @@ func _report(frames: int) -> void:
 		_failed = true
 	if frames > TIMEOUT:
 		line += " (timeout)"
+	if _fixed_seen:
+		line += ", FIXED VIEW LEFT ON"
+		_failed = true
+	_gallery.close()
+	if not _gallery.camera.global_transform.is_equal_approx(_camera):
+		line += ", CAMERA NOT RESTORED"
+		_failed = true
 	print(line)

@@ -24,6 +24,7 @@ var clock: Clock
 var world: Node
 var camera: Camera3D
 var hidden_nodes := Callable()
+var map_layer_nodes := Callable()
 ## The debugger window's settings at start (the field's exports).
 var render_scale := 4
 var ui_filter := true
@@ -66,6 +67,7 @@ func start() -> void:
 	gallery.field_map = field_map
 	gallery.camera = camera
 	gallery.hidden_nodes = hidden_nodes
+	gallery.map_layer_nodes = map_layer_nodes
 	add_child(gallery)
 	window = DebugWindow.new()
 	window.gallery = gallery

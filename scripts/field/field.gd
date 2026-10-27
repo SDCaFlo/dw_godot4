@@ -165,6 +165,7 @@ func _start() -> void:
 	battle_host.clock = clock
 	battle_host.menu_host = menu_host
 	battle_host.map_items = map_session.map_items
+	battle_host.map_layer_nodes = map_layer_nodes
 	battle_host.fade = care_host.fade
 	battle_host.text_area = scripts.text_area
 	battle_host.boxes = scripts.boxes
@@ -203,6 +204,7 @@ func _start_debug() -> void:
 	debug.world = _world
 	debug.camera = _camera
 	debug.hidden_nodes = func() -> Array: return [_tamer, entities.partner]
+	debug.map_layer_nodes = map_layer_nodes
 	debug.render_scale = render_scale
 	debug.ui_filter = ui_filter
 	debug.show_window = debug_window
@@ -216,6 +218,13 @@ func _start_debug() -> void:
 			scripts.map_name]:
 		if node != null:
 			_hud.add_child(node)
+
+
+## The map layer's objects (MAP_LAYER_ENABLED: the doors, the overlay sprites, the items on the
+## ground, the chests, the poop), which a technique may hide for a frame.
+func map_layer_nodes() -> Array:
+	return [_field.get_node_or_null("Doors"), _field.overlays, map_session.map_items, map_session.map_chests,
+			care_host.poop]
 
 
 ## One game frame, in the original's object order (specs/scenes.md §3): the tamer and the partner

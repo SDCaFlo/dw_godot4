@@ -5,6 +5,8 @@ extends SceneTree
 ## the flash's arguments read through their pointers), the PSX -> Godot basis of the effect
 ## models, and the map camera's GsWSMATRIX:
 ##   godot --headless --path . -s res://tests/test_effect_drawing.gd
+## Also (5d-5b) the slot's TIM read from its bytes against the porter's texture, the CLUT writes of
+## a real technique.
 ## Exits 1 if a check fails. The drawing itself is checked in the field by tests/effect_scan.tscn.
 
 const TestEfe := preload("res://tests/test_efe.gd")
@@ -28,6 +30,8 @@ func _init() -> void:
 	_test_slot_state()
 	_test_basis()
 	_test_world_screen_matrix()
+	_test_tim()
+	_test_clut_writes()
 	data.free()
 	print("%s: effect drawing checks (%d run)" % ["FAILED %d" % _failed if _failed else "OK", _checks])
 	quit(1 if _failed else 0)
@@ -224,3 +228,61 @@ func _test_world_screen_matrix() -> void:
 	var v := PsxMath.apply_matrix_lv(m, Vector3i(roundi(p.x), roundi(p.y), roundi(p.z))) + PsxMath.translation(m)
 	_eq(absi(v.x) <= 1 and absi(v.y) <= 1 and absi(v.z - 1000) <= 1, true, "a point 1000 ahead is at view (0, 0, 1000) (%s)" % v)
 	map.free()
+
+
+func _slot_bytes(technique: int) -> PackedByteArray:
+	return FileAccess.get_file_as_bytes(Content.path("efe/%s/effect.bin" % EffectHost.efe_folder(technique)))
+
+
+## EfeTexture reads the TIM in the slot's bytes as the porter converted it (Reverse Prog's, palette 0).
+func _test_tim() -> void:
+	var mem := _slot_bytes(31)
+	var tim := EfeTexture.parse(mem, EfeEffect.HEADER + mem.decode_s32(EfeEffect.H_TIM_START))
+	_eq([tim.get("bpp"), tim.get("width"), tim.get("height"), tim.get("rows", []).size()], [4, 256, 32, 6],
+			"Reverse Prog's TIM: 4-bit, 256 x 32, 6 CLUT rows")
+	var ours := EfeTexture.sprite_texture(tim, tim["rows"][0])
+	var porter := PsxTexture.load_palette("efe/%s/texture" % EffectHost.efe_folder(31), 0)
+	var same := true
+	var a := ours.base.get_image()
+	var b := porter.base.get_image()
+	var c := ours.stp.get_image()
+	var d := porter.stp.get_image()
+	for y in a.get_height():
+		for x in a.get_width():
+			same = same and a.get_pixel(x, y).a == b.get_pixel(x, y).a and c.get_pixel(x, y).a == d.get_pixel(x, y).a
+			if a.get_pixel(x, y).a > 0:
+				same = same and a.get_pixel(x, y).is_equal_approx(b.get_pixel(x, y))
+	_eq(same, true, "its texels in palette 0 are the porter's, split by the STP bit the same way")
+
+
+## Reverse Prog rewrites its CLUT rows (loadClutColors); the slot keeps them.
+func _test_clut_writes() -> void:
+	var ctx := TestEfe.StubContext.new()
+	ctx.data = data
+	ctx.entities = {1: {"type": 3, "location": Vector3i.ZERO, "yaw": 0, "hp": 10, "hit": false, "on_map": true,
+			"on_screen": true}, 2: {"type": 17, "location": Vector3i(0, 0, -600), "yaw": 2048, "hp": 10, "hit": false,
+			"on_map": true, "on_screen": true}}
+	var host := EffectHost.new(ctx)
+	var user := 0
+	for r in data.records("digimon/digimon_data"):
+		for m in r.get("moves", []):
+			if m.get("move") != null and int(m["move"]["id"]) == 31:
+				user = int(r["id"])
+	ctx.entities[1]["type"] = user
+	Rng.set_seed(4)
+	var slot := host.load_moves([{"technique": 31, "caster": 0}])[0]
+	_eq(slot >= 0, true, "Reverse Prog loads for Digimon %d" % user)
+	if slot < 0:
+		return
+	var fx: EfeEffect = host.slots[slot]
+	host.start(slot, 1, 2)
+	var frames := 0
+	while fx.is_running() and frames < 300:
+		host.tick()
+		host.draw()
+		frames += 1
+	_eq(fx.clut_version > 0, true, "its scripts wrote the CLUT (%d writes, rows %s)" % [fx.clut_version, fx.clut_rows.keys()])
+	var row: PackedInt32Array = fx.clut_row(fx.clut_rows.keys()[0]) if not fx.clut_rows.is_empty() else PackedInt32Array()
+	_eq(row.size(), 16, "a 4-bit slot's row holds 16 colours")
+	host.unload_all()
+

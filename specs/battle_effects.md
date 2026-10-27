@@ -237,7 +237,7 @@ Driven by the battle logic, drawn with the `btl_rel` models (`specs/battle.md` �
 
 ## 7. Drawing (step 5d-5, detailed 2026-10-26)
 
-Status: approved 2026-10-27. The VM already runs every draw script, and its drawing built-ins pop their arguments (step 1). This step gives those calls a view. Nothing here changes the logic: hits, timing and sounds stay as tested.
+Status: approved 2026-10-27; 5d-5a and 5d-5b built (see "As built"). The VM already runs every draw script, and its drawing built-ins pop their arguments (step 1). This step gives those calls a view. Nothing here changes the logic: hits, timing and sounds stay as tested.
 
 ### 7.1 What the 121 slots use
 
@@ -415,3 +415,36 @@ The field's healing particles come with them (`addHealingParticleEffect`, ISSUES
   - The sprites' rotation direction.
   - The UV wrap when the slot's texture place isn't place 0: the port wraps at 256 in place 0's coordinates.
   - The order of the shared effects' ticks among the battle's other objects.
+
+## As built (5d-5b, 2026-10-27)
+
+- **The screen primitives** (`renderScreenSprite`, `renderParticleFlashSprite`, `render2DTexturedQuad`, `renderScrollingBackground`, `renderParallaxSprites`, `renderScreenOverlay`, `renderScreenFade`):
+  - **How they're placed:** the C puts them in screen pixels relative to the drawing offset, and sorts them into the ordering table with the models at a given slot. The port draws them as screen-aligned quads in 3D at the view depth of that slot (OT z = SZ >> 4, as the sprites and flashes; `EfeView._ot_depth`).
+  - **The result:** the fade (slot 0xFFE) darkens the map behind the fighters, and Winter Blast's backdrops (0x1E) cover them, as on the PSX.
+  - **The mapping:** `FieldMap.drawing_offset()` (the projection centre's screen pixel, `background_size / 2 - scroll`) and `screen_to_world(relative, depth)`, through the context.
+  - **Flat colours:** the untextured overlay uses `WorldSprites.solid()`.
+- **The world primitives:**
+  - **The 3D quad** (`render3DTexturedQuad`, through `addScreenPolyFT4`), the radial waves (6 rings of quads, per-corner UVs from `BTL_RADIAL_WAVE_UVS`), the ribbon strip (gouraud corner colours cycling through `BTL_RIBBON_COLORS`) and the ring tube are drawn in 3D from the C's points, with the C's culling. `WorldSprites.quad` takes per-corner UVs and colours.
+  - **The lines and wireframes** (`renderEFELine`, `renderWireframeBox`, `renderWireframeGrid`) are screen lines at their slot, with `drawLine2P`'s blend modes (`WorldSprites.line`). The wireframes add the C's `0xA0 - offset` shift.
+- **The CLUT writes** (`loadClutColors`, `addClutLoadPrim`):
+  - **Slot state:** they change the slot's palettes (`EfeEffect.clut_rows`, `write_clut`, `clut_version`), as the C's VRAM.
+  - **Textures:** the slot's TIM is read from its own bytes (`EfeTexture.parse`, checked texel for texel against the porter's PNG). Sprites and model surfaces on a rewritten row get textures built from the row as it is now.
+  - **Timing:** `addClutLoadPrim`'s OT timing is applied at once.
+- **`drawTMDScreenSpace`:** the object hangs in the camera's space.
+- **The fixed camera** (`setupFixedCamera` / `restoreCameraView`):
+  - **How the scripts use it:** they bracket a few primitives with it within one pass (DG Dimension's fade and grid). So it is the projection those primitives are made with (`world_screen_matrix`, `viewport_distance` of the fixed view), not a camera the frame is drawn with.
+  - **The drawing offset:** it stays the field's (the C reads its copy).
+  - **Checks:** the scan checks that it is never left on, and that the camera never moves.
+- **The map layer** (`disableMapLayer`): `FieldBattleWorld.set_map_layer` hides the map's object nodes (doors, overlays, items, chests, poop: `Field.map_layer_nodes`) for the frame and puts back their visibility. The effect engine's tick turns it on again. `restore_view()` resets both views at a battle's or the gallery's end.
+- **Fixed on the way: the bones' rotation.**
+  - **The cause:** `FieldBattleWorld.bone_matrix` gave a bone its position but only the Digimon's yaw as rotation, so a technique fired along a bone (`getSourceBoneTransform`: a mouth, a hand) flew off in the wrong direction, in battle too.
+  - **The fix:** it now has the bone's world rotation from the skeleton (`FieldDigimon.bone_basis`, taken back to the PSX axes: `psx_matrix`, F · B · F).
+  - **The effect:** Frozen Fire Shot, Hand of Fate and All Range Beam now hit at their full range, and 3 others hit more often.
+- **The gallery:** a distance setting (a share of the technique's range: a fighter starts a technique anywhere within it). The scan takes `EFFECT_DISTANCE` and `EFFECT_TRACE` (each live instance's position relative to the target).
+- **The scan now (120 techniques):**
+  - **Drawing:** nothing undrawn, no fault.
+  - **Two land no hit:**
+    - **Deadly Bomb (74)** lobs its bomb along the caster's facing at a fixed speed: it rests about 1500 units out, beyond any target's distance. To compare with the original.
+    - **High Electro Shocker (112)**'s bone table takes only Digimon 1 (§"As built (step 1)").
+  - **Four run to the scan's 600 frames** (Ice Statue, Mass Morph, Deadly Bomb, Electric Thread): they hit, and keep running until the battle stops them (`BTL_stopEFESubEffect` when the fighter's technique ends).
+- **Tests:** `tests/test_effect_drawing.gd` (33 checks: + the TIM read from the slot against the porter's texture, Reverse Prog's CLUT writes kept by the slot). The fixed view's mapping is checked in the field (the scan), since `FieldBattleWorld` needs the autoloads.

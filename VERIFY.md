@@ -432,15 +432,25 @@ In the game (F5):
 
 ## Battle effects (`scripts/systems/battle/efe_view.gd`, `battle_fx_view.gd`, `world_sprites.gd`, `scripts/debug/effect_gallery.gd`; `specs/battle_effects.md` §7)
 
-The technique gallery (step 5d-5a): the techniques' models, sprites, particles and flashes. The rarer drawing kinds (screen sprites, lines, waves, ribbons, fades: 12 techniques) come with 5d-5b; the gallery lists them under "not drawn yet".
+The technique gallery (steps 5d-5a, 5d-5b): every technique's drawing (models, sprites, particles, flashes, and the rarer kinds: screen sprites and backdrops, lines, wireframes, waves, ribbons, the ring tube, fades, palette animation).
 
 1. **Open the gallery:** on any map (an open one, e.g. TROP01), F1 opens the debugger: tab **Effects**. Pick a technique (the caster switches to a Digimon that has it), a target, then **Place**: the two Digimon stand facing each other where the tamer was (the tamer and the partner hide). **Play** starts the technique (again to replay); the caster plays its technique animation when it has the technique in its list. **Close** brings the tamer back.
-2. **What it shows:** the frame, the live sub-effects, the hits (frame and victim), the draw calls of the run, and the kinds not drawn yet.
+2. **What it shows:** the frame, the live sub-effects, the hits (frame and victim), the draw calls of the run, and the kinds not drawn yet (none now). **Distance**: the share of the technique's range the two stand apart (a fighter starts a technique anywhere within its range); some area techniques reach only part of it.
 3. **Spit Fire (2)** with Agumon: a stream of fireballs (sprites) flies to the target; the hit makes sparks (a flash, then particles fading out). Its sound now comes from the battle's bank (ISSUES.md I-27): compare it with the original.
 4. **Fire Tower (0)** with Agumon: a column of fire (the effect's model) rises on the target, its texture scrolling. At its end: does the original's tower **fade out** or vanish at once? (The port fades it with the script's colour; the PSX's raw-texture bit may ignore that colour, `specs/battle_effects.md` §7.8.)
 5. **A few more to compare:** Electric Cloud, Blue Blaster, Poison Ivy, Static Elect (its sparkles run over the caster's bones), a technique with particle streaks (e.g. Sonic Jab, Tremar: the emitters), a flash (Mega Flame).
 6. **Things to look at against the original:** the sprites' size and **rotation direction**, what is hidden behind a Digimon, the colours and the additive / subtractive blending, the textures' scrolling.
-7. **In a real battle:** the partner's technique now draws too, and the hits make sparks; the battle's sounds are the battle bank's (I-27).
+7. **The rarer kinds (5d-5b), one technique each to compare:**
+   - Winter Blast: a snowy backdrop scrolling in front of everything.
+   - Thunder Justice, Solar Ray: screen sprites and flashes.
+   - DG Dimension: the screen darkens behind the fighters; a green wireframe grid and boxes.
+   - Aurora Freeze: a colour-cycling ribbon and a screen tint.
+   - Meltdown: a ring tube.
+   - Confused Storm: radial waves, a model hanging in front of the camera, cycling colours.
+   - Reverse Prog: its colours change as it plays.
+   - Spiral Sword: a textured quad.
+8. **Aim:** techniques fired from a mouth or a hand (Frozen Fire Shot, Spit Fire, Fireball) leave along that bone towards the target. Deadly Bomb lobs its bomb far beyond the target: does the original's land that far?
+9. **In a real battle:** the partner's technique now draws too, and the hits make sparks; the battle's sounds are the battle bank's (I-27).
 
 ## Partner (`scripts/field/partner.gd`, `psx_animator.gd`, `specs/partner.md`)
 

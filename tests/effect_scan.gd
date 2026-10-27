@@ -110,7 +110,14 @@ func _process_visuals(frames: int) -> void:
 		return
 	if _visual >= EffectGallery.VISUALS.size():
 		return
-	_most_view = maxi(_most_view, _gallery.visuals_view.shown())
+	if EffectGallery.VISUALS[_visual][1] == "flat":
+		var node := _gallery.ctx.digimon.get(1) as Node3D
+		var flat := node.get_node_or_null("FlatSprite") as Node3D if node != null else null
+		var model := node.get_node_or_null("Model") as Node3D if node != null else null
+		if flat != null and flat.visible and model != null and not model.visible:
+			_most_view = maxi(_most_view, 1)
+	else:
+		_most_view = maxi(_most_view, _gallery.visuals_view.shown())
 	if frames < VISUAL_FRAMES:
 		return
 	var line := "%-22s most shown %3d, hits %d, live %s" % [EffectGallery.VISUALS[_visual][0], _most_view,
@@ -120,8 +127,8 @@ func _process_visuals(frames: int) -> void:
 		line += ", DREW NOTHING"
 		_failed = true
 	print(line)
-	# A status shown again goes; the next visual starts clean.
-	if EffectGallery.VISUALS[_visual][1] == "status":
+	# A status (or the flat sprite) shown again goes; the next visual starts clean.
+	if EffectGallery.VISUALS[_visual][1] in ["status", "flat"]:
 		_gallery.show_visual(_visual)
 	_visual += 1
 	if _visual >= EffectGallery.VISUALS.size():

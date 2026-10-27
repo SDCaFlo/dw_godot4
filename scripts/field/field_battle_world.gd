@@ -468,10 +468,11 @@ func set_scale(id: int, scale: Vector3i) -> void:
 		n.scale = Vector3(scale.x, scale.y, scale.z) / 4096.0
 
 
+## entity->flatSprite: the entity's FlatSprite shows it instead of the model (-1: the model).
 func set_flat_sprite(id: int, frame: int) -> void:
 	var n := _node(id)
-	if n != null:
-		n.set_meta("battle_flat_sprite", frame)
+	if n != null and "flat_sprite" in n:
+		n.set("flat_sprite", frame)
 
 
 func set_on_map(id: int, on: bool) -> void:

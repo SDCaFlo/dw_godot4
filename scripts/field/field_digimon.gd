@@ -56,6 +56,8 @@ var forward_step := 0.0
 var step_blocked := false
 ## animFlag & 0x78: the BLOCK_* directions collisionGrace found blocked this frame.
 var blocked_axes := 0
+## entity->flatSprite: -1, or the flattened picture shown instead of the model (FlatSprite).
+var flat_sprite := -1
 
 var _skeleton: Skeleton3D
 var _model: Node3D

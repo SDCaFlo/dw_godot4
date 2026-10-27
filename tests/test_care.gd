@@ -25,6 +25,8 @@ func _run() -> void:
 		print("SKIP: data porter output missing")
 		quit(0)
 		return
+	# The condition bubbles' sway reads _sin's table (the field sets it up at its start).
+	PsxMath.setup(data)
 	gs = load("res://scripts/state/game_state.gd").new()
 	gs.data = data
 	clock = Clock.new()

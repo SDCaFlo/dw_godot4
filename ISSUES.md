@@ -8,8 +8,6 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Open
 
-Reported 2026-10-25.
-
 ### I-16. The partner (Agumon) isn't in the evolution chart
 - **Seen:** in a new game the Player screen's chart is empty; the original shows Agumon.
 - **Evidence:** `issues/evidence/dw_issue_evo_char_menu_color.png`.
@@ -37,6 +35,26 @@ Reported 2026-10-26.
 - **Status:** open. The scan's runs differ (frame pacing), so it is intermittent; the next step is a run that dumps the partner's state when it happens.
 
 ## Fixed
+
+### I-32. A condition bubble stays over the partner through a battle
+- **Seen:** 2026-10-27 on MAYO01 (`issues/evidence/dw_issue_bubble_battle.png`): a battle started while the sleepy "z" bubble showed; the bubble stayed frozen over the partner.
+- **What the original does:** the bubble is a world object. It lives 50 frames and removes itself (`tickConditionBubble`, `bubble.c:611`). The battle's loop ticks the world objects too, so it finishes and goes. No new one comes in battle: `handleConditionBubble` only runs in partner states 1 / 10.
+- **Cause:** the field's frame skipped the care visuals during a battle, so the bubble neither ticked nor went.
+- **Fix (2026-10-27, checked in game):**
+  - **The battle branch:** the battle branch of `Field._frame` ticks the care visuals (the bars, as before, and the bubbles).
+  - **Also fixed, the sway:** the bubble's sway read the 512-step `_sin` angle as a 4096-step one, so it swayed 8 times too slowly. It now uses `PsxMath.sin512`.
+- **Status:** fixed (2026-10-27).
+
+Reported 2026-10-25.
+
+### I-33. A flattened Digimon doesn't turn into its flat picture
+- **Seen:** 2026-10-27, in battle: the status that turns a Digimon into a small pixel picture (flattening) doesn't show it; the Digimon only squashes.
+- **What the original does:** while `entity->flatSprite` isn't -1, `renderDigimon` skips the model (`model.c:2907`) and `renderFlatDigimon` (`model.c:2735`) draws a square as tall as the Digimon in its facing plane. It is textured with the 15 x 15 picture in the Digimon's own texture at (0xE0 / 0xF0, 0x60 / 0x70), palette 15. Pictures 0 and 1 swap every 10 frames; 2 and 3 are still.
+- **Cause:** the port's `FieldBattleWorld.set_flat_sprite` only stored the value; nothing drew it.
+- **Fix (2026-10-27, checked in game):**
+  - **The picture:** `FlatSprite` (`scripts/field/flat_sprite.gd`, `scenes/field/flat_sprite.tscn`), a component of the Digimon entity scene beside the drop shadow, shows it from `FieldDigimon.flat_sprite` (set by the battle) and hides the model meanwhile. The texture is the asset porter's `alltim/<id>_<file>.p15.png`.
+  - **To try it:** the gallery's Visual row has "Flat sprite (flattened)", and the effect scan's `EFFECT_VISUALS=1` checks it.
+- **Status:** fixed (2026-10-27).
 
 ### I-30. Most techniques look very transparent
 - **Seen:** after 5d-5a / 5d-5b (2026-10-27), in the Effects gallery and in battle: most techniques' models and sprites are drawn, but very faint, almost invisible.

@@ -241,10 +241,9 @@ func _frame() -> void:
 		battle_host.frame()
 		if battle_host.active:
 			# The field's HUD objects stay in the list: with game time stopped the clock and the
-			# care bars slide off.
+			# care bars slide off; a condition bubble finishes its 50 frames and goes (tickConditionBubble).
 			clock_host.hud.tick()
-			if care_host.bars != null:
-				care_host.bars.tick()
+			care_host.tick_visuals()
 			care_host.tick_healing()
 			scripts.step_boxes()
 			care_host.tick_fade()

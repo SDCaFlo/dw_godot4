@@ -23,7 +23,8 @@ const VISUALS := [["Poison", "status", 1], ["Confusion", "status", 2], ["Stun", 
 		["Finisher aura", "finisher_aura", -1], ["Aura projectile", "aura_projectile", -1],
 		["Item particles", "item_particles", -1], ["Buff disk", "buff_disk", -1],
 		["Cure rings: poison", "buff_rings", 0], ["Cure rings: stun", "buff_rings", 1],
-		["Cure rings: confusion", "buff_rings", 2], ["Cure rings: flatten", "buff_rings", 3]]
+		["Cure rings: confusion", "buff_rings", 2], ["Cure rings: flatten", "buff_rings", 3],
+		["Flat sprite (flattened)", "flat", -1]]
 ## The stun visual's countdown in the gallery (a battle's stun timer).
 const STUN_FRAMES := 0x50
 const HIT_FRAMES := 10
@@ -199,6 +200,11 @@ func show_visual(i: int) -> void:
 			visuals.on_visual("finisher_aura", [1, true, technique])
 		"buff_rings":
 			visuals.on_visual("buff_rings", [arg, 1])
+		"flat":
+			# The flattened fighter's picture (entity->flatSprite 0), again to restore the model.
+			var node := ctx.digimon.get(1) as Node3D
+			var current := int(node.get("flat_sprite")) if node != null else -1
+			ctx.set_flat_sprite(1, -1 if current != -1 else 0)
 		_:
 			visuals.on_visual(event, [1])
 

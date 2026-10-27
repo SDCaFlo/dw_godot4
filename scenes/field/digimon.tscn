@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/field/field_digimon.gd" id="1_digimon"]
 [ext_resource type="Script" path="res://scripts/field/animation_sounds_component.gd" id="2_sounds"]
 [ext_resource type="PackedScene" path="res://scenes/field/drop_shadow.tscn" id="3_shadow"]
+[ext_resource type="PackedScene" path="res://scenes/field/flat_sprite.tscn" id="4_flat"]
 
 [node name="Digimon" type="Node3D"]
 script = ExtResource("1_digimon")
@@ -13,3 +14,5 @@ script = ExtResource("1_digimon")
 script = ExtResource("2_sounds")
 
 [node name="DropShadow" parent="." instance=ExtResource("3_shadow")]
+
+[node name="FlatSprite" parent="." instance=ExtResource("4_flat")]

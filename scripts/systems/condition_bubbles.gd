@@ -114,7 +114,8 @@ func tick() -> void:
 		else:
 			b["scale"] = 0x6000
 			var angle := lerp_psx(0, 512, 0, 20, frame)
-			b["height"] = b["base_height"] - 65 + ((roundi(sin(angle * TAU / 4096.0) * 4096) * 12) >> 12)
+			# _sin: 512 = a full turn, so one sway every 20 frames.
+			b["height"] = b["base_height"] - 65 + ((PsxMath.sin512(angle) * 12) >> 12)
 		var icon: Array = b["icons"][b["icon"]]
 		if b["frame2"] >= icon[0]:
 			b["frame2"] = 0

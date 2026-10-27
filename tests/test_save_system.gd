@@ -232,6 +232,15 @@ func _test_save_slot_box_sleep_mode() -> void:
 	# Sleep mode starts with sleep prompt box ("Do you want to save?").
 	_check(boxes.boxes[SaveSlotBox.SLEEP_PROMPT_BOX].state != UIBoxes.STATE_CLOSED,
 			"sleep prompt box open")
+	var has_yes_ink := false
+	for px in range(16, 32):
+		for py in range(SaveSlotBox.SUB_BOX_V + 12, SaveSlotBox.SUB_BOX_V + 24):
+			if area.pixel(px, py) != 0:
+				has_yes_ink = true
+				break
+		if has_yes_ink:
+			break
+	_check(has_yes_ink, "sleep prompt 'Yes' text drawn inside text area")
 
 	# Select No (move right, press Confirm).
 	_press(Pad.RIGHT)

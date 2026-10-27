@@ -213,8 +213,8 @@ func _start() -> void:
 
 
 ## The debug tools, then the HUD in its drawing order: the clock (added with it), the care bars and
-## bubbles, the care panel, the windows in front of the HUD (their ordering-table layers 1-6 are in
-## front of the HUD's 13-15), the fade over everything, the map name on the black screen.
+## bubbles, the care panel, the fade, the windows in front of the fade (their ordering-table layers
+## 1-6 are in front of the fade, e.g. the sleep save menu), the map name on the black screen.
 func _start_debug() -> void:
 	debug.maps = _maps
 	debug.map_session = map_session
@@ -235,7 +235,7 @@ func _start_debug() -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
 	for node: Node in [care_host.bars, care_host.bubbles, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
-			scripts.boxes, care_host.fade,
+			care_host.fade, scripts.boxes,
 			scripts.map_name]:
 		if node != null:
 			_hud.add_child(node)

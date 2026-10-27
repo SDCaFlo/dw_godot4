@@ -20,9 +20,11 @@ const CONFIRM_BOX := 4
 const SLEEP_PROMPT_BOX := 2
 
 ## The text area rows this box uses (free from the dialogue and the tamer's box).
-const TEXT_V := 160
+const TEXT_V := 140
 ## Slot preview height in text rows.
 const SLOT_HEIGHT := 24
+## Sub-box text row (confirm / sleep prompt), well within DRAW_LIMIT (244).
+const SUB_BOX_V := 204
 ## Box rect (centred, screen coords relative to centre).
 const BOX_RECT := Rect2i(-130, -70, 262, 108)
 ## Overwrite confirm box.
@@ -68,7 +70,7 @@ func open() -> void:
 		_state = STATE_SLEEP_PROMPT
 		_just_opened_sleep = true
 		_draw_sleep_prompt()
-		boxes.create_static(SLEEP_PROMPT_BOX, 0, UIBoxes.FEATURE_HALF_FILL, SLEEP_RECT,
+		boxes.create_static(SLEEP_PROMPT_BOX, 1, 0, SLEEP_RECT,
 				_tick_sleep_box, _render_sleep_box)
 	else:
 		_state = STATE_SELECT
@@ -110,7 +112,6 @@ func _draw_slots() -> void:
 		else:
 			text_area.set_text_color(1)
 			text_area.draw_string("Slot %d" % slot_id, 4, y)
-			text_area.set_text_color(0)
 			var player_str := str(p.get("player", ""))
 			var partner_str := str(p.get("partner", ""))
 			text_area.draw_string(player_str, 56, y)
@@ -122,28 +123,24 @@ func _draw_slots() -> void:
 
 
 func _draw_confirm() -> void:
-	var row := TEXT_V + SLOT_HEIGHT * 2 + 24
-	text_area.clear(Rect2i(0, row, 256, 24))
+	text_area.clear(Rect2i(0, SUB_BOX_V, 256, 24))
 	text_area.set_text_color(1)
 	if (mode == MODE_SAVE or mode == MODE_SLEEP) and _save_existed[_cursor]:
-		text_area.draw_string("Overwrite this data?", 4, row)
+		text_area.draw_string("Overwrite this data?", 4, SUB_BOX_V)
 	elif mode == MODE_SAVE or mode == MODE_SLEEP:
-		text_area.draw_string("Save to this slot?", 4, row)
+		text_area.draw_string("Save to this slot?", 4, SUB_BOX_V)
 	else:
-		text_area.draw_string("Load this save?", 4, row)
-	text_area.set_text_color(0)
-	text_area.draw_string("Yes", 40, row + 12)
-	text_area.draw_string("No", 120, row + 12)
+		text_area.draw_string("Load this save?", 4, SUB_BOX_V)
+	text_area.draw_string("Yes", 40, SUB_BOX_V + 12)
+	text_area.draw_string("No", 120, SUB_BOX_V + 12)
 
 
 func _draw_sleep_prompt() -> void:
-	var row := TEXT_V + SLOT_HEIGHT * 2 + 24
-	text_area.clear(Rect2i(0, row, 256, 24))
+	text_area.clear(Rect2i(0, SUB_BOX_V, 256, 24))
 	text_area.set_text_color(1)
-	text_area.draw_string("Do you want to save?", 4, row)
-	text_area.set_text_color(0)
-	text_area.draw_string("Yes", 16, row + 12)
-	text_area.draw_string("No", 64, row + 12)
+	text_area.draw_string("Do you want to save?", 4, SUB_BOX_V)
+	text_area.draw_string("Yes", 16, SUB_BOX_V + 12)
+	text_area.draw_string("No", 64, SUB_BOX_V + 12)
 
 
 func _tick(_id: int) -> void:
@@ -191,7 +188,7 @@ func _tick_select() -> void:
 		_confirm_cursor = 0
 		_state = STATE_CONFIRM
 		_just_opened_confirm = true
-		boxes.create_static(CONFIRM_BOX, 0, UIBoxes.FEATURE_HALF_FILL, CONFIRM_RECT,
+		boxes.create_static(CONFIRM_BOX, 1, 0, CONFIRM_RECT,
 				_tick_confirm_box, _render_confirm_box)
 	elif pad.is_key_down(Pad.CANCEL):
 		_sound(4)
@@ -202,7 +199,7 @@ func _tick_confirm_box(_id: int) -> void:
 	if _just_opened_confirm:
 		_just_opened_confirm = false
 		return
-	if pad.is_key_down(Pad.LEFT) or pad.is_key_down(Pad.RIGHT):
+	if pad.is_key_down(Pad.LEFT) or pad.is_key_down(Pad.RIGHT) or pad.is_key_down(Pad.UP) or pad.is_key_down(Pad.DOWN):
 		_confirm_cursor = 1 - _confirm_cursor
 		_sound(2)
 	elif pad.is_key_down(Pad.CONFIRM):
@@ -232,7 +229,7 @@ func _tick_sleep_box(_id: int) -> void:
 	if _just_opened_sleep:
 		_just_opened_sleep = false
 		return
-	if pad.is_key_down(Pad.LEFT) or pad.is_key_down(Pad.RIGHT):
+	if pad.is_key_down(Pad.LEFT) or pad.is_key_down(Pad.RIGHT) or pad.is_key_down(Pad.UP) or pad.is_key_down(Pad.DOWN):
 		_sleep_cursor = 1 - _sleep_cursor
 		_sound(2)
 	elif pad.is_key_down(Pad.CONFIRM):
@@ -284,16 +281,14 @@ func _render(canvas: CanvasItem, _id: int) -> void:
 
 
 func _render_confirm_box(canvas: CanvasItem, _id: int) -> void:
-	var row := TEXT_V + SLOT_HEIGHT * 2 + 24
-	text_area.render_string(canvas, 0, -96, -16, 192, 24, 0, row, false)
+	text_area.render_string(canvas, 0, -96, -16, 192, 24, 0, SUB_BOX_V, false)
 	# Yes/No cursor.
 	var cx := -96 + 36 + _confirm_cursor * 80
 	PsxDraw.selection_cursor(canvas, cx - 4, -16 + 10, 30, 13)
 
 
 func _render_sleep_box(canvas: CanvasItem, _id: int) -> void:
-	var row := TEXT_V + SLOT_HEIGHT * 2 + 24
-	text_area.render_string(canvas, 0, -56, -16, 112, 24, 0, row, false)
+	text_area.render_string(canvas, 0, -56, -16, 112, 24, 0, SUB_BOX_V, false)
 	# Yes/No cursor.
 	var cx := -56 + 12 + _sleep_cursor * 48
 	PsxDraw.selection_cursor(canvas, cx - 4, -16 + 10, 30, 13)

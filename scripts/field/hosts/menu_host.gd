@@ -38,6 +38,7 @@ var player_screen: PlayerScreen
 var digivice: DigiviceView
 ## The medal model's view (renderDigiviceMedals: MEDAL_VIEW, projection 0x400, the field's lights).
 var medal_view: DigiviceView
+var _sleep_slot_box: SaveSlotBox
 
 
 func start() -> void:
@@ -143,7 +144,7 @@ func try_open() -> bool:
 
 ## IS_IN_MENU.
 func is_open() -> bool:
-	return menu != null and menu.is_open
+	return (menu != null and menu.is_open) or _sleep_slot_box != null
 
 
 ## The menu object (tickTriangleMenu), after the NPCs, then the inventory object.
@@ -165,12 +166,14 @@ func menu_sleep() -> bool:
 
 
 func _on_sleep_save_prompt(on_done: Callable) -> void:
-	var slot_box := SaveSlotBox.new()
-	slot_box.boxes = boxes
-	slot_box.text_area = text_area
-	slot_box.game_state = game_state
-	slot_box.data = data
-	slot_box.pad = pad
-	slot_box.mode = SaveSlotBox.MODE_SLEEP
-	slot_box.finished.connect(func(): on_done.call())
-	slot_box.open()
+	_sleep_slot_box = SaveSlotBox.new()
+	_sleep_slot_box.boxes = boxes
+	_sleep_slot_box.text_area = text_area
+	_sleep_slot_box.game_state = game_state
+	_sleep_slot_box.data = data
+	_sleep_slot_box.pad = pad
+	_sleep_slot_box.mode = SaveSlotBox.MODE_SLEEP
+	_sleep_slot_box.finished.connect(func():
+		_sleep_slot_box = null
+		on_done.call())
+	_sleep_slot_box.open()

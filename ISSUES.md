@@ -46,12 +46,12 @@ Reported 2026-10-26.
 - **To check against the original** (in the gallery, one technique at a time): the blend modes of the models' and sprites' STP texels (half / add on a bright background; `WorldSprites`, `PsxLit`), the sprites' tint (128 = 1.0), the textures' palettes and which texels carry the STP bit, the sRGB conversion of the additive passes.
 - **Status:** open. Not a missing feature: the drawing is there (`specs/battle_effects.md` "As built (5d-5a)", "(5d-5b)").
 
+## Fixed
+
 ### I-21. Recovery items show no healing effect
 - **Seen:** giving the partner a recovery item (e.g. Sm. recovery) heals it, but nothing shows on the partner.
 - **Cause:** the original draws a healing particle effect over the partner (`addHealingParticleEffect(partner, variant)`, `main/particle.c:209`), called by the item handlers (`item.c:2236`, `:2242`, `:2348`, `:2362`, `:2373`; variants `HEAL_EFFECT_VARIANT`). The inventory step left it for later (`specs/inventory.md` §6: "with the effects"); it was not in the plans.
-- **Status:** open. A small field effect of its own (main binary, not the battle's effect engine): planned in `PLANS.md` (5e follow-ups). Since 5d-4 the item handlers emit `ItemUse.healing_effect(variant)` where the C calls it (field and battle); nothing draws it yet.
-
-## Fixed
+- **Status:** fixed 2026-10-27 with 5d-5c: `HealingParticles` (`scripts/field/healing_particles.gd`, `scenes/field/healing_particles.tscn`), started by `ItemUse.healing_effect`, ticked in the field and in battle (`specs/battle_effects.md` "As built (5d-5c)", VERIFY "Battle effects" step 12).
 
 ### I-29. Digimon doesn't play satiety animation when fed
 - **Seen:** when hungry and fed food, if no longer hungry, the partner does not play its satiety animation.

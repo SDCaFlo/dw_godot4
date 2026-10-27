@@ -5,6 +5,8 @@ extends Node
 ## bubbles, the poop piles). Ticked by the field's frame order (Field._frame); the field puts the
 ## bars, the bubbles and the fade into the HUD.
 
+const HEALING_SCENE := preload("res://scenes/field/healing_particles.tscn")
+
 ## A line for the help line (the script sections not ported yet).
 signal message(text: String)
 
@@ -27,6 +29,8 @@ var care: Care
 var bars: StatusBars
 var bubbles: ConditionBubbles
 var poop: PoopPiles
+## The healing particles an item starts (ItemUse.healing_effect; ISSUES.md I-21).
+var healing: HealingParticles
 ## The evolution rules and their scene (specs/evolution.md §3).
 var evolution: Evolution
 var evolution_scene: EvolutionScene
@@ -86,6 +90,12 @@ func _start_visuals() -> void:
 	poop.partner = partner
 	world.add_child(poop)
 	care.poop_changed.connect(poop.refresh)
+	healing = HEALING_SCENE.instantiate()
+	healing.partner = partner
+	healing.field_map = field_map
+	healing.data = GameData
+	healing.game_state = GameState
+	world.add_child(healing)
 
 
 ## The evolution's rules (Care's hourly check, the special evolutions, the items) and the scene
@@ -119,6 +129,20 @@ func tick_visuals(in_menu := false) -> void:
 		bubbles.visible = not in_menu
 		if not in_menu:
 			bubbles.tick()
+
+
+## addHealingParticleEffect(partner, variant) from an item handler.
+func healing_effect(variant: int) -> void:
+	if healing != null:
+		healing.add(variant)
+
+
+## The healing particles' object: ticked and drawn every frame, in the field and in a battle (the
+## battle's loop runs the world objects too), with or without a menu open.
+func tick_healing() -> void:
+	if healing != null:
+		healing.tick()
+		healing.draw_frame()
 
 
 ## The fade, last in the frame.

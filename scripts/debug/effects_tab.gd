@@ -5,6 +5,8 @@ extends VBoxContainer
 ## Digimon that has it), a caster, a target and their distance (a share of the technique's range: a
 ## fighter starts it anywhere within); Place puts them on the map, Play starts the effect
 ## (again to replay), Close ends the gallery. Below: the effect's frame, its hits and its draw calls.
+## Visual: a battle visual outside the scripts on the caster (a status, the finisher aura, an aura
+## projectile, the item particles, the buff disk, the cure rings), once placed.
 
 var gallery: EffectGallery
 var data: Node
@@ -13,6 +15,7 @@ var _technique: OptionButton
 var _caster: OptionButton
 var _target: OptionButton
 var _distance: SpinBox
+var _visual: OptionButton
 var _status: Label
 
 
@@ -56,6 +59,20 @@ func _ready() -> void:
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.pressed.connect(b[1])
 		row.add_child(button)
+	var visual_row := HBoxContainer.new()
+	add_child(visual_row)
+	var visual_label := Label.new()
+	visual_label.text = "Visual"
+	visual_row.add_child(visual_label)
+	_visual = OptionButton.new()
+	_visual.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for i in EffectGallery.VISUALS.size():
+		_visual.add_item(EffectGallery.VISUALS[i][0], i)
+	visual_row.add_child(_visual)
+	var show := Button.new()
+	show.text = "Show"
+	show.pressed.connect(func(): if gallery != null: gallery.show_visual(_visual.get_selected_id()))
+	visual_row.add_child(show)
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.size_flags_vertical = Control.SIZE_EXPAND_FILL

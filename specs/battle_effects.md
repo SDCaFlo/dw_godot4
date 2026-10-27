@@ -203,7 +203,7 @@ Driven by the battle logic, drawn with the `btl_rel` models (`specs/battle.md` �
 | Confusion (circling model) | `BTL_addConfusionEffect` (`:5501–5580`), model `BTL_REL` 0x1D58 | while confused |
 | Stun (stars) and sparks | `BTL_addStunEffect`, `BTL_addStunSubEffect` (`:5582–5828`), model 0x2220 | while stunned |
 | Finisher aura and sparks | `BTL_addFinisherAura` (`:5855–6040`), model 0xD20 + TIM 0x0 | the finisher wind-up |
-| Aura projectiles (effect 0x179) | `BTL_addAuraProjectile` (`:6040–6180`) | a flattened fighter's attack; **makes hits** (technique 0x79), so its logic is in step 1 |
+| Aura projectiles (effect 0x179) | `BTL_addAuraProjectile` (`:6040–6180`) | a flattened fighter's attack; **makes hits** (technique 0x79). Only the hit's handling was ported before 5d-5c; its flight and hit came with 5d-5c |
 | Item particles | `BTL_addItemParticles` (`:6190–6320`) | an item reaching the partner |
 | Buff rings, disk, trails | `BTL_addBuffRingsEffect` and friends (`:6320–6750`), model 0x2848 | buffs, cures |
 | Hit particles, flashes, clouds | `createParticleFX`, `EFECreateFlash`, `createCloudFX` (main) | hits and blocks; reuse the field's `ParticleFX` / `CloudFX` |
@@ -448,3 +448,49 @@ The field's healing particles come with them (`addHealingParticleEffect`, ISSUES
     - **High Electro Shocker (112)**'s bone table takes only Digimon 1 (§"As built (step 1)").
   - **Four run to the scan's 600 frames** (Ice Statue, Mass Morph, Deadly Bomb, Electric Thread): they hit, and keep running until the battle stops them (`BTL_stopEFESubEffect` when the fighter's technique ends).
 - **Tests:** `tests/test_effect_drawing.gd` (33 checks: + the TIM read from the slot against the porter's texture, Reverse Prog's CLUT writes kept by the slot). The fixed view's mapping is checked in the field (the scan), since `FieldBattleWorld` needs the autoloads.
+
+## As built (5d-5c, 2026-10-27)
+
+- **The design:**
+  - **One scene per visual** (§3.0, §4): `scenes/battle/fx/<kind>.tscn`, script `scripts/systems/battle/fx/<kind>.gd`, extending `BattleVisual` (Node3D). `start(args)` is the C's add function (with its rolls), `tick()` its tick (logic, headless), `draw(view)` its render. The kinds: `poison`, `poison_bubble`, `confusion`, `stun`, `stun_spark`, `finisher_aura`, `aura_projectile`, `item_particles`, `buff_disk`, `buff_trails`, `buff_rings`.
+  - **The host:** `BattleVisuals` (RefCounted, `ctx.visuals`, made by the `EffectHost`). Each kind has a pool of the C's size. Each live visual is an object in a list ticked in slot order, a new one taking the first free slot, so one added during the loop into a later slot ticks the same frame, as in the C's `WORLD_OBJECTS`. The `EffectHost` ticks it after the shared effects. A mod gives another scene for a kind through `BattleVisuals.scenes`.
+  - **The rolls stay in the logic:** the loading's tables (`initialize()`, in `loadBattleData`'s order: the item particles' velocities, the buff trails, the ring sparks, the finisher sparks; 184 `rand()` calls) are rolled in `BattleSession._finish_loading`, after `loadSB` and before the techniques load. The finisher aura's per-frame random turn, which the C rolls in its render, is rolled in its tick: one roll a frame, as there.
+  - **The view:** `BattleVisualsView` (`scenes/battle/fx/battle_visuals_view.tscn`), added by the battle host (and the gallery), drawn each frame after `BattleFxView`. It holds one `WorldSprites` and the overlay's models (`btl_rel/finisher_aura`, `confusion`, `stun`, `buff`) as `TmdObjects`: a TMD model's objects, drawn any number of times a frame with PSX world matrices. Its helpers are the C's:
+    - `render_tmd` (`renderTMDModel`, with a parent coordinate for the buff rings' chain);
+    - `gs_sprite` / `render_sprite` (`GsSortSprite`, `renderSprite`);
+    - `fx_particle` (`renderFXParticle`);
+    - `poly` (`addScreenPolyFT3/FT4`, culled at the average OT depth);
+    - `spark` (`BTL_renderFinisherAuraSpark` / `BTL_renderBuffRingsSpark`).
+- **The events** (`BattleVisuals.on_visual`, connected in `BattleSession`):
+  - `status` [entity, kind, on, stun timer]: `Battle.add_status_visual` now passes the fighter's stun timer, as `BTL_addStatusEffectVisual` does. The fighter's `statusFxId` is kept per entity. Removal checks the slot's entity, as the C's remove functions do. The stun ends itself after its countdown (8 frames of flashing, 5 of shrinking).
+  - `finisher_aura` (0x50 frames, removed by its slot when the finisher goes), `aura_projectile`, `item_particles`, `buff_disk` (with its trails), `buff_rings` [kind, entity].
+  - `clear_effects` (`BTL_deinitializeCombat`): everything but the confusion, which the statuses' removal takes, as in the C.
+- **The aura projectile's logic** (`BTL_tickAuraProjectile`):
+  - **Before:** only the hit's handling was ported; the flight and the hit itself weren't.
+  - **Now:** it flies from half the owner's height ahead, 0x23 units a frame, for 58 frames. The first entity (from 1, not the owner, not already hit) whose box it enters is marked hit and gets an attack object.
+  - **The attack object:** effect 0x179, sub-effect 0, caster the owner, through `EffectHost.add_attack_object`. `Battle.attack_technique` now reads the object's `effect` (the C's field) instead of a key nothing set.
+  - **Shared code:** `findAABBHitEntity` moved to the context (`find_aabb_entity`); the VM uses it.
+- **New data** (data porter, `digimon` group), both indexed by the original type:
+  - `digimon/condition_fx_offsets` (`CONDITION_FX_OFFSETS`): `GameData.condition_fx_offset`, read by `ctx.condition_fx_position` (`translateConditionFXToEntity`), where the poison bubbles and the confusion start;
+  - `digimon/aura_projectile_types` (`BTL_AURA_PROJECTILE_TYPES`, its `u`): `GameData.aura_projectile_type`.
+- **Textures:**
+  - **Sprites:** the poison bubble is FEEL_EF palette 7. The stun countdown is BI_IN: palette 2 for the digits, 0 / 1 for the flashing frame, OT 0x22. The sparks, trails and dots are DEFEFF palette 1, the aura projectile DEFEFF palette 4.
+  - **The buff disk:** its CLUT flickers between rows 491 and 492 every frame (`morphBuffModel`, the buff model object 0x501). Its texture page is rebuilt from DEFEFF in that palette.
+  - **The finisher aura:** its objects' colours (`BTL_setTMDObjectColor`: 0x3C, object 3 0x5A) tint their brightness-off polygons.
+- **The healing particles** (`addHealingParticleEffect`, `main/particle.c`; ISSUES.md I-21): `HealingParticles` (`scenes/field/healing_particles.tscn`), owned by the `CareHost`, started by `ItemUse.healing_effect`. It is ticked and drawn every frame in the field and in a battle (the battle's loop runs the world objects too), menu open or not.
+  - **The ring:** 20 sparks rising to above the head, their size rolled each frame.
+  - **The spiral:** with the variant, falling from above the head. The C's `512 / (i * 13 / 4)` divides by 0 at i = 0; the R3000 gives -1 there (the code has no trap), so the port does too.
+- **The gallery:** the Effects tab has a **Visual** row: each visual on the caster (a status toggles; an aura projectile flies at the target and lists its hit). The scan's `EFFECT_VISUALS=1` shows each in the field scene and fails if one draws nothing.
+- **Tests:** `tests/test_battle_visuals.gd` (75 checks):
+  - the loading's 184 rolls;
+  - the poison's bubble timing, the stun's countdown and self-removal, one status visual per fighter;
+  - the aura projectile's flight, hit and attack object, and no second hit on a hit victim;
+  - the finisher aura (a roll a frame), item particles, disk and trails, rings and their colour;
+  - the battle's end, the new data;
+  - each visual drawn once;
+  - the healing particles' timing and 1316 rolls.
+
+  The effect scan's `EFFECT_VISUALS=1` and the battle scan pass.
+- **Open:**
+  - **Lighting:** the confusion model is a lit TMD (`untextured_lit`); it is lit by the map's light like the Digimon. Whether the battle lights it differently is to compare.
+  - **The visuals' order against the battle's own objects:** only the order among the visuals is the C's; the battle logic, the engine and the shared effects tick before them.

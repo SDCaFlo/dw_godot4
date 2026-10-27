@@ -455,6 +455,21 @@ The technique gallery (steps 5d-5a, 5d-5b): every technique's drawing (models, s
    - Spiral Sword: a textured quad.
 8. **Aim:** techniques fired from a mouth or a hand (Frozen Fire Shot, Spit Fire, Fireball) leave along that bone towards the target. Deadly Bomb lobs its bomb far beyond the target: does the original's land that far?
 9. **In a real battle:** the partner's technique now draws too, and the hits make sparks; the battle's sounds are the battle bank's (I-27).
+10. **The battle visuals (5d-5c).** `test_battle_visuals.gd` prints `OK: battle visuals checks`. In the gallery (Place first), the **Visual** row's Show plays each on the caster; compare with the original:
+    - **Poison:** bubbles rise and sway from the Digimon's head, one every second or so. Show again removes it; the bubbles already out finish rising.
+    - **Confusion:** three small models circle above the head, each spinning.
+    - **Stun:** a countdown in a frame over the head, counting down, with stars falling around the Digimon; at 0 the frame flashes, shrinks and goes by itself.
+    - **Finisher aura:** a golden aura grows around the Digimon and breathes for 4 seconds, with sparks flying out at its start.
+    - **Aura projectile:** a small square flies from the caster at the target; the hit is listed.
+    - **Item particles:** sparks burst up from the head and fall, fading.
+    - **Buff disk:** a flickering disk turns at the feet, green ribbons rising around it, for about 3 seconds.
+    - **Cure rings** (four colours: poison purple, stun blue, confusion pink, flatten white): five rings spin around the body, then sparks fly out.
+11. **In a real battle:**
+    - **Statuses:** a poisoned, confused or stunned fighter shows its status' visual until it's cured.
+    - **Finishers:** a finisher's wind-up shows the aura.
+    - **Items:** a thrown item that lands bursts the item particles. A stat item shows the disk. A cure item shows the rings.
+    - **Flattened fighters:** a flattened fighter's attacks fly as aura projectiles and hit.
+12. **Healing (I-21):** give the partner a recovery item, in the field or in battle: a ring of yellow-green sparks rises around it to above its head. A bigger recovery item (e.g. Lg. recovery) adds sparks spiralling down.
 
 ## Partner (`scripts/field/partner.gd`, `psx_animator.gd`, `specs/partner.md`)
 

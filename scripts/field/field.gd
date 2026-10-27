@@ -152,6 +152,7 @@ func _start() -> void:
 	item_use.interpreter = scripts.interpreter
 	item_use.script_ctx = scripts.script_ctx
 	menu_host.item_use = item_use
+	item_use.healing_effect.connect(care_host.healing_effect)
 	menu_host.start()
 	menu_host.message.connect(debug.show_message)
 	# The battles (specs/battle.md §5.2): START_BATTLE starts one, the field runs only its frame.
@@ -244,6 +245,7 @@ func _frame() -> void:
 			clock_host.hud.tick()
 			if care_host.bars != null:
 				care_host.bars.tick()
+			care_host.tick_healing()
 			scripts.step_boxes()
 			care_host.tick_fade()
 			return
@@ -264,6 +266,7 @@ func _frame() -> void:
 	debug.tick_message()
 	debug.tick_gallery()
 	care_host.tick_visuals(in_menu)
+	care_host.tick_healing()
 	debug.tick_panel()
 	scripts.step_boxes()
 	care_host.tick_fade()

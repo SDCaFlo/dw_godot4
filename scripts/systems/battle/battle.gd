@@ -52,6 +52,7 @@ const RANGE_AREA := 3
 const RANGE_SELF := 4
 ## The generic technique of effect 0x179 (the aura projectile).
 const GENERIC_TECHNIQUE := 0x79
+const AURA_EFFECT := 0x179
 
 var world: BattleWorld
 var effects: EffectHost
@@ -1743,7 +1744,7 @@ func select_enemy_move(f: BattleFighter, index: int) -> void:
 
 ## BTL_getAttackTech: the technique of an attack object.
 func attack_technique(attack: Dictionary) -> int:
-	if int(attack.get("effect_id", 0)) == 0x179:
+	if int(attack["effect"]) == AURA_EFFECT:
 		return GENERIC_TECHNIQUE
 	var caster := int(attack["caster"])
 	var slot := fighter_slot(caster)
@@ -2049,7 +2050,7 @@ static func reset_fighter_action(f: BattleFighter) -> void:
 func add_status_visual(f: BattleFighter, kind: int) -> void:
 	if f.status_fx == -1:
 		f.status_fx = kind
-		_emit("status", [f.entity, kind, true])
+		_emit("status", [f.entity, kind, true, f.stun_timer])
 
 
 func remove_status_visual(f: BattleFighter, kind: int) -> void:

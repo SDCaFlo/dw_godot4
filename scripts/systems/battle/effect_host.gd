@@ -61,6 +61,10 @@ func _init(context: BattleEffectContext = null) -> void:
 	data = context.data if context != null else null
 	if ctx != null and ctx.fx == null:
 		ctx.fx = BattleFx.new(ctx)
+	if ctx != null and ctx.visuals == null:
+		ctx.visuals = BattleVisuals.new(ctx)
+	if ctx != null:
+		ctx.visuals.host = self
 	reset()
 
 
@@ -83,6 +87,8 @@ func reset() -> void:
 		emitters.append({})
 	if ctx != null and ctx.fx != null:
 		ctx.fx.reset()
+	if ctx != null and ctx.visuals != null:
+		ctx.visuals.remove_all()
 
 
 ## The asset porter folder of a technique's EFEDAT slot (efe/index.json), "" if none.
@@ -179,7 +185,8 @@ func stop(k: int, sub_effect: int) -> void:
 	slots[k].stop(sub_effect)
 
 
-## BTL_tickEFEEngine, then the shared effects' objects (BattleFx).
+## BTL_tickEFEEngine, then the shared effects' objects (BattleFx) and the battle visuals
+## (BattleVisuals).
 func tick() -> void:
 	if ctx != null:
 		ctx.set_map_layer(true)
@@ -198,6 +205,8 @@ func tick() -> void:
 			s["mask"] = -1
 	if ctx != null and ctx.fx != null:
 		ctx.fx.tick()
+	if ctx != null and ctx.visuals != null:
+		ctx.visuals.tick()
 
 
 ## BTL_renderEFEEngine.
@@ -223,9 +232,15 @@ func report_hit(effect: BattleEffect, victim: int, position: Vector3i, sub_effec
 
 
 func _on_hit(victim: int, position: Vector3i, sub_effect: int, caster: int) -> void:
+	add_attack_object(victim, position, combat_effect_itr, sub_effect, caster)
+
+
+## addAttackObject(victim, 1, pos, effect, sub, caster): `effect` the slot (COMBAT_EFFECT_ITR), or
+## 0x179 for an aura projectile (BTL_getAttackTech: the generic technique).
+func add_attack_object(victim: int, position: Vector3i, effect: int, sub_effect: int, caster: int) -> void:
 	if attack_objects.size() >= ATTACK_OBJECTS:
 		return
-	attack_objects.append({"victim": victim, "active": 1, "position": position, "effect": combat_effect_itr,
+	attack_objects.append({"victim": victim, "active": 1, "position": position, "effect": effect,
 			"sub_effect": sub_effect, "caster": caster})
 
 

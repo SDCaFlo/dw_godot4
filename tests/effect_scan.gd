@@ -8,11 +8,16 @@ extends Node
 ## nothing. Env: EFFECT_IDS=0,2,17 some techniques; EFFECT_MAP=TROP01 the map; EFFECT_TRACE=1 prints
 ## every 5th frame each live instance's position relative to the target (where a technique goes);
 ## EFFECT_DISTANCE=50 stands the target at that share of the technique's range (default 100).
+## EFFECT_VISUALS=1 shows instead each battle visual outside the scripts (EffectGallery.VISUALS) on
+## the gallery's caster for VISUAL_FRAMES frames: the most nodes its view showed; exits 1 if one
+## draws nothing.
 
 const MAP := "TROP01"
 ## Game frames to let the map set up, and a technique's longest run.
 const SETTLE := 60
 const TIMEOUT := 600
+const VISUAL_FRAMES := 90
+const VISUALS_TECHNIQUE := 1
 
 var _field: Node
 var _gallery: EffectGallery
@@ -28,6 +33,8 @@ var _calls := {}
 ## (DG Dimension brackets its primitives with it within a pass).
 var _camera := Transform3D()
 var _fixed_seen := false
+var _visuals := false
+var _visual := -1
 
 
 func _ready() -> void:
@@ -44,11 +51,15 @@ func _ready() -> void:
 		for t in EffectGallery.techniques(GameData):
 			_ids.append(t[0])
 	_start = GameLoop.frame_count
+	_visuals = OS.get_environment("EFFECT_VISUALS") != ""
 
 
 func _process(_delta: float) -> void:
 	_gallery = _field.debug.gallery
 	var frames := GameLoop.frame_count - _start
+	if _visuals:
+		_process_visuals(frames)
+		return
 	if _index < 0:
 		if frames >= SETTLE:
 			_next()
@@ -79,6 +90,48 @@ func _process(_delta: float) -> void:
 	if not _gallery._running or frames > TIMEOUT:
 		_report(frames)
 		_next()
+
+
+## EFFECT_VISUALS: Prominence Beam's gallery placed (its range 800: an aura projectile flies a while
+## before it hits), each visual shown in turn.
+func _process_visuals(frames: int) -> void:
+	if _visual < 0:
+		if frames < SETTLE:
+			return
+		var error := _gallery.open(VISUALS_TECHNIQUE, maxi(EffectGallery.user_of(GameData, VISUALS_TECHNIQUE), 3), 17, 100)
+		if error != "":
+			print("effect_scan: the gallery didn't open: %s" % error)
+			get_tree().quit(1)
+			return
+		_visual = 0
+		_start = GameLoop.frame_count
+		_most_view = 0
+		_gallery.show_visual(_visual)
+		return
+	if _visual >= EffectGallery.VISUALS.size():
+		return
+	_most_view = maxi(_most_view, _gallery.visuals_view.shown())
+	if frames < VISUAL_FRAMES:
+		return
+	var line := "%-22s most shown %3d, hits %d, live %s" % [EffectGallery.VISUALS[_visual][0], _most_view,
+			_gallery.hits.size(), _gallery.status().get_slice("battle visuals: ", 1).get_slice("
+", 0)]
+	if _most_view == 0:
+		line += ", DREW NOTHING"
+		_failed = true
+	print(line)
+	# A status shown again goes; the next visual starts clean.
+	if EffectGallery.VISUALS[_visual][1] == "status":
+		_gallery.show_visual(_visual)
+	_visual += 1
+	if _visual >= EffectGallery.VISUALS.size():
+		_gallery.close()
+		print("effect_scan: %s" % ("FAILED" if _failed else "OK"))
+		get_tree().quit(1 if _failed else 0)
+		return
+	_start = GameLoop.frame_count
+	_most_view = 0
+	_gallery.show_visual(_visual)
 
 
 func _next() -> void:

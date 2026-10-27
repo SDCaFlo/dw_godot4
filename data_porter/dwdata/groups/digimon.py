@@ -112,8 +112,18 @@ TABLE_PURPOSES = {
     "sound_ids": "Sound banks of every Digimon: VBALL bank (all Digimon), VLALL voice bank (partners)",
     "training_animations": "Partner Digimon: the strike animation and the frame its hit lands at the Offense training "
                            "stations (TRN_TRAINING_ANIM_IDS)",
+    "condition_fx_offsets": "Per original Digimon: the bone and offset the status effects (poison bubbles, confusion) "
+                            "and condition bubbles are placed at (CONDITION_FX_OFFSETS)",
+    "aura_projectile_types": "Per original Digimon: the sprite column of the aura projectile a flattened fighter fires "
+                             "(BTL_AURA_PROJECTILE_TYPES)",
 }
 NUM_TRAINING_ANIMS = 67     # TRN_TRAINING_ANIM_IDS[67][2] (trn_reward.c:55), indexed by the partner's type
+# Tables indexed by getOriginalType(type): CONDITION_FX_OFFSETS[177] (effect_common.c:69, read by
+# translateConditionFXToEntity :307) and BTL_AURA_PROJECTILE_TYPES[129] (battle_effect.c:1308, read by
+# BTL_addAuraProjectile :6146 and BTL_renderAuraProjectile :6119).
+BTL_EFFECT_C = "src/btl/battle_effect.c"
+NUM_CONDITION_FX = 177
+NUM_AURA_TYPES = 129
 
 
 def _name_hook(args, release, tok):
@@ -222,6 +232,8 @@ def convert(input_root, output_root) -> GroupWriter:
     strikes = tables.load(out, index, TRN_C, "TRN_TRAINING_ANIM_IDS")
     music = tables.load(out, index, BTL_C, "ENEMY_MUSIC_MAPPING")
     originals = tables.load(out, index, EFFECT_COMMON_C, "ORIGINAL_DIGIMON_TYPES")
+    condition_fx = tables.load(out, index, EFFECT_COMMON_C, "CONDITION_FX_OFFSETS")
+    auras = tables.load(out, index, BTL_EFFECT_C, "BTL_AURA_PROJECTILE_TYPES")
     sources.append(SourceText(decomp.root, EFFECT_COMMON_C).identity())
     effect_c = " ".join((decomp.root / EFFECT_COMMON_C).read_text(encoding="utf-8", errors="replace").split())
     out.check("getOriginalType is still the table lookup", ORIGINAL_EVIDENCE in effect_c, ORIGINAL_EVIDENCE[:60])
@@ -618,6 +630,73 @@ def convert(input_root, output_root) -> GroupWriter:
                   "notes": "Only the Offense stations read it. A Digimon without a record strikes with 0x2e and "
                            "hits at frame 10 (the table's most common values)."},
     }, symbols=["TRN_TRAINING_ANIM_IDS"])
+
+    # -- condition_fx_offsets, aura_projectile_types (indexed by the original type) ---------------
+    by_original = defaultdict(list)
+    for d in digimon:
+        if d.get("original_type", -1) >= 0:
+            by_original[d["original_type"]].append(d["id"])
+    if condition_fx and auras:
+        sources += [SourceText(decomp.root, BTL_EFFECT_C).identity()]
+        tables.size_check(out, decomp, condition_fx)
+        tables.size_check(out, decomp, auras, binary="btl")
+        refs2 = decomp.references(["CONDITION_FX_OFFSETS", "BTL_AURA_PROJECTILE_TYPES"])
+        fx_rows = [{"id": i, "digimon": by_original.get(i, []),
+                    "offset": {"x": v["vx"], "y": v["vy"], "z": v["vz"]}, "bone": v["pad"], "c": v}
+                   for i, v in enumerate(condition_fx[REFERENCE].value)]
+        out.check(f"CONDITION_FX_OFFSETS has {NUM_CONDITION_FX} entries", len(fx_rows) == NUM_CONDITION_FX,
+                  str(len(fx_rows)))
+        bad_bone = [f"{r['id']}: {r['bone']}" for r in fx_rows if not 0 <= r["bone"] < 32]
+        out.check("CONDITION_FX_OFFSETS: the bones (pad) are bone indices 0-31", not bad_bone,
+                  "; ".join(bad_bone[:10]) or f"{len(fx_rows)} records")
+        out.write_table("condition_fx_offsets", {
+            "table": {"name": "digimon/condition_fx_offsets", "purpose": TABLE_PURPOSES["condition_fx_offsets"]},
+            "source": tables.source(decomp, condition_fx, sources),
+            "schema": {"id": {"meaning": "C index = getOriginalType(type) (digimon_data.original_type)"},
+                       "digimon": {"meaning": "the Digimon whose original type this is (ids)",
+                                   "ref": "digimon/digimon_data"},
+                       "offset": {"c_name": "vx, vy, vz", "c_type": "int16_t", "unit": "PSX units, bone space",
+                                  "meaning": "the point in the bone's space (ApplyMatrixSV with its world matrix)"},
+                       "bone": {"c_name": "pad", "c_type": "int16_t",
+                                "meaning": "the bone whose world matrix places it (posData[pad].posMatrix.workm)"},
+                       "c": {"meaning": "the C SVECTOR"}},
+            "records": fx_rows,
+            "release_values": tables.diffs(condition_fx, lambda l: l.value),
+            "used_by": tables.used_by(decomp, refs2["CONDITION_FX_OFFSETS"], [], condition_fx),
+            "godot": {"status": status, "access": "GameData.condition_fx_offset(digimon)",
+                      "notes": "translateConditionFXToEntity: bone matrix · offset + the bone's translation. The "
+                               "battle's poison bubbles and confusion (specs/battle_effects.md) read it."},
+        }, symbols=["CONDITION_FX_OFFSETS"])
+        aura_rows = [{"id": i, "digimon": by_original.get(i, []), "type": v["type"], "u": v["u"],
+                      "unk2": v["unk2"], "unk4": v["unk4"], "unk6": v["unk6"], "unk8": v["unk8"], "c": v}
+                     for i, v in enumerate(auras[REFERENCE].value)]
+        out.check(f"BTL_AURA_PROJECTILE_TYPES has {NUM_AURA_TYPES} entries", len(aura_rows) == NUM_AURA_TYPES,
+                  str(len(aura_rows)))
+        bad_type = [str(r["id"]) for r in aura_rows[:-1] if r["type"] != r["id"]]
+        out.check("BTL_AURA_PROJECTILE_TYPES: entry i is type i (the last is the -1 end mark)",
+                  not bad_type and aura_rows[-1]["type"] == -1, ", ".join(bad_type[:10]) or "ok")
+        out.write_table("aura_projectile_types", {
+            "table": {"name": "digimon/aura_projectile_types", "purpose": TABLE_PURPOSES["aura_projectile_types"]},
+            "source": tables.source(decomp, auras, sources, binary="btl"),
+            "schema": {"id": {"meaning": "C index = getOriginalType(type) (digimon_data.original_type)"},
+                       "digimon": {"meaning": "the Digimon whose original type this is (ids)",
+                                   "ref": "digimon/digimon_data"},
+                       "type": {"c_type": "int16_t", "meaning": "the original type again (-1: the end mark)"},
+                       "u": {"c_type": "int16_t",
+                             "meaning": "the sprite's u - 0x60 on the DEFEFF page (setUVWH(u + 0x60, 0xa0, 7, 7)); "
+                                        "-1 gives u 0x5f"},
+                       "unk2": {"c_type": "int16_t", "meaning": "not read"},
+                       "unk4": {"c_type": "int16_t", "meaning": "not read"},
+                       "unk6": {"c_type": "int16_t", "meaning": "not read"},
+                       "unk8": {"c_type": "int16_t", "meaning": "not read"},
+                       "c": {"meaning": "the C struct (EfeAuraType, include/dw/efe.h)"}},
+            "records": aura_rows,
+            "release_values": tables.diffs(auras, lambda l: l.value),
+            "used_by": tables.used_by(decomp, refs2["BTL_AURA_PROJECTILE_TYPES"], ["u"], auras),
+            "godot": {"status": status, "access": "GameData.aura_projectile_type(digimon)",
+                      "notes": "Only `u` is read (the sprite drawn). A Digimon of original type past the table "
+                               "would read past it in the C; the port gives {}."},
+        }, symbols=["BTL_AURA_PROJECTILE_TYPES"])
 
     out.write_report("report.md", _report(digimon, raise_rows, patterns))
     out.finish(sources, extra={"counts": {"digimon": len(digimon), "partners": len(raise_rows),

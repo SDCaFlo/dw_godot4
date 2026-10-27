@@ -7,11 +7,25 @@ extends Node
 ## EffectHost and BattleFxView, over a GalleryWorld; the battle's sound bank in slot 8 while open.
 ## The debugger's Effects tab drives it; the field ticks it once per game frame.
 ##
+## It also shows the battle visuals outside the scripts on the caster (show_visual: the statuses,
+## the finisher aura, an aura projectile at the target, the item particles, the buff disk and the
+## cure rings), as the battle's visual events start them (BattleVisuals, BattleVisualsView).
+##
 ## A hit is listed, and its victim's isHit cleared HIT_FRAMES later (in a battle the fighter's
 ## hit reaction decides), so a technique that hits several times shows each.
 
 const DIGIMON_SCENE := preload("res://scenes/field/digimon.tscn")
 const FX_VIEW_SCENE := preload("res://scenes/battle/effects/battle_fx_view.tscn")
+const VISUALS_VIEW_SCENE := preload("res://scenes/battle/fx/battle_visuals_view.tscn")
+## show_visual's choices: [label, battle visual event, its args after the caster (or, for the
+## statuses, the status kind)].
+const VISUALS := [["Poison", "status", 1], ["Confusion", "status", 2], ["Stun", "status", 3],
+		["Finisher aura", "finisher_aura", -1], ["Aura projectile", "aura_projectile", -1],
+		["Item particles", "item_particles", -1], ["Buff disk", "buff_disk", -1],
+		["Cure rings: poison", "buff_rings", 0], ["Cure rings: stun", "buff_rings", 1],
+		["Cure rings: confusion", "buff_rings", 2], ["Cure rings: flatten", "buff_rings", 3]]
+## The stun visual's countdown in the gallery (a battle's stun timer).
+const STUN_FRAMES := 0x50
 const HIT_FRAMES := 10
 ## Battle.ANIM_MOVE: the first technique slot's animation.
 const ANIM_MOVE := 0x2E
@@ -33,6 +47,7 @@ var target_type := -1
 var ctx: GalleryWorld
 var host: EffectHost
 var fx_view: BattleFxView
+var visuals_view: BattleVisualsView
 var effect: EfeEffect
 var slot := -1
 ## Frames since the last play(); the hits [frame, victim].
@@ -136,6 +151,11 @@ func _open(technique_id: int, caster: int, target: int, percent: int) -> String:
 	fx_view = FX_VIEW_SCENE.instantiate()
 	fx_view.host = host
 	world.add_child(fx_view)
+	visuals_view = VISUALS_VIEW_SCENE.instantiate()
+	visuals_view.visuals = host.ctx.visuals
+	host.ctx.visuals.view = visuals_view
+	world.add_child(visuals_view)
+	host.ctx.visuals.initialize()
 	Sound.load_battle_sounds()
 	active = true
 	return ""
@@ -160,13 +180,48 @@ func play() -> void:
 	_running = true
 
 
-## One game frame: the engine's tick and render, the shared effects, the hits.
+## A battle visual on the caster (VISUALS[i]); a status shows until shown again (or another
+## status replaces it, as BTL_addStunStatusVisual does), the finisher aura until it ends.
+func show_visual(i: int) -> void:
+	if not active or i < 0 or i >= VISUALS.size():
+		return
+	var visuals := host.ctx.visuals
+	var event: String = VISUALS[i][1]
+	var arg: int = VISUALS[i][2]
+	match event:
+		"status":
+			var current := _status_kind(visuals)
+			if current > 0:
+				visuals.on_visual("status", [1, current, false, 0])
+			if current != arg:
+				visuals.on_visual("status", [1, arg, true, STUN_FRAMES])
+		"finisher_aura":
+			visuals.on_visual("finisher_aura", [1, true, technique])
+		"buff_rings":
+			visuals.on_visual("buff_rings", [arg, 1])
+		_:
+			visuals.on_visual(event, [1])
+
+
+## The caster's status visual kind (1-3), 0 for none.
+static func _status_kind(visuals: BattleVisuals) -> int:
+	if not visuals.status_ids.has(1):
+		return 0
+	for k in range(1, BattleVisuals.STATUS_KINDS.size()):
+		if visuals.get_at(BattleVisuals.STATUS_KINDS[k], int(visuals.status_ids[1])) != null:
+			return k
+	visuals.status_ids.erase(1)
+	return 0
+
+
+## One game frame: the engine's tick and render, the shared effects, the visuals, the hits.
 func tick() -> void:
 	if not active:
 		return
 	host.tick()
 	host.draw()
 	fx_view.draw_frame()
+	visuals_view.draw_frame()
 	if _running:
 		frame += 1
 		if effect != null:
@@ -196,6 +251,9 @@ func close() -> void:
 	if fx_view != null:
 		fx_view.queue_free()
 		fx_view = null
+	if visuals_view != null:
+		visuals_view.queue_free()
+		visuals_view = null
 	if ctx != null:
 		ctx.restore_view()
 		for d in ctx.digimon.values():
@@ -233,6 +291,11 @@ func status() -> String:
 	for k in _shown:
 		drawn.append("%s %d" % [k, _shown[k]])
 	lines.append("draw calls: %s" % (", ".join(drawn) if not drawn.is_empty() else "none"))
+	var live := []
+	for k in BattleVisuals.KINDS:
+		if host.ctx.visuals.live(k) > 0:
+			live.append("%s %d" % [k, host.ctx.visuals.live(k)])
+	lines.append("battle visuals: %s" % (", ".join(live) if not live.is_empty() else "none"))
 	if effect != null and effect.view != null and not effect.view.skipped.is_empty():
 		lines.append("not drawn yet: %s" % str(effect.view.skipped))
 	if effect != null and not effect.faults().is_empty():

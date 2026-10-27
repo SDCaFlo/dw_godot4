@@ -13,6 +13,9 @@ const ENTITIES := 10
 var data: Node
 ## The shared effects (sparks, entity particles, clouds, flashes); the EffectHost makes it.
 var fx: BattleFx
+## The visuals outside the scripts (statuses, finisher aura, aura projectiles, items, buffs); the
+## EffectHost makes it.
+var visuals: BattleVisuals
 
 
 # --- entities -------------------------------------------------------------------------------------
@@ -63,6 +66,35 @@ func rotation_y(_id: int) -> int:
 ## or past the Digimon's bone count is bone 0).
 func bone_matrix(_id: int, _bone: int) -> PackedInt32Array:
 	return PsxMath.identity()
+
+
+## translateConditionFXToEntity (effect_common.c:307): the point CONDITION_FX_OFFSETS gives the
+## Digimon's original type, through its bone's world matrix (the status effects start there).
+func condition_fx_position(id: int) -> Vector3i:
+	var entry: Dictionary = data.condition_fx_offset(digimon_type(id)) if data != null and digimon_type(id) >= 0 else {}
+	var o: Dictionary = entry.get("offset", {})
+	var m := bone_matrix(id, int(entry.get("bone", 0)))
+	var v := PsxMath.s16_vec(PsxMath.apply_matrix_sv(m, Vector3i(int(o.get("x", 0)), int(o.get("y", 0)), int(o.get("z", 0)))))
+	return PsxMath.s16_vec(v + PsxMath.s16_vec(PsxMath.translation(m)))
+
+
+## findAABBHitEntity (aabb.c:48): the first entity from `start` (not `ignore`) whose box (centred at
+## half its height, half its radius wide) overlaps the box at `center`, `extent` half sizes; -1.
+func find_aabb_entity(center: Vector3i, extent: Vector3i, ignore: int, start: int) -> int:
+	for i in range(start, ENTITIES):
+		if not entity_present(i) or i == ignore:
+			continue
+		var loc := location(i)
+		var c := Vector3i(loc.x, loc.y - (height(i) >> 1), loc.z)
+		var e := Vector3i(radius(i) >> 1, height(i) >> 1, radius(i) >> 1)
+		if c.x + e.x < center.x - extent.x or c.x - e.x > center.x + extent.x:
+			continue
+		if c.y + e.y < center.y - extent.y or c.y - e.y > center.y + extent.y:
+			continue
+		if c.z + e.z < center.z - extent.z or c.z - e.z > center.z + extent.z:
+			continue
+		return i
+	return -1
 
 
 ## entityLookAtLocation(entity, target location) with its matrix refreshed (BTL_faceTargetEntity).

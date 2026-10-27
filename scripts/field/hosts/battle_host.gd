@@ -11,6 +11,7 @@ signal message(text: String)
 const HUD_SCENE := preload("res://scenes/battle/battle_hud.tscn")
 ## The shared effects and emitters drawn in 3D (specs/battle_effects.md §7.3).
 const FX_VIEW_SCENE := preload("res://scenes/battle/effects/battle_fx_view.tscn")
+const VISUALS_VIEW_SCENE := preload("res://scenes/battle/fx/battle_visuals_view.tscn")
 
 var world: Node
 var field_map: FieldMap
@@ -36,6 +37,8 @@ var battle_world: FieldBattleWorld
 var effects: EffectHost
 var hud: BattleHud
 var fx_view: BattleFxView
+## The battle visuals' view (statuses, auras, items, buffs; BattleVisuals).
+var visuals_view: BattleVisualsView
 ## GAME_STATE != 0: the field runs only the battle.
 var active := false
 
@@ -84,6 +87,10 @@ func start_battle(talked_entity: int) -> void:
 	fx_view = FX_VIEW_SCENE.instantiate()
 	fx_view.host = effects
 	world.add_child(fx_view)
+	visuals_view = VISUALS_VIEW_SCENE.instantiate()
+	visuals_view.visuals = effects.ctx.visuals
+	effects.ctx.visuals.view = visuals_view
+	world.add_child(visuals_view)
 	session = BattleSession.new(battle_world, effects, GameData)
 	session.battle.visual.connect(_on_visual)
 	_hook_items()
@@ -113,6 +120,8 @@ func frame() -> void:
 		hud.tick(pressed)
 	if fx_view != null:
 		fx_view.draw_frame()
+	if visuals_view != null:
+		visuals_view.draw_frame()
 	battle_world.end_frame()
 	if session.is_done():
 		_finish()
@@ -137,6 +146,11 @@ func _finish() -> void:
 	if fx_view != null:
 		fx_view.queue_free()
 		fx_view = null
+	if visuals_view != null:
+		effects.ctx.visuals.remove_all()
+		effects.ctx.visuals.view = null
+		visuals_view.queue_free()
+		visuals_view = null
 	battle_world.restore_view()
 	var values: Dictionary = GameState.state["partner"]["care"]
 	tamer.set_state(_tamer_state)
@@ -247,8 +261,8 @@ func item_loss() -> void:
 		GameState.remove_item(item, 0x63)
 
 
-## The battle's visual events: the HUD takes its own; the effect visuals (statuses, auras, buffs,
-## item particles) come with 5d-5.
+## The battle's visual events: the HUD takes its own (the battle visuals take theirs in the
+## session: BattleVisuals.on_visual).
 func _on_visual(kind: String, args: Array) -> void:
 	if kind == "debug":
 		message.emit("battle: %s" % args[0])

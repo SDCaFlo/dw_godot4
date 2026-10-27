@@ -456,6 +456,19 @@ func training_animation(digimon_ref: Variant) -> Dictionary:
 	return find("digimon/training_animations", "digimon", _digimon_id(digimon_ref))
 
 
+## CONDITION_FX_OFFSETS[getOriginalType(type)]: {offset {x, y, z}, bone}, or {} (an original type
+## of -1, or none in the table).
+func condition_fx_offset(digimon_ref: Variant) -> Dictionary:
+	var original := int(digimon(digimon_ref).get("original_type", -1))
+	return record("digimon/condition_fx_offsets", original) if original >= 0 else {}
+
+
+## BTL_AURA_PROJECTILE_TYPES[getOriginalType(type)]: {u, …}, or {}.
+func aura_projectile_type(digimon_ref: Variant) -> Dictionary:
+	var original := int(digimon(digimon_ref).get("original_type", -1))
+	return record("digimon/aura_projectile_types", original) if original >= 0 else {}
+
+
 func _digimon_id(ref: Variant) -> int:
 	return id_of("digimon/digimon_data", ref) if ref is String else int(ref)
 

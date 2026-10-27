@@ -90,10 +90,12 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
 - **`DIGIMON_VBALL_SOUND_ID`**: bank of the Digimon's sounds in `VBALL` (7 sectors per bank, `sound.c:702`, `sound_async.c:227`).
 - **`TRN_TRAINING_ANIM_IDS[type]`** (`trn_off.c:121`, `:136`, `:151`, `:210`): the Offense stations start animation `[0]` (a technique animation, 0x2e–0x35) for each strike and count `[1]` frames to the hit. Entry 0 (the tamer) is 0, 0; entry 66 isn't a partner.
 - **`DIGIMON_VLALL_SOUND_ID`**: the partner's voice bank in `VLALL` (15 sectors per bank, `sound.c:681–686`). Only ids 1–65 read it; the others use bank 15.
+- **`CONDITION_FX_OFFSETS[177]`** (`effect_common.c:69`), indexed by `getOriginalType(type)`: `translateConditionFXToEntity` (`:307`) places a point at `posData[pad].posMatrix.workm · (vx, vy, vz)` plus that bone's translation. The battle's poison bubbles (`BTL_renderPoisonBubble`, `battle_effect.c:5413`) and confusion models (`BTL_renderConfusionEffect`, `:5522`) start from it, as do the field's condition bubbles (`bubble.c`).
+- **`BTL_AURA_PROJECTILE_TYPES[129]`** (`battle_effect.c:1308`, battle overlay), `EfeAuraType` (`include/dw/efe.h:246`), indexed by `getOriginalType(type)`: `BTL_addAuraProjectile` (`:6146`) keeps the entry, `BTL_renderAuraProjectile` (`:6119`) draws `setUVWH(u + 0x60, 0xa0, 7, 7)` on the DEFEFF page. Only `u` is read; `u` -1 gives column 0x5f. Entry i has `type` i; entry 128 is an end mark (`type` -1).
 
 ## 3. Mapping
 
-`output/digimon/digimon_data.json`, `raise_data.json`, `sleep_patterns.json`, `item_take_distance.json`, `file_names.json`, `sound_ids.json` and `training_animations.json`, in the common table shape, plus `report.md`.
+`output/digimon/digimon_data.json`, `raise_data.json`, `sleep_patterns.json`, `item_take_distance.json`, `file_names.json`, `sound_ids.json`, `training_animations.json`, `condition_fx_offsets.json` and `aura_projectile_types.json`, in the common table shape, plus `report.md`.
 
 - The records hold the US values; `release_values` lists what other releases change (C names). Each record keeps its raw C values in `c`.
 - `digimon_data` record:
@@ -117,6 +119,8 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
 - `item_take_distance`: `index` (C index), `digimon {id = index + 1, name}`, `distance`.
 - `file_names`: `symbol`, `file_name`, and the `mmd` / `tmd` paths.
 - `training_animations`: `id`, `digimon {id, key, name}`, `strike_anim`, `hit_frame`, `c`.
+- `condition_fx_offsets`: `id` (the original type), `digimon` (the ids with that original type), `offset {x, y, z}`, `bone` (C `pad`), `c`.
+- `aura_projectile_types`: `id` (the original type), `digimon`, `type`, `u`, `unk2`–`unk8` (not read), `c`.
 - `sound_ids`: `vball`, and `vlall` (null where the code doesn't read it; the raw array is under `raw`).
 - **Labels:** type names (Data / Vaccine / Virus) are the game's names, not from the decomp: the menu draws them as icons. They fit known Digimon: Gabumon 1, Agumon 2, Betamon 3. Level names come from the menu text (§2). Element names: see `specs/moves.md`.
 
@@ -128,7 +132,7 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
 
 ## 4. Godot usage
 
-- `GameData.digimon(id)`, `GameData.raise_data(id)`, `GameData.sleep_pattern(id)`, `GameData.digimon_file(id)` (links to the asset porter's model names), `GameData.digimon_sounds(id)`, `GameData.training_animation(digimon)` (the Offense stations; a Digimon without a record uses 0x2e / 10).
+- `GameData.digimon(id)`, `GameData.raise_data(id)`, `GameData.sleep_pattern(id)`, `GameData.digimon_file(id)` (links to the asset porter's model names), `GameData.digimon_sounds(id)`, `GameData.training_animation(digimon)` (the Offense stations; a Digimon without a record uses 0x2e / 10), `GameData.condition_fx_offset(digimon)` and `GameData.aura_projectile_type(digimon)` (through the Digimon's `original_type`; the battle visuals, `../specs/battle_effects.md`).
 - Systems that use them:
   - field and battle: collision size, shadow, markers
   - battle: elements, type, level, drops, technique slots
@@ -157,6 +161,7 @@ The converter checks:
 - `RAISE_DATA`: hunger hours are ascending hours, then -1; the sleep cycle is a `SLEEP_PATTERN` index; the favourite food is an item id;
 - every file name pointer resolves to a string;
 - `TRN_TRAINING_ANIM_IDS` has 67 entries, technique animations with a hit frame > 0 (entry 0 aside);
+- `CONDITION_FX_OFFSETS` has 177 entries whose bones are 0–31; `BTL_AURA_PROJECTILE_TYPES` has 129, entry i of type i, the last the -1 end mark; both sizes match the symbol maps;
 - the care rules behind `first_technique`, `eats_poop` and `raises_virus_bar` are still in `partner_impl.c`, and each starter's equipped slot holds the technique it learns.
 
 Tests: `tests/test_digimon.py` (real data when `dw_decomp` is present), `tests/test_cross_asset_porter.py` (names, file names, bone counts, radius and height match `asset_porter/dwporter/data`).

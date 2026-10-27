@@ -1018,23 +1018,9 @@ func _hit(victim: int, pos: Vector3i, sub_effect: int) -> void:
 	fx.host.report_hit(fx, victim, PsxMath.s16_vec(pos), sub_effect, _caster())
 
 
-## findAABBHitEntity (aabb.c:48): the first entity from `start` (not `ignore`) whose box (centred at
-## half its height, half its radius wide) overlaps.
+## findAABBHitEntity (aabb.c:48), the context's.
 func _find_aabb_entity(center: Vector3i, extent: Vector3i, ignore: int, start: int) -> int:
-	for i in range(start, BattleEffectContext.ENTITIES):
-		if not _ectx().entity_present(i) or i == ignore:
-			continue
-		var loc := _ectx().location(i)
-		var c := Vector3i(loc.x, loc.y - (_ectx().height(i) >> 1), loc.z)
-		var e := Vector3i(_ectx().radius(i) >> 1, _ectx().height(i) >> 1, _ectx().radius(i) >> 1)
-		if c.x + e.x < center.x - extent.x or c.x - e.x > center.x + extent.x:
-			continue
-		if c.y + e.y < center.y - extent.y or c.y - e.y > center.y + extent.y:
-			continue
-		if c.z + e.z < center.z - extent.z or c.z - e.z > center.z + extent.z:
-			continue
-		return i
-	return -1
+	return _ectx().find_aabb_entity(center, extent, ignore, start)
 
 
 ## BTL_applyBoxAttackHit (91; 6 pushes r = -1): the first unhit entity in the box.

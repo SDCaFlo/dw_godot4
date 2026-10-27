@@ -20,6 +20,12 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 - **What the original does:** to check: the battle's walking (moving into range, `BTL_tickMeleeAttack` / `BTL_tickRangedAttack`, the move-forward probe `entityCheckCollision` like the knock-back's).
 - **Status:** open. The scan's runs differ (frame pacing), so it is intermittent; the next step is a run that dumps the partner's state when it happens.
 
+### I-36. Jijimon footsteps silent during new game intro
+- **Seen:** 2026-10-27 in new game intro scene (`newGameScene`). When Jijimon walks into the frame, his footsteps are silent.
+- **What the original does:** when Jijimon walks in during the intro cutscene, his footstep sounds play twice (2 steps).
+- **Cause:** `NewGameScene` runs Jijimon's scripted walk without triggering the animation footstep sound events / sound slot playback.
+- **Status:** open.
+
 ## Fixed
 
 ### I-35. Partner stuck walking towards tamer during Scold/Praise when blocked by an obstacle or NPC

@@ -503,6 +503,14 @@ func _feeding() -> void:
 	_check(sounds.played.has(12), "sound 12 when he holds it out")
 	_check(gs.item_count(38) == meat_before - 1, "eaten: one Meat less (%d -> %d)" % [meat_before, gs.item_count(38)])
 	_check(tamer.held_item == "", "his hands are empty")
+	_check(partner.partner_animation == ItemUse.ANIM_HAPPY and partner.animator.anim_id == ItemUse.ANIM_HAPPY, "the satiety animation (0x0B) is triggered when fed favourite / full")
+	_frame()
+	_check(partner.animator.anim_id == ItemUse.ANIM_HAPPY and partner.animator.frame > 0, "satiety animation continues playing in normal state")
+	for i in partner.animator.frame_count + 5:
+		if partner.animator.anim_id == Partner.ANIM_IDLE:
+			break
+		_frame()
+	_check(partner.animator.anim_id == Partner.ANIM_IDLE, "satiety animation completes and partner transitions to idle")
 
 
 ## A refused item (ISSUES.md I-11): a key item is always refused; the tamer puts it back (anim 4,

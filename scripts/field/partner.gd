@@ -379,6 +379,7 @@ func tick_feed_item() -> void:
 					item_use.remove_one(item)
 				tamer.clear_held_item()
 				if item_use != null and item_use.handle_food_feed(item):
+					partner_animation = ItemUse.ANIM_HAPPY
 					play_or_skip(ItemUse.ANIM_HAPPY)
 		7:
 			if animator.frame >= animator.frame_count:

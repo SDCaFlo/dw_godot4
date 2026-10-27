@@ -43,6 +43,12 @@ Reported 2026-10-26.
 
 ## Fixed
 
+### I-29. Digimon doesn't play satiety animation when fed
+- **Seen:** when hungry and fed food, if no longer hungry, the partner does not play its satiety animation.
+- **What the original does:** when hungry and fed, if no longer hungry (energy reached `energyThreshold`) or when given its favorite food, the original sets `PARTNER_ANIMATION = 0x0B` and starts animation 0x0B (satiety / fullness animation; `partner_impl.c:1639`).
+- **Cause:** in `partnerHandleFoodFeed` (`partner_impl.c:1639`), the original sets `PARTNER_ANIMATION = 0x0B` and starts animation 0x0B. In `Partner.tick_feed_item` (`scripts/field/partner.gd:382`), `partner_animation` was not updated to `ItemUse.ANIM_HAPPY` (0x0B), so on the next tick `tick_walking` saw `partner_animation (0) != anim_id (11)` and instantly overwrote it with idle (animation 0).
+- **Status:** fixed (2026-10-27): `Partner.tick_feed_item` sets `partner_animation = ItemUse.ANIM_HAPPY` when `handle_food_feed` is true; `tests/test_inventory.gd` verifies the satiety animation (0x0B) is triggered when fed full / favorite, continues playing in normal state without interruption, and returns to idle upon completion.
+
 ### I-27. Spit Fire's sound doesn't sound like the original
 - **Seen:** in battle, Agumon's Spit Fire plays a sound that seems to belong to another technique (reported 2026-10-26 after step 5d-4).
 - **What the original does:** the techniques' sounds play from sound slot 8 (`BTL_playEFESound`: `playSound(8, id)`). Outside a battle slot 8 holds the map's ESALL set; at a battle's start `loadSB()` (`btl.c:408`) loads the battle's own bank `SOUND\SB` there, and the battle's end loads the map's set back (`loadMapSounds2`, `battle_main.c:893`).

@@ -36,7 +36,7 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
   - In `FieldDigimon.start_animation`, call `clear_step_flags()` on starting an animation matching PSX C `startAnimation` resetting `animFlag = 1`.
   - In `Partner.set_state`, call `clear_step_flags()` when transitioning partner states, and ensure step flags are cleared in non-normal states (`partner.tick()`).
   - In `Partner.tick_praise_scold`, `tick_sleep`, and `tick_feed_item`, clear step flags on substate 0 and maintain `approach_timer` (`MAIN_D_80134E28`) as a watchdog to break out of approach substates if obstructed, preventing softlocks.
-- **Status:** fixed (2026-10-27, `d76e0c2`).
+- **Status:** fixed (2026-10-27, `4ae417f`).
 
 ### I-34. The naming screen's letter cursor looks off
 - **Seen:** 2026-10-27 in the new game's naming screen (tamer and Digimon names), `issues/evidence/dw_issue_letter_box_menu.png`. The orange frame around the selected letter doesn't close properly: its corners and sides don't meet, and its right side runs into the next letter. It's similar to the earlier menu contour problem (I-17, the Player screen's chart and card cells).

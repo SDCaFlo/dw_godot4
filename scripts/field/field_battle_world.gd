@@ -117,6 +117,11 @@ func world_screen_matrix() -> PackedInt32Array:
 			else PsxMath.identity()
 
 
+## VIEWPORT_DISTANCE: the map camera's projection distance.
+func viewport_distance() -> int:
+	return roundi(field_map.projection()) if field_map != null else super()
+
+
 func set_map_layer(_enabled: bool) -> void:
 	pass
 
@@ -449,6 +454,11 @@ func stop_sounds() -> void:
 
 
 ## readVBALLSection(bank, type): the Digimon's VBALL set into the bank (sound.c loadDigimonSounds).
+func load_battle_sounds() -> void:
+	if sound != null:
+		sound.load_battle_sounds()
+
+
 func load_digimon_sounds(bank: int, digimon: int) -> void:
 	if sound == null or digimon < 0:
 		return

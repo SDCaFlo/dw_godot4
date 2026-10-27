@@ -14,7 +14,11 @@ static func load_palette(path: String, palette: int) -> PsxTexture:
 	var sidecar = Content.load_json(path + ".json")
 	if texture == null or not sidecar is Dictionary:
 		return null
-	var raw := str(sidecar["tim"]["clut"]["palettes"][palette]).split(" ", false)
+	if palette >= sidecar["tim"]["clut"]["palettes"].size():
+		return null
+	# A palette is a string of values (etctim) or a list (the effects' TIMs).
+	var entry: Variant = sidecar["tim"]["clut"]["palettes"][palette]
+	var raw: Array = entry if entry is Array else Array(str(entry).split(" ", false))
 	var stp_colours := {}
 	var opaque_colours := {}
 	for value in raw:

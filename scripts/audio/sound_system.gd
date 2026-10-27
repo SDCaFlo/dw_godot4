@@ -131,6 +131,14 @@ func load_map_sounds(set_id: int) -> void:
 	load_bank(8, "sound/ESALL/set_%02d" % set_id)
 
 
+## loadSB (sound_async.c:208): the battle's sound bank SOUND\SB into slot 8, where the techniques'
+## sounds play (BTL_playEFESound: playSound(8, id)); the map's set is forgotten, so the battle's
+## end loads it again (loadMapSounds2).
+func load_battle_sounds() -> void:
+	active_map_set = -1
+	load_bank(8, "sound/SB")
+
+
 ## loadPartnerSounds (sound.c:676): the voice set (slot 3; `vlall`, none -> set 15) and the sound
 ## set (slot 4, loadDigimonSounds; `vball`) of the partner's Digimon record.
 func load_partner_sounds(sounds: Dictionary) -> void:

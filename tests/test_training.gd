@@ -57,6 +57,7 @@ func _process(_delta: float) -> bool:
 		return false
 	_started = true
 	data = load("res://scripts/data/game_data.gd").new()
+	PsxMath.setup(data)
 	if not data.available():
 		print("SKIP: porter output missing")
 		quit(0)

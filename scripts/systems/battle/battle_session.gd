@@ -69,6 +69,10 @@ func _init(battle_world: BattleWorld, effect_host: EffectHost, game_data: Node) 
 	rewards = BattleRewards.new(battle)
 	start_text = BattleStartText.new(data)
 	thrown = BattleThrownItem.new(data)
+	# createParticleFX at a hit or a block: the sparks roll rand() where the C calls it, drawn or not.
+	battle.visual.connect(func(kind: String, args: Array) -> void:
+		if kind == "particles" and world != null:
+			world.effect("particles", args))
 
 
 func is_done() -> bool:
@@ -201,6 +205,8 @@ func _frame_loading() -> void:
 func _finish_loading() -> void:
 	var entries := []
 	var keys := []
+	# loadSB (btl.c:408): the techniques' sounds come from the battle's bank (ISSUES.md I-27).
+	world.load_battle_sounds()
 	for i in entity_ids.size():
 		var e := entity_ids[i]
 		var s := world.stats(e)

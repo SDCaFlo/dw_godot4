@@ -59,6 +59,8 @@ static var _folders := {}
 func _init(context: BattleEffectContext = null) -> void:
 	ctx = context
 	data = context.data if context != null else null
+	if ctx != null and ctx.fx == null:
+		ctx.fx = BattleFx.new(ctx)
 	reset()
 
 
@@ -79,6 +81,8 @@ func reset() -> void:
 	emitters.clear()
 	for i in EMITTERS:
 		emitters.append({})
+	if ctx != null and ctx.fx != null:
+		ctx.fx.reset()
 
 
 ## The asset porter folder of a technique's EFEDAT slot (efe/index.json), "" if none.
@@ -175,7 +179,7 @@ func stop(k: int, sub_effect: int) -> void:
 	slots[k].stop(sub_effect)
 
 
-## BTL_tickEFEEngine.
+## BTL_tickEFEEngine, then the shared effects' objects (BattleFx).
 func tick() -> void:
 	if ctx != null:
 		ctx.set_map_layer(true)
@@ -192,6 +196,8 @@ func tick() -> void:
 		if s["mask"] >= 0 and s["effect"] != null and _context_frame(s["effect"], s["context"]) < 0:
 			ctx.stop_loop(s["mask"])
 			s["mask"] = -1
+	if ctx != null and ctx.fx != null:
+		ctx.fx.tick()
 
 
 ## BTL_renderEFEEngine.

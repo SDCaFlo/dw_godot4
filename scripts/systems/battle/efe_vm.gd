@@ -308,9 +308,10 @@ func _rot() -> Vector3i:
 	return fx.read_vec(_cur + EfeEffect.I_ROT)
 
 
+## A drawing built-in: to the effect's draw sink with the current instance (the view reads the
+## pointed-to vectors now, as the C does).
 func _draw(name: String, args: Array) -> void:
-	if fx.record_draws:
-		fx.draw_calls.append([name] + args)
+	fx.draw_call(name, args, _cur)
 
 
 func _pops(n: int) -> Array:
@@ -339,7 +340,7 @@ func _builtin(id: int) -> void:
 		12: _interpolate_vector()
 		13: _steer_transform_toward_point()
 		14: _copy_target_entity_position()
-		15: _draw("setEFEModelObjectColor", _pops(2))
+		15: _set_model_object_color()
 		16: _add_particle_emitter()
 		17: _select_next_target_entity()
 		18: _create_flash()
@@ -937,10 +938,18 @@ func _add_particle_emitter() -> void:
 	fx.host.add_emitter(fx, _cur, kind, n, color, frames)
 
 
-## EFECreateFlash (efe.c:808): 8 arguments; the flash is the view's.
+## EFECreateFlash (efe.c:808): the position and colours are read through their pointers now.
 func _create_flash() -> void:
-	var args := _pops(8)
-	_ectx().effect("flash", args)
+	var a := _pops(8)
+	_ectx().effect("flash", [a[0], fx.read_vec(a[1]), a[2], a[3], a[4], a[5], fx.read_vec(a[6]), fx.read_vec(a[7])])
+
+
+## BTL_setEFEModelObjectColor (battle_effect.c:4327): the object's colour (EfeColor: three int32)
+## changes the slot's own TMD, so it stays for the slot's later uses.
+func _set_model_object_color() -> void:
+	var a := _pops(2)
+	fx.set_object_color(a[0], fx.read_vec(a[1]))
+	_draw("setEFEModelObjectColor", a)
 
 
 ## BTL_initializeRibbonPoints: 10 SVECTORs (8 bytes: x, y, z, pad).

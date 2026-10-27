@@ -9,6 +9,8 @@ extends Node
 signal message(text: String)
 
 const HUD_SCENE := preload("res://scenes/battle/battle_hud.tscn")
+## The shared effects and emitters drawn in 3D (specs/battle_effects.md §7.3).
+const FX_VIEW_SCENE := preload("res://scenes/battle/effects/battle_fx_view.tscn")
 
 var world: Node
 var field_map: FieldMap
@@ -31,6 +33,7 @@ var session: BattleSession
 var battle_world: FieldBattleWorld
 var effects: EffectHost
 var hud: BattleHud
+var fx_view: BattleFxView
 ## GAME_STATE != 0: the field runs only the battle.
 var active := false
 
@@ -75,6 +78,9 @@ func start_battle(talked_entity: int) -> void:
 	PsxMath.setup(GameData)
 	effects = EffectHost.new(battle_world)
 	effects.world = world
+	fx_view = FX_VIEW_SCENE.instantiate()
+	fx_view.host = effects
+	world.add_child(fx_view)
 	session = BattleSession.new(battle_world, effects, GameData)
 	session.battle.visual.connect(_on_visual)
 	_hook_items()
@@ -102,6 +108,8 @@ func frame() -> void:
 		inventory.tick()
 	if hud != null:
 		hud.tick(pressed)
+	if fx_view != null:
+		fx_view.draw_frame()
 	battle_world.end_frame()
 	if session.is_done():
 		_finish()
@@ -123,6 +131,9 @@ func _finish() -> void:
 	if hud != null:
 		hud.queue_free()
 		hud = null
+	if fx_view != null:
+		fx_view.queue_free()
+		fx_view = null
 	var values: Dictionary = GameState.state["partner"]["care"]
 	tamer.set_state(_tamer_state)
 	partner.set_state(_partner_state)

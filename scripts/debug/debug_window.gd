@@ -10,6 +10,7 @@ extends Window
 ##   upscaling filter (ISSUES.md D-3).
 ## - State: triggers, script values, bits / merit, items, cards and data-built unlock presets
 ##   (DebugStateTab), to test what the story gates.
+## - Effects: the technique gallery (DebugEffectsTab, EffectGallery).
 
 signal render_scale_changed(value: int)
 signal ui_filter_changed(on: bool)
@@ -23,6 +24,8 @@ var map_label: Callable
 var teleport: Callable
 var render_scale := 4
 var ui_filter := true
+## The technique gallery the Effects tab drives (null without a field).
+var gallery: EffectGallery
 
 var _status: Label
 var _filter: LineEdit
@@ -52,6 +55,9 @@ func _ready() -> void:
 	tabs.add_child(_maps_tab())
 	tabs.add_child(_render_tab())
 	tabs.add_child(DebugStateTab.new())
+	var effects := DebugEffectsTab.new()
+	effects.gallery = gallery
+	tabs.add_child(effects)
 	_fill_list("")
 
 

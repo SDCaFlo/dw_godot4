@@ -6,7 +6,10 @@ class_name PsxLit
 ##   (project.godot [shader_globals]), set by FieldLighting;
 ## - semi-transparency: a semi-transparent polygon blends only the texels whose colour has the STP
 ##   bit, with its tpage's abr mode (0 half / half, 1 add, 2 subtract, 3 add a quarter); the other
-##   texels are opaque (asset_porter/specs/tmd.md "STP masks"). One pass each.
+##   texels are opaque (asset_porter/specs/tmd.md "STP masks"). One pass each;
+## - the battle effects' per-object state (specs/battle_effects.md §7.3): a UV offset added to the
+##   byte UVs (BTL_offsetEFEPrimitiveUVs: each vertex's u / v wraps at 256, so the wrap is per
+##   vertex, not per pixel), and a colour (setEFEModelObjectColor, 128 = 1.0).
 
 ## The tpage's semi-transparency modes (abr).
 const HALF := 0
@@ -41,6 +44,9 @@ uniform float color_scale = 1.0;
 uniform bool own_light = false;
 uniform vec3 own_light_dir;
 uniform vec3 own_light_color;
+// The effects' UV animation (texels, added per vertex mod 256) and object colour (1.0 = 128).
+uniform vec2 uv_offset = vec2(0.0);
+uniform vec3 tint = vec3(1.0);
 
 varying vec3 intensity;
 
@@ -50,6 +56,9 @@ vec3 shine(vec3 n, vec3 dir, vec3 color) {
 }
 
 void vertex() {
+	if (uv_offset != vec2(0.0)) {
+		UV = mod(floor(UV * 256.0 + 0.5) + uv_offset, 256.0) / 256.0;
+	}
 	vec3 n = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	if (own_light) {
 		intensity = lit ? psx_ambient + shine(n, own_light_dir, own_light_color) : vec3(1.0);
@@ -80,7 +89,7 @@ void fragment() {
 		discard;
 	}
 	// COLOR: the vertex colour as the porter wrote it (white when the mesh has none).
-	ALBEDO = srgb_to_linear(clamp(texel.rgb * COLOR.rgb * intensity, 0.0, 1.0)) * color_scale;
+	ALBEDO = srgb_to_linear(clamp(texel.rgb * COLOR.rgb * intensity * tint, 0.0, 1.0)) * color_scale;
 	%s
 }
 """

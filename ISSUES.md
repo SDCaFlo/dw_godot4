@@ -31,10 +31,10 @@ Reported 2026-10-26.
 - **Since then:** the help line names each phase a battle enters ("battle: INTRO"…), and a battle without an enemy says so.
 - **Status:** could not reproduce (2026-10-26): pending further evidence. Possibly linked to the 0-stat partner of a new game (I-23); if it happens again, note where, how the battle began and the last "battle: …" line on the help line.
 
-### I-27. Spit Fire's sound doesn't sound like the original
-- **Seen:** in battle, Agumon's Spit Fire plays a sound that seems to belong to another technique (reported 2026-10-26 after step 5d-4).
-- **To explore:** which sound the technique's effect script (`efe`) plays and from which bank (the fighters' banks 4–7, the partner's slot), against the original in an emulator; whether the slot or the sound id is mapped wrong, or the sound was changed on purpose somewhere.
-- **Status:** open, to explore later.
+### I-28. In battle the partner can walk onto a blocking cell
+- **Seen:** by `tests/battle_scan.tscn` with a new game's partner (`BATTLE_RAW=1 BATTLE_MAPS=TROP01,TROP02,MAYO03,MAYO01,MAYO04A`), in about half the runs: the partner, walking (animation 0x24, `ANIM_WALK`), stands on a blocking map cell for 4 to 116 frames (TROP02 near (-700, -3020), MAYO01 near (-2928, -1011), TROP01). Found 2026-10-27; the same on the committed 5d-4 code, so not from 5d-5. Not the knock-back of I-26 (that one is a hit animation).
+- **What the original does:** to check: the battle's walking (moving into range, `BTL_tickMeleeAttack` / `BTL_tickRangedAttack`, the move-forward probe `entityCheckCollision` like the knock-back's).
+- **Status:** open. The scan's runs differ (frame pacing), so it is intermittent; the next step is a run that dumps the partner's state when it happens.
 
 ### I-21. Recovery items show no healing effect
 - **Seen:** giving the partner a recovery item (e.g. Sm. recovery) heals it, but nothing shows on the partner.
@@ -42,6 +42,12 @@ Reported 2026-10-26.
 - **Status:** open. A small field effect of its own (main binary, not the battle's effect engine): planned in `PLANS.md` (5e follow-ups). Since 5d-4 the item handlers emit `ItemUse.healing_effect(variant)` where the C calls it (field and battle); nothing draws it yet.
 
 ## Fixed
+
+### I-27. Spit Fire's sound doesn't sound like the original
+- **Seen:** in battle, Agumon's Spit Fire plays a sound that seems to belong to another technique (reported 2026-10-26 after step 5d-4).
+- **What the original does:** the techniques' sounds play from sound slot 8 (`BTL_playEFESound`: `playSound(8, id)`). Outside a battle slot 8 holds the map's ESALL set; at a battle's start `loadSB()` (`btl.c:408`) loads the battle's own bank `SOUND\SB` there, and the battle's end loads the map's set back (`loadMapSounds2`, `battle_main.c:893`).
+- **Cause:** the port never loaded `SOUND\SB`: the techniques played the sound of the same id from the map's set.
+- **Status:** fixed (2026-10-27, with 5d-5a): `BattleSession` loads the battle's bank where the C does (`BattleWorld.load_battle_sounds`, `Sound.load_battle_sounds`), and the debugger's technique gallery too; `tests/test_battle.gd` checks it. To confirm by ear against the original (VERIFY "Battle effects" 3).
 
 ### I-26. A hit throws the fighter out of the map
 - **Seen:** a hit knocks a fighter through the fence, out of the walkable map; it can't come back (reported 2026-10-26 with step 5d-4; `issues/evidence/dw_issue_battle_stuck_corner.png`, `dw_issue_battle_stuck_corner_2.png`).

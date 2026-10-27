@@ -11,6 +11,8 @@ extends RefCounted
 const ENTITIES := 10
 
 var data: Node
+## The shared effects (sparks, entity particles, clouds, flashes); the EffectHost makes it.
+var fx: BattleFx
 
 
 # --- entities -------------------------------------------------------------------------------------
@@ -139,7 +141,21 @@ func stop_loop(_mask: int) -> void:
 	pass
 
 
-## createParticleFX, createCloudFX, addEntityParticleFX, EFECreateFlash: the shared effects. `args`
-## are the C's arguments; the draw-side code decides what to show.
-func effect(_kind: String, _args: Array) -> void:
-	pass
+## The shared effects (BattleFx), by kind:
+## - "particles" [kind, mode, position, entity, lifetime]: createParticleFX;
+## - "cloud" [position]: createCloudFX;
+## - "entity_particles" [entity, timer]: addEntityParticleFX;
+## - "flash" [mode, position, fixed depth, frames, scale min, scale max, colour min, colour max]:
+##   EFECreateFlash (positions and colours as Vector3i).
+func effect(kind: String, args: Array) -> void:
+	if fx == null:
+		return
+	match kind:
+		"particles":
+			fx.create_particles(args[0], args[1], args[2], args[3], args[4])
+		"cloud":
+			fx.create_cloud(args[0])
+		"entity_particles":
+			fx.add_entity_particles(args[0], args[1])
+		"flash":
+			fx.create_flash(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7])

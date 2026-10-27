@@ -75,6 +75,8 @@ func _ready() -> void:
 	if Engine.is_editor_hint():
 		_refresh_preview()
 		return
+	# The game's _sin / _atan tables (the hit sparks, the battles' effects).
+	PsxMath.setup(GameData)
 	_tamer.animation_sound.connect(entities.play_sound)
 	if _maps.is_empty():
 		_label.text = "No maps in %s.\nRun: python -m dwporter convert maps mmd_files" % Content.path("maps")
@@ -198,6 +200,9 @@ func _start_debug() -> void:
 	debug.care_host = care_host
 	debug.menu_host = menu_host
 	debug.clock = clock_host.clock
+	debug.world = _world
+	debug.camera = _camera
+	debug.hidden_nodes = func() -> Array: return [_tamer, entities.partner]
 	debug.render_scale = render_scale
 	debug.ui_filter = ui_filter
 	debug.show_window = debug_window
@@ -248,6 +253,7 @@ func _frame() -> void:
 		scripts.tick_objects()
 		_field.overlays.tick()
 	debug.tick_message()
+	debug.tick_gallery()
 	care_host.tick_visuals(in_menu)
 	debug.tick_panel()
 	scripts.step_boxes()

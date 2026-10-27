@@ -42,10 +42,16 @@ var contexts: Array[Dictionary] = []
 var uv_anims: Array[Dictionary] = []
 ## The effect texture place the host gave it (UNKNOWN_MODEL_TAKEN index), or -1 without a TIM.
 var texture_place := -1
-## Draw calls of the last draw() ([builtin name, args...]); filled while `record_draws` is set
-## (the tests; the view reads them later in 5d-5).
+## Draw calls of the last draw() ([builtin name, args...]); filled while `record_draws` is set (the
+## tests, the debugger's gallery).
 var record_draws := false
 var draw_calls: Array = []
+## setEFEModelObjectColor's colours by TMD object (Vector3i, 128 = 1.0): they rewrite the slot's
+## own model, so they last for the slot's later uses. Objects never coloured keep the porter's.
+var object_colors := {}
+## The draw sink that draws (EfeView, the scene's `View` child): used while the effect is in the
+## tree; headless the draw calls go nowhere.
+var view: EfeView
 ## The folder of the slot in the asset porter output (efe/<slot>_<name>/).
 var folder := ""
 
@@ -188,11 +194,15 @@ func tick() -> void:
 		finished.emit(-1)
 
 
-## This slot's part of BTL_renderEFEEngine: each active sub-effect's draw script.
+## This slot's part of BTL_renderEFEEngine: each active sub-effect's draw script, its calls drawn
+## by the view as one frame.
 func draw() -> void:
 	draw_calls.clear()
 	if not _loaded:
 		return
+	var drawing := _drawing_view()
+	if drawing != null:
+		drawing.begin_frame()
 	for j in num_objects:
 		uv_anims[j]["drawn"] = 0
 	for i in num_sub_effects:
@@ -200,6 +210,27 @@ func draw() -> void:
 		if c["inst"] == 0:
 			continue
 		_vm.run(c["draw"], i)
+	if drawing != null:
+		drawing.end_frame()
+
+
+## A drawing built-in of the VM, with the instance it ran for.
+func draw_call(name: String, args: Array, instance: int) -> void:
+	if record_draws:
+		draw_calls.append([name] + args)
+	if view != null and view.drawing:
+		view.draw_call(name, args, instance)
+
+
+func set_object_color(object: int, color: Vector3i) -> void:
+	if object >= 0 and object < num_objects:
+		object_colors[object] = color
+
+
+func _drawing_view() -> EfeView:
+	if view == null:
+		view = get_node_or_null("View") as EfeView
+	return view if view != null and view.is_inside_tree() else null
 
 
 func is_running() -> bool:

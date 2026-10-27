@@ -517,6 +517,20 @@ func projection() -> float:
 	return _projection
 
 
+## GsWSMATRIX of the map's camera (GsSetRefView2), in PsxMath's layout: the rows are the camera's
+## right, down and forward axes (4096 = 1.0), the translation -R · eye. The screen x / y it gives
+## are relative to the projection centre.
+func world_screen_matrix() -> PackedInt32Array:
+	var m := PsxMath.identity()
+	var rows: Array[Vector3] = [_right, _down, _forward]
+	for i in 3:
+		m[i * 3] = roundi(rows[i].x * 4096.0)
+		m[i * 3 + 1] = roundi(rows[i].y * 4096.0)
+		m[i * 3 + 2] = roundi(rows[i].z * 4096.0)
+		m[9 + i] = roundi(-rows[i].dot(_eye))
+	return m
+
+
 ## initializeDrawingOffsets: the scroll that centres `world` becomes the virtual scroll, and the
 ## scroll is that clamped to the background edges.
 func follow(world: Vector3) -> void:

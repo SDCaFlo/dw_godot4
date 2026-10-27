@@ -187,6 +187,11 @@ func stop_sounds() -> void:
 	pass
 
 
+## loadSB: the battle's sound bank into slot 8.
+func load_battle_sounds() -> void:
+	pass
+
+
 ## A Digimon's VBALL set into a sound bank (readVBALLSection).
 func load_digimon_sounds(_bank: int, _digimon: int) -> void:
 	pass

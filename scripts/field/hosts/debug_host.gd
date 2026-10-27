@@ -20,6 +20,10 @@ var scripts: ScriptHost
 var care_host: CareHost
 var menu_host: MenuHost
 var clock: Clock
+## The technique gallery's world: the 3D world, the camera, the nodes it hides (set by the field).
+var world: Node
+var camera: Camera3D
+var hidden_nodes := Callable()
 ## The debugger window's settings at start (the field's exports).
 var render_scale := 4
 var ui_filter := true
@@ -31,6 +35,8 @@ var window: DebugWindow
 var script_debug: ScriptDebug
 ## The care values (key C); the field puts it into the HUD. null without care.
 var panel: CareDebugPanel
+## The technique gallery (the debugger's Effects tab).
+var gallery: EffectGallery
 
 var _message := ""
 var _message_frames := 0
@@ -54,7 +60,15 @@ func start() -> void:
 		panel.game_state = GameState
 		panel.sleep_action = menu_sleep
 		panel.visible = false
+	gallery = EffectGallery.new()
+	gallery.name = "EffectGallery"
+	gallery.world = world
+	gallery.field_map = field_map
+	gallery.camera = camera
+	gallery.hidden_nodes = hidden_nodes
+	add_child(gallery)
 	window = DebugWindow.new()
+	window.gallery = gallery
 	window.maps = maps
 	window.map_label = func(map_name: String) -> String: return _map_list_label(map_name)
 	window.teleport = func(map_name: String, exit: int) -> void: map_session.debug_change_map(map_name, exit)
@@ -84,6 +98,12 @@ func tick_message() -> void:
 		if _message_frames == 0:
 			_message = ""
 			update_label()
+
+
+## The technique gallery's frame, when it is open.
+func tick_gallery() -> void:
+	if gallery != null:
+		gallery.tick()
 
 
 func tick_panel() -> void:

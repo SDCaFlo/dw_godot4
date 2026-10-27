@@ -25,6 +25,9 @@ class StubWorld extends BattleWorld:
 	var used_items: Array = []
 	var removed_items: Array = []
 	var thrown_at: Array = []
+	## loadSB calls and the sparks the battle created (createParticleFX).
+	var battle_sounds := 0
+	var sparks := 0
 	const LOOPS := [0x21, 0x22, 0x23, 0x24, 1, 3, 0xA]
 
 	func add(id: int, type: int, location: Vector3i, base := {}, record := {}) -> void:
@@ -77,6 +80,14 @@ class StubWorld extends BattleWorld:
 
 	func play_sound(bank: int, id: int) -> void:
 		sounds.append([bank, id])
+
+	func load_battle_sounds() -> void:
+		battle_sounds += 1
+
+	func effect(kind: String, args: Array) -> void:
+		if kind == "particles":
+			sparks += 1
+		super(kind, args)
 
 	# The battle world.
 	func stats(id: int) -> Dictionary:
@@ -474,6 +485,10 @@ func _test_win() -> void:
 	# battle) leaves the map, even after it ran off screen (ISSUES.md I-25).
 	_eq(w.is_off_screen(2, 320, 240), true, "the defeated enemy ran off screen")
 	_eq(w.entities[2]["on_map"], false, "the defeated enemy leaves the map")
+	# loadSB (btl.c:408): the techniques' sounds come from the battle's bank (ISSUES.md I-27).
+	_eq(w.battle_sounds, 1, "the battle's sound bank is loaded once")
+	# createParticleFX on every hit: its rand() calls happen in the logic (BattleFx), drawn or not.
+	_eq(w.sparks > 0 and w.fx != null, true, "the hits make sparks in the battle's shared effects (%d)" % w.sparks)
 
 
 func _test_run() -> void:

@@ -49,6 +49,7 @@ func _process(_delta: float) -> bool:
 	_praise_scold(GameMenu.SCOLD)
 	_pat_height()
 	_npc_frozen()
+	_praise_scold_blocked_recovery()
 	_teardown()
 	print("%s: game menu checks (%d run)" % ["FAILED %d" % _failed if _failed else "OK", _checks])
 	quit(1 if _failed else 0)
@@ -343,3 +344,43 @@ func _npc_frozen() -> void:
 		npc._process(0.05)
 	_check(npc.position != at, "unfrozen, its walk goes on")
 	npc.free()
+
+
+## ISSUES.md I-35: partner blocked by obstacle/NPC before or during Scold/Praise recovers cleanly.
+func _praise_scold_blocked_recovery() -> void:
+	tamer.place(map.spawn(0))
+	# Place partner 400 units away so closeness() is not immediately 2
+	partner.position = tamer.position + Vector3(400, 0, 0)
+	partner.step_blocked = true
+	partner.blocked_axes = 0x78
+	_open()
+	menu.selection = GameMenu.SCOLD
+	sounds.played.clear()
+	_frame(Pad.CONFIRM)
+	_check(partner.state == Partner.STATE_SCOLD, "I-35: partner entered STATE_SCOLD")
+	_check(not partner.step_blocked and partner.blocked_axes == 0, "I-35: step_blocked and blocked_axes cleared on state/anim start")
+	var moved := false
+	var initial_pos := partner.position
+	for i in 600:
+		_frame()
+		if partner.position != initial_pos:
+			moved = true
+		if partner.state == Partner.STATE_NORMAL:
+			break
+	_check(moved, "I-35: partner successfully advanced position towards tamer despite previous block")
+	_check(partner.state == Partner.STATE_NORMAL and tamer.state == Tamer.STATE_FREE, "I-35: scold sequence completed without softlocking")
+
+	# Watchdog check: if partner remains blocked (e.g. step_blocked forcibly held in substate 1),
+	# approach_timer ensures it still exits substate 1 after 150 frames without hanging.
+	partner.position = tamer.position + Vector3(400, 0, 0)
+	partner.set_state(Partner.STATE_PRAISE)
+	partner.sub_state = 1
+	partner.step_blocked = true
+	for i in 160:
+		partner.tick_praise_scold()
+		if partner.sub_state >= 2:
+			break
+	_check(partner.sub_state >= 2, "I-35: approach_timer watchdog breaks out of substate 1 when blocked")
+	partner.set_state(Partner.STATE_NORMAL)
+	tamer.set_state(Tamer.STATE_FREE)
+

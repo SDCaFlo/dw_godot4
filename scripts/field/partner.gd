@@ -65,6 +65,8 @@ var partner_animation := ANIM_IDLE
 var stop_distance_timer := 0
 var emotion_anim_timeout := 0
 var is_standing_still := 0
+## MAIN_D_80134E28 (partner.c:121, :378, :381): frames waiting for closeness / approach in care scenes.
+var approach_timer := 0
 
 ## PARTNER_WAYPOINT_* (map.c): a ring of 30 tiles.
 var waypoint_x := []
@@ -127,6 +129,8 @@ func place_for_spawn(spawn: Dictionary) -> void:
 func tick() -> void:
 	if animator == null or field == null or tamer == null:
 		return
+	if state != STATE_NORMAL:
+		clear_step_flags()
 	match state:
 		STATE_NORMAL:
 			tick_normal()
@@ -158,6 +162,7 @@ func tick() -> void:
 
 ## partnerSetState (partner.c:1087).
 func set_state(value: int) -> void:
+	clear_step_flags()
 	state = value
 	sub_state = 0
 
@@ -186,15 +191,18 @@ func tick_sleep() -> void:
 			if clock != null:
 				clock.running = false
 			tamer.camera_follow = false
+			clear_step_flags()
 			if closeness() != 2:
 				start_animation(ANIM_WALK)
 			tamer.state = Tamer.STATE_STILL
 			tick_partner_waypoints()
 			sub_state = 1
+			approach_timer = 0
 		1:
+			approach_timer += 1
 			tamer.look_at_psx(int(position.x), int(-position.z))
 			look_at_psx(int(tamer.position.x), int(-tamer.position.z))
-			if closeness() == 2:
+			if closeness() == 2 or approach_timer > 150:
 				_play_sound(15)
 				tamer.play_scene_animation(8)
 				start_animation(ANIM_IDLE)
@@ -245,13 +253,16 @@ func tick_praise_scold() -> void:
 		0:
 			tamer.camera_follow = false
 			tick_partner_waypoints()
+			clear_step_flags()
 			if closeness() != 2:
 				start_animation(ANIM_WALK)
 			sub_state = 1
+			approach_timer = 0
 		1:
+			approach_timer += 1
 			tamer.look_at_psx(int(position.x), int(-position.z))
 			look_at_psx(int(tamer.position.x), int(-tamer.position.z))
-			if closeness() == 2:
+			if closeness() == 2 or approach_timer > 150:
 				start_animation(ANIM_IDLE)
 				if state == STATE_PRAISE:
 					_play_sound(14)
@@ -329,18 +340,22 @@ func tick_evolving() -> void:
 func tick_feed_item() -> void:
 	match sub_state:
 		0:
+			clear_step_flags()
 			sub_state = 1 if check_eat_distance() else 2
 			start_animation(ANIM_WALK)
 			_set_direction(direction + 0x800)
 			tick_partner_waypoints()
+			approach_timer = 0
 		1:
+			approach_timer += 1
 			tamer.look_at_psx(int(position.x), int(-position.z))
-			if not check_eat_distance():
+			if not check_eat_distance() or approach_timer > 150:
 				sub_state = 3
 		2:
+			approach_timer += 1
 			tamer.look_at_psx(int(position.x), int(-position.z))
 			look_at_psx(int(tamer.position.x), int(-tamer.position.z))
-			if check_eat_distance():
+			if check_eat_distance() or approach_timer > 150:
 				sub_state = 3
 		3:
 			look_at_psx(int(tamer.position.x), int(-tamer.position.z))

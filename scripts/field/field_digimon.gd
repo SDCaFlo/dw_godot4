@@ -121,8 +121,10 @@ func _part(part_name: String, make: Callable) -> Node:
 	return node
 
 
-## startAnimation.
+## startAnimation (anim.c:201): starts the animation and resets animFlag to 1 (clearing any held
+## step or blocked axes).
 func start_animation(id: int) -> void:
+	clear_step_flags()
 	if animator != null and animator.play(id):
 		sounds.restart()
 

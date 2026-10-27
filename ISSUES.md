@@ -22,6 +22,22 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Fixed
 
+### I-35. Partner stuck walking towards tamer during Scold/Praise when blocked by an obstacle or NPC
+- **Seen:** 2026-10-27 in Green Gym (`TRAI00`), `issues/evidence/dw_issue_stuck_scold_animation.mp4`. Player scolded Gabumon from the △ triangle menu; Gabumon started walking towards the tamer, collided with Koromon (or was blocked by Koromon before menu open), and got stuck walking in place unable to get past Koromon or reach the tamer, causing an unrecoverable softlock.
+- **What the original does:**
+  - `startAnimation` (`anim.c:231`) sets `anim->animFlag = 1;`, which clears bit 1 (`step_blocked`) and bits 3-6 (`blocked_axes`) whenever any animation starts.
+  - `partnerTickCollision` (`map.c:3267`) and `collisionGrace` (`map.c:3466`) only run during normal walking (`partnerTickNormal`, state 1). Outside state 1 (such as state 4 Scold, 15 Praise, 3 Sleep, 5 Feed Item), root motion in `applyRootMomentum` (`anim.c:434`) applies directly without entity collision checks, allowing the partner to approach the tamer.
+  - In `partnerTickPraiseScold` (`partner.c:381`), `MAIN_D_80134E28` tracks frames spent in substate 1 waiting for `getPartnerTamerCloseness() == 2`.
+- **Cause:**
+  - In `FieldDigimon.start_animation` (`scripts/field/field_digimon.gd`), `clear_step_flags()` was not called, so starting an animation did not clear `step_blocked` or `blocked_axes` (unlike PSX `startAnimation` which sets `animFlag = 1`).
+  - In `Partner.set_state` and non-normal states (`scripts/field/partner.gd`), `clear_step_flags()` was not called. If the partner collided with an NPC or map obstacle in `STATE_NORMAL` right before opening the triangle menu, `step_blocked = true` and `blocked_axes` persisted into `STATE_SCOLD` / `STATE_PRAISE` / `STATE_SLEEP` / `STATE_FEED`.
+  - In `FieldDigimon._process`, `if step_blocked: return` prevented any root motion from moving the partner, and since `tick_collision` does not run outside `STATE_NORMAL`, the flags were never cleared, leaving the partner walking in place indefinitely while waiting for closeness to the tamer.
+- **Fix (2026-10-27, checked in game):**
+  - In `FieldDigimon.start_animation`, call `clear_step_flags()` on starting an animation matching PSX C `startAnimation` resetting `animFlag = 1`.
+  - In `Partner.set_state`, call `clear_step_flags()` when transitioning partner states, and ensure step flags are cleared in non-normal states (`partner.tick()`).
+  - In `Partner.tick_praise_scold`, `tick_sleep`, and `tick_feed_item`, clear step flags on substate 0 and maintain `approach_timer` (`MAIN_D_80134E28`) as a watchdog to break out of approach substates if obstructed, preventing softlocks.
+- **Status:** fixed (2026-10-27, `d76e0c2`).
+
 ### I-34. The naming screen's letter cursor looks off
 - **Seen:** 2026-10-27 in the new game's naming screen (tamer and Digimon names), `issues/evidence/dw_issue_letter_box_menu.png`. The orange frame around the selected letter doesn't close properly: its corners and sides don't meet, and its right side runs into the next letter. It's similar to the earlier menu contour problem (I-17, the Player screen's chart and card cells).
 - **What the original does:** `renderSelectionBox` (`shop/script_menu.c:3170`) draws the frame as 8 `POLY_FT4` pieces of the UI page (tpage (896, 448), CLUT (256, 508)): 4 × 4 corners and 4 stretched edges, using the UV and offset tables `NAMING_U02`, `NAMING_U13`, `NAMING_V01`, `NAMING_V23`, `NAMING_CTRL_X`, `NAMING_Y`, `NAMING_CTRL_WIDTH`, `NAMING_HEIGHT` (`:487–523`). A cell's frame is 20 × 18 at (column × 18 + 0x4A, row × 14 + 2) from the box.

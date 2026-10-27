@@ -31,6 +31,11 @@ Reported 2026-10-26.
 - **Since then:** the help line names each phase a battle enters ("battle: INTRO"…), and a battle without an enemy says so.
 - **Status:** could not reproduce (2026-10-26): pending further evidence. Possibly linked to the 0-stat partner of a new game (I-23); if it happens again, note where, how the battle began and the last "battle: …" line on the help line.
 
+### I-27. Spit Fire's sound doesn't sound like the original
+- **Seen:** in battle, Agumon's Spit Fire plays a sound that seems to belong to another technique (reported 2026-10-26 after step 5d-4).
+- **To explore:** which sound the technique's effect script (`efe`) plays and from which bank (the fighters' banks 4–7, the partner's slot), against the original in an emulator; whether the slot or the sound id is mapped wrong, or the sound was changed on purpose somewhere.
+- **Status:** open, to explore later.
+
 ### I-21. Recovery items show no healing effect
 - **Seen:** giving the partner a recovery item (e.g. Sm. recovery) heals it, but nothing shows on the partner.
 - **Cause:** the original draws a healing particle effect over the partner (`addHealingParticleEffect(partner, variant)`, `main/particle.c:209`), called by the item handlers (`item.c:2236`, `:2242`, `:2348`, `:2362`, `:2373`; variants `HEAL_EFFECT_VARIANT`). The inventory step left it for later (`specs/inventory.md` §6: "with the effects"); it was not in the plans.
@@ -49,7 +54,7 @@ Reported 2026-10-26.
 - **What the original does:** `BTL_deinitializeCombat` takes every NPC whose `isOnScreen` is set off the map. Only the NPCs' field tick updates that flag (`overworld.c:1352`; their battle tick only animates), so it keeps its value from the battle's start: the enemies on screen then are taken off the map, even though they have run off screen by the end.
 - **Cause:** the port recomputed the flag live, so an enemy that had run off counted as off screen and stayed (the 5d-3 test even expected it).
 - **Status:** fixed (2026-10-26): `FieldBattleWorld.is_on_screen` reads the flag as the field tick left it; `tests/test_battle.gd` and `tests/battle_scan.tscn` check the defeated enemy leaves the map.
-- **Then (retest):** it no longer came back, but its footsteps could still be heard. Off the map in the original, the entity keeps its slot but nothing ticks it: `NPCEntityTick` returns before its animation (`overworld.c:1122`) and `renderDigimon` skips it (`model.c:2891`). The port only hid the node: its flee run kept animating, moving it by root motion and playing its steps (they play while `isOnScreen`, frozen from the battle's start). Fixed: `Npc._process` does nothing off the map; `tests/battle_scan.tscn` checks the defeated entity no longer moves (fails on all 3 maps without the fix). The node isn't freed, as the C keeps the entity: a script can still find it by its script id, a `SET_DIGIMON` brings it back, and the next map frees it (`removeMapEntities`).
+- **Then (retest):** it no longer came back, but its footsteps could still be heard. Off the map in the original, the entity keeps its slot but nothing ticks it: `NPCEntityTick` returns before its animation (`overworld.c:1122`) and `renderDigimon` skips it (`model.c:2891`). The port only hid the node: its flee run kept animating, moving it by root motion and playing its steps (they play while `isOnScreen`, frozen from the battle's start). Fixed: `Npc._process` does nothing off the map; `tests/battle_scan.tscn` checks the defeated entity no longer moves (fails on all 3 maps without the fix); confirmed in the game 2026-10-26. The node isn't freed, as the C keeps the entity: a script can still find it by its script id, a `SET_DIGIMON` brings it back, and the next map frees it (`removeMapEntities`).
 
 ### I-22. The partner's equipped techniques didn't work in battle
 - **Seen:** with a technique equipped the partner still didn't use it (reported 2026-10-26 with step 5d-4).

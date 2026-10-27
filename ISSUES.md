@@ -41,15 +41,13 @@ Reported 2026-10-26.
 - **Cause:** the original draws a healing particle effect over the partner (`addHealingParticleEffect(partner, variant)`, `main/particle.c:209`), called by the item handlers (`item.c:2236`, `:2242`, `:2348`, `:2362`, `:2373`; variants `HEAL_EFFECT_VARIANT`). The inventory step left it for later (`specs/inventory.md` §6: "with the effects"); it was not in the plans.
 - **Status:** open. A small field effect of its own (main binary, not the battle's effect engine): planned in `PLANS.md` (5e follow-ups). Since 5d-4 the item handlers emit `ItemUse.healing_effect(variant)` where the C calls it (field and battle); nothing draws it yet.
 
-Reported 2026-10-27.
+## Fixed
 
 ### I-28. Digimon doesn't play satiety animation when fed
 - **Seen:** when hungry and fed food, if no longer hungry, the partner does not play its satiety animation.
-- **Expected:** when hungry and fed, if no longer hungry (energy reached `energyThreshold`) or when given its favorite food, the partner should play its fullness / satiety animation (animation 11 / `0x0B`).
+- **What the original does:** when hungry and fed, if no longer hungry (energy reached `energyThreshold`) or when given its favorite food, the original sets `PARTNER_ANIMATION = 0x0B` and starts animation 0x0B (satiety / fullness animation; `partner_impl.c:1639`).
 - **Cause:** in `partnerHandleFoodFeed` (`partner_impl.c:1639`), the original sets `PARTNER_ANIMATION = 0x0B` and starts animation 0x0B. In `Partner.tick_feed_item` (`scripts/field/partner.gd:382`), `partner_animation` was not updated to `ItemUse.ANIM_HAPPY` (0x0B), so on the next tick `tick_walking` saw `partner_animation (0) != anim_id (11)` and instantly overwrote it with idle (animation 0).
-- **Status:** open.
-
-## Fixed
+- **Status:** fixed (2026-10-27): `Partner.tick_feed_item` sets `partner_animation = ItemUse.ANIM_HAPPY` when `handle_food_feed` is true; `tests/test_inventory.gd` verifies the satiety animation (0x0B) is triggered when fed full / favorite, continues playing in normal state without interruption, and returns to idle upon completion.
 
 ### I-26. A hit throws the fighter out of the map
 - **Seen:** a hit knocks a fighter through the fence, out of the walkable map; it can't come back (reported 2026-10-26 with step 5d-4; `issues/evidence/dw_issue_battle_stuck_corner.png`, `dw_issue_battle_stuck_corner_2.png`).

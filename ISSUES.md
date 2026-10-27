@@ -43,7 +43,7 @@ Reported 2026-10-26.
 
 ## Fixed
 
-### I-28. Digimon doesn't play satiety animation when fed
+### I-29. Digimon doesn't play satiety animation when fed
 - **Seen:** when hungry and fed food, if no longer hungry, the partner does not play its satiety animation.
 - **What the original does:** when hungry and fed, if no longer hungry (energy reached `energyThreshold`) or when given its favorite food, the original sets `PARTNER_ANIMATION = 0x0B` and starts animation 0x0B (satiety / fullness animation; `partner_impl.c:1639`).
 - **Cause:** in `partnerHandleFoodFeed` (`partner_impl.c:1639`), the original sets `PARTNER_ANIMATION = 0x0B` and starts animation 0x0B. In `Partner.tick_feed_item` (`scripts/field/partner.gd:382`), `partner_animation` was not updated to `ItemUse.ANIM_HAPPY` (0x0B), so on the next tick `tick_walking` saw `partner_animation (0) != anim_id (11)` and instantly overwrote it with idle (animation 0).

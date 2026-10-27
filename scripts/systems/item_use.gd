@@ -26,7 +26,6 @@ const HANDLERS := {
 }
 ## The partner's food animation when it liked it (partnerHandleFoodFeed).
 const ANIM_HAPPY := 0x0B
-const ANIM_SATIETY := 0x0B
 ## The numbers over the partner in battle (addEntityText): colour 0xB, icon 1 HP / 2 MP.
 const NUMBER_COLOR := 0xB
 const ICON_HP := 1

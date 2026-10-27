@@ -88,7 +88,11 @@ Last updated: 2026-10-26
                 - [x] 4d-2. Offense, Speed, Defense, MP, Brains (new orders, move learning): the eight stations of TRAI00, GIAS09 and MIST05, hit sparks, two data tables (`specs/training.md` §6).
                 - [x] 4d-3. The slot-machine bonus (Bonus Try): `SlotMachine`, `SlotSession`, `TrainingSlotsBox` (box 3), the stations' hooks, the `systems/slot_machine` table and the gym maps' slot textures (2026-10-26, `specs/training.md` §7, VERIFY "Training" 4).
                 - [ ] 4d-4. The TRN2 stations (maps 0x63, 0x6B, 0x6C, 0xA5). **On hold** (2026-10-26: evolution first); it keeps its place here.
-            - [ ] 4e. Tournaments (with 0x16, the medal check), naming / new game, save.
+            - [ ] 4e. New game, save, tournaments (split 2026-10-27, in this order):
+                - [ ] 4e-1. New game and naming: the intro scene with Jijimon (`newGameScene`, `new_game.c`), his questionnaire and the naming boxes (`newGameStateMachine`, builtin 0x32; partner renaming builtin 0x20), movie 1, the boot path into File City (partner, `setDigimonRaised`, map 0xCC's head script). Fixes I-16 and I-23. Spec: `specs/new_game.md`.
+                - [ ] 4e-2. Save: the title menu (New Game / Continue / slots, `runMainMenu` / `tickMainMenu`), the save machine (0x30, `openSaveMachine`), the game-clear save (0x36), continuing a save, and the save prompt after the partner sleeps (`partnerTickSleep` sub-states 5-6, `partner.c:325`: menu 0x28, `renderSleepMenu`).
+                - [ ] 4e-3. Tournament entry: registration (0x21, `updateTournamentRegistration`, MAPHEAD 0x4D9 / 0x4DA), the schedule and info boxes (0x12, `dget` overlay), the medal check (0x16), `startTournament`'s opponent draw.
+                - [ ] 4e-4. The arena battles (`STD_REL`: `std_main` / `std_setup` / `std_hud` / `std_effect`, ~15k lines): reuse `Battle` where the C is `btl`'s copy, the arena's own parts (bracket, intro, versus, champion, cameras) as scenes. Its own spec, split like 5d.
          - Fishing (the menu's 7th icon) comes with fishing.
          - [x] The healing particles of the recovery items (done 2026-10-27 with 5d-5c, ISSUES.md I-21): `addHealingParticleEffect` (`main/particle.c:209`) from the item handlers, with its variants; a field effect, independent of the battles.
        - [ ] To check in the game: the additive sprites' brightness (Godot blends in linear colour), Grey Lord's Mansion doors (YAKA11, models 9 / 10) snapping shut at the end of their swing (`specs/map_objects.md` §6);

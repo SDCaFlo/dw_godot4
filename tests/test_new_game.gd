@@ -210,6 +210,18 @@ func _cursor_moves() -> void:
 	n.buffer = "Ａ　　"
 	n.terminate()
 	_check(n.buffer == "Ａ", "trailing full-width spaces cut")
+	# Cursor frame check (I-34):
+	NamingBox._ensure_cursor_textures()
+	var cell_img: Image = NamingBox._cell_cursor.get_image() if NamingBox._cell_cursor != null else null
+	var btn_img: Image = NamingBox._button_cursor.get_image() if NamingBox._button_cursor != null else null
+	_check(cell_img != null and cell_img.get_size() == Vector2i(20, 18), "cursor cell texture is 20x18")
+	_check(btn_img != null and btn_img.get_size() == Vector2i(50, 18), "cursor button texture is 50x18")
+	if cell_img != null:
+		_check(cell_img.get_pixel(0, 0).a == 0.0, "cursor top-left corner is rounded (transparent at 0,0)")
+		_check(cell_img.get_pixel(3, 1).r > 0.8 and cell_img.get_pixel(3, 1).g > 0.7, "cursor yellow frame meets at (3, 1)")
+		_check(cell_img.get_pixel(16, 1).r > 0.8 and cell_img.get_pixel(16, 1).g > 0.7, "cursor top-right yellow frame meets at (16, 1)")
+		_check(cell_img.get_pixel(3, 16).r > 0.8 and cell_img.get_pixel(3, 16).g > 0.7, "cursor bottom-left yellow frame meets at (3, 16)")
+		_check(cell_img.get_pixel(16, 16).r > 0.8 and cell_img.get_pixel(16, 16).g > 0.7, "cursor bottom-right yellow frame meets at (16, 16)")
 
 
 ## The naming screen opened by a rename (value 3), checked letter by letter.

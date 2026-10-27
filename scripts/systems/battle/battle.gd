@@ -102,6 +102,8 @@ var big_hit_count := 0
 var starting_hp := 0
 ## unk25 per fighter: frames since its HP bar last changed (shown while < 21).
 var bar_timers: Array[int] = [0xFF, 0xFF, 0xFF, 0xFF]
+## The enemy HP bars BTL_renderEnemyHPBars drew this frame (the HUD draws these).
+var bars_shown: Array[bool] = [false, false, false, false]
 var tamer_idle_timer := 0
 
 var _moves := {}
@@ -206,6 +208,22 @@ func technique_of(entity: int, anim: int) -> int:
 	return result
 
 
+## An equipped move as the battle reads it: an animation id stays; a technique key (the partner's
+## stats, specs/game_state.md) becomes 0x2E + the technique's slot in the Digimon's list, or 0xFF
+## when the Digimon doesn't have it.
+func anim_of_move(m: Variant, entity: int) -> int:
+	if m == null:
+		return 0xFF
+	if not m is String:
+		return int(m)
+	var id := int(data.id_of("moves/move_data", m))
+	var slots: Array = digimon_of(entity).get("c", {}).get("moves", [])
+	var k := slots.find(id)
+	if k < 0:
+		k = slots.find(float(id))
+	return ANIM_MOVE + k if k >= 0 else 0xFF
+
+
 func fighter_technique(f: BattleFighter, anim: int) -> int:
 	return technique_of(f.entity, anim)
 
@@ -295,6 +313,7 @@ func initialize_combat(entity_ids: Array) -> void:
 		var f := BattleFighter.new()
 		f.entity = int(e)
 		f.stats = world.stats(f.entity)
+		f.resolve_move = anim_of_move.bind(f.entity)
 		fighters.append(f)
 	enemy_count = fighters.size() - 1
 	death_countdown = 0
@@ -1966,6 +1985,7 @@ func apply_damage_buffers() -> void:
 		damage_tick(partner)
 	partner.set_mp(partner.mp() - partner.mp_damage)
 	partner.mp_damage = 0
+	bars_shown.fill(false)
 	for i in range(1, enemy_count + 1):
 		var f := fighters[i]
 		if not toggle_lifebar:
@@ -1973,6 +1993,7 @@ func apply_damage_buffers() -> void:
 				continue
 		elif bar_timers[i] >= 0x15 and f.has(BattleFighter.DEAD):
 			continue
+		bars_shown[i] = true
 		if f.hp() == 0:
 			f.hp_damage = 0
 		if not f.has(BattleFighter.KNOCKED_BACK) and f.hp_damage == 0:
@@ -2110,6 +2131,14 @@ func heal_flatten(f: BattleFighter) -> void:
 		if f.flat_timer >= 4:
 			world.set_flat_sprite(f.entity, 0)
 		f.flat_timer = 0x41
+
+
+## BTL_removeDeathCountdown (handleRestore): the countdown's digit goes; the count itself restarts
+## when the partner gets up (BTL_isBattleFinished).
+func remove_death_countdown() -> void:
+	if countdown_shown:
+		countdown_shown = false
+		_emit("countdown", [false])
 
 
 ## BTL_healStatusEffect (the curing items): the partner's statuses, with the buff rings.

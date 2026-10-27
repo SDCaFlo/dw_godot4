@@ -404,19 +404,31 @@ In the game (F5):
 4. **The Factorial Town remodel** (optional, needs a Mamemon): set the field's `debug_partner` to `dw1:mamemon`, warp to FACT10 (Maps tab) and talk to the remodel shop's owner, Do it (2000 bits): about half the time the partner evolves into MetalMamemon (one in ten Giromon), and the shop's line follows.
 5. **Compare with the game:** where the tamer and the partner stand and face, how long the build-up lasts before the change.
 
-## Battles (`scripts/systems/battle/`, `scripts/field/field_battle_world.gd`, `hosts/battle_host.gd`; `specs/battle.md`)
+## Battles (`scripts/systems/battle/`, `scripts/ui/battle/`, `scripts/field/field_battle_world.gd`, `hosts/battle_host.gd`; `specs/battle.md`)
 
-`test_battle.gd` prints `OK: battle checks`, `test_efe.gd` `OK: 41 effect checks`; `godot --headless --fixed-fps 60 --path . res://tests/battle_scan.tscn` ends with `battle_scan: OK` (three wins in the real field). **There is no battle HUD yet (5d-4)**: no command menu, bars or numbers on screen, and the techniques' effects aren't drawn (5d-5). The help line shows the commands given and the damage dealt. In the game (F5):
+`test_battle.gd` prints `OK: battle checks`, `test_battle_hud.gd` `OK: battle HUD checks`, `test_efe.gd` `OK: 41 effect checks`; `godot --headless --fixed-fps 60 --path . res://tests/battle_scan.tscn` ends with `battle_scan: OK` (three wins in the real field, with the HUD). The techniques' effects and the status / aura / buff / item visuals aren't drawn yet (5d-5). In the game (F5):
+0. **Before fighting:** a new game's partner has 0 stats until the intro is ported (ISSUES.md I-23): in the debugger's **State** tab press **Max all stats**. The help line shows each phase a battle enters ("battle: LOADING", "INTRO", "FIGHT"…): if a battle hangs, note the last one.
 1. **Starting a battle:** go to a map with wild Digimon near File City (e.g. Tropical Jungle, TROP01) and walk into one, or let it charge you. Its talk section starts the battle:
-   - the music changes to the battle theme; the enemy turns to the partner, which runs up to the tamer (about 2 s);
-   - Digimon on screen that don't join run off; the tamer backs off towards where he entered the map;
-   - after the start text's time (invisible for now) the fight begins.
-2. **The fight:** the partner and the enemy walk towards each other, attack with their technique animations, get hit (front / back reactions), block, sometimes stand distracted (the "thinking" pose). The help line shows the damage numbers.
-3. **Commands, blind:** ← / → move the hovered command (sound), ✕ gives it (the tamer points; "command N" on the help line). From the start the hovered one is Your Call. With a partner below 100 Brains the list is finisher, Run, Your Call: press ← once then ✕ to run away.
-4. **Running away:** the tamer runs back the way he came, the partner follows, the screen fades out and you arrive on the previous map.
-5. **Winning:** the enemy falls, the tamer cheers and the partner poses; the bits are counted into your money (one per frame, ✕ skips), the stats rise by the gains, the enemy gets up and runs off. Then the camera pans back to the tamer and you can walk. 20 minutes have passed on the clock. The debugger's State tab shows the partner's new stats, money and battles.
-6. **Losing:** with a weak partner the partner falls; after about 9 s the battle ends and the battle-loss script runs (its scenes come with step 6, "death and lives").
-7. **Compare with the game:** how close the fighters stand, how fast they attack, how often a technique hits, how long the end takes.
+   - the music changes to the battle theme; the clock and the care bars slide off; the enemy turns to the partner, which runs up to the tamer (about 2 s);
+   - a bubble pops up over each Digimon on screen and turns its tail to it, with one mark for those that join and another for those that run off;
+   - the tamer backs off towards where he entered the map, and stops before the screen's edge;
+   - the start text: small digit pieces fly in from both sides with trails, spell the message, flash, then spin and burst off the screen.
+2. **The HUD while fighting:**
+   - top left, the command menu unfolds (down, then across): the label strip and the command icons in a staggered row, a technique command with its element's icon. The hovered icon blinks, a frame marks it and its name shows under the menu;
+   - top right, the partner's HP and MP bars slide in (HP first) with their numbers; under them the finisher gauge fills in segments, pulses when one is added and, when full, shows the "ready" sign;
+   - after a hit, a green bar with the enemy's HP appears beside its head with a line to it, shortening and turning yellow then red; it hides 1 s after the last damage. **Select** keeps the bars shown;
+   - damage numbers jump out over the fighters and fall back (several one after another);
+   - a hit pushes the fighter back, but never through a fence or out of the walkable map.
+3. **Commands:** ← / → move the hovered command (sound), ✕ gives it: the tamer points and shouts the order over his head ("Attack!", "Your Call!", or the technique's name), which pops up, hops and goes after 1 s. □ with a full gauge orders the finisher: a gauge over the partner fills with L1 / R1 presses for 4 s.
+4. **Items:** △ opens the inventory (the tamer takes out his bag; the fight goes on). Battle items have a white Use, field-only ones (food) a grey one; Drop is grey. Use: the tamer throws it, it flies over to the partner in an arc and works when it lands:
+   - Sm. recovery: green HP number over the partner; MP floppy: MP number;
+   - Off. / Def. / Hispeed disk: +20 to that stat with its icon (capped at 1.3 × the stat at the battle's start; the S. disks +50; the Omni Disk +20 to all three, uncapped);
+   - Various cures poison / confusion / stun / flattening; Protection protects from them;
+   - Restore on a fainted partner: it gets up with half its HP and the countdown goes.
+5. **Running away:** choose Run: the tamer runs back the way he came, the partner follows, the screen fades out and you arrive on the previous map.
+6. **Winning:** the enemy falls, the tamer cheers, the partner poses. Two windows grow out of the partner and the tamer: the stats with their bars and the gains (+N, counting into the stats after 2 s; ✕ adds them at once), and the bits counting into your money. Then the final balance. If an item dropped, a technique was learned, the partner was injured or the brains reached a new command, the text types under the bits on ✕ presses (US: each ✕ types the next lines). Then the windows close, the enemy gets up and runs off, the menu folds away. 20 minutes have passed on the clock. The defeated enemy is gone from the map: it doesn't walk back while you stay, and its steps stop once it has run off.
+7. **Losing:** with a weak partner the partner falls; a ring with the digits 4-3-2-1 spins over it, then the battle ends and the battle-loss script runs (its scenes come with step 6, "death and lives"). Throwing a Restore before the end gets it back up.
+8. **Compare with the game:** the HUD's positions and timing (menu slide, bars, numbers, shout), the start text, the throw's arc, the end windows.
 
 ## Partner (`scripts/field/partner.gd`, `psx_animator.gd`, `specs/partner.md`)
 

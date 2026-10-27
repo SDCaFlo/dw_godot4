@@ -164,6 +164,12 @@ func _start() -> void:
 	battle_host.menu_host = menu_host
 	battle_host.map_items = map_session.map_items
 	battle_host.fade = care_host.fade
+	battle_host.text_area = scripts.text_area
+	battle_host.boxes = scripts.boxes
+	battle_host.hud_slot = Control.new()
+	battle_host.hud_slot.name = "BattleHud"
+	battle_host.hud_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	battle_host.hud_slot.set_anchors_preset(Control.PRESET_FULL_RECT)
 	battle_host.message.connect(debug.show_message)
 	if scripts.interpreter != null:
 		scripts.interpreter.battles = battle_host
@@ -200,7 +206,8 @@ func _start_debug() -> void:
 	debug.window.ui_filter_changed.connect(func(on: bool) -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
-	for node: Node in [care_host.bars, care_host.bubbles, scripts.clouds, scripts.sparks, debug.panel, scripts.boxes, care_host.fade,
+	for node: Node in [care_host.bars, care_host.bubbles, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
+			scripts.boxes, care_host.fade,
 			scripts.map_name]:
 		if node != null:
 			_hud.add_child(node)
@@ -218,6 +225,11 @@ func _frame() -> void:
 	if battle_host.active:
 		battle_host.frame()
 		if battle_host.active:
+			# The field's HUD objects stay in the list: with game time stopped the clock and the
+			# care bars slide off.
+			clock_host.hud.tick()
+			if care_host.bars != null:
+				care_host.bars.tick()
 			scripts.step_boxes()
 			care_host.tick_fade()
 			return

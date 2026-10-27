@@ -54,6 +54,7 @@ func _process(_delta: float) -> bool:
 	_back_to_menu()
 	_feeding()
 	_refused()
+	_battle_mode()
 	_teardown()
 	print("%s: inventory checks (%d run)" % ["FAILED %d" % _failed if _failed else "OK", _checks])
 	quit(1 if _failed else 0)
@@ -523,3 +524,28 @@ func _refused() -> void:
 	_check(refused, "the partner refuses it")
 	_check(partner.state == Partner.STATE_NORMAL and tamer.state == Tamer.STATE_FREE and tamer.camera_follow, "refused: both free, the camera follows")
 	_check(tamer.held_item == "" and gs.item_count(key) == 1, "refused: his hands empty, the item still in the bag")
+
+
+## In battle (GAME_STATE 1, specs/battle.md §2.18): Use by the battle use, Drop grey, Use throws.
+func _battle_mode() -> void:
+	var inv := host.inventory
+	_fill_bag()
+	inv.game_mode = func() -> int: return 1
+	inv.draw_text()
+	inv.open()
+	_until(func(): return boxes.boxes[1].state == UIBoxes.STATE_OPEN, 60)
+	_check(inv.active and boxes.boxes[0].state == UIBoxes.STATE_OPEN, "battle: the inventory opens")
+	inv.pointer = 0
+	_check(inv.option_color(Inventory.OPTION_USE) == 0xA, "battle: Meat (field only) has a grey Use")
+	_check(inv.option_color(Inventory.OPTION_DROP) == 0xA, "battle: Drop is grey")
+	inv.pointer = 1
+	_check(inv.option_color(Inventory.OPTION_USE) == 9, "battle: Sm.recovery (both) has a white Use")
+	var thrown := []
+	var fed := []
+	inv.throw_item.connect(func(item: String) -> void: thrown.append(item))
+	inv.use_item.connect(func(item: String) -> void: fed.append(item))
+	_option(Inventory.OPTION_USE)
+	_until(func(): return not thrown.is_empty(), 60)
+	_check(thrown == [_key(0)] and fed.is_empty(), "battle: Use throws the item, it isn't fed")
+	inv.game_mode = func() -> int: return 0
+	inv.close_all()

@@ -68,6 +68,15 @@ func update_on_screen() -> void:
 		on_screen = field.is_on_screen(global_position)
 
 
+## NPCEntityTick returns for an entity off the map (overworld.c:1122) before anything ticks its
+## animation, and renderDigimon skips it (model.c:2891): a Digimon a battle took off the map stays
+## in its slot hidden, still and silent (no root motion, no steps) until a SET_DIGIMON or the next
+## map.
+func _process(delta: float) -> void:
+	if on_map:
+		super(delta)
+
+
 ## NPCEntityTick / NPCEntityTickOverworld (overworld.c:1120, :1224), once per game frame.
 func tick() -> void:
 	if not on_map or entities == null:

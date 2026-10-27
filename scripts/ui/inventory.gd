@@ -10,6 +10,8 @@ extends Node
 signal back
 ## Use: the hand-over to the partner (startFeedingItem).
 signal use_item(item: String)
+## Use in battle (GAME_STATE 1): the tamer throws it (startThrowingItem, specs/battle.md §2.18).
+signal throw_item(item: String)
 
 const CENTRE := Vector2(160, 120)
 ## renderItemAmount's digits (setEntityTextDigit: page 0x1E, palette (256, 484)): BI_IN.TIM, p4,
@@ -55,6 +57,9 @@ var data: Node
 var item_use: ItemUse
 var pad: Pad
 var sound: Node
+## GAME_STATE as the inventory reads it: 0 the field, 1 a battle's fight, 2 / 3 a battle otherwise.
+## The battle host sets it for the battle's length.
+var game_mode := func() -> int: return 0
 
 ## IS_INVENTORY_INITIALIZED: the object exists.
 var active := false
@@ -177,7 +182,7 @@ func tick() -> void:
 				tamer.play_scene_animation(4)
 		ACTION_BACK:
 			_close_view()
-			if b[0].frame == 0:
+			if game_mode.call() == 0 and b[0].frame == 0:
 				if tamer != null:
 					tamer.start_animation(0)
 				back.emit()
@@ -188,9 +193,13 @@ func tick() -> void:
 		ACTION_USE:
 			if _close_box2():
 				_close_view()
-			if b[0].state == UIBoxes.STATE_CLOSED:
+			# In a battle outside the fight (GAME_STATE 2) the action waits.
+			if b[0].state == UIBoxes.STATE_CLOSED and game_mode.call() == 0:
 				action = ACTION_NONE
 				use_item.emit(item_at(pointer))
+			elif b[0].state == UIBoxes.STATE_CLOSED and game_mode.call() == 1:
+				action = ACTION_NONE
+				throw_item.emit(item_at(pointer))
 		ACTION_DROP:
 			if b[3].state != UIBoxes.STATE_CLOSED:
 				_close_box3()
@@ -384,16 +393,23 @@ func tick_options(_id: int) -> void:
 		option = _option_selector(option, 4, Pad.UP, Pad.DOWN)
 
 
-## getItemOptionColor (inventory.c:209), field.
+## getItemOptionColor (inventory.c:209): Use by where the item works, Drop grey in a fight.
 func option_color(i: int) -> int:
 	if i == OPTION_MOVE or i == OPTION_SORT:
 		return 9
 	var item := item_at(pointer)
+	if i == OPTION_DROP and game_mode.call() == 1:
+		return 0xA
 	if item == "":
 		return 0xA
 	if i == OPTION_USE:
-		return 9 if item_use.can_use(item) else 0xA
+		return 9 if item_use.can_use(item, _context()) else 0xA
 	return 9 if item_use.can_drop(item) else 0xA
+
+
+## The ItemUse context of GAME_STATE: the field, or any battle state.
+func _context() -> String:
+	return ItemUse.FIELD if game_mode.call() == 0 else ItemUse.BATTLE
 
 
 func render_options(canvas: CanvasItem, id: int) -> void:
@@ -411,7 +427,8 @@ func _select_option() -> void:
 	var item := item_at(pointer)
 	match option:
 		OPTION_USE:
-			if item != "" and item_use.can_use(item):
+			# Only the field (0) and the fight (1) use items.
+			if item != "" and game_mode.call() <= 1 and item_use.can_use(item, _context()):
 				action = ACTION_USE
 		OPTION_MOVE:
 			action = ACTION_MOVE
@@ -420,7 +437,7 @@ func _select_option() -> void:
 		OPTION_SORT:
 			action = ACTION_SORT
 		OPTION_DROP:
-			if item != "" and item_use.can_drop(item):
+			if item != "" and game_mode.call() == 0 and item_use.can_drop(item):
 				action = ACTION_DROP_ASK
 
 

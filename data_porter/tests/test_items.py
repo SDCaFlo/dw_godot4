@@ -55,6 +55,11 @@ class RealDataTests(unittest.TestCase):
         self.assertEqual(items[0x47]["feeding"], "evolution")
         self.assertEqual(effects[0x7E]["requires_level"], 3)
         self.assertNotIn("passive", meat)
+        # the battle branches (../../specs/battle.md §2.18)
+        self.assertEqual(effects[8]["battle"], {"cure_status": "shown"})
+        self.assertEqual(effects[10]["battle"], {"protect": True})
+        self.assertEqual(effects[0x13]["battle"]["buff"], {"offense": {"amount": 50, "capped": True, "icon": 3}})
+        self.assertFalse(effects[0x12]["battle"]["buff"]["speed"]["capped"])     # Omni Disk: no cap
 
     def test_cards_and_shops(self):
         cards = self.load("card_data")

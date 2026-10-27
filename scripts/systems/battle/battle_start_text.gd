@@ -94,10 +94,16 @@ func tick_burst() -> void:
 	for p in pieces:
 		if p["vx"] == 0 and p["vy"] == 0:
 			dead += 1
+			p["quad"] = []
 			continue
 		var m := PsxMath.rot_matrix(p["rot"])
-		var corner := PsxMath.apply_matrix_sv(m, Vector3i(-4, -6, 0))
-		var screen := project(Vector3i(corner.x + p["x"] - 4, corner.y + p["y"] - 6, corner.z))
+		# The four corners as this frame draws them (the HUD's quad), before the piece moves.
+		var quad := []
+		for c in [Vector3i(-4, -6, 0), Vector3i(4, -6, 0), Vector3i(-4, 6, 0), Vector3i(4, 6, 0)]:
+			var corner := PsxMath.apply_matrix_sv(m, c)
+			quad.append(project(Vector3i(corner.x + p["x"] - 4, corner.y + p["y"] - 6, corner.z)))
+		p["quad"] = quad
+		var screen: Vector2i = quad[0]
 		var rot: Vector3i = p["rot"]
 		match p["digit"]:
 			0:

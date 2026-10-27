@@ -203,6 +203,7 @@ Three layers; only the middle one knows what an item does, and it knows it from 
   - `apply(item)` (`ITEM_FUNCTIONS[type](type)`, 2.10): dispatched by the item's `handler` property to one function per C handler (`handle_food`, `handle_chips`, …), each reading its numbers from `item_effects` / `healing_values`. A pack can add an item that uses an existing handler with its own values, and no code changes; a new kind of effect is a new handler function;
   - `handle_food_feed(item)` (`partnerHandleFoodFeed`, 2.9), `remove_one(item)` (`removeOneSelectedItem`);
   - the `context` is "field" now; the battle step (5d) calls the same functions with "battle" and adds the battle branches inside the same handlers (throwing, buff disks, status cures).
+    - Done in 5d-4 (`specs/battle.md` "As built (5d-4)"): `Inventory.game_mode` (GAME_STATE) and the `throw_item` signal; `ItemUse.battle` and the item effects' `battle` block.
   - It changes the partner's care values through `Care` (its values, `set_food_timer`, `handle_poop_weight_loss`, the sick message) and the stats in `GameState`. `Care` keeps `ITEM_SCOLD_FLAG` (its praise / scold reads it).
   - This replaces `specs/care.md` §3.4's plan of porting `partnerWillRefuseItem` and `partnerHandleFoodFeed` inside `Care`.
 - **Scene** `scenes/ui/inventory.tscn`: an `Inventory` node (`scripts/ui/inventory.gd`), the inventory object (2.3) and the tick / render functions of boxes 0–3. Opened by `GameMenu` (its state 2) through `MenuHost`, ticked by `MenuHost` after the menu object.

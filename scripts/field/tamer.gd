@@ -108,6 +108,8 @@ var open_menu := Callable()
 var stored_position := Vector3.ZERO
 ## TAMER_ITEM.worldItem.type: the item he hands the partner (specs/inventory.md §2.7); "" = none.
 var held_item := ""
+## The held item's own point while it flies (show_held_item_at); null: in the hand.
+var _held_point: Variant = null
 ## renderFeedingItem (game_menu.c:2245): the held item's icon at his hand (bone 9), like an item on
 ## the ground (a 128-unit square facing the camera), while the feeding scene shows it.
 const HAND_BONE := 9
@@ -181,7 +183,7 @@ func _process(delta: float) -> void:
 	if Engine.is_editor_hint() or _player == null or field == null:
 		return
 	if _held_icon != null and _held_icon.visible:
-		_held_icon.global_position = bone_position(HAND_BONE)
+		_held_icon.global_position = bone_position(HAND_BONE) if _held_point == null else _held_point
 	# the sound events the last frame's advance passed (every path below advances the player)
 	_sounds.update(_player)
 	var motion := Vector3.ZERO
@@ -626,9 +628,18 @@ func show_held_item(on: bool) -> void:
 		_held_icon.visible = false
 
 
+## renderThrownItem: the held item at a point of its own (the item thrown in battle), Godot units.
+func show_held_item_at(point: Vector3) -> void:
+	show_held_item(true)
+	_held_point = point
+	if _held_icon != null:
+		_held_icon.global_position = point
+
+
 ## removeTamerItem (item.c:2677).
 func clear_held_item() -> void:
 	held_item = ""
+	_held_point = null
 	show_held_item(false)
 
 

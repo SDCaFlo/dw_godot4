@@ -22,7 +22,9 @@ var inventory_closer := Callable()
 var fader := Callable()
 var drop_spawner := Callable()
 var map_sound_loader := Callable()
-var item_in_air := func() -> bool: return false
+## Throwing items: the item rules (ItemUse with `battle` set) and the tamer, who draws the item.
+var item_user := Callable()
+var tamer: Tamer
 
 ## COMBAT_AREA_X / Y: the screen centre (160 - DRAWING_OFFSET).
 var _area := Vector2(160, 120)
@@ -47,12 +49,13 @@ func is_on_map(id: int) -> bool:
 	return n != null and bool(n.get("on_map"))
 
 
+## entity->isOnScreen: only the NPCs' field tick sets it (NPCEntityTickOverworld, overworld.c:1352),
+## so through a battle it keeps its value from the battle's start. An enemy on screen then leaves
+## the map after the battle even once it has run off (BTL_deinitializeCombat).
 func is_on_screen(id: int) -> bool:
 	var n := _node(id)
 	if n == null:
 		return false
-	if n is Npc:
-		(n as Npc).update_on_screen()
 	return bool(n.get("on_screen"))
 
 
@@ -192,6 +195,10 @@ func learn_move(t: int) -> void:
 	game_state.learn_move(t)
 
 
+func money_held() -> int:
+	return int(game_state.state["money"])
+
+
 func add_money(n: int) -> void:
 	game_state.state["money"] = mini(int(game_state.state["money"]) + n, 999999)
 
@@ -238,6 +245,9 @@ func set_animation_playing(id: int, playing: bool) -> void:
 
 
 func animation_frame(id: int) -> int:
+	var n := _node(id)
+	if n is Tamer:
+		return (n as Tamer).scene_frame()
 	var a := _animator(id)
 	return a.frame if a != null else 0
 
@@ -276,7 +286,8 @@ func check_collision(id: int, source: int, w: int, h: int) -> int:
 	var n := _node(id)
 	if n == null:
 		return FREE
-	var step_length := float(n.get("step"))
+	# entityMoveForward: the animation's signed forward momentum (a Digimon's), else the step.
+	var step_length := float(n.get("forward_step")) if n.get("forward_step") != null else float(n.get("step"))
 	var vy := rotation_y(id)
 	var angle := (vy - 0x800) * PI / 0x800
 	var dx := float(int(sin(angle) * step_length))
@@ -487,8 +498,43 @@ func exit_flee_point() -> Vector3i:
 	return Vector3i(roundi(p.x) + out.x, 0, roundi(-p.z) + out.z)
 
 
-func tamer_item_in_air() -> bool:
-	return item_in_air.call()
+func project(pos: Vector3i) -> Vector3i:
+	if field_map == null:
+		return super.project(pos)
+	var g := Vector3(pos.x, -pos.y, -pos.z)
+	var s := field_map.background_pixel(g) - field_map.scroll
+	return Vector3i(int(s.x) - 160, int(s.y) - 120, roundi(field_map.view_depth(g)))
+
+
+func projection_distance() -> int:
+	return roundi(field_map.projection()) if field_map != null else super.projection_distance()
+
+
+func bone_location(id: int, bone: int) -> Vector3i:
+	var n := _node(id)
+	if n == null or not n.has_method("bone_position"):
+		return location(id)
+	var p: Vector3 = n.call("bone_position", bone)
+	return Vector3i(roundi(p.x), roundi(-p.y), roundi(-p.z))
+
+
+func show_thrown_item(item: Variant, pos: Vector3i) -> void:
+	if tamer == null:
+		return
+	if item == null:
+		tamer.clear_held_item()
+		return
+	tamer.held_item = str(item)
+	tamer.show_held_item_at(Vector3(pos.x, -pos.y, -pos.z))
+
+
+func remove_item(item: Variant) -> void:
+	game_state.remove_item(item, 1)
+
+
+func use_item(item: Variant) -> void:
+	if item_user.is_valid():
+		item_user.call(item)
 
 
 func inventory_open() -> bool:
@@ -531,3 +577,5 @@ func end_frame() -> void:
 	for n in entities.table():
 		if n != null and n.get("step") != null:
 			n.set("step", 0.0)
+		if n != null and n.get("forward_step") != null:
+			n.set("forward_step", 0.0)

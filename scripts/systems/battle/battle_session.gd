@@ -30,6 +30,8 @@ var effects: EffectHost
 var data: Node
 var rewards: BattleRewards
 var start_text: BattleStartText
+## TAMER_ITEM: the item thrown to the partner (§2.18).
+var thrown: BattleThrownItem
 
 var phase := Phase.LOADING
 var outcome := 1
@@ -66,6 +68,7 @@ func _init(battle_world: BattleWorld, effect_host: EffectHost, game_data: Node) 
 	battle = Battle.new(world, effects, data)
 	rewards = BattleRewards.new(battle)
 	start_text = BattleStartText.new(data)
+	thrown = BattleThrownItem.new(data)
 
 
 func is_done() -> bool:
@@ -79,6 +82,10 @@ func begin(talked_entity: int) -> void:
 	talked = talked_entity
 	battle.game_state = 1
 	handle_battle_start(talked_entity)
+	# In the C a battle always has an enemy: the Digimon talked to (it never flees) or a key fight's
+	# list. Without one (a bad talked-to id, an empty list) nothing could end it: say so.
+	if entity_ids.size() < 2 or not world.entity_present(entity_ids[1]):
+		battle.visual.emit("debug", ["no enemy in this battle (talked to %d, fighters %s)" % [talked_entity, entity_ids]])
 	_load_data()
 
 
@@ -203,10 +210,10 @@ func _finish_loading() -> void:
 		s["current"]["unk1"] = -1
 		s["current"]["efe_sub_effect"] = -1
 		for j in 4:
-			var anim = s["base"]["moves"][j]
-			if anim == null or int(anim) == 0xFF:
+			var anim := battle.anim_of_move(s["base"]["moves"][j], e)
+			if anim == 0xFF:
 				continue
-			var t := battle.technique_of(e, int(anim))
+			var t := battle.technique_of(e, anim)
 			if t == 0xFF:
 				s["base"]["moves"][j] = null
 			else:
@@ -372,7 +379,7 @@ func is_battle_finished() -> bool:
 				if not f.has(BattleFighter.DEAD) or f.hp() - f.hp_damage > 0:
 					f.move_range = 0
 	if anim == Battle.ANIM_FAINT and not world.animation_playing(PARTNER):
-		if not world.tamer_item_in_air():
+		if not thrown.active():
 			battle.death_countdown += 1
 		if battle.death_countdown == 0x14:
 			battle.countdown_shown = true
@@ -389,6 +396,7 @@ func is_battle_finished() -> bool:
 
 func _objects() -> void:
 	tamer_tick_battle()
+	tick_thrown_item()
 	if effects != null:
 		effects.tick()
 	battle.tick_finisher_chargeup()
@@ -418,6 +426,40 @@ func _tick_command_menu() -> void:
 
 func command_menu_steps() -> Vector2i:
 	return Vector2i(_menu_x, _menu_y)
+
+
+## BTL_COMMAND_MENU_ACTIVE == 1 (the partner's status bars slide with it).
+func command_menu_active() -> bool:
+	return _menu_active
+
+
+# --- items in battle (§2.18) ----------------------------------------------------------------------
+
+## startThrowingItem (main.c:4236): the tamer throws, the item leaves the bag and rides his hand.
+func throw_item(item: Variant) -> void:
+	if thrown.active():
+		return
+	world.start_animation(TAMER, Battle.TAMER_THROW)
+	thrown.start(item, world.bone_location(TAMER, BattleThrownItem.HAND_BONE))
+	world.remove_item(item)
+	world.show_thrown_item(item, thrown.location)
+
+
+## tickThrownItem / renderThrownItem: on landing, the item's function (battle branches), the item
+## particles, the hands free again.
+func tick_thrown_item() -> void:
+	if not thrown.active():
+		return
+	var landed := thrown.tick(world.animation_id(TAMER), world.animation_frame(TAMER),
+			world.bone_location(TAMER, BattleThrownItem.HAND_BONE), world.location(PARTNER))
+	if not landed:
+		world.show_thrown_item(thrown.item, thrown.location)
+		return
+	var item = thrown.item
+	thrown.clear()
+	world.show_thrown_item(null, Vector3i.ZERO)
+	world.use_item(item)
+	battle.visual.emit("item_particles", [PARTNER])
 
 
 ## tamerTickBattle (battle_tick.c:235).
@@ -554,8 +596,7 @@ func _deinitialize() -> void:
 		phase = Phase.VICTORY_WAIT
 	else:
 		reset_stats_after_combat()
-		if battle.countdown_shown:
-			battle.visual.emit("countdown", [false])
+		battle.remove_death_countdown()
 		battle.visual.emit("clear_numbers", [])
 		_close_menu()
 

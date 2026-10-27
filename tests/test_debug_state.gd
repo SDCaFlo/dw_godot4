@@ -48,6 +48,9 @@ func _process(_delta: float) -> bool:
 	tab.set_stats([120, 50, 30, 20, 10, 95000])
 	var base: Dictionary = gs.state["partner"]["stats"]["base"]
 	_check(int(base["max_hp"]) == 120 and int(base["speed"]) == 10 and int(base["brains"]) == 999, "the partner's stats, capped")
+	tab.max_stats()
+	_check(int(base["max_hp"]) == 9999 and int(base["offense"]) == 999 and int(base["brains"]) == 999
+			and int(gs.state["partner"]["stats"]["current"]["hp"]) == 9999, "Max all stats: the caps, HP full")
 	_check(tab.give(data.id_of("items/item_data", "dw1:meat"), 5) and gs.item_count("dw1:meat") == 5, "Give: 5 Meat")
 	tab.set_card(1, 4)
 	_check(gs.card_count(1) == 4, "a card count")

@@ -211,6 +211,11 @@ func learn_move(_technique: int) -> void:
 	pass
 
 
+## MONEY (the final balance box).
+func money_held() -> int:
+	return 0
+
+
 ## MONEY += n (capped at 999,999).
 func add_money(_n: int) -> void:
 	pass
@@ -241,9 +246,37 @@ func exit_flee_point() -> Vector3i:
 	return Vector3i.ZERO
 
 
-## The tamer's thrown item is in the air (TAMER_ITEM.worldItem.type != 0xff).
-func tamer_item_in_air() -> bool:
-	return false
+## worldPosToScreenPos with GsWSMATRIX (the HUD's points over the fighters): x, y on the screen
+## (relative to its centre) and z the view depth.
+func project(pos: Vector3i) -> Vector3i:
+	var r := world_to_screen(pos)
+	return Vector3i(r["screen"].x, r["screen"].y, r["sz"])
+
+
+## VIEWPORT_DISTANCE as `project` uses it (the field camera's H).
+func projection_distance() -> int:
+	return viewport_distance()
+
+
+## An entity's bone position (posData[bone].posMatrix.workm.t), PSX world units.
+func bone_location(id: int, _bone: int) -> Vector3i:
+	return location(id)
+
+
+## The thrown item drawn at `pos` (renderThrownItem: renderOverworldItem); `item` null hides it.
+## While it shows, the tamer's hands are taken (TAMER_ITEM), so the inventory won't open.
+func show_thrown_item(_item: Variant, _pos: Vector3i) -> void:
+	pass
+
+
+## removeItem(item, 1): one leaves the bag (startThrowingItem).
+func remove_item(_item: Variant) -> void:
+	pass
+
+
+## ITEM_FUNCTIONS[item](item) with GAME_STATE 1: the item lands on the partner.
+func use_item(_item: Variant) -> void:
+	pass
 
 
 ## UI box 0 is open (the inventory).

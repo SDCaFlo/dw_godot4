@@ -22,6 +22,9 @@ class StubWorld extends BattleWorld:
 	var waypoints := {"x": [], "y": [], "start_tile": [50, 50], "current": 0, "count": 0, "active": 0}
 	var drops: Array = []
 	var fades := 0
+	var used_items: Array = []
+	var removed_items: Array = []
+	var thrown_at: Array = []
 	const LOOPS := [0x21, 0x22, 0x23, 0x24, 1, 3, 0xA]
 
 	func add(id: int, type: int, location: Vector3i, base := {}, record := {}) -> void:
@@ -198,6 +201,16 @@ class StubWorld extends BattleWorld:
 	func spawn_drop(entity: int, item: int) -> void:
 		drops.append([entity, item])
 
+	func use_item(item: Variant) -> void:
+		used_items.append(item)
+
+	func remove_item(item: Variant) -> void:
+		removed_items.append(item)
+
+	func show_thrown_item(item: Variant, pos: Vector3i) -> void:
+		if item != null:
+			thrown_at.append(pos)
+
 	## After each game frame: the animations advance (twice at double speed), walkers move.
 	func advance() -> void:
 		for id in entities:
@@ -214,7 +227,7 @@ class StubWorld extends BattleWorld:
 						e["playing"] = false
 				else:
 					e["frame"] += 1
-			e["on_screen"] = not is_off_screen(id, 320, 240)
+			# isOnScreen: only the NPCs' field tick updates it, never during a battle.
 
 
 var _failed := 0
@@ -237,6 +250,9 @@ func _init() -> void:
 	_test_win()
 	_test_run()
 	_test_loss()
+	_test_thrown_item()
+	_test_item_effects()
+	_test_move_keys()
 	data.free()
 	print("%s: battle checks (%d run)" % ["FAILED %d" % _failed if _failed else "OK", _checks])
 	quit(1 if _failed else 0)
@@ -454,9 +470,10 @@ func _test_win() -> void:
 			gained = true
 	_eq(int(w.stats(1)["base"]["max_hp"]), s.battle.initial_stats[0][0], "the partner's stats are the starting stats plus the gains")
 	print("win: %d frames, gains applied: %s, stats %s" % [frames, gained, s.battle.initial_stats[0]])
-	# BTL_deinitializeCombat: an NPC on screen leaves the map, one off screen stays on it (the
-	# defeated enemy ran off screen to its flee point).
-	_eq([w.entities[2]["on_screen"], w.entities[2]["on_map"]], [false, true], "the defeated enemy ran off and stays on the map")
+	# BTL_deinitializeCombat: an NPC on screen at the battle's start (isOnScreen isn't updated in
+	# battle) leaves the map, even after it ran off screen (ISSUES.md I-25).
+	_eq(w.is_off_screen(2, 320, 240), true, "the defeated enemy ran off screen")
+	_eq(w.entities[2]["on_map"], false, "the defeated enemy leaves the map")
 
 
 func _test_run() -> void:
@@ -484,3 +501,135 @@ func _test_loss() -> void:
 	_run(s, w, 8000)
 	_eq(s.outcome, -1, "a weak partner loses")
 	_eq(int(w.stats(1)["current"]["hp"]), 0, "the partner fainted")
+
+
+# --- items in battle (§2.18) ------------------------------------------------------------------------
+
+func _test_thrown_item() -> void:
+	var t := BattleThrownItem.new(data)
+	var hand := Vector3i(10, -300, 0)
+	var target := Vector3i(0, 0, -480)
+	t.start(0, hand)
+	# Frames 1-6 of the throw (animation 6): in the hand.
+	for f in range(1, 7):
+		_eq(t.tick(BattleThrownItem.THROW_ANIM, f, hand, target), false, "the item rides the hand at frame %d" % f)
+	_eq(t.location, hand, "the item is at the hand while held")
+	var frames := 0
+	var landed := false
+	while not landed and frames < 40:
+		landed = t.tick(BattleThrownItem.THROW_ANIM, 7 + frames, hand, target)
+		frames += 1
+		if frames == 1:
+			_eq(t.location, Vector3i(10, -240, 0), "the first flight frame only rises (ITEM_THROW_HEIGHT[0])")
+	_eq(frames, 24, "the item lands after 24 flight frames")
+	# x: each step is the remaining distance / (25 - t), truncated: it ends 1 short, as in the C.
+	_eq(t.location.x, 1, "the item ends at the partner (1 unit short)")
+	# In a battle: the throw takes the item from the bag, and it lands through use_item.
+	var w := _world()
+	var s := _session(w)
+	Rng.set_seed(42)
+	s.begin(2)
+	var guard := 0
+	while s.phase != BattleSession.Phase.FIGHT and guard < 400:
+		s.frame(0)
+		w.advance()
+		guard += 1
+	var landed_at := -1
+	for n in 200:
+		if s.phase != BattleSession.Phase.FIGHT:
+			break
+		if n == 0:
+			s.throw_item("dw1:sm_recovery")
+			_eq(w.entities[0]["anim"], Battle.TAMER_THROW, "the tamer throws (animation 6)")
+			_eq(w.removed_items, ["dw1:sm_recovery"], "the thrown item leaves the bag")
+			_eq(s.thrown.active(), true, "the item is in the air")
+		s.frame(0)
+		w.advance()
+		if not w.used_items.is_empty() and landed_at < 0:
+			landed_at = n
+	_eq(w.used_items, ["dw1:sm_recovery"], "the item's function runs when it lands")
+	# Held through frames 1-6 (the stub's animation counts from 1), then 24 in the air.
+	_eq(landed_at, 29, "it lands 30 frames after the throw")
+
+
+## A stand-in for GameState: the partner's stats and care values.
+class StubState extends Node:
+	var state := {}
+
+	func remove_item(_item: Variant, _amount: int) -> void:
+		pass
+
+
+func _test_item_effects() -> void:
+	var w := _world()
+	var b := Battle.new(w, null, data)
+	b.initialize_combat([1, 2])
+	var events := []
+	b.visual.connect(func(kind: String, args: Array) -> void: events.append([kind, args]))
+	var gs := StubState.new()
+	gs.state = {"partner": {"stats": w.stats(1), "care": {"condition": 0}}}
+	var use := ItemUse.new()
+	use.game_state = gs
+	use.data = data
+	use.battle = b
+	var base: Dictionary = w.stats(1)["base"]
+	# Off. Disk +20, S.Off.disk +50, then capped at 1.3 x the starting 300 = 390; the Omni Disk isn't capped.
+	use.apply(0xF)
+	_eq(int(base["offense"]), 320, "Off. Disk: offense + 20")
+	use.apply(0x13)
+	_eq(int(base["offense"]), 370, "S.Off.disk: offense + 50")
+	use.apply(0x13)
+	_eq(int(base["offense"]), 390, "a capped disk stops at 1.3 x the battle's starting offense")
+	use.apply(0x12)
+	_eq([int(base["offense"]), int(base["defense"]), int(base["speed"])], [410, 220, 220], "the Omni Disk adds 20 to each, uncapped")
+	_eq(events.filter(func(e): return e[0] == "number").back()[1], [1, 0, 0xB, 20, 5], "the disk's numbers over the partner (icon 5: speed)")
+	_eq(events.back()[0], "buff_disk", "the disk's effect shows")
+	# Various cures the statuses with the rings; Protection protects.
+	b.fighters[0].flags |= BattleFighter.POISONED
+	events.clear()
+	use.apply(8)
+	_eq(b.fighters[0].has(BattleFighter.POISONED), false, "Various cures poison")
+	_eq(events.any(func(e): return e[0] == "buff_rings"), true, "Various shows the rings")
+	use.apply(10)
+	_eq(b.fighters[0].has(BattleFighter.PROTECTED), true, "Protection protects from statuses")
+	# Restore on a fainted partner: the countdown goes, it gets up, half its HP back with the number.
+	b.fighters[0].set_hp(0)
+	b.countdown_shown = true
+	events.clear()
+	use.apply(0xB)
+	_eq(b.countdown_shown, false, "Restore ends the death countdown")
+	_eq(w.entities[1]["anim"], Battle.ANIM_GET_UP, "Restore gets a fainted partner up (0x2C)")
+	_eq(b.fighters[0].hp(), 400, "Restore: half the max HP")
+	_eq(events.any(func(e): return e[0] == "number" and e[1] == [1, 0, 0xB, 400, 1]), true, "Restore's number (icon 1: HP)")
+	# A recovery item in battle shows its number; in the field it doesn't.
+	b.fighters[0].set_hp(100)
+	events.clear()
+	use.apply(0)
+	_eq(events.size(), 1, "a recovery item's number in battle")
+	use.battle = null
+	events.clear()
+	use.apply(0)
+	_eq(events.size(), 0, "no numbers in the field")
+	gs.free()
+
+
+## The partner's equipped moves are technique keys in the game state (specs/game_state.md): the
+## battle reads them as the Digimon's animations (0x2E + slot), like an NPC's ids.
+func _test_move_keys() -> void:
+	var spit_fire_anim = _anim_of(3, "technique")
+	var spit_fire: String = data.key_of("moves/move_data", int(data.digimon(3)["c"]["moves"][int(spit_fire_anim) - 0x2E]))
+	var w := _world({"moves": [spit_fire, null, null, null]})
+	var s := _session(w)
+	Rng.set_seed(42)
+	s.begin(2)
+	var guard := 0
+	while s.phase != BattleSession.Phase.FIGHT and guard < 400:
+		s.frame(0)
+		w.advance()
+		guard += 1
+	var f := s.battle.fighters[0]
+	_eq(f.move_anim(0), int(spit_fire_anim), "a technique key reads as its animation (%s)" % spit_fire)
+	_eq(w.stats(1)["base"]["moves"][0], spit_fire, "the key stays in the stats")
+	_eq(f.effect_slot[0] >= 0, true, "the technique's effect is loaded")
+	var frames := _run(s, w, 6000)
+	_eq(s.outcome, 1, "a partner with a key-equipped technique wins (%d frames)" % frames)

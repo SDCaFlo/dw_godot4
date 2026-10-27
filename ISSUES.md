@@ -18,12 +18,43 @@ Reported 2026-10-25.
 
 Reported 2026-10-26.
 
+### I-23. A new game's partner fights with 0 stats
+- **Seen:** in battle the partner does nothing, faints at once, and a Restore brings it back with 0 HP (reported 2026-10-26 with step 5d-4, new game on MAYO04A).
+- **What the original does:** the new game's stats come from File City's script after the intro (DG script 193, section 55: `SET_STAT` Off 80, Def 60, Speed 70, Brains 70, HP / MP 800 / 600 for Agumon; 70 / 80 / 60 / 70, 700 / 700 for Gabumon). `initializePartner` sets only the moves.
+- **Cause:** the port starts a new game straight on a map (`Field.start_map`), without the intro and File City's scenes (step 4e), so the default record's stats stay 0.
+- **Status:** open until the intro (4e). Decided 2026-10-26: no stand-in; the debugger's State tab has **Max all stats** (every base stat at its cap, HP / MP full) for testing battles.
+
+### I-24. A battle that never starts (Native Forest)
+- **Seen:** on MAYO04A, a sky-blue face (the "flees" bubble) over an Aruraumon, then the battle never started, for minutes (reported 2026-10-26 with step 5d-4). Expected: the Digimon you talk to always fights (red face); only the others may flee, so a battle always has an enemy, except key fights, which have their own list.
+- **What the original does:** `handleBattleStart` (`btl.c:209`) puts the talked-to Digimon first in the fight with the "joins" bubble before rolling the others; a key fight (script value 0xFA) takes its enemies from script values 0xFB-0xFD and gives every other Digimon on screen the "flees" bubble. The intro then waits until every runner has left the screen.
+- **Checked:** the bubbles' faces are right (type 0 red, type 1 sky blue); the port's start is the C's; on MAYO04A a fight through Aruraumon's talk section, one next to Etemon's tree, and the Etemon ambush (section 0x33, a key fight against the hidden Etemon, entity 2) all start and end in `tests/battle_scan.tscn`. MAYO04A has, besides the Aruraumon, a hidden Etemon (entity 2) up in a tree (y -1000), the ambush's enemy.
+- **Since then:** the help line names each phase a battle enters ("battle: INTRO"…), and a battle without an enemy says so.
+- **Status:** could not reproduce (2026-10-26): pending further evidence. Possibly linked to the 0-stat partner of a new game (I-23); if it happens again, note where, how the battle began and the last "battle: …" line on the help line.
+
 ### I-21. Recovery items show no healing effect
 - **Seen:** giving the partner a recovery item (e.g. Sm. recovery) heals it, but nothing shows on the partner.
 - **Cause:** the original draws a healing particle effect over the partner (`addHealingParticleEffect(partner, variant)`, `main/particle.c:209`), called by the item handlers (`item.c:2236`, `:2242`, `:2348`, `:2362`, `:2373`; variants `HEAL_EFFECT_VARIANT`). The inventory step left it for later (`specs/inventory.md` §6: "with the effects"); it was not in the plans.
-- **Status:** open. A small field effect of its own (main binary, not the battle's effect engine): planned in `PLANS.md` (5e follow-ups).
+- **Status:** open. A small field effect of its own (main binary, not the battle's effect engine): planned in `PLANS.md` (5e follow-ups). Since 5d-4 the item handlers emit `ItemUse.healing_effect(variant)` where the C calls it (field and battle); nothing draws it yet.
 
 ## Fixed
+
+### I-26. A hit throws the fighter out of the map
+- **Seen:** a hit knocks a fighter through the fence, out of the walkable map; it can't come back (reported 2026-10-26 with step 5d-4; `issues/evidence/dw_issue_battle_stuck_corner.png`, `dw_issue_battle_stuck_corner_2.png`).
+- **What the original does:** every frame of the hit state, `BTL_tickFighterAction` probes the fighter's next step (`entityCheckCollision(NULL, fighter, 0x118, 0xC8)`: the combat area, the map, the others) and holds it on any hit. The step is the animation's own forward momentum (`entityMoveForward`, `map.c:3677`), signed: a knock-back slides backwards, so the probe looks behind.
+- **Cause:** the port probed with the length of the last frame's motion, always forwards, so a backwards slide never saw the fence; and a held frame recorded no motion, so the next frame's probe saw none and let it move again.
+- **Status:** fixed (2026-10-26): `FieldDigimon.forward_step` (the signed forward momentum, held or not) is what `FieldBattleWorld.check_collision` probes with. `tests/battle_scan.tscn` checks no fighter stands on a blocking cell: with the old probe 3 of 4 maps failed (up to 188 frames out of the map), now none.
+
+### I-25. A defeated enemy comes back
+- **Seen:** an enemy that ran away after losing stays on the map, walks back later and can be fought again (reported 2026-10-26 with step 5d-4).
+- **What the original does:** `BTL_deinitializeCombat` takes every NPC whose `isOnScreen` is set off the map. Only the NPCs' field tick updates that flag (`overworld.c:1352`; their battle tick only animates), so it keeps its value from the battle's start: the enemies on screen then are taken off the map, even though they have run off screen by the end.
+- **Cause:** the port recomputed the flag live, so an enemy that had run off counted as off screen and stayed (the 5d-3 test even expected it).
+- **Status:** fixed (2026-10-26): `FieldBattleWorld.is_on_screen` reads the flag as the field tick left it; `tests/test_battle.gd` and `tests/battle_scan.tscn` check the defeated enemy leaves the map.
+- **Then (retest):** it no longer came back, but its footsteps could still be heard. Off the map in the original, the entity keeps its slot but nothing ticks it: `NPCEntityTick` returns before its animation (`overworld.c:1122`) and `renderDigimon` skips it (`model.c:2891`). The port only hid the node: its flee run kept animating, moving it by root motion and playing its steps (they play while `isOnScreen`, frozen from the battle's start). Fixed: `Npc._process` does nothing off the map; `tests/battle_scan.tscn` checks the defeated entity no longer moves (fails on all 3 maps without the fix). The node isn't freed, as the C keeps the entity: a script can still find it by its script id, a `SET_DIGIMON` brings it back, and the next map frees it (`removeMapEntities`).
+
+### I-22. The partner's equipped techniques didn't work in battle
+- **Seen:** with a technique equipped the partner still didn't use it (reported 2026-10-26 with step 5d-4).
+- **Cause:** the game state keeps the equipped moves as technique keys (`specs/game_state.md`), but the battle read them as the C's animation ids (0x2E + slot): a key read as 0, no technique, and the slot was cleared. The tests and the battle scan gave the partner animation ids, so they didn't see it.
+- **Status:** fixed (2026-10-26): `Battle.anim_of_move` turns a key into its animation for the fighter's Digimon (`BattleFighter.move_anim`, the loading); `tests/test_battle.gd` fights with a key-equipped technique.
 
 ### I-20. Battle start: the tamer runs off the screen
 - **Seen:** when a battle starts after walking about the map, the tamer runs towards where he entered the map and leaves the screen (reported 2026-10-26 with step 5d-3).

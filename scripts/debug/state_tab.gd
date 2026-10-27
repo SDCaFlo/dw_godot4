@@ -5,7 +5,8 @@ extends ScrollContainer
 ## - triggers: one by number, set / clear, and the list of the set ones;
 ## - script values (readPStat / writePStat), bits and merit points;
 ## - items (give / remove) and cards (their count);
-## - the partner's six base stats (to try the training thresholds);
+## - the partner's six base stats (to try the training thresholds), or all at their caps with full
+##   HP / MP ("Max all stats": a new game starts with 0 until the intro is ported, ISSUES.md I-23);
 ## - unlocks: presets built from the data (every trigger a table gates on, e.g. all of Birdramon's
 ##   destinations), so a mod's tables give their own presets.
 
@@ -136,7 +137,9 @@ func _stats_part(box: Control) -> void:
 	var row := _row(box)
 	for i in Training.STATS.size():
 		_stats.append(_spin(row, 0, Training.stat_cap(i), 70))
-	_button(_row(box), "Apply stats", func(): set_stats(_stats.map(func(spin): return int(spin.value))))
+	var buttons := _row(box)
+	_button(buttons, "Apply stats", func(): set_stats(_stats.map(func(spin): return int(spin.value))))
+	_button(buttons, "Max all stats", max_stats)
 
 
 func _items_part(box: Control) -> void:
@@ -213,6 +216,18 @@ func set_stats(values: Array) -> void:
 	var base: Dictionary = game_state.state["partner"]["stats"]["base"]
 	for i in mini(values.size(), Training.STATS.size()):
 		base[Training.STATS[i]] = clampi(int(values[i]), 0, Training.stat_cap(i))
+	game_state.changed.emit("partner")
+
+
+## Every base stat at its cap, HP and MP full (this session's state; it lasts only if saved).
+func max_stats() -> void:
+	var caps := []
+	for i in Training.STATS.size():
+		caps.append(Training.stat_cap(i))
+	set_stats(caps)
+	var stats: Dictionary = game_state.state["partner"]["stats"]
+	stats["current"]["hp"] = int(stats["base"]["max_hp"])
+	stats["current"]["mp"] = int(stats["base"]["max_mp"])
 	game_state.changed.emit("partner")
 
 

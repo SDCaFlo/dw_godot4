@@ -48,6 +48,10 @@ var frozen := false
 ## Ground distance the root motion moved during the last game frame: the step entityMoveForward
 ## probes with (the animation's forward momentum; 0 while idling).
 var step := 0.0
+## The animation's forward momentum over the last game frame, signed along the facing (a
+## knock-back slides backwards: negative), held or not: what entityMoveForward probes with in
+## battle (the momentum's z delta, map.c:3677).
+var forward_step := 0.0
 ## animFlag & 2: the root motion is held this frame (the step ran into the tamer).
 var step_blocked := false
 ## animFlag & 0x78: the BLOCK_* directions collisionGrace found blocked this frame.
@@ -94,6 +98,8 @@ func _process(delta: float) -> void:
 		return
 	var motion := _skeleton.global_basis * animator.advance(delta)
 	sounds.update(animator.player)
+	var angle := (direction - 0x800) * PI / 0x800
+	forward_step += motion.x * sin(angle) - motion.z * cos(angle)
 	if step_blocked:
 		return
 	step += Vector2(motion.x, motion.z).length()

@@ -6,8 +6,9 @@ extends RefCounted
 ## item_effects; healing_values), never its id. The inventory asks it, the feeding scene calls it.
 ##
 ## Effects dispatch on the item's `handler` (ITEM_FUNCTIONS[type](type)): a pack's new item can
-## use an existing handler with its own values. Field branches only (GAME_STATE 0): the battle step
-## adds its own inside the same handlers.
+## use an existing handler with its own values. The battle branches (GAME_STATE 1, specs/battle.md
+## §2.18) run inside the same handlers while `battle` is set (a thrown item landing on the partner),
+## and read the item effect's `battle` block.
 
 const FIELD := "field"
 const BATTLE := "battle"
@@ -21,10 +22,22 @@ const HANDLERS := {
 	"handleHPHealingItem": "_handle_hp_healing", "handleMPHealingItem": "_handle_mp_healing",
 	"handleDoubleFloppy": "_handle_double_floppy", "handleStatusItems": "_handle_status_items",
 	"handleRestore": "_handle_restore", "handleChips": "_handle_chips", "handleFood": "_handle_food",
-	"handleEvoItems": "_handle_evo_items",
+	"handleEvoItems": "_handle_evo_items", "handleBuffDisks": "_handle_buff_disks",
 }
 ## The partner's food animation when it liked it (partnerHandleFoodFeed).
 const ANIM_HAPPY := 0x0B
+## The numbers over the partner in battle (addEntityText): colour 0xB, icon 1 HP / 2 MP.
+const NUMBER_COLOR := 0xB
+const ICON_HP := 1
+const ICON_MP := 2
+## handleBuffDisks: a capped gain stops at 1.3 x the stat at the battle's start.
+const BUFF_CAP_NUM := 3
+const BUFF_CAP_DEN := 10
+## INITIAL_COMBAT_STATS' order.
+const INITIAL_STATS := {"offense": 2, "defense": 3, "speed": 4}
+
+## addHealingParticleEffect(partner, variant): the healing sparkles (ISSUES.md I-21, drawn later).
+signal healing_effect(variant: int)
 
 var game_state: Node
 var data: Node
@@ -34,6 +47,8 @@ var clock: Clock
 ## The script interpreter and state (Auto Pilot runs a script section).
 var interpreter: ScriptInterpreter
 var script_ctx: ScriptContext
+## The battle while a thrown item lands (GAME_STATE 1); null in the field.
+var battle: Battle
 
 
 # --- where (getItemOptionColor, selectOptionMenu) ----------------------------------------------
@@ -141,36 +156,54 @@ func apply(item: Variant) -> bool:
 ## handleHPHealingItem (item.c:2377): unless HP is 0, HP + HEALING_VALUES[id].
 func _handle_hp_healing(item: Variant) -> void:
 	if _current("hp") != 0:
-		_heal("hp", int(_values(item).get("heal", 0)))
+		var values := _values(item)
+		_heal("hp", int(values.get("heal", 0)))
+		_battle_number(int(values.get("heal", 0)), ICON_HP)
+		healing_effect.emit(int(values.get("effect_variant", 0)))
 
 
 ## handleMPHealingItem (item.c:2366).
 func _handle_mp_healing(item: Variant) -> void:
 	if _current("hp") != 0:
-		_heal("mp", int(_values(item).get("heal", 0)))
+		var values := _values(item)
+		_heal("mp", int(values.get("heal", 0)))
+		_battle_number(int(values.get("heal", 0)), ICON_MP)
+		healing_effect.emit(int(values.get("effect_variant", 0)))
 
 
 ## handleDoubleFloppy (item.c:2351): unless HP is 0, HP and MP + 1500.
 func _handle_double_floppy(item: Variant) -> void:
 	if _current("hp") != 0:
 		var values := _values(item)
-		_heal("hp", int(values.get("heal_hp", 1500)))
-		_heal("mp", int(values.get("heal_mp", 1500)))
+		_double_floppy(int(values.get("heal_hp", 1500)), int(values.get("heal_mp", 1500)))
 
 
-## handleStatusItems (item.c:2218), field branches: 9 is a Double floppy outside battle; 13 / 14
-## call handleMedicineHealing with their chances (item_effects `code`). 8 and 10 are battle items.
+## handleStatusItems (item.c:2218): 9 heals as a Double floppy (and cures the statuses in battle);
+## 13 / 14 call handleMedicineHealing with their chances (item_effects `code`); in battle, the
+## `battle` block cures the statuses (8) or protects from them (10).
 func _handle_status_items(item: Variant) -> void:
 	if _current("hp") == 0:
 		return
 	var effect: Dictionary = data.item_effect(item)
 	var code := " ".join(effect.get("code", []))
+	_battle_cure(item)
+	if battle != null and effect.get("battle", {}).get("protect", false):
+		battle.fighters[0].flags |= BattleFighter.PROTECTED
 	var medicine := RegEx.create_from_string("handleMedicineHealing\\((\\d+),(\\d+)\\)").search(code)
 	if medicine != null:
-		handle_medicine_healing(int(medicine.get_string(1)), int(medicine.get_string(2)))
+		if handle_medicine_healing(int(medicine.get_string(1)), int(medicine.get_string(2))):
+			healing_effect.emit(0)
 	elif code.contains("handleDoubleFloppy"):
-		_heal("hp", 1500)
-		_heal("mp", 1500)
+		_double_floppy(1500, 1500)
+
+
+## handleDoubleFloppy's body: HP and MP, their numbers in battle, the sparkles.
+func _double_floppy(hp: int, mp: int) -> void:
+	_heal("hp", hp)
+	_heal("mp", mp)
+	_battle_number(hp, ICON_HP)
+	_battle_number(mp, ICON_MP)
+	healing_effect.emit(0)
 
 
 ## handleMedicineHealing (item.c:2937): injured -> cured when random(3) < injury_chance; sick ->
@@ -187,11 +220,60 @@ func handle_medicine_healing(injury_chance: int, sickness_chance: int) -> bool:
 	return false
 
 
-## handleRestore (item.c:2315), field: HP + the item's `amount` (12: 9999), or half the max HP when
-## the case computes it (11, a battle item).
+## handleRestore (item.c:2315): HP + the item's `amount` (12: 9999), or half the max HP when the
+## case computes it (11). In battle it ends the death countdown and a fainted partner gets up
+## (animation 0x2C; BTL_isBattleFinished then revives it).
 func _handle_restore(item: Variant) -> void:
+	if battle != null:
+		battle.remove_death_countdown()
+		if _current("hp") == 0:
+			battle.world.start_animation(battle.fighters[0].entity, Battle.ANIM_GET_UP)
 	var values := _values(item)
-	_heal("hp", int(values["amount"]) if values.has("amount") else _base("max_hp") / 2)
+	_battle_cure(item)
+	var amount := int(values["amount"]) if values.has("amount") else _base("max_hp") / 2
+	_heal("hp", amount)
+	_battle_number(amount, ICON_HP)
+	healing_effect.emit(1)
+
+
+## handleBuffDisks (main.c:4293), battle only: each stat of the `buff` block up by its amount,
+## a capped one only up to 1.3 x its value at the battle's start; the numbers; the disk effect.
+func _handle_buff_disks(item: Variant) -> void:
+	if _current("hp") == 0 or battle == null:
+		return
+	var buff: Dictionary = data.item_effect(item).get("battle", {}).get("buff", {})
+	var base: Dictionary = _stats()["base"]
+	for stat in ["offense", "defense", "speed"]:
+		if not buff.has(stat):
+			continue
+		var b: Dictionary = buff[stat]
+		var gain := int(b["amount"])
+		if b.get("capped", false):
+			var start := int(battle.initial_stats[0][INITIAL_STATS[stat]])
+			var limit := mini(start + start * BUFF_CAP_NUM / BUFF_CAP_DEN, MAX_STAT)
+			if int(base[stat]) + gain > limit:
+				gain = limit - int(base[stat])
+		# BTL_buffStats: addWithLimit(stat, gain, 999) and the number.
+		base[stat] = mini(int(base[stat]) + gain, MAX_STAT)
+		battle.visual.emit("number", [battle.fighters[0].entity, 0, NUMBER_COLOR, gain, int(b.get("icon", 0))])
+	battle.visual.emit("buff_disk", [battle.fighters[0].entity])
+
+
+## In battle, the item's `battle.cure_status`: BTL_healStatusEffect(1) shows the rings, (0) not.
+func _battle_cure(item: Variant) -> void:
+	if battle == null:
+		return
+	match data.item_effect(item).get("battle", {}).get("cure_status", ""):
+		"shown":
+			battle.heal_status_effect(true)
+		"quiet":
+			battle.heal_status_effect(false)
+
+
+## addEntityText(partner, 0, 0xB, value, icon) in battle.
+func _battle_number(value: int, icon: int) -> void:
+	if battle != null:
+		battle.visual.emit("number", [battle.fighters[0].entity, 0, NUMBER_COLOR, value, icon])
 
 
 ## handleChips (item.c:2248): permanent stats with their caps, the DV chips' lifetime and tamer

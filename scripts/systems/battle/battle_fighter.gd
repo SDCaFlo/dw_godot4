@@ -32,6 +32,8 @@ const NO_MOVE := 0xFF
 
 var entity := -1
 var stats: Dictionary = {}
+## func(key) -> int: a technique key's animation for this fighter (Battle.anim_of_move).
+var resolve_move := Callable()
 
 var status_fx := -1
 var effect_slot: Array[int] = [-1, -1, -1, -1]
@@ -94,6 +96,10 @@ func max_hp() -> int:
 	return int(base()["max_hp"])
 
 
+func max_mp() -> int:
+	return int(base()["max_mp"])
+
+
 func offense() -> int:
 	return int(base()["offense"])
 
@@ -110,10 +116,18 @@ func brains() -> int:
 	return int(base()["brains"])
 
 
-## stats.base.moves[slot]: the animation id (0x2E + technique slot), or NO_MOVE.
+## stats.base.moves[slot]: the animation id (0x2E + technique slot), or NO_MOVE. The partner's
+## stats hold technique keys (specs/game_state.md): `resolve_move` turns one into its animation.
 func move_anim(slot: int) -> int:
-	var m = base()["moves"][slot]
-	return NO_MOVE if m == null else int(m)
+	return move_anim_of(base()["moves"][slot])
+
+
+func move_anim_of(m: Variant) -> int:
+	if m == null:
+		return NO_MOVE
+	if m is String:
+		return int(resolve_move.call(m)) if resolve_move.is_valid() else NO_MOVE
+	return int(m)
 
 
 func clear_move(slot: int) -> void:

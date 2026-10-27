@@ -8,6 +8,8 @@ extends Node
 
 signal message(text: String)
 
+const HUD_SCENE := preload("res://scenes/battle/battle_hud.tscn")
+
 var world: Node
 var field_map: FieldMap
 var camera: Camera3D
@@ -19,10 +21,16 @@ var clock: Clock
 var menu_host: MenuHost
 var map_items: MapItems
 var fade: Node
+## The windows the HUD and the inventory draw on.
+var text_area: TextArea
+var boxes: UIBoxes
+## Where the battle HUD goes in the field's HUD (behind the UI boxes); made by the field.
+var hud_slot: Control
 
 var session: BattleSession
 var battle_world: FieldBattleWorld
 var effects: EffectHost
+var hud: BattleHud
 ## GAME_STATE != 0: the field runs only the battle.
 var active := false
 
@@ -31,6 +39,7 @@ var _outcome := 1
 var _pad_previous := 0
 var _tamer_state := 0
 var _partner_state := 0
+var _phase := -1
 
 
 ## startBattle's head: the battle takes the field (camera follow off, the △ menu closed, game time
@@ -61,14 +70,17 @@ func start_battle(talked_entity: int) -> void:
 			map_items.spawn(item, FieldMap.model_tile(at.x, at.z), at.y)
 	battle_world.map_sound_loader = func() -> void:
 		Sound.load_map_sounds(int(GameData.map(GameState.state["world"]["screen"]).get("sound_bank", 0)))
-	battle_world.inventory_opener = func() -> void:
-		message.emit("battle: items in battle come with the battle HUD (5d-4)")
+	battle_world.tamer = tamer
+	_setup_items()
 	PsxMath.setup(GameData)
 	effects = EffectHost.new(battle_world)
 	effects.world = world
 	session = BattleSession.new(battle_world, effects, GameData)
 	session.battle.visual.connect(_on_visual)
+	_hook_items()
+	_start_hud()
 	_pad_previous = GameLoop.pad.polled if GameLoop.pad != null else 0
+	_phase = -1
 	session.begin(talked_entity)
 
 
@@ -80,6 +92,16 @@ func frame() -> void:
 	var pressed := polled & ~_pad_previous
 	_pad_previous = polled
 	session.frame(pressed)
+	# Debug: the help line names each phase the battle enters (a battle stuck in one shows it).
+	if session.phase != _phase:
+		_phase = session.phase
+		message.emit("battle: %s" % BattleSession.Phase.keys()[_phase])
+	# The inventory object (tickInventoryUI): not while the tamer runs away.
+	var inventory := _inventory()
+	if inventory != null and session.battle.current_command != Battle.CMD_RUN:
+		inventory.tick()
+	if hud != null:
+		hud.tick(pressed)
 	battle_world.end_frame()
 	if session.is_done():
 		_finish()
@@ -97,6 +119,10 @@ func battle_outcome() -> int:
 func _finish() -> void:
 	active = false
 	_outcome = session.outcome
+	_unhook_items()
+	if hud != null:
+		hud.queue_free()
+		hud = null
 	var values: Dictionary = GameState.state["partner"]["care"]
 	tamer.set_state(_tamer_state)
 	partner.set_state(_partner_state)
@@ -206,12 +232,82 @@ func item_loss() -> void:
 		GameState.remove_item(item, 0x63)
 
 
-## The battle's visual events: the HUD and effects scenes take them in 5d-4 / 5d-5; for now the
-## help line shows the shouts and the damage.
+## The battle's visual events: the HUD takes its own; the effect visuals (statuses, auras, buffs,
+## item particles) come with 5d-5.
 func _on_visual(kind: String, args: Array) -> void:
-	match kind:
-		"shout":
-			message.emit("command %d" % int(args[0]))
-		"number":
-			if int(args[2]) == 0:
-				message.emit("entity %d: %d damage" % [int(args[0]), int(args[3])])
+	if kind == "debug":
+		message.emit("battle: %s" % args[0])
+		push_warning("BattleHost: %s" % args[0])
+	if hud != null:
+		hud.on_visual(kind, args)
+
+
+# --- the HUD (specs/battle.md §4, §5.2) -------------------------------------------------------------
+
+func _start_hud() -> void:
+	hud = HUD_SCENE.instantiate()
+	hud.session = session
+	hud.world = battle_world
+	hud.text_area = text_area
+	hud.boxes = boxes
+	hud.data = GameData
+	if hud_slot != null:
+		hud_slot.add_child(hud)
+	session.boxes_open = hud.end_boxes_open
+	session.end_text_done = hud.end_text_done
+
+
+# --- items in battle (specs/battle.md §2.18) --------------------------------------------------------
+
+func _inventory() -> Inventory:
+	return menu_host.inventory if menu_host != null else null
+
+
+func _item_use() -> ItemUse:
+	return menu_host.item_use if menu_host != null else null
+
+
+## The world's inventory and item calls: △ opens the inventory (addInventoryUI), the item lands
+## through ItemUse with the battle set (GAME_STATE 1).
+func _setup_items() -> void:
+	battle_world.inventory_is_open = func() -> bool:
+		var inventory := _inventory()
+		return inventory != null and inventory.active
+	battle_world.inventory_opener = func() -> void:
+		var inventory := _inventory()
+		if inventory != null:
+			inventory.open()
+	battle_world.inventory_closer = func() -> void:
+		var inventory := _inventory()
+		if inventory != null:
+			inventory.close_all()
+	battle_world.item_user = func(item: Variant) -> void:
+		var item_use := _item_use()
+		if item_use != null:
+			item_use.apply(item)
+
+
+func _hook_items() -> void:
+	var inventory := _inventory()
+	if inventory != null:
+		# BTL_initializeCombat draws the inventory's names into the text area (drawInventoryText).
+		inventory.draw_text()
+		var battle := session.battle
+		inventory.game_mode = func() -> int: return battle.game_state
+		inventory.throw_item.connect(session.throw_item)
+	if _item_use() != null:
+		_item_use().battle = session.battle
+
+
+func _unhook_items() -> void:
+	var inventory := _inventory()
+	if inventory != null:
+		inventory.close_all()
+		inventory.game_mode = func() -> int: return 0
+		if inventory.throw_item.is_connected(session.throw_item):
+			inventory.throw_item.disconnect(session.throw_item)
+	if _item_use() != null:
+		_item_use().battle = null
+	if session.thrown.active():
+		session.thrown.clear()
+		tamer.clear_held_item()

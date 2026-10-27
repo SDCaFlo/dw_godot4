@@ -109,6 +109,10 @@ Items and what they do, the healing values, the built-in inventories, the invent
 - `item_effects`: one record per item with a handler.
   - `values` (switch assignments, or the heal values); `code` (other statements, C text); `defaults`
   - `train_boost` (decoded `trainFlag`); `passive` (passive items: effect, `property`, evidence); `evolution` (where the target comes from); `requires_level` (0x7D–0x7F: the partner level `partnerWillRefuseItem` requires, 4 / 3 / 4)
+  - **`battle`** (the battle branches, `GAME_STATE` 1, `../specs/battle.md` §2.18), read from `code` so the port reads properties, not ids:
+    - `cure_status`: `shown` for `BTL_healStatusEffect(1)` (0x8, the buff rings show), `quiet` for `if (GAME_STATE == 1) BTL_healStatusEffect(0)` (0x9, 0xC);
+    - `protect`: `fighter[0].flags |= FIGHTER_FLAG_PROTECTED` (0xA: no status from techniques);
+    - `buff`: per stat (`offense` / `defense` / `speed`) `{amount, capped, icon}` from `BTL_buffStats(…, gain or N, &stats->off/def/speed, 0xb, icon)` (`handleBuffDisks`, `main.c:4293`). `capped`: the gain is cut to the room up to 1.3 × the stat at the battle's start (`INITIAL_COMBAT_STATS[0]`, max 999); the Omni Disk (0x12) passes 20 directly, uncapped. `icon` is the entity text's icon (3 Off, 4 Def, 5 Speed).
 - `card_data`: `digimon {id, name}`, `rarity`, `price`, `sell_price`, `merit`, `c`. `source.prices` lists the price and roll range per class.
 - `inventories`: `default_savegame` and `boot`, as non-empty slots `{slot, item, amount}` plus the raw arrays.
 - `shops`: one record with `maps` and `shopkeepers`.
@@ -133,6 +137,7 @@ The converter checks:
 - each item's embedded name is `ITEM_NAMES[id]`; use, droppable and sort category are known values;
 - every handler in `ITEM_FUNCTIONS` is one the spec describes;
 - every item of a switch handler has a case, except the five passive items, whose inventory checks must still be in the code; no case falls through; the switches are the same in every release, except the no-op branch of `handleBuffDisks`;
+- every battle statement (`GAME_STATE`, `BTL_*`, `COMBAT_DATA_PTR`) of the status, restore and buff disk cases is read into `battle`, and every buff disk has a `buff`;
 - every card has a priced rarity class, except the class-5 tamer placeholders, which have no merit value.
 
 Tests: `tests/test_items.py` (real data), `tests/test_cdata.py` (switch reader, function-pointer tables).

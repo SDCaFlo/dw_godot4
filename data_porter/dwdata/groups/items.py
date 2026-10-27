@@ -5,6 +5,7 @@ Follows specs/items.md. Item names and descriptions come from text/main/item.yam
 ITEM_DESCS); card Digimon names from text/main/main.yaml.
 """
 
+import re
 from collections import defaultdict
 
 from .. import tables
@@ -92,6 +93,37 @@ def _feeding(i: int) -> str:
 
 def _collapsed(text: str) -> str:
     return " ".join(text.split())
+
+
+# The battle branches of a handler case (GAME_STATE 1, ../specs/battle.md §2.18), read from its code
+# into the item effect's `battle` block so the port reads properties, not item ids.
+BUFF_CALL = re.compile(r"BTL_buffStats\(ENTITY_TABLE\[1\],0,(\w+),&stats->(\w+),0xb,(\d+)\);")
+BUFF_GAIN = re.compile(r"gain=(\d+);")
+BUFF_STATS = {"off": "offense", "def": "defense", "speed": "speed"}
+
+
+def _battle_effect(handler: str, code: list) -> tuple:
+    """The `battle` block of one handler case and the code statements it didn't read."""
+    battle, unread = {}, []
+    gains = [int(g) for line in code for g in BUFF_GAIN.findall(line)]
+    for line in code:
+        if line == "BTL_healStatusEffect(1);":
+            battle["cure_status"] = "shown"        # the buff rings show (BTL_healStatusEffect(1))
+        elif line == "if(GAME_STATE==1){BTL_healStatusEffect(0);}":
+            battle["cure_status"] = "quiet"
+        elif line == "COMBAT_DATA_PTR->fighter[0].flags|=FIGHTER_FLAG_PROTECTED;":
+            battle["protect"] = True
+        elif BUFF_CALL.fullmatch(line):
+            amount, stat, icon = BUFF_CALL.fullmatch(line).groups()
+            # gain = the stat's room up to 1.3 x its value at the battle's start (handleBuffDisks)
+            capped = amount == "gain"
+            battle.setdefault("buff", {})[BUFF_STATS[stat]] = {
+                "amount": max(gains) if capped else int(amount, 0), "capped": capped, "icon": int(icon)}
+        elif handler == "handleBuffDisks" and BUFF_GAIN.search(line):
+            continue
+        else:
+            unread.append(line)
+    return battle, unread
 
 
 PLACEHOLDER_RARITY = 5   # cards 0 and 65: tamer, no price (CARD_PRICES has 5 classes)
@@ -308,6 +340,23 @@ def convert(input_root, output_root) -> GroupWriter:
     effects.sort(key=lambda e: e["item"]["id"])
     out.check("item effects read from every handler switch", not effect_problems, "; ".join(effect_problems) or
               f"{len(effects)} items with effects")
+    # The battle branches as properties (../specs/items.md "Battle"): every buff disk buffs, and the
+    # battle-only statements of the status / restore cases are all read.
+    battle_problems, battle_count = [], 0
+    for e in effects:
+        if e["handler"] not in ("handleStatusItems", "handleRestore", "handleBuffDisks"):
+            continue
+        battle, unread = _battle_effect(e["handler"], e.get("code", []))
+        unread = [u for u in unread if "GAME_STATE" in u or "BTL_" in u or "COMBAT_DATA" in u]
+        if unread:
+            battle_problems.append(f"{e['item']['id']:#x}: unread {unread}")
+        if e["handler"] == "handleBuffDisks" and "buff" not in battle:
+            battle_problems.append(f"{e['item']['id']:#x}: a buff disk without BTL_buffStats")
+        if battle:
+            e["battle"] = battle
+            battle_count += 1
+    out.check("the battle branches of the status, restore and buff disk cases are read", not battle_problems,
+              "; ".join(battle_problems) or f"{battle_count} items with a battle block")
 
     # -- feeding (the id ranges of partner_impl.c) ----------------------------------------------
     partner_c = _collapsed((decomp.root / PARTNER_C).read_text(encoding="utf-8", errors="replace"))

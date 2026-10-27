@@ -34,6 +34,7 @@ Last updated: 2026-10-23
 
 ## Log
 
+- 2026-10-26 — Items: `item_effects.battle` for items in battle (`../specs/battle.md` §2.18, step 5d-4): `cure_status` (shown / quiet), `protect`, and the buff disks' `buff` per stat `{amount, capped, icon}`, read from the handlers' C text with a check that every battle statement is read. Items 42/42 checks.
 - 2026-10-26 — `digimon_data.original_type` (`ORIGINAL_DIGIMON_TYPES`, `getOriginalType`, its lookup checked) for the battle effects' bone offsets; Digimon 44/44 checks.
 - 2026-10-26 — Battle data for step 5d-1 (`../specs/battle.md` §6): `move_data.buff` (read from `BTL_applyBuffMove`'s C text) and `counter`, `effect_scene` documented for packs; `digimon_data.battle_music` / `battle_scale` / `anim_technique`; maps `concave` / `no_battle_drops`; new systems tables `battle_command_lists` (from `BTL_initializeCombat`'s switch), `battle_hud`, `item_throw`, `psx_math`. Moves 34/34, Digimon 42/42, systems 103/103 checks; 57 tests.
 - 2026-10-26 — Evolution: `rules` for the evolution port (`../specs/evolution.md` §3.3): the code's literals as keyed rule records (hour thresholds, fixed Fresh targets, the Numemon fallback, the virus bar, the scaled targets, the 7 special evolutions in C order, the technique blocks), each checked against the C text. Map 1 of the Kunemon rule is `dw1:mayo02` (Kunemon's Bed). 25/25 checks; `GameData.evolution_rules(rule)`.

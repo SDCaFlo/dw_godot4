@@ -350,18 +350,48 @@ func save_path(slot: int) -> String:
 	return save_dir.path_join("slot_%02d.json" % slot)
 
 
-## Writes the state to a slot. Script values 35-255 are not saved, like the original.
+## recalculatePPandArena (main.c:3902): called before every save. Recalculates Prosperity Points
+## (script value 1) from the recruited Digimon, and resets arena triggers when script value 3 >= 23.
+func recalculate_pp_and_arena() -> void:
+	var pp := 0
+	for i in range(3, 0x3B):
+		var key: String = data.key_of("digimon/digimon_data", i)
+		var record: Dictionary = data.digimon(key)
+		var level: int = int(record.get("level", {}).get("id", 0)) if record.get("level") is Dictionary else int(record.get("level", 0))
+		if level >= 3 and is_trigger_set(0xC8 + i):
+			if i == 0x0B or i == 0x27 or i == 0x35:
+				pp += 1
+			else:
+				pp += level - 2
+	set_script_value(1, pp)
+	if script_value(3) >= 0x17:
+		clear_trigger(0x25)
+		clear_trigger(0x26)
+		clear_trigger(0x27)
+
+
+## Prepares the state for saving (writeSavegame, main_menu.c:5071): recalculates PP, masks
+## script value 0 during the write, and writes the slot. Returns OK or the file error.
 func save_game(slot: int) -> Error:
+	recalculate_pp_and_arena()
+	var restore_pstat0 := false
+	if script_value(0) == 3:
+		set_script_value(0, 0)
+		restore_pstat0 = true
 	DirAccess.make_dir_recursive_absolute(save_dir)
 	var saved: Dictionary = state.duplicate(true)
 	saved["script"]["values"] = saved["script"]["values"].slice(0, SAVED_SCRIPT_VALUES)
 	var file := FileAccess.open(save_path(slot), FileAccess.WRITE)
 	if file == null:
 		push_error("GameState: cannot write %s (%s)" % [save_path(slot), error_string(FileAccess.get_open_error())])
+		if restore_pstat0:
+			set_script_value(0, 3)
 		return FileAccess.get_open_error()
 	file.store_string(JSON.stringify({"format": SAVE_FORMAT, "game": "dw1", "packs": Array(data.packs()),
 			"preview": preview(), "state": saved}, "\t"))
 	file.close()
+	if restore_pstat0:
+		set_script_value(0, 3)
 	return OK
 
 

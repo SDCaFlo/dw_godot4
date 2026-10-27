@@ -1,14 +1,19 @@
 class_name Game
 extends Node
-## The game's start (main, main/main.c:3410-3530; specs/new_game.md §3.1): the project's main
-## scene. It shows one part at a time as its child, in the original's order. A new game (boot
-## mode 0): the intro (NewGameScene), movie 1, then the field on the start map with the partner
-## the answers picked. The title menu and loading a game (modes 1 and 2) come with step 4e-2.
+## The game's start (main, main/main.c:3410-3530; specs/save.md, specs/new_game.md §3.1): the
+## project's main scene. It shows one part at a time as its child, in the original's order:
+## the title menu (TitleMenu), then for a new game (mode 0) the intro (NewGameScene), movie 1,
+## then the field on the start map with the partner the answers picked. Continuing a game
+## (modes 1 and 2) loads the saved slot and boots directly into the saved map (mode 2 plays
+## movie 2 first).
 ## The parts are exported scenes, so a mod can replace one. Running field.tscn on its own keeps
 ## the field's debug start.
 ##
-## Debug: DW_SKIP_INTRO=1 skips the intro and the movie (answer 0, the default names).
+## Debug:
+##   DW_SKIP_TITLE=1 skips the title menu straight into a new game.
+##   DW_SKIP_INTRO=1 skips the intro and the movie (answer 0, the default names).
 
+@export var title_scene: PackedScene = preload("res://scenes/title/title_menu.tscn")
 @export var new_game_scene: PackedScene = preload("res://scenes/new_game/new_game.tscn")
 @export var movie_scene: PackedScene = preload("res://scenes/movie/movie_player.tscn")
 @export var field_scene: PackedScene = preload("res://scenes/field/field.tscn")
@@ -26,7 +31,42 @@ func _ready() -> void:
 	if not GameData.available():
 		push_error("Game: no game data (run the data porter)")
 		return
-	_new_game()
+	if OS.get_environment("DW_SKIP_TITLE") == "1":
+		_new_game()
+		return
+	_title()
+
+
+func _title() -> void:
+	var title := _show(title_scene) as TitleMenu
+	var action: String = await title.finished
+	match action:
+		"new_game":
+			_new_game()
+		"load_game":
+			_continue_game(title.selected_slot)
+		_:
+			_new_game()
+
+
+## Mode 1 (main.c:3460-3473) & Mode 2 (main.c:3474-3491).
+func _continue_game(slot: int) -> void:
+	var res := GameState.load_game(slot)
+	if not res.get("ok", false):
+		push_error("Game: failed to load slot %d: %s" % [slot, res.get("error", "")])
+		_title()
+		return
+	var boot_mode: int = int(GameState.state.get("boot_mode", GameState.BOOT_CONTINUE))
+	if boot_mode == GameState.BOOT_GAME_CLEARED:
+		Sound.music.stop_bgm()
+		var movie := _show(movie_scene) as MoviePlayer
+		movie.play(2)
+		await movie.finished
+	var field := field_scene.instantiate()
+	field.set("boot", true)
+	for property in field_overrides:
+		field.set(property, field_overrides[property])
+	_replace(field)
 
 
 ## Mode 0 (main.c:3438-3454).

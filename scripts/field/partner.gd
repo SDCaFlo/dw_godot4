@@ -55,6 +55,8 @@ var sound: Node
 var item_use: ItemUse
 ## The evolution's scene (getEvoSequenceState); null: the evolution applies at once.
 var evolution_scene: EvolutionScene
+## Callable(on_done: Callable) -> void: opens the sleep save prompt (sub-state 5).
+var sleep_save_prompt: Callable
 var _tamer_hand_reset := false
 ## PARTNER_STATE / PARTNER_SUB_STATE (partner_impl.c:221), not saved.
 var state := STATE_NORMAL
@@ -217,7 +219,11 @@ func tick_sleep() -> void:
 				if care != null:
 					care.sleep_regen()
 					care.handle_sleeping()
-				sub_state = 6
+				if sleep_save_prompt.is_valid():
+					sub_state = 51
+					sleep_save_prompt.call(func(): sub_state = 6)
+				else:
+					sub_state = 6
 		6:
 			if fade != null:
 				fade.fade_from_black(40)

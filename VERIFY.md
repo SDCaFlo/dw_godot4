@@ -23,6 +23,7 @@ godot --headless --path . -s res://tests/test_text.gd
 godot --headless --path . -s res://tests/test_care.gd
 godot --headless --path . -s res://tests/test_partner.gd
 godot --headless --path . -s res://tests/test_clock.gd
+godot --headless --path . -s res://tests/test_save_system.gd
 godot --headless --path . -s res://tests/test_game_state.gd
 godot --headless --path . -s res://tests/test_game_data.gd
 godot --headless --path . -s res://tests/test_content.gd
@@ -538,3 +539,32 @@ There is no save menu yet, so these checks are about the save file itself.
    
    The 50,000 bits and the full inventory are the C default record, which the intro scripts may replace (`specs/game_state.md` §5).
 4. Hand edit: change `money` in `slot_01.json` and load it, e.g. from a script or the debug panel when it exists. The new value is used; a broken edit is refused with a message instead of loading garbage.
+
+## Save and Title Menu (`scripts/ui/title_menu.gd`, `save_slot_box.gd`, `save_routines.gd`, `specs/save.md`)
+
+`test_save_system.gd` prints `OK: save system checks (34 run)`.
+
+1. **Title screen boot:**
+   - Run the game (F5). The title screen appears with the native `TITLE2.TIM` background art.
+   - The menu shows "NEW GAME", "CONTINUE GAME", and "BATTLE MODE".
+   - If there are no save files in `user://saves`, "CONTINUE GAME" is greyed out / dimmed and pressing ✕ plays the error sound.
+   - "BATTLE MODE" is stubbed (plays error sound).
+   - Selecting "NEW GAME" fades out and transitions into the intro scene with Jijimon.
+   - Debug: `DW_SKIP_TITLE=1` skips the title menu straight into a new game.
+
+2. **Save slot box and Continue:**
+   - With an existing save game, selecting "CONTINUE GAME" opens the slot selection box.
+   - Each saved slot displays the slot number, player name, partner species, area name, and playtime formatted as `HH:MM`.
+   - Selecting a valid slot asks for confirmation and loads the save directly into the saved map with restored clock, partner, and tamer state.
+   - Pressing △ closes the slot box and returns to the title menu.
+
+3. **In-game Save Machine (builtin 0x30):**
+   - Access the save machine in Jijimon's house (TWNA02) or via script builtin `0x30`.
+   - The slot box opens in save mode.
+   - Selecting an empty slot saves immediately; selecting an existing slot asks "Overwrite this data? YES / NO".
+   - Prosperity Points (script value 1) are automatically recalculated before saving based on recruited Digimon.
+
+4. **Partner Sleep Save Prompt:**
+   - When the partner goes to sleep (either via Menu > Sleep or naturally when exhausted), while the screen is completely faded to black, a prompt asks "Do you want to save?".
+   - Choosing "No" continues waking up the partner normally.
+   - Choosing "Yes" opens the slot selection box to save the game before waking up.

@@ -4,7 +4,7 @@ extends SceneTree
 ##   godot --headless --path . -s res://tests/test_game_state.gd
 ## Saves go to user://test_game_state_saves. Exits 1 if a check fails.
 
-const SAVE_DIR := "user://test_game_state_saves"
+const SAVE_DIR := "res://test_game_state_saves"
 
 var _failed := 0
 
@@ -104,6 +104,10 @@ func _initialize() -> void:
 
 	gs.free()
 	data.free()
+	if DirAccess.dir_exists_absolute(SAVE_DIR):
+		for f in DirAccess.get_files_at(SAVE_DIR):
+			DirAccess.remove_absolute(SAVE_DIR.path_join(f))
+		DirAccess.remove_absolute(SAVE_DIR)
 	print("%s: GameState checks" % ("FAILED %d" % _failed if _failed else "OK"))
 	quit(1 if _failed else 0)
 

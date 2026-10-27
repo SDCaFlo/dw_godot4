@@ -11,6 +11,7 @@ const GAME_MENU_SCENE := preload("res://scenes/ui/game_menu.tscn")
 const INVENTORY_SCENE := preload("res://scenes/ui/inventory.tscn")
 const DIGIMON_SCREEN_SCENE := preload("res://scenes/ui/digimon_screen.tscn")
 const PLAYER_SCREEN_SCENE := preload("res://scenes/ui/player_screen.tscn")
+const SaveSlotBox := preload("res://scripts/ui/save_slot_box.gd")
 
 ## Set by the field before start.
 var tamer: Tamer
@@ -25,6 +26,8 @@ var script_ctx: ScriptContext
 var pad: Pad
 ## The item rules (specs/inventory.md §4).
 var item_use: ItemUse
+var game_state: Node
+var data: Node
 
 ## null without the game data (no UI boxes).
 var menu: GameMenu
@@ -38,6 +41,16 @@ var medal_view: DigiviceView
 
 
 func start() -> void:
+	if game_state == null:
+		if script_ctx != null and script_ctx.game_state != null:
+			game_state = script_ctx.game_state
+		elif Engine.get_main_loop() != null:
+			game_state = Engine.get_main_loop().root.get_node_or_null("GameState")
+	if data == null:
+		if script_ctx != null and script_ctx.data != null:
+			data = script_ctx.data
+		elif Engine.get_main_loop() != null:
+			data = Engine.get_main_loop().root.get_node_or_null("GameData")
 	if boxes == null:
 		return
 	menu = GAME_MENU_SCENE.instantiate()
@@ -65,6 +78,7 @@ func start() -> void:
 	inventory.use_item.connect(start_feeding)
 	if partner != null:
 		partner.item_use = item_use
+		partner.sleep_save_prompt = _on_sleep_save_prompt
 	digivice = DigiviceView.new()
 	digivice.name = "DigiviceView"
 	boxes.add_child(digivice)
@@ -148,3 +162,15 @@ func menu_sleep() -> bool:
 		return false
 	menu.choose(GameMenu.SLEEP)
 	return true
+
+
+func _on_sleep_save_prompt(on_done: Callable) -> void:
+	var slot_box := SaveSlotBox.new()
+	slot_box.boxes = boxes
+	slot_box.text_area = text_area
+	slot_box.game_state = game_state
+	slot_box.data = data
+	slot_box.pad = pad
+	slot_box.mode = SaveSlotBox.MODE_SLEEP
+	slot_box.finished.connect(func(): on_done.call())
+	slot_box.open()

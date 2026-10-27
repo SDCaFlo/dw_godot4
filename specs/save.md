@@ -157,3 +157,42 @@ To ensure full moddability and clean decoupling:
   - Save machine routine (0x30) step progression and slot selection.
   - Sleep save prompt response handling (Yes -> save -> wake, No -> wake).
 - In-game verification documented in `VERIFY.md` under "Save and Title Menu".
+
+---
+
+## 5. As built
+
+Implemented in step 4e-2 (`PLANS.md`):
+
+1. **Pre-Save Adjustments (`recalculate_pp_and_arena`, `main.c:3902`):**
+   - Implemented in `scripts/state/game_state.gd`. Calculates PP from recruited Digimon (trigger `0xC8 + id`, level >= 3; 1 PP for Numemon, Sukamon, Nanimon; otherwise `level - 2`).
+   - Clears arena triggers `0x25..0x27` when script value 3 >= 23 (`0x17`).
+   - Masks script value 0 during save: if it equals 3, saved as 0 and restored to 3 immediately after writing to disk.
+
+2. **SaveSlotBox (`scripts/ui/save_slot_box.gd`):**
+   - Reusable `RefCounted` UI component plugged into `UIBoxes`.
+   - Supports 3 modes: `MODE_LOAD` (Continue menu), `MODE_SAVE` (Save machine & Game Clear), `MODE_SLEEP` (Sleep prompt).
+   - Dynamic 2-slot pages supporting arbitrary numbers of slots for future modding.
+   - Shows save preview: slot number, player name, partner species, map location, and formatted playtime `HH:MM`.
+   - Handles overwrite confirmation ("Overwrite this data? YES / NO") and debounces multi-box same-frame ticks.
+
+3. **Title Menu (`scenes/title/title_menu.tscn`, `scripts/ui/title_menu.gd`):**
+   - Native 320×240 title display with `tim_files/ETCNA/TITLE2.png` background.
+   - Options: NEW GAME, CONTINUE GAME, BATTLE MODE (stubbed).
+   - Fades from and to black using `Fade`.
+   - Emits `finished(action)` ("new_game" / "load_game").
+
+4. **Save Routines (`scenes/script/save_routines.tscn`, `scripts/script/save_routines.gd`):**
+   - Wired under `Systems/ScriptHost/Routines` in `scenes/field/field.tscn`.
+   - Handles builtin `0x30` (Save Machine: sets `boot_mode = BOOT_CONTINUE`, opens `SaveSlotBox` in save mode).
+   - Handles builtin `0x36` (Game-clear save: sets `boot_mode = BOOT_GAME_CLEARED`, sets save map to File City `0xCC`, opens `SaveSlotBox`).
+
+5. **Sleep Save Prompt:**
+   - Decoupled via `sleep_save_prompt: Callable` in `scripts/field/partner.gd`.
+   - Connected in `scripts/field/hosts/menu_host.gd` to `_on_sleep_save_prompt`.
+   - Prompt "Do you want to save? YES / NO" opens during partner sleep sub-state 5 while screen is black.
+
+6. **Game Flow (`scripts/game/game.gd`):**
+   - Boots into `TitleMenu` unless `DW_SKIP_TITLE=1`.
+   - Continues saved games in Mode 1 (direct boot to map) and Mode 2 (plays movie 2 before booting to File City).
+

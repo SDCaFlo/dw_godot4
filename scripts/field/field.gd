@@ -160,6 +160,8 @@ func _start() -> void:
 	menu_host.boxes = scripts.boxes
 	menu_host.text_area = scripts.text_area
 	menu_host.script_ctx = scripts.script_ctx
+	menu_host.game_state = GameState
+	menu_host.data = GameData
 	menu_host.pad = GameLoop.pad
 	# The item rules (specs/inventory.md §4): logic, shared by the inventory and the feeding scene.
 	var item_use := ItemUse.new()

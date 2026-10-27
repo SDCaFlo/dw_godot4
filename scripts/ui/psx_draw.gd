@@ -46,6 +46,56 @@ static func selection_cursor(canvas: CanvasItem, x: int, y: int, w: int, h: int)
 	line3(canvas, 0xB0B0B0, x, y + h - 1, x, y, x + w - 1, y)
 
 
+## renderMenuSelector (main_menu.c:5247): the 1px yellow/gold outline cursor used in the main/save menus.
+static func menu_cursor(canvas: CanvasItem, x: int, y: int, w: int, h: int) -> void:
+	var r := Rect2(CENTRE + Vector2(x, y), Vector2(w, h))
+	canvas.draw_rect(r, Color8(0xA0, 0xA0, 0), false, 1.0)
+
+
+## renderMenuBox fill (main_menu.c:1580): Gouraud-shaded quad from top-left (0, 0, 0x70) to bottom-right (0, 0, 0x10).
+static func menu_box_fill(canvas: CanvasItem, rect: Rect2i) -> void:
+	var p := CENTRE + Vector2(rect.position)
+	var s := Vector2(rect.size)
+	var points := PackedVector2Array([
+		p,
+		p + Vector2(s.x, 0),
+		p + s,
+		p + Vector2(0, s.y)
+	])
+	var colors := PackedColorArray([
+		Color8(0, 0, 0x70),
+		Color8(0, 0, 0x50),
+		Color8(0, 0, 0x10),
+		Color8(0, 0, 0x30)
+	])
+	canvas.draw_polygon(points, colors)
+
+
+## renderUIBoxBorder (ui.c:267).
+static func border(canvas: CanvasItem, r: Rect2i, corners: Texture2D = null) -> void:
+	var x := r.position.x
+	var y := r.position.y
+	var w := r.size.x
+	var h := r.size.y
+	var y1 := y + h - 3
+	for edge in [[x + w - 3, 0xFAD990], [x + w - 2, 0xC59F4A], [x + w - 1, 0x020202], [x, 0x020202], [x + 1, 0xC59F4A], [x + 2, 0xFAD990]]:
+		line2(canvas, edge[1], edge[0], y + 4, edge[0], y1)
+	for edge in [[y + h - 3, 0x020202], [y + h - 2, 0xFAD990], [y + h - 1, 0x020202], [y, 0x020202], [y + 1, 0xFAD990], [y + 2, 0x020202]]:
+		line2(canvas, edge[1], x + 4, edge[0], x + w - 4, edge[0])
+	if corners != null:
+		for i in 4:
+			var px := x if i % 2 == 0 else x + w - 4
+			var py := y if i < 2 else y + h - 4
+			canvas.draw_texture_rect_region(corners, Rect2(CENTRE + Vector2(px, py), Vector2(4, 4)),
+					Rect2(Vector2([0x78, 0x7C, 0x78, 0x7C][i], [0x10, 0x10, 0x14, 0x14][i]), Vector2(4, 4)))
+
+
+## renderMenuBox (main_menu.c:1574): full menu box with border, corners, and blue gradient fill.
+static func menu_box(canvas: CanvasItem, rect: Rect2i, corners: Texture2D = null) -> void:
+	menu_box_fill(canvas, Rect2i(rect.position.x + 3, rect.position.y + 3, rect.size.x - 6, rect.size.y - 6))
+	border(canvas, rect, corners)
+
+
 ## A POLY_FT4 sprite of a palette page at screen (x, y): `uv` in the image (v already minus the
 ## page origin). A semi-transparent sprite is drawn twice: its opaque texels (`stp` false) on a
 ## normal canvas, its STP texels (`stp` true) on a canvas with the blend mode, e.g. UIBoxes'

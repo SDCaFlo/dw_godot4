@@ -215,6 +215,47 @@ func _test_save_slot_box_save_and_load() -> void:
 	_check(finished_called[0] and slot_box.selected_slot == 1,
 			"load mode selected slot 1 successfully")
 
+	# Test scrolling & pagination in 5-slot view.
+	slot_box = SaveSlotBox.new()
+	slot_box.boxes = boxes
+	slot_box.text_area = area
+	slot_box.game_state = gs
+	slot_box.data = data
+	slot_box.pad = pad
+	slot_box.mode = SaveSlotBox.MODE_SAVE
+	slot_box.open()
+	# Page down by pressing Right.
+	_press(Pad.RIGHT)
+	_check(slot_box._selected_slot == 6, "page down jumps to slot 6")
+	# Page up by pressing Left.
+	_press(Pad.LEFT)
+	_check(slot_box._selected_slot == 1, "page up returns to slot 1")
+	# Cancel closes slot box.
+	_press(Pad.CANCEL)
+	_check(boxes.boxes[SaveSlotBox.MAIN_BOX].state == UIBoxes.STATE_CLOSED,
+			"cancel closes slot box")
+
+	# Test Delete Mode.
+	slot_box = SaveSlotBox.new()
+	slot_box.boxes = boxes
+	slot_box.text_area = area
+	slot_box.game_state = gs
+	slot_box.data = data
+	slot_box.pad = pad
+	slot_box.mode = SaveSlotBox.MODE_DELETE
+	slot_box.open()
+	# Slot 1 has save data. Confirm opens confirm dialog.
+	_press(Pad.CONFIRM)
+	_check(boxes.boxes[SaveSlotBox.CONFIRM_BOX].state != UIBoxes.STATE_CLOSED,
+			"delete confirm dialog opened for slot 1")
+	# Confirm Yes to delete.
+	_press(Pad.CONFIRM)
+	_check(not FileAccess.file_exists(gs.save_path(1)), "slot 1 deleted from disk")
+	_press(Pad.CANCEL)
+
+	# Re-create slot 1 save for the remaining tests.
+	gs.save_game(1)
+
 
 func _test_save_slot_box_sleep_mode() -> void:
 	var slot_box := SaveSlotBox.new()

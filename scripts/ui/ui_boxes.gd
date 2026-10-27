@@ -31,6 +31,7 @@ const STATE_MENU := 4
 const FEATURE_TITLE := 1
 const FEATURE_HALF_FILL := 2
 const FEATURE_SCROLL_BAR := 4
+const FEATURE_BLUE_GRADIENT := 8
 ## Line colour words (renderUIBoxBorder, renderUIBoxStatic; low byte = red).
 const BLACK := 0x020202
 const LIGHT := 0xFAD990
@@ -87,6 +88,12 @@ class Box:
 var boxes: Array[Box] = []
 ## TEXTBOX_OPEN_TIMER (script_interp.c:209), uint8: counted by the text boxes, picks the arrow frame.
 var textbox_open_timer := 0
+
+var corners: Texture2D:
+	get:
+		if _corners == null:
+			_corners = Content.load_texture("%s.p%d.png" % [TEXTURE, CORNER_PALETTE])
+		return _corners
 
 var _corners: Texture2D
 var _arrow: PsxTexture
@@ -280,7 +287,10 @@ func draw_box(canvas: CanvasItem, b: Box) -> void:
 	var y := r.position.y
 	var w := r.size.x
 	var h := r.size.y
-	PsxDraw.box(canvas, Rect2i(x + 4, y + 3, w - 8, h - 3), COLORS[b.color], b.features & FEATURE_HALF_FILL != 0)
+	if b.features & FEATURE_BLUE_GRADIENT != 0:
+		PsxDraw.menu_box_fill(canvas, Rect2i(x + 3, y + 3, w - 6, h - 6))
+	else:
+		PsxDraw.box(canvas, Rect2i(x + 4, y + 3, w - 8, h - 3), COLORS[b.color], b.features & FEATURE_HALF_FILL != 0)
 	if b.features & FEATURE_SCROLL_BAR:
 		var h25 := h - 25
 		var row_height := h25 * b.visible_rows / maxi(b.total_rows, 1)

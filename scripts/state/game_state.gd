@@ -426,6 +426,17 @@ func load_game(slot: int) -> Dictionary:
 	return result
 
 
+## Deletes a save slot (slot_XX.json). Returns OK or error.
+func delete_save(slot: int) -> Error:
+	var path := save_path(slot)
+	if not FileAccess.file_exists(path):
+		return ERR_FILE_NOT_FOUND
+	var err := DirAccess.remove_absolute(path)
+	if err == OK:
+		changed.emit("saves")
+	return err
+
+
 ## The saved slots with their preview: [{"slot", "preview"}], sorted by slot.
 func list_saves() -> Array:
 	var out := []

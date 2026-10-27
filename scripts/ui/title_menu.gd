@@ -16,11 +16,11 @@ signal finished(action: String)
 ## TITLE2.TIM background (ETCNA).
 const TITLE_BACKGROUND := "tim_files/ETCNA/TITLE2.png"
 
-## Menu box: (0x48, 0x32, 0xB0, 0x3A) in US screen coords -> relative to centre (-88, -70, 176, 58).
-const MENU_BOX_RECT := Rect2i(-88, -70, 176, 58)
+## Menu box: (0x48, 0x32, 0xB0, 0x3A) in US coords -> 4 options (-88, -70, 176, 68).
+const MENU_BOX_RECT := Rect2i(-88, -70, 176, 68)
 
 ## Menu items.
-const ITEMS := ["NEW GAME", "CONTINUE GAME", "BATTLE MODE"]
+const ITEMS := ["NEW GAME", "CONTINUE GAME", "DELETE GAME", "BATTLE MODE"]
 
 ## Text area rows for the menu items.
 const TEXT_V := 200
@@ -87,7 +87,7 @@ func _ready() -> void:
 		_bg_texture = Content.load_texture(TITLE_BACKGROUND)
 
 	_draw_menu_text()
-	boxes.create_static(MENU_BOX, 1, 0, MENU_BOX_RECT, _tick_menu, _render_menu)
+	boxes.create_static(MENU_BOX, 1, UIBoxes.FEATURE_BLUE_GRADIENT, MENU_BOX_RECT, _tick_menu, _render_menu)
 
 	var main_loop = Engine.get_main_loop()
 	if main_loop != null:
@@ -125,14 +125,13 @@ func _frame() -> void:
 func _draw_menu_text() -> void:
 	if text_area == null:
 		return
-	text_area.clear(Rect2i(0, TEXT_V, 256, 36))
+	text_area.clear(Rect2i(0, TEXT_V, 256, 60))
 	for i in ITEMS.size():
-		if i == 1 and not _has_saves:
+		if (i == 1 or i == 2) and not _has_saves:
 			text_area.set_text_color(3)  # Dimmed.
 		else:
 			text_area.set_text_color(1)
-		text_area.draw_string(ITEMS[i], 4, TEXT_V + i * 12)
-	text_area.set_text_color(0)
+		text_area.draw_string(ITEMS[i], 4, TEXT_V + i * 14)
 
 
 func _draw() -> void:
@@ -166,14 +165,20 @@ func _tick_menu(_id: int) -> void:
 			1:  # Continue
 				if _has_saves:
 					_sound(3)
-					_open_slot_selector()
+					_open_slot_selector(SaveSlotBox.MODE_LOAD)
 				else:
 					_sound(4)
-			2:  # Battle Mode
+			2:  # Delete Game
+				if _has_saves:
+					_sound(3)
+					_open_slot_selector(SaveSlotBox.MODE_DELETE)
+				else:
+					_sound(4)
+			3:  # Battle Mode
 				_sound(4)  # Stubbed until Arena/VS step.
 
 
-func _open_slot_selector() -> void:
+func _open_slot_selector(slot_mode: int = SaveSlotBox.MODE_LOAD) -> void:
 	boxes.remove_static(MENU_BOX)
 	_state = STATE_SLOTS
 	_slot_box = SaveSlotBox.new()
@@ -183,21 +188,22 @@ func _open_slot_selector() -> void:
 	_slot_box.data = data
 	_slot_box.pad = pad
 	_slot_box.sound = sound
-	_slot_box.mode = SaveSlotBox.MODE_LOAD
+	_slot_box.mode = slot_mode
 	_slot_box.finished.connect(_on_slot_finished)
 	_slot_box.open()
 
 
 func _on_slot_finished() -> void:
-	if _slot_box.selected_slot >= 0:
+	_has_saves = game_state != null and not game_state.list_saves().is_empty()
+	if _slot_box.mode == SaveSlotBox.MODE_LOAD and _slot_box.selected_slot >= 0:
 		selected_slot = _slot_box.selected_slot
 		_start_exit("load_game")
 	else:
-		# Cancelled: go back to the menu.
+		# Cancelled or deleted: go back to the menu.
 		_state = STATE_MENU
-		_cursor = 1
+		_cursor = 1 if _has_saves else 0
 		_draw_menu_text()
-		boxes.create_static(MENU_BOX, 1, 0, MENU_BOX_RECT, _tick_menu, _render_menu)
+		boxes.create_static(MENU_BOX, 1, UIBoxes.FEATURE_BLUE_GRADIENT, MENU_BOX_RECT, _tick_menu, _render_menu)
 
 
 func _start_exit(action: String) -> void:
@@ -211,5 +217,5 @@ func _render_menu(canvas: CanvasItem, _id: int) -> void:
 	if text_area == null:
 		return
 	for i in ITEMS.size():
-		text_area.render_string(canvas, 0, -78, -65 + i * 18, 160, 12, 0, TEXT_V + i * 12, false)
-	PsxDraw.selection_cursor(canvas, -82, -67 + _cursor * 18, 164, 15)
+		text_area.render_string(canvas, 0, -78, -64 + i * 14, 160, 12, 0, TEXT_V + i * 14, false)
+	PsxDraw.menu_cursor(canvas, -82, -66 + _cursor * 14, 164, 14)

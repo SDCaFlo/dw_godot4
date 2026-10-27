@@ -34,6 +34,31 @@ FISH_C, SHOP_MENU, DOOA_C = "src/fish/fish.c", "src/shop/script_menu.c", "src/do
 MAIN_C = "src/main/main.c"
 OVERWORLD_C = "src/main/overworld.c"
 SCRIPT_VALUE_C, SCRIPT_H = "src/main/script_value.c", "include/dw/script.h"
+# New game (../specs/new_game.md): the intro (new_game.c), the boot's partner choice (main.c), the naming
+# screen's characters (script_menu.c) and the movies (mov.c).
+NEW_GAME_C, MOV_C, PARTNER_IMPL_C = "src/main/new_game.c", "src/mov/mov.c", "src/main/partner_impl.c"
+# The boot (main.c:3445-3449): readPStat(0xFE) == 0 -> Agumon (3), else Gabumon (0x11); newGameStateMachine
+# writes 0 (step 8) or 1 (step 9).
+NEW_GAME_PARTNERS = [3, 0x11]
+NEW_GAME_GUIDE = 0x75
+NEW_GAME_START_MAP, NEW_GAME_START_EXIT, NEW_GAME_MOVIE = 0xCC, 9, 1
+NEW_GAME_EVIDENCE = [
+    (MAIN_C, "partnerId = 0x3;"), (MAIN_C, "partnerId = 0x11;"), (MAIN_C, "if (readPStat(0xfe) == 0) {"),
+    (MAIN_C, "setDigimonRaised(partnerId);"), (MAIN_C, "runMapHeadScript(0xcc);"), (MAIN_C, "playMovie(1, 1);"),
+    (NEW_GAME_C, "thunkLoadMMD(0x75, 0);"), (NEW_GAME_C, "initializeDigimonObject(0x75, 2, tickNewGameJijimon);"),
+    (SHOP_MENU, "if (ENTITY_TABLE[i]->type == 0x75) {"), (SHOP_MENU, "writePStat(PSTAT_254, 0);"),
+    (SHOP_MENU, "writePStat(PSTAT_254, 1);"),
+    (PARTNER_IMPL_C, "if (type == 3) {"), (PARTNER_IMPL_C, "if (type == 0x11) {"),
+    (MOV_C, "((movieId == 3) || ((PadRead(1) & 0x800) == 0))"),
+]
+# The naming screen per language (script_menu.c:545-575): the page it opens on (NAMING_START_PAGE) and whether
+# its page buttons switch pages (JP: cases 0-2 set SHOP_AMOUNT; EU: they break; US: no page buttons).
+NAMING_LANGUAGES = {"us": "en_us", "eu": "en_eu", "jp_rev1": "ja"}
+NAMING_PAGE_RULES = {"us": (0, False), "eu": (2, False), "jp_rev1": (0, True)}
+NAMING_EVIDENCE = [(SHOP_MENU, "#define NAMING_START_PAGE 2"), (SHOP_MENU, "#define NAMING_START_PAGE 0"),
+                   (SHOP_MENU, "SHOP_AMOUNT = special;"), (SHOP_MENU, "SHOP_AMOUNT = NAMING_START_PAGE;")]
+# MOV_playMovie (mov.c:265): Start ends every movie but 3.
+MOVIE_UNSKIPPABLE = 3
 # changeMap (map.c:5326-5396): (map left, map entered, PREVIOUS_SCREEN, PREVIOUS_EXIT or None).
 CHANGE_MAP_PREVIOUS = [
     (0xCF, 0x26, 0x58, 2), (0xCF, 0x46, 0x45, 2), (0xCF, 0x4F, 0x11, 1), (0xCF, 0x5D, 0x5A, 0),
@@ -183,6 +208,9 @@ TABLE_PURPOSES = {
     "jukebox": "Jukebox track list (index = track id)",
     "versus": "Versus mode: demo fighters, battle counts, stat bar limits",
     "script_stat_limits": "The stats event scripts change (SET_STAT / ADD_STAT) and their caps (STATS_LIMIT_ARRAY)",
+    "new_game": "New game: the partner each intro answer gives, the intro's guide, the start map and movie",
+    "naming": "The naming screen's character pages, per language",
+    "movies": "The movies: file, last frame, whether Start skips them",
 }
 
 
@@ -197,10 +225,10 @@ def convert(input_root, output_root) -> GroupWriter:
     files = sorted({BTL_MAIN, BTL_SETUP, BTL_C, BATTLE_UI, STD_MAIN, STD_SETUP, VS_MAIN, VS_SELECT, VS_DEMO,
                     VS_INTRO, SCRIPT_C, TOURNAMENT_C, GAME_MENU, MAP_C, TOILET_C, TRN_HUD, TRN2_HUD, TRN_SLOTS, FISH_C,
                     SHOP_MENU, DOOA_C, SCRIPT_VALUE_C, SCRIPT_H, OVERWORLD_C, UTILS2_C, BTL_MENU, BTL_EFFECT, MAIN_C,
-                    SIN_H, ATAN_H, MATH_C})
+                    SIN_H, ATAN_H, MATH_C, NEW_GAME_C, MOV_C, PARTNER_IMPL_C})
     sources = [SourceText(decomp.root, p).identity() for p in files]
 
-    missing = [f"{p}: {needle}" for p, needle in EVIDENCE
+    missing = [f"{p}: {needle}" for p, needle in EVIDENCE + NEW_GAME_EVIDENCE + NAMING_EVIDENCE
                if needle not in (decomp.root / p).read_text(encoding="utf-8", errors="replace")]
     out.check("the code still uses the tables the way the spec documents", not missing,
               "; ".join(missing) or f"{len(EVIDENCE)} uses")
@@ -227,7 +255,8 @@ def convert(input_root, output_root) -> GroupWriter:
             (SCRIPT_C, "BGM_TRACK_NAMES"), (SHOP_MENU, "MAIN_D_801303B8"), (SCRIPT_C, "MAP_LIGHT_UPDATE_DATA"), (VS_DEMO, "VS_DEMO_DIGIMON"), (VS_SELECT, "VS__BATTLE_COUNTS"),
             (SCRIPT_VALUE_C, "STATS_LIMIT_ARRAY"), (SCRIPT_VALUE_C, "MULTIPLE_OF_10"),
             (BTL_C, "CONCAVE_SCREENS"), (MAIN_C, "ITEM_THROW_HEIGHT"), (SIN_H, "SIN_LOOKUP_TABLE"),
-            (ATAN_H, "ATAN_LOOKUP_TABLE")] + BATTLE_HUD_TABLES:
+            (ATAN_H, "ATAN_LOOKUP_TABLE"), (SHOP_MENU, "NAMING_CHAR_PAGES"),
+            (MOV_C, "MOV_MOVIES")] + BATTLE_HUD_TABLES:
         load(c_file, name)
     digimon_l = tables.load(out, index, MAIN_C, "DIGIMON_DATA",
                             {"DIGIMON_PARA_NAME": lambda a, r, t: [] if r == "eu" else [Value(a[0], t.line)]})
@@ -725,6 +754,8 @@ def convert(input_root, output_root) -> GroupWriter:
          "stat_bar_limits": dict(zip(STATS, us["STD_STAT_BAR_LIMITS"]))}],
         {"access": "GameData.system('versus')"})
 
+    _new_game(out, index, L, strings, dref, sources, write)
+
     out.check("every string id of the tables resolves to text", not unresolved, ", ".join(unresolved[:10]) or "ok")
     out.check("FLEE_CHANCES padding (entries 9-11) is 0", not bad["flee"], "; ".join(bad["flee"]) or "ok")
     out.check("every tournament grade image resolves to a path", not bad["grade images"],
@@ -733,6 +764,83 @@ def convert(input_root, output_root) -> GroupWriter:
     out.write_report("report.md", _report(maps, us, sref, dref, days_of))
     out.finish(sources, extra={"counts": {"maps": len(maps), "tournaments": len(names_l), "tables": len(out.tables)}})
     return out
+
+
+def _new_game(out, index, L, strings, dref, sources, write) -> None:
+    """systems/new_game (code constants, checked by NEW_GAME_EVIDENCE), systems/naming, systems/movies."""
+    table = {"table": {"name": "systems/new_game", "purpose": TABLE_PURPOSES["new_game"]},
+             "source": {"files": sources, "c_file": MAIN_C, "binary": "main",
+                        "code": [f"{p}: {needle}" for p, needle in NEW_GAME_EVIDENCE],
+                        "notes": "Literal ids in the code (main.c:3445-3454, new_game.c, script_menu.c:2672, "
+                                 "partner_impl.c:500-508), checked to be still there."},
+             "schema": {
+                 "partners": {"meaning": "the partner for each value of script value 0xFE after the intro "
+                                         "(newGameStateMachine steps 8 / 9 write 0 / 1; main.c:3445-3449)",
+                              "ref": "digimon/digimon_data"},
+                 "guide": {"meaning": "the intro's Digimon (loadNewGameScene, model 0x75); the naming and dialogue "
+                                      "boxes grow from its screen position (setupNewGameDialogueBox, "
+                                      "setupNameSelectorBox, setupNameDisplayBox test type 0x75)",
+                           "ref": "digimon/digimon_data"},
+                 "start_map": {"meaning": "runMapHeadScript(0xCC) after the intro (main.c:3452)", "ref": "systems/maps"},
+                 "start_exit": {"meaning": "the default record's CURRENT_EXIT (initializeDefaultSavegame)"},
+                 "movie": {"meaning": "playMovie(1, 1) after the intro (main.c:3442)", "ref": "systems/movies"},
+             },
+             "records": [{"partners": [{"answer": k, "digimon": dref(d)} for k, d in enumerate(NEW_GAME_PARTNERS)],
+                          "guide": dref(NEW_GAME_GUIDE), "start_map": {"id": NEW_GAME_START_MAP},
+                          "start_exit": NEW_GAME_START_EXIT, "movie": NEW_GAME_MOVIE}],
+             "used_by": [{"function": "main", "file": MAIN_C, "lines": "3438-3454"},
+                         {"function": "loadNewGameScene", "file": NEW_GAME_C},
+                         {"function": "newGameStateMachine", "file": SHOP_MENU, "lines": "1144-1294"}],
+             "godot": {"status": "implemented (scripts/game/game.gd)", "access": "GameData.system('new_game')"}}
+    out.write_table("new_game", table, symbols=[])
+
+    pages_t = L["NAMING_CHAR_PAGES"]
+    bad, langs = [], []
+    for release, lang in NAMING_LANGUAGES.items():
+        pages = []
+        names = pages_t[release].value
+        for k in range(0, len(names), 2):
+            halves = []
+            for half in names[k:k + 2]:
+                rows = []
+                for sym in index.table(SHOP_MENU, half)[release].value:
+                    t = index.table(SHOP_MENU, sym)[release]
+                    v = t.value if t is not None else None
+                    if v is None:
+                        # A text-YAML string: the reader strips its trailing full-width spaces ("ｚ　　　　").
+                        v = ((strings.get(sym) or {}).get("text") or {}).get(lang)
+                        if v is not None:
+                            v = v.ljust(5, "　")
+                    if v is None or len(v) != 5:
+                        bad.append(f"{release} {half} {sym}: {v!r}")
+                    rows.append(v)
+                halves.append({"symbol": half, "rows": rows})
+            pages.append({"page": k // 2, "left": halves[0], "right": halves[1]})
+        start, buttons = NAMING_PAGE_RULES[release]
+        langs.append({"language": lang, "release": release, "start_page": start, "page_buttons": buttons,
+                      "pages": pages})
+    out.check("naming: every row of every page is 5 characters", not bad, "; ".join(bad[:5]) or
+              f"{sum(len(l['pages']) for l in langs)} pages")
+    write("naming", ["NAMING_CHAR_PAGES"], {
+        "language": {"meaning": "text language (us -> en_us, eu -> en_eu, jp_rev1 -> ja)"},
+        "start_page": {"c_name": "NAMING_START_PAGE", "meaning": "the page the screen opens on (SHOP_AMOUNT)"},
+        "page_buttons": {"meaning": "whether the page buttons switch pages (JP only; US has none, EU's do nothing)"},
+        "pages": {"c_name": "NAMING_CHAR_PAGES[page * 2 + half]",
+                  "meaning": "each page: two halves of 9 rows of 5 full-width characters (cursor cell = row * 5 + "
+                             "column, the right half's rows 9-17); a full-width space can't start a name"},
+    }, langs, {"access": "GameData.system('naming')"})
+
+    movies = L["MOV_MOVIES"][REFERENCE].value
+    ok = len(movies) == 4 and all(m["path"].startswith("\\MOVIE\\") for m in movies)
+    out.check("movies: 4 entries in \\MOVIE\\", ok, f"{len(movies)}")
+    write("movies", ["MOV_MOVIES"], {
+        "movie": {"meaning": "playMovie id (0 opening, 1 after the intro, 2 after the ending's save, 3 the ending)"},
+        "file": {"meaning": "the STR file's name; the asset porter writes movies/<file>/movie.ogv"},
+        "last_frame": {"c_name": "frameCount", "meaning": "MOV_playMovie stops after this frame"},
+        "skippable": {"meaning": "Start ends it (mov.c:265: every movie but 3)"},
+    }, [{"movie": k, "file": m["path"].split("\\")[-1].split(".")[0], "start_frame": m["startFrame"],
+         "last_frame": m["frameCount"], "skippable": k != MOVIE_UNSKIPPABLE, "c": m} for k, m in enumerate(movies)],
+        {"access": "GameData.system('movies')"}, binary="mov")
 
 
 def _stat_limits(out, decomp, us, write) -> None:

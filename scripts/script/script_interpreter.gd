@@ -1303,12 +1303,17 @@ func call_digimon_routine(routine: int) -> void:
 func _call_routine(routine: int) -> int:
 	ctx.script_param_1 = routine
 	if routines != null and routines.handles(routine):
+		# The C's setup of a waiting builtin (step 0, mode 0); a builtin with its own setup
+		# (0x20, initializeNamingBuffer) sets its step in start(). The frame ends.
+		var state_2 := ctx.state_2
+		var textbox_mode := ctx.textbox_mode
+		ctx.state_2 = 0
+		ctx.textbox_mode = 0
 		if routines.start(routine):
-			# The C's setup of a waiting builtin; the frame ends.
 			ctx.active_instruction = ScriptContext.OP_CALL_ROUTINE
-			ctx.state_2 = 0
-			ctx.textbox_mode = 0
 			return STOP
+		ctx.state_2 = state_2
+		ctx.textbox_mode = textbox_mode
 		return NEXT
 	match routine:
 		0x03, 0x04, 0x05, 0x11:
@@ -1333,6 +1338,14 @@ func _call_routine(routine: int) -> int:
 		0x38:
 			game_state.set_script_value(0xF3, (ctx.shop_variable / 256) & 0xFF)
 			game_state.set_script_value(0xF4, ctx.shop_variable & 0xFF)
+		0x37:
+			# setLoopCountToOne(script value 0xFE) (overworld.c:1821): the entity's looping
+			# animation plays to its end; then the frame ends (longjmp).
+			var entity := _entity_for_script_id(ctx.read_pstat(0xFE))
+			var animator = entity.get("animator") if entity != null else null
+			if animator is PsxAnimator:
+				animator.finish_loop()
+			return STOP
 		0x15:
 			# resetMapObjectAnimation(script value 0xF7, count script value 0xF8), then the frame ends.
 			if field == null:

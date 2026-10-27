@@ -474,6 +474,20 @@ The technique gallery (steps 5d-5a, 5d-5b): every technique's drawing (models, s
     - **Flattened fighters:** a flattened fighter's attacks fly as aura projectiles and hit.
 12. **Healing (I-21):** give the partner a recovery item, in the field or in battle: a ring of yellow-green sparks rises around it to above its head. A bigger recovery item (e.g. Lg. recovery) adds sparks spiralling down.
 
+## New game (`scripts/game/game.gd`, `scripts/new_game/new_game_scene.gd`, `scripts/script/naming_routines.gd`, `scripts/ui/naming_box.gd`, `scripts/movie/movie_player.gd`; `specs/new_game.md`)
+
+0. `godot --headless --path . -s res://tests/test_new_game.gd` prints `OK: new game checks`. `godot --headless --fixed-fps 60 --path . res://tests/new_game_scan.tscn` prints `OK: new game scan`, with the partner's stats becoming 80 / 60 / 70 / 70, 800 / 600 on its way. With `NEW_GAME_INTRO=1` it plays the intro too (✕ through the lines, "AAAAAA" for both names) and checks the names reach the field. The data porter's `python -m dwdata convert systems` passes 107/107.
+1. **Start:** run the project (F5; the main scene is now `scenes/game.tscn`). The screen fades in on black; Jijimon walks in from the right, turns to the camera, and the dialogue box grows from him.
+2. **The questions:** "Do you have a Digivice?", then "day or night?" (Yes) or "Do you have friends?" (No). The choice lines show no speaker name. △ on a choice plays the refused sound and doesn't cancel.
+3. **The naming screen:**
+   - **Its look:** two boxes grow from Jijimon. "Name" at the top left, Back and OK below it; A–Z on the left, a–z and 0–9 on the right; the name box at the bottom with an underline under the next letter.
+   - **Moving:** the frame cursor moves on the letters and wraps up / down within its half; ← from the first column goes to Back, → from the right half's last column too; ○ jumps to Back, Start to OK.
+   - **Typing:** ✕ types; □ clears; △ or Back deletes; a 7th letter replaces the 6th; a space can't be the first letter; OK on an empty name is refused.
+4. **The confirmation:** "*name*, right?" No goes back to the naming with the name kept. Yes asks the Digimon's name (the naming starts empty); then "Good Name." and "That's all the questions I have."
+5. **The end:** the screen fades out, movie 1 plays (Start skips it; without the porter's `.ogv` it is skipped and the console says so), then File City fades in with the tamer and the partner.
+6. **The partner:** Agumon for Digivice Yes + Day or Digivice No + friends Yes, else Gabumon. The Player screen's Evolution chart shows it (I-16). After File City's opening its stats aren't 0 (I-23). The names typed show in the dialogue.
+7. **Debug:** `DW_SKIP_INTRO=1` starts in File City at once. Running `scenes/field/field.tscn` (F6) keeps the debug start map.
+
 ## Partner (`scripts/field/partner.gd`, `psx_animator.gd`, `specs/partner.md`)
 
 `test_partner.gd` prints `OK: Partner checks`. Then run the project (F5):

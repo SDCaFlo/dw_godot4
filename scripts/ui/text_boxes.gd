@@ -395,6 +395,24 @@ func _line_byte(i: int) -> int:
 
 # --- pages (script_textbox.c:814-910) -----------------------------------------------------------------
 
+## flipTextboxPage (script_common.c:2536): true while the rows are drawn; a finished page flips.
+## Where the C falls off its end after the flip (no return value), the port counts that frame busy.
+func flip_textbox_page(id: int) -> bool:
+	var e := entries[id]
+	if e.double_buffered == 0:
+		return false
+	if e.registered == 0:
+		return true
+	if e.write_count != e.render_count:
+		return true
+	if e.page_ready == 0:
+		return false
+	e.back_page ^= 1
+	e.flip_count += 1
+	e.page_ready = 0
+	return true
+
+
 ## flipIdleTextboxPage (script_textbox.c:814): 1 while the entry is busy (drawing, or flipping now).
 func flip_idle_textbox_page(id: int) -> int:
 	var e := entries[id]

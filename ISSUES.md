@@ -8,19 +8,14 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Open
 
-### I-16. The partner (Agumon) isn't in the evolution chart
-- **Seen:** in a new game the Player screen's chart is empty; the original shows Agumon.
-- **Evidence:** `issues/evidence/dw_issue_evo_char_menu_color.png`.
-- **Cause:** in the original, the first partner is marked raised (`setDigimonRaised(partnerId)`, `main.c:3452`, trigger `0x200 + id`) when the new game intro process (`newGameScene()`, Jijimon's questionnaire and naming) completes, and subsequent Digimon are marked upon evolution (`evl.c:1489`) or reincarnation (`evolution.c:1079`). Neither the new game intro sequence nor the evolution system has been ported yet (PLANS.md step 4e / milestone 5).
-- **Status:** on hold (waiting for the new game sequence in step 4e).
-
-Reported 2026-10-26.
-
-### I-23. A new game's partner fights with 0 stats
-- **Seen:** in battle the partner does nothing, faints at once, and a Restore brings it back with 0 HP (reported 2026-10-26 with step 5d-4, new game on MAYO04A).
-- **What the original does:** the new game's stats come from File City's script after the intro (DG script 193, section 55: `SET_STAT` Off 80, Def 60, Speed 70, Brains 70, HP / MP 800 / 600 for Agumon; 70 / 80 / 60 / 70, 700 / 700 for Gabumon). `initializePartner` sets only the moves.
-- **Cause:** the port starts a new game straight on a map (`Field.start_map`), without the intro and File City's scenes (step 4e), so the default record's stats stay 0.
-- **Status:** open until the intro (4e). Decided 2026-10-26: no stand-in; the debugger's State tab has **Max all stats** (every base stat at its cap, HP / MP full) for testing battles.
+### I-34. The naming screen's letter cursor looks off
+- **Seen:** 2026-10-27 in the new game's naming screen (tamer and Digimon names), `issues/evidence/dw_issue_letter_box_menu.png`. The orange frame around the selected letter doesn't close properly: its corners and sides don't meet, and its right side runs into the next letter. It's similar to the earlier menu contour problem (I-17, the Player screen's chart and card cells).
+- **What the original does:** `renderSelectionBox` (`shop/script_menu.c:3170`) draws the frame as 8 `POLY_FT4` pieces of the UI page (tpage (896, 448), CLUT (256, 508)): 4 × 4 corners and 4 stretched edges, using the UV and offset tables `NAMING_U02`, `NAMING_U13`, `NAMING_V01`, `NAMING_V23`, `NAMING_CTRL_X`, `NAMING_Y`, `NAMING_CTRL_WIDTH`, `NAMING_HEIGHT` (`:487–523`). A cell's frame is 20 × 18 at (column × 18 + 0x4A, row × 14 + 2) from the box.
+- **To check:** `NamingBox._render_cursor` (`scripts/ui/naming_box.gd`):
+  - **The pieces' texels:** the PSX samples a `POLY_FT4` from u0 up to, not including, u1, and a reversed pair (u0 > u1) walks the texels backwards. The port mirrors each piece with a negative rect over the 4-texel span, which can be off by one texel.
+  - **The source image:** `etctim/04_fi_info` palette 12, v − 192. Check it is the right image and palette for (896, 448) / CLUT row 508.
+  - **The draw order of the 8 pieces** (each `AddPrim` at OT layer 5, drawn in reverse).
+- **Status:** open (logged 2026-10-27 with step 4e-1, for later; the rest of the screen matches).
 
 ### I-24. A battle that never starts (Native Forest)
 - **Seen:** on MAYO04A, a sky-blue face (the "flees" bubble) over an Aruraumon, then the battle never started, for minutes (reported 2026-10-26 with step 5d-4). Expected: the Digimon you talk to always fights (red face); only the others may flee, so a battle always has an enemy, except key fights, which have their own list.
@@ -35,6 +30,20 @@ Reported 2026-10-26.
 - **Status:** open. The scan's runs differ (frame pacing), so it is intermittent; the next step is a run that dumps the partner's state when it happens.
 
 ## Fixed
+
+### I-23. A new game's partner fights with 0 stats
+- **Seen:** in battle the partner does nothing, faints at once, and a Restore brings it back with 0 HP (reported 2026-10-26 with step 5d-4, new game on MAYO04A).
+- **What the original does:** the new game's stats come from File City's script after the intro (DG script 193, section 55: `SET_STAT` Off 80, Def 60, Speed 70, Brains 70, HP / MP 800 / 600 for Agumon; 70 / 80 / 60 / 70, 700 / 700 for Gabumon). `initializePartner` sets only the moves.
+- **Cause:** the port starts a new game straight on a map (`Field.start_map`), without the intro and File City's scenes (step 4e), so the default record's stats stay 0.
+- **Status:** fixed 2026-10-27 with 4e-1: the game now starts with the intro and File City's opening, which sets the stats (`tests/new_game_scan.tscn` sees 80 / 60 / 70 / 70, 800 / 600; `specs/new_game.md` "As built").
+
+### I-16. The partner (Agumon) isn't in the evolution chart
+- **Seen:** in a new game the Player screen's chart is empty; the original shows Agumon.
+- **Evidence:** `issues/evidence/dw_issue_evo_char_menu_color.png`.
+- **Cause:** in the original, the first partner is marked raised (`setDigimonRaised(partnerId)`, `main.c:3452`, trigger `0x200 + id`) when the new game intro process (`newGameScene()`, Jijimon's questionnaire and naming) completes, and subsequent Digimon are marked upon evolution (`evl.c:1489`) or reincarnation (`evolution.c:1079`). Neither the new game intro sequence nor the evolution system has been ported yet (PLANS.md step 4e / milestone 5).
+- **Status:** fixed 2026-10-27 with 4e-1: the boot marks the new partner raised (`GameState.start_new_game_partner`, `specs/new_game.md`).
+
+Reported 2026-10-26.
 
 ### I-32. A condition bubble stays over the partner through a battle
 - **Seen:** 2026-10-27 on MAYO01 (`issues/evidence/dw_issue_bubble_battle.png`): a battle started while the sleepy "z" bubble showed; the bubble stayed frozen over the partner.

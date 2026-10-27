@@ -73,6 +73,22 @@ class RealDataTests(unittest.TestCase):
         spots = self.load("training_spots")
         self.assertEqual([s["stat"] for s in spots[0]["spots"]], ["hp", "offense", "defense", "mp", "speed", "brain"])
 
+    def test_new_game_naming_movies(self):
+        new_game = self.load("new_game")[0]
+        self.assertEqual([p["digimon"]["name"] for p in new_game["partners"]], ["Agumon", "Gabumon"])
+        self.assertEqual((new_game["guide"]["name"], new_game["start_map"]["id"], new_game["start_exit"]),
+                         ("Jijimon", 0xCC, 9))
+        naming = {l["language"]: l for l in self.load("naming")}
+        us = naming["en_us"]
+        self.assertEqual((us["start_page"], us["page_buttons"], len(us["pages"])), (0, False, 3))
+        self.assertEqual(us["pages"][0]["left"]["rows"][0], "ＡＢＣＤＥ")
+        self.assertEqual(us["pages"][0]["right"]["rows"][5], "ｚ　　　　")
+        self.assertEqual(us["pages"][0]["right"]["rows"][7], "５６７８９")
+        self.assertEqual((naming["en_eu"]["start_page"], naming["ja"]["page_buttons"]), (2, True))
+        movies = self.load("movies")
+        self.assertEqual([(m["file"], m["skippable"]) for m in movies],
+                         [("OP1", True), ("OP2", True), ("ED2", True), ("EDR", False)])
+
     def test_slot_machine(self):
         (slots,) = self.load("slot_machine")
         self.assertEqual([len(r) for r in slots["reels"]], [13, 13, 13])

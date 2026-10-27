@@ -1,0 +1,36 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/new_game/new_game_scene.gd" id="1_new_game"]
+[ext_resource type="Script" path="res://scripts/script/script_routines.gd" id="2_routines"]
+[ext_resource type="PackedScene" path="res://scenes/script/naming_routines.tscn" id="3_naming"]
+
+[sub_resource type="Environment" id="Environment_black"]
+background_mode = 1
+background_color = Color(0, 0, 0, 1)
+ambient_light_source = 1
+
+[node name="NewGameScene" type="Node"]
+script = ExtResource("1_new_game")
+
+[node name="World" type="SubViewportContainer" parent="."]
+texture_filter = 2
+offset_right = 320.0
+offset_bottom = 240.0
+
+[node name="SubViewport" type="SubViewport" parent="World"]
+handle_input_locally = false
+size = Vector2i(320, 240)
+render_target_update_mode = 4
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="World/SubViewport"]
+environment = SubResource("Environment_black")
+
+[node name="Camera3D" type="Camera3D" parent="World/SubViewport"]
+current = true
+
+[node name="Hud" type="CanvasLayer" parent="."]
+
+[node name="Routines" type="Node" parent="."]
+script = ExtResource("2_routines")
+
+[node name="NamingRoutines" parent="Routines" instance=ExtResource("3_naming")]

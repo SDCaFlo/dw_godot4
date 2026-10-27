@@ -212,6 +212,27 @@ The jukebox list. US shows the Mt. Panorama theme at index 45, where the other r
 - **The caps** (`enforceStatsLimits`, `script_value.c:356`): `SET` / `ADD` keep the value at most `limit`; HP / MP use the max HP / MP instead; `REDUCE` doesn't cap (`../../specs/script.md` §2.5).
 - **Quirk kept:** the array has 22 entries for 23 stats. Stat 22 (lives) reads past it, into `MULTIPLE_OF_10`, the next symbol in RAM. Its first value is 1, so the record has limit 1 and `read_past_the_array`. The converter checks that the two symbols are adjacent in `config/us/symbols.txt`.
 
+### `new_game` (code constants: `main.c:3438–3454`, `new_game.c`, `shop/script_menu.c:2672`, `partner_impl.c:500–508`)
+
+The new game's literal ids (`../../specs/new_game.md`), so Godot reads properties instead:
+- **`partners`:** the partner for each value of script value 0xFE after the intro. `newGameStateMachine` writes 0 (step 8) or 1 (step 9); the boot does `initializePartner(readPStat(0xFE) == 0 ? 3 : 0x11)`. Agumon and Gabumon.
+- **`guide`:** Jijimon (model 0x75, `loadNewGameScene`). The dialogue and naming boxes grow from the screen position of the entity of that type (`setupNewGameDialogueBox` and the two naming boxes test `type == 0x75`).
+- **`start_map`, `start_exit`, `movie`:** `runMapHeadScript(0xCC)`, the default record's exit 9, `playMovie(1, 1)`.
+- **Checks:** the code texts are still there (`partnerId = 0x3;`, `partnerId = 0x11;`, `runMapHeadScript(0xcc);`, `thunkLoadMMD(0x75, 0);`, the type tests, `if (type == 3) {` / `if (type == 0x11) {` in `initializePartner`, …).
+
+### `naming` (`NAMING_CHAR_PAGES[6]`, `shop/script_menu.c:295 / :341`)
+
+The naming screen's characters, one record per language (US → `en_us`, EU → `en_eu`, JP rev1 → `ja`):
+- **`pages`:** each page is two halves (`NAMING_CHAR_PAGES[page × 2]`, `[page × 2 + 1]`) of 9 rows of 5 full-width characters. US: page 0 Latin (A–Z | a–z, 0–9), then katakana and hiragana; JP: hiragana, katakana, Latin (digits only).
+- **`start_page`** (`NAMING_START_PAGE`) and **`page_buttons`:** US 0 / no buttons (only page 0 is reachable); EU 2 / buttons that do nothing (`case 0–2: break`); JP 0 / buttons that switch pages (`SHOP_AMOUNT = special`).
+- **Strings from the text YAML** (`MAIN_D_801306F0`…, `HIRAGANA_KA_ROW`): the YAML reader strips trailing full-width spaces, so `"ｚ　　　　"` reads `"ｚ"`; the converter pads such rows back to 5. US's `MAIN_D_8013045C` is `かきくけと` (a typo of the US build, kept).
+- **Check:** every row of every page is 5 characters.
+
+### `movies` (`MOV_MOVIES[4]`, `mov/mov.c:46`)
+
+- **`file`** (OP1, OP2, ED2, EDR: the asset porter's `movies/<file>/`), `start_frame`, **`last_frame`** (`frameCount`; EU's first two differ, in `release_values`).
+- **`skippable`:** Start ends every movie but 3 (`MOV_playMovie`, `mov.c:265`, checked).
+
 ## Mapping
 
 Every table is in the common shape. Ids are resolved to names: Digimon, items, text strings (`{string_id, text, file}`) and maps. Raw C records are kept in `c` where the record isn't the raw value itself. Records hold the US values; release differences are under `release_values`.

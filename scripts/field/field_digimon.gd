@@ -58,6 +58,8 @@ var step_blocked := false
 var blocked_axes := 0
 ## entity->flatSprite: -1, or the flattened picture shown instead of the model (FlatSprite).
 var flat_sprite := -1
+## The root motion moves it without a map (the new game's guide, NewGameScene).
+var moves_without_map := false
 
 var _skeleton: Skeleton3D
 var _model: Node3D
@@ -96,7 +98,7 @@ func load_digimon(data: Node, ref: Variant) -> bool:
 
 
 func _process(delta: float) -> void:
-	if animator == null or field == null or frozen:
+	if animator == null or (field == null and not moves_without_map) or frozen:
 		return
 	var motion := _skeleton.global_basis * animator.advance(delta)
 	sounds.update(animator.player)

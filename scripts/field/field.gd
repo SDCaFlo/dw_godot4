@@ -37,6 +37,10 @@ extends Node
 @export var ui_filter := true
 ## Debug: open the debugger window (F1 toggles it).
 @export var debug_window := true
+## Set by Game when it starts the field for a game (specs/new_game.md §3.3): the start map and exit
+## come from the game state (CURRENT_SCREEN, CURRENT_EXIT) instead of start_map / start_spawn, the
+## debug start overrides are off, and a new game stops the clock (stopGameTime) and fades in.
+var boot := false
 ## Editor only: show the map in the editor viewports.
 @export var editor_preview := true:
 	set(value):
@@ -83,7 +87,7 @@ func _ready() -> void:
 		return
 	# Debug: DW_START_HOUR=22 starts at that hour (render checks of the night, --write-movie).
 	var env_hour := OS.get_environment("DW_START_HOUR")
-	if env_hour.is_valid_int():
+	if env_hour.is_valid_int() and not boot:
 		GameState.state["clock"]["hour"] = clampi(int(env_hour), 0, 23)
 	_start()
 	GameLoop.frame.connect(_frame)
@@ -92,9 +96,23 @@ func _ready() -> void:
 	_start_debug()
 	# Debug: DW_START_MAP=MAYO10 starts on another map (render checks, --write-movie).
 	var env_map := OS.get_environment("DW_START_MAP")
-	if env_map != "":
+	if env_map != "" and not boot:
 		start_map = env_map
+	if boot:
+		_boot()
+		return
 	map_session.begin(start_map if start_map in _maps else _maps[0], start_spawn)
+
+
+## The game's start on the record's map (main.c:3452-3456 / :3466-3471): runMapHeadScript(CURRENT_SCREEN)
+## at CURRENT_EXIT; a new game then stops the game time (stopGameTime); fadeFromBlack(0x28).
+func _boot() -> void:
+	var world: Dictionary = GameState.state["world"]
+	var map_name := str(GameData.map(world["screen"]).get("file", ""))
+	map_session.begin(map_name if map_name in _maps else _maps[0], int(world["exit"]))
+	if GameState.state["boot_mode"] == GameState.BOOT_NEW_GAME:
+		clock_host.clock.running = false
+	care_host.fade.fade_from_black(0x28)
 
 
 ## The systems in the order the field starts them; each host gets the references it needs.

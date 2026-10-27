@@ -178,6 +178,18 @@ func clear_trigger(trigger: int) -> void:
 		changed.emit("script")
 
 
+## The boot's partner (main.c:3445-3452): initializePartner(answer == 0 ? Agumon : Gabumon), read
+## from systems/new_game, then setDigimonRaised. The care values, the techniques and the lives
+## are the CareHost's (Care.initialize_partner, run for a new game).
+func start_new_game_partner(answer: int) -> void:
+	var records: Array = data.system("new_game")
+	for entry in records[0].get("partners", []) if not records.is_empty() else []:
+		if int(entry["answer"]) == answer:
+			state["partner"]["digimon"] = data.key_of("digimon/digimon_data", int(entry["digimon"]["id"]))
+	set_raised(state["partner"]["digimon"])
+	changed.emit("partner")
+
+
 ## setDigimonRaised (script_common.c:3011): trigger 0x200 + id, for ids below 0x3F.
 func set_raised(digimon: Variant) -> void:
 	var id := _digimon_id(digimon)

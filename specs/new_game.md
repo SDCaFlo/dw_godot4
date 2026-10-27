@@ -1,6 +1,6 @@
 # New game and naming
 
-Status (2026-10-27): spec written, step 4e-1 (`PLANS.md` 5e-4e). Not coded yet.
+Status (2026-10-27): coded, step 4e-1 (`PLANS.md` 5e-4e). See "As built" at the end.
 
 A new game in the original:
 1. **The title menu.** The player picks New Game (4e-2; until then the port boots straight into step 2).
@@ -163,7 +163,7 @@ The intro's names and script value 0xFE are written into the default record. `in
   - **The text:** `updateNamingPreview` writes the prompt, the name and spaces up to 6 letters into text row 0 (`drawString2`, fixed width: 12 px a letter). **US:** the prompt (`MAIN_D_801345F4`) is empty.
   - **The name:** the row's first 0x48 px (tamer) or 0x54 px (partner) are drawn at (x + 7, y + 6).
   - **Quirk kept (US):** six more 12-px cells from u = 0x48 / 0x54 are drawn at (x + 0x3A + i × 14, y + 0x14). On JP they are the name after the prompt; on US they show the row's empty end.
-  - **The letter cursor:** a 3-line underscore 12 wide at (cursor × 12 + 4, 0x10) from the box, in colours 0x020202 / 0xC0C010 / 0x020202 (`drawLine2P`, `renderNamingUnderscore`).
+  - **The letter cursor:** a 3-line underscore 12 wide at (cursor × 12 + 4, 0x10) from the box, in the colour words 0x020202 / 0x10C0C0 / 0x020202 (`drawLine2P`, `renderNamingUnderscore`; the middle line is yellow, r = g = 0xC0, b = 0x10).
 - **The names** are up to 6 full-width letters (12 bytes and the terminator). Elsewhere they are drawn full width (`specs/text.md` §2.6).
 
 ### 2.5 Builtin 0x20: renaming (`initializeNamingBuffer(readPStat(0xFE))`)
@@ -285,3 +285,34 @@ The intro's names and script value 0xFE are written into the default record. `in
 - **I-23** depends on File City's opening script reaching section 55 of script 193. If an opcode on the way isn't ported yet, the help line will name it; that would be fixed in the interpreter, not by setting stats in the boot.
 - **Fades and music:** the fade colour and the intro's music. `newGameScene` plays none; the title menu's music is stopped by `finalizeMusic` only after the intro. To compare with the original.
 - **The guide's walk-in** relies on animation 2's root motion. If the porter's animation has none, Jijimon would stand off screen until frame 0x23. To check against the original while coding.
+
+## As built (4e-1, 2026-10-27)
+
+- **The code:**
+  - `NamingRoutines` (`scripts/script/naming_routines.gd`, `scenes/script/naming_routines.tscn`): builtin 0x20 and the questions. It is in the field's routines too, so script 212's rename works.
+  - `NamingBox` (`scripts/ui/naming_box.gd`): boxes 1 and 2.
+  - `NewGameScene` (`scripts/new_game/new_game_scene.gd`, `scenes/new_game/new_game.tscn`).
+  - `MoviePlayer` (`scripts/movie/movie_player.gd`, `scenes/movie/movie_player.tscn`).
+  - `Game` (`scripts/game/game.gd`, `scenes/game.tscn`), now the project's main scene.
+  - `Field.boot`.
+- **The interpreter:**
+  - It now resets a waiting builtin's step and textbox mode **before** the routine's `start`, so 0x20's own setup (step 0x14 for a rename) stands. In the C only the builtins in the reset list get it (`script_interp.c:1661–1680`); 0x20's `initializeNamingBuffer` sets its own step.
+  - `CALL_ROUTINE 0x37` (`setLoopCountToOne(value 0xFE)`) is ported: File City's opening uses it.
+- **Shared code:** `flipTextboxPage` moved from `ItemMenu.flip_page` to `TextBoxes.flip_textbox_page`; `ItemMenu` calls it.
+- **New hooks:**
+  - **The guide's position:** `NamingRoutines.guide_screen_position(type)`. The field's `ScriptHost` gives the screen position of the last NPC of that type; the intro gives its guide's.
+  - **Moving without a map:** `FieldDigimon.moves_without_map` lets the intro's guide follow its walk's root motion.
+- **The data:** `systems/new_game`, `systems/naming`, `systems/movies` (`data_porter/specs/systems.md`).
+- **The names:** typed names are kept in `GameState` as ASCII where they are full-width Latin (`NamingRoutines.from_full_width` / `to_full_width`).
+- **The boot** (`Game._new_game`):
+  - `GameState.new_game()`, the intro, `Sound.music.stop_bgm()`, movie 1.
+  - `GameState.start_new_game_partner`: the partner for value 0xFE, marked raised.
+  - The field with `boot`: it starts on the record's screen and exit, stops the clock for a new game and fades in over 0x28 frames. The debug start overrides (`DW_START_MAP`, `DW_START_HOUR`) are off.
+- **I-16 and I-23 are fixed.** The partner is marked raised at the boot. File City's opening sets the stats as in the original: `tests/new_game_scan.tscn` sees Agumon at 80 / 60 / 70 / 70, 800 / 600 at frame 863, with no unported instruction on the way.
+- **Tests:**
+  - `tests/test_new_game.gd` (71 checks): the four answer paths, trigger 49, the naming input and quirks, the cursor moves, "No" to the name, the rename, the names' conversion, the boot's partner.
+  - `tests/new_game_scan.tscn`: the boot in the real scenes; `NEW_GAME_INTRO=1` plays the intro through too (it caught the intro's text boxes having no script files, so no lines: fixed the same day).
+  - `data_porter/tests/test_systems.py`: the three tables.
+- **Open:**
+  - Checked in the game 2026-10-27: the intro, the questions, the naming and the boot look right, except the naming screen's letter cursor frame (ISSUES.md I-34).
+  - The title menu (4e-2) comes before the intro; until then the game boots straight into it.

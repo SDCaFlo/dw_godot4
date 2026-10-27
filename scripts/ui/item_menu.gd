@@ -688,22 +688,9 @@ func _update_line(box: ListBox, style: int) -> void:
 	textboxes.draw_string2(at, coords[0], row * TextBoxes.ROW_HEIGHT)
 
 
-## flipTextboxPage (script_common.c:2536): true while the rows are drawn; a finished page flips.
-## Where the C falls off its end after the flip (no return value), the port counts that frame busy.
+## flipTextboxPage (TextBoxes.flip_textbox_page).
 func flip_page(box_id: int) -> bool:
-	var e: TextBoxes.Entry = textboxes.entries[box_id]
-	if e.double_buffered == 0:
-		return false
-	if e.registered == 0:
-		return true
-	if e.write_count != e.render_count:
-		return true
-	if e.page_ready == 0:
-		return false
-	e.back_page ^= 1
-	e.flip_count += 1
-	e.page_ready = 0
-	return true
+	return textboxes.flip_textbox_page(box_id)
 
 
 ## isItemMenuBoxBusy.

@@ -113,6 +113,9 @@ func start() -> void:
 		routines.clouds = clouds
 		routines.sparks = sparks
 		interpreter.routines = routines
+		for child in routines.get_children():
+			if child is NamingRoutines:
+				child.guide_screen_position = _type_screen_position
 
 
 ## tickScript (where gameLoop calls it).
@@ -162,6 +165,19 @@ func _entity_screen_position(script_id: int):
 	if npc is Npc:
 		return npc.screen_position(camera)
 	return null
+
+
+## getEntityScreenPos(bone 1) of the last NPC (entities 2-9) of a Digimon type, from the screen
+## centre; null without one (the naming boxes' origin, NamingRoutines).
+func _type_screen_position(type: int):
+	var found = null
+	if entities == null:
+		return null
+	for i in FieldEntities.NPC_SLOTS:
+		var npc = entities.npcs[i]
+		if npc is Npc and int(entities.slots[i]["type"]) == type:
+			found = npc.screen_position(camera)
+	return found
 
 
 ## The Digimon type of a script id's entity (the speaker's name): the partner's, an NPC's; -1.

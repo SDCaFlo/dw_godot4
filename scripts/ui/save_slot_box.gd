@@ -42,7 +42,7 @@ const HEADER_RECT := Rect2i(-112, -101, 224, 22)
 const SLOT_W := 224
 const SLOT_H := 34
 const CONFIRM_RECT := Rect2i(-100, -23, 200, 46)
-const SLEEP_RECT := Rect2i(-60, -20, 120, 46)
+const SLEEP_RECT := Rect2i(-75, -23, 150, 46)
 
 ## Internal states.
 const STATE_SELECT := 0
@@ -156,32 +156,32 @@ func _draw_slots() -> void:
 func _draw_confirm() -> void:
 	if text_area == null:
 		return
-	text_area.clear(Rect2i(0, SUB_BOX_V, 256, 24))
+	text_area.clear(Rect2i(0, SUB_BOX_V, 256, 32))
 	text_area.set_text_color(1)
 	var s := _get_save_for_slot(_selected_slot)
 	var has_save := not s.is_empty()
 	match mode:
 		MODE_LOAD:
-			text_area.draw_string("Load this save?", 4, SUB_BOX_V)
+			text_area.draw_string("Load this save?", 8, SUB_BOX_V)
 		MODE_SAVE, MODE_SLEEP:
 			if has_save:
-				text_area.draw_string("Overwrite this data?", 4, SUB_BOX_V)
+				text_area.draw_string("Overwrite this data?", 8, SUB_BOX_V)
 			else:
-				text_area.draw_string("Save to this slot?", 4, SUB_BOX_V)
+				text_area.draw_string("Save to this slot?", 8, SUB_BOX_V)
 		MODE_DELETE:
-			text_area.draw_string("Delete this save?", 4, SUB_BOX_V)
-	text_area.draw_string("Yes", 40, SUB_BOX_V + 12)
-	text_area.draw_string("No", 120, SUB_BOX_V + 12)
+			text_area.draw_string("Delete this save?", 8, SUB_BOX_V)
+	text_area.draw_string("Yes", 46, SUB_BOX_V + 14)
+	text_area.draw_string("No", 126, SUB_BOX_V + 14)
 
 
 func _draw_sleep_prompt() -> void:
 	if text_area == null:
 		return
-	text_area.clear(Rect2i(0, SUB_BOX_V, 256, 24))
+	text_area.clear(Rect2i(0, SUB_BOX_V, 256, 32))
 	text_area.set_text_color(1)
-	text_area.draw_string("Do you want to save?", 4, SUB_BOX_V)
-	text_area.draw_string("Yes", 16, SUB_BOX_V + 12)
-	text_area.draw_string("No", 64, SUB_BOX_V + 12)
+	text_area.draw_string("Do you want to save?", 6, SUB_BOX_V)
+	text_area.draw_string("Yes", 34, SUB_BOX_V + 14)
+	text_area.draw_string("No", 94, SUB_BOX_V + 14)
 
 
 func _tick(_id: int) -> void:
@@ -355,20 +355,20 @@ func _render(canvas: CanvasItem, _id: int) -> void:
 func _render_confirm_box(canvas: CanvasItem, _id: int) -> void:
 	if text_area == null:
 		return
-	text_area.render_string(canvas, 0, -96, -19, 192, 24, 0, SUB_BOX_V, false)
+	text_area.render_string(canvas, 0, -96, -18, 192, 32, 0, SUB_BOX_V, false)
 	# Yes/No cursor.
 	if _confirm_cursor == 0:
-		PsxDraw.menu_cursor(canvas, -64, -23 + 24, 30, 13)
+		PsxDraw.menu_cursor(canvas, -54, -5, 28, 14)
 	else:
-		PsxDraw.menu_cursor(canvas, 16, -23 + 24, 30, 13)
+		PsxDraw.menu_cursor(canvas, 26, -5, 26, 14)
 
 
 func _render_sleep_box(canvas: CanvasItem, _id: int) -> void:
 	if text_area == null:
 		return
-	text_area.render_string(canvas, 0, -56, -16, 112, 24, 0, SUB_BOX_V, false)
+	text_area.render_string(canvas, 0, -71, -18, 142, 32, 0, SUB_BOX_V, false)
 	# Yes/No cursor.
 	if _sleep_cursor == 0:
-		PsxDraw.menu_cursor(canvas, -44, -20 + 24, 28, 13)
+		PsxDraw.menu_cursor(canvas, -41, -5, 28, 14)
 	else:
-		PsxDraw.menu_cursor(canvas, 4, -20 + 24, 28, 13)
+		PsxDraw.menu_cursor(canvas, 19, -5, 26, 14)

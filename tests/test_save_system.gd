@@ -274,8 +274,8 @@ func _test_save_slot_box_sleep_mode() -> void:
 	_check(boxes.boxes[SaveSlotBox.SLEEP_PROMPT_BOX].state != UIBoxes.STATE_CLOSED,
 			"sleep prompt box open")
 	var has_yes_ink := false
-	for px in range(16, 32):
-		for py in range(SaveSlotBox.SUB_BOX_V + 12, SaveSlotBox.SUB_BOX_V + 24):
+	for px in range(30, 50):
+		for py in range(SaveSlotBox.SUB_BOX_V + 12, SaveSlotBox.SUB_BOX_V + 28):
 			if area.pixel(px, py) != 0:
 				has_yes_ink = true
 				break

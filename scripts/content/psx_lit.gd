@@ -6,7 +6,8 @@ class_name PsxLit
 ##   (project.godot [shader_globals]), set by FieldLighting;
 ## - semi-transparency: a semi-transparent polygon blends only the texels whose colour has the STP
 ##   bit, with its tpage's abr mode (0 half / half, 1 add, 2 subtract, 3 add a quarter); the other
-##   texels are opaque (asset_porter/specs/tmd.md "STP masks"). One pass each;
+##   texels are opaque (asset_porter/specs/tmd.md "STP masks"). One pass each. The blend is the
+##   PSX's, in its gamma values (GAMMA_BLEND);
 ## - the battle effects' per-object state (specs/battle_effects.md §7.3): a UV offset added to the
 ##   byte UVs (BTL_offsetEFEPrimitiveUVs: each vertex's u / v wraps at 256, so the wrap is per
 ##   vertex, not per pixel), and a colour (setEFEModelObjectColor, 128 = 1.0).
@@ -16,6 +17,22 @@ const HALF := 0
 const ADD := 1
 const SUBTRACT := 2
 const ADD_QUARTER := 3
+
+## The PSX blends in its own (gamma) colour values; Godot's 3D blends in linear light, where an
+## added texel brightens a lit background far less (ISSUES.md I-30: the techniques looked almost
+## invisible over the bright maps) and a halved one darkens it more. So a blended pass does the
+## PSX's sum itself, as DropShadow does: the screen behind it (the copy Godot makes before the
+## transparent pass: the background and the opaque models) to gamma, blended with the texel's
+## colour `front` (gamma, already modulated and clamped) by the abr, back to linear; it writes the
+## difference to what was behind, added (render mode blend_add), so effects drawn over each other
+## still add up. `abr` is the shader's mode uniform.
+const GAMMA_BLEND_UNIFORMS := """uniform sampler2D screen_texture : hint_screen_texture, filter_nearest;
+uniform int abr = 1;"""
+const GAMMA_BLEND := """vec3 behind = clamp(texture(screen_texture, SCREEN_UV).rgb, 0.0, 1.0);
+	vec3 g = mix(12.92 * behind, 1.055 * pow(behind, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), behind));
+	vec3 f = abr == 3 ? front * 0.25 : front;
+	vec3 blended = abr == 0 ? (g + f) * 0.5 : (abr == 2 ? g - f : g + f);
+	ALBEDO = srgb_to_linear(clamp(blended, 0.0, 1.0)) - behind;"""
 
 const _CODE := """shader_type spatial;
 render_mode unshaded%s;
@@ -37,8 +54,7 @@ uniform float alpha_cutoff = 0.5;
 uniform sampler2D stp_texture : filter_nearest;
 uniform bool use_stp = false;
 uniform bool blended_pass = false;
-uniform float alpha_scale = 1.0;
-uniform float color_scale = 1.0;
+%s
 // A model lit by its own light instead of the map's 3 (the Digimon / Player screens' model,
 // renderDigiviceEntity: one light, the ambient kept).
 uniform bool own_light = false;
@@ -89,7 +105,7 @@ void fragment() {
 		discard;
 	}
 	// COLOR: the vertex colour as the porter wrote it (white when the mesh has none).
-	ALBEDO = srgb_to_linear(clamp(texel.rgb * COLOR.rgb * intensity * tint, 0.0, 1.0)) * color_scale;
+	vec3 front = clamp(texel.rgb * COLOR.rgb * intensity * tint, 0.0, 1.0);
 	%s
 }
 """
@@ -107,13 +123,11 @@ static func material(texture: Texture2D, double_sided: bool, alpha_cutoff := 0.5
 		return base
 	base.set_shader_parameter("use_stp", true)
 	base.set_shader_parameter("stp_texture", stp_texture)
-	var blend: String = ["blend_mix", "blend_add", "blend_sub", "blend_add"][abr & 3]
-	var blended := _pass(blend, double_sided, texture, alpha_cutoff, lit)
+	var blended := _pass("blend_add", double_sided, texture, alpha_cutoff, lit)
 	blended.set_shader_parameter("use_stp", true)
 	blended.set_shader_parameter("stp_texture", stp_texture)
 	blended.set_shader_parameter("blended_pass", true)
-	blended.set_shader_parameter("alpha_scale", 0.5 if (abr & 3) == HALF else 1.0)
-	blended.set_shader_parameter("color_scale", 0.25 if (abr & 3) == ADD_QUARTER else 1.0)
+	blended.set_shader_parameter("abr", abr & 3)
 	base.next_pass = blended
 	return base
 
@@ -137,7 +151,7 @@ static func use_own_light(model: Node, dir: Vector3, color: Vector3) -> void:
 			mesh_instance.set_surface_override_material(i, copy)
 
 
-## One pass: opaque (`blend` "") or blended in a semi-transparency mode.
+## One pass: opaque (`blend` "") or blended (the PSX's blend, GAMMA_BLEND).
 static func _pass(blend: String, double_sided: bool, texture: Texture2D, alpha_cutoff: float, lit: bool) -> ShaderMaterial:
 	var key := "%s %s" % [blend, double_sided]
 	if not _shaders.has(key):
@@ -147,7 +161,8 @@ static func _pass(blend: String, double_sided: bool, texture: Texture2D, alpha_c
 		if double_sided:
 			modes += ", cull_disabled"
 		var shader := Shader.new()
-		shader.code = _CODE % [modes, "ALPHA = alpha_scale;" if blend != "" else ""]
+		shader.code = _CODE % [modes, GAMMA_BLEND_UNIFORMS if blend != "" else "",
+				GAMMA_BLEND if blend != "" else "ALBEDO = srgb_to_linear(front);"]
 		_shaders[key] = shader
 	var m := ShaderMaterial.new()
 	m.shader = _shaders[key]

@@ -7,6 +7,10 @@ extends SceneTree
 
 class StubContext extends BattleEffectContext:
 	var entities := {}
+	var offset := Vector2i(160, 120)
+
+	func drawing_offset() -> Vector2i:
+		return offset
 
 	func entity_present(id: int) -> bool:
 		return entities.has(id)
@@ -86,6 +90,7 @@ func _run() -> void:
 	_data()
 	_drawing()
 	_healing()
+	_screen_origin()
 
 	v.remove_all()
 	data.free()
@@ -254,6 +259,17 @@ func _data() -> void:
 	var p := ctx.condition_fx_position(1)
 	_eq(p != ctx.location(1), true, "the condition point is off the feet")
 	_eq(data.aura_projectile_type("dw1:agumon").has("u"), true, "Agumon's aura sprite")
+
+
+## DR_OFFSET at slot 0x20 (ISSUES.md I-31): the primitives at slot 0x20 and below are drawn from the
+## screen centre, the others from the drawing offset (the projection centre).
+func _screen_origin() -> void:
+	ctx.offset = Vector2i(360, 192)
+	_eq(ctx.slot_point(Vector2(-192, -152), 0x1E), Vector2(-392, -224), "a backdrop tile from the screen centre")
+	_eq(ctx.slot_point(Vector2(10, 20), 0x20), Vector2(-190, -52), "slot 0x20 too")
+	_eq(ctx.slot_point(Vector2(10, 20), 0x22), Vector2(10, 20), "slot 0x22 from the drawing offset")
+	ctx.offset = Vector2i(160, 120)
+	_eq(ctx.slot_point(Vector2(10, 20), 0x1E), Vector2(10, 20), "no shift with the offset at the centre")
 
 
 class StubState extends Node:

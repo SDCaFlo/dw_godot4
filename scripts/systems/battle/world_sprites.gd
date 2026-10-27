@@ -16,8 +16,7 @@ render_mode unshaded, cull_disabled%s;
 
 // The texel's sRGB values, as PsxLit.
 uniform sampler2D sprite_texture : filter_nearest;
-uniform float alpha_scale = 1.0;
-uniform float color_scale = 1.0;
+%s
 // The texels drawn (x, y, w, h; a negative size mirrors) and the colour (1.0 = 128); the vertex
 // colours (a gouraud polygon's, 1.0 = 128) multiply it.
 instance uniform vec4 region;
@@ -37,7 +36,7 @@ void fragment() {
 	if (texel.a < 0.5) {
 		discard;
 	}
-	ALBEDO = srgb_to_linear(clamp(texel.rgb * tint.rgb * COLOR.rgb, 0.0, 1.0)) * color_scale;
+	vec3 front = clamp(texel.rgb * tint.rgb * COLOR.rgb, 0.0, 1.0);
 	%s
 }
 """
@@ -227,9 +226,9 @@ func _material(texture: PsxTexture, abr: int) -> Material:
 		if abr < 0:
 			stp = _pass("", texture.stp)
 		else:
-			stp = _pass(["blend_mix", "blend_add", "blend_sub", "blend_add"][abr & 3], texture.stp)
-			stp.set_shader_parameter("alpha_scale", 0.5 if (abr & 3) == PsxLit.HALF else 1.0)
-			stp.set_shader_parameter("color_scale", 0.25 if (abr & 3) == PsxLit.ADD_QUARTER else 1.0)
+			# The PSX's blend in its gamma values (PsxLit.GAMMA_BLEND; ISSUES.md I-30).
+			stp = _pass("blend_add", texture.stp)
+			stp.set_shader_parameter("abr", abr & 3)
 		base.next_pass = stp
 		_materials[key] = base
 	return _materials[key]
@@ -239,7 +238,8 @@ static func _pass(blend: String, texture: Texture2D) -> ShaderMaterial:
 	if not _shaders.has(blend):
 		var shader := Shader.new()
 		shader.code = _CODE % [", %s, depth_draw_never" % blend if blend != "" else "",
-				"ALPHA = alpha_scale;" if blend != "" else ""]
+				PsxLit.GAMMA_BLEND_UNIFORMS if blend != "" else "",
+				PsxLit.GAMMA_BLEND if blend != "" else "ALBEDO = srgb_to_linear(front);"]
 		_shaders[blend] = shader
 	var m := ShaderMaterial.new()
 	m.shader = _shaders[blend]

@@ -164,7 +164,8 @@ func gs_sprite(texture: PsxTexture, abr: int, at: Vector2, region: Rect2, anchor
 	var depth := _ot_depth(z)
 	var corners := []
 	for c in [Vector2(0, 0), Vector2(region.size.x, 0), Vector2(0, region.size.y), region.size]:
-		corners.append(ctx().screen_to_world(at + Vector2((c.x - anchor.x) * sx, (c.y - anchor.y) * sy), depth))
+		corners.append(ctx().screen_to_world(ctx().slot_point(at + Vector2((c.x - anchor.x) * sx, (c.y - anchor.y) * sy), z),
+				depth))
 	sprites.quad(texture, abr, corners, region, tint)
 
 

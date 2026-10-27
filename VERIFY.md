@@ -445,7 +445,7 @@ The technique gallery (steps 5d-5a, 5d-5b): every technique's drawing (models, s
 5. **A few more to compare:** Electric Cloud, Blue Blaster, Poison Ivy, Static Elect (its sparkles run over the caster's bones), a technique with particle streaks (e.g. Sonic Jab, Tremar: the emitters), a flash (Mega Flame).
 6. **Things to look at against the original:** the sprites' size and **rotation direction**, what is hidden behind a Digimon, the colours and the additive / subtractive blending, the textures' scrolling.
 7. **The rarer kinds (5d-5b), one technique each to compare:**
-   - Winter Blast: a snowy backdrop scrolling in front of everything.
+   - Winter Blast: a snowy backdrop scrolling in front of everything, covering the whole screen on any map (I-31: it used to land off to one side, on TROP01 off the right edge).
    - Thunder Justice, Solar Ray: screen sprites and flashes.
    - DG Dimension: the screen darkens behind the fighters; a green wireframe grid and boxes.
    - Aurora Freeze: a colour-cycling ribbon and a screen tint.
@@ -455,6 +455,7 @@ The technique gallery (steps 5d-5a, 5d-5b): every technique's drawing (models, s
    - Spiral Sword: a textured quad.
 8. **Aim:** techniques fired from a mouth or a hand (Frozen Fire Shot, Spit Fire, Fireball) leave along that bone towards the target. Deadly Bomb lobs its bomb far beyond the target: does the original's land that far?
 9. **In a real battle:** the partner's technique now draws too, and the hits make sparks; the battle's sounds are the battle bank's (I-27).
+9b. **Brightness (I-30):** over a bright map (TROP01, MAYO03) the techniques show about as strong as in the original: Spit Fire's flames, Aurora Freeze's ribbon and the sparks are clearly visible, glowing over the background instead of nearly vanishing. Semi-transparent field models (the poop's shadow) look as before or closer to the original.
 10. **The battle visuals (5d-5c).** `test_battle_visuals.gd` prints `OK: battle visuals checks`. In the gallery (Place first), the **Visual** row's Show plays each on the caster; compare with the original:
     - **Poison:** bubbles rise and sway from the Digimon's head, one every second or so. Show again removes it; the bubbles already out finish rising.
     - **Confusion:** three small models circle above the head, each spinning.

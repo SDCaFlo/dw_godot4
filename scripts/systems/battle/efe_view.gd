@@ -337,7 +337,7 @@ func _screen_quad(texture: PsxTexture, abr: int, corners: Array, z: int, region:
 	var depth := _ot_depth(z)
 	var world := []
 	for c in corners:
-		world.append(ctx.screen_to_world(c, depth))
+		world.append(ctx.screen_to_world(ctx.slot_point(c, z), depth))
 	_sprites.quad(texture, abr, world, region, tint)
 
 
@@ -552,7 +552,9 @@ func _centre_shift() -> Vector2:
 ## A screen line (pixels relative to the drawing offset) at an OT slot.
 func _screen_line(a: Vector2, b: Vector2, z: int, color: Color, abr := -1) -> void:
 	var depth := _ot_depth(z)
-	_sprites.line(_effect.ctx.screen_to_world(a, depth), _effect.ctx.screen_to_world(b, depth), color, abr)
+	var ctx := _effect.ctx
+	_sprites.line(ctx.screen_to_world(ctx.slot_point(a, z), depth), ctx.screen_to_world(ctx.slot_point(b, z), depth),
+			color, abr)
 
 
 static func _rgb(c: Vector3i, percent := 100) -> Color:

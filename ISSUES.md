@@ -36,17 +36,24 @@ Reported 2026-10-26.
 - **What the original does:** to check: the battle's walking (moving into range, `BTL_tickMeleeAttack` / `BTL_tickRangedAttack`, the move-forward probe `entityCheckCollision` like the knock-back's).
 - **Status:** open. The scan's runs differ (frame pacing), so it is intermittent; the next step is a run that dumps the partner's state when it happens.
 
-### I-31. Winter Blast draws away from the battle
-- **Seen:** 2026-10-27, in a real battle: Winter Blast's visual appears somewhere else on the map, not where the fighters are.
-- **To check:** its pieces are the 5d-5b screen primitives (the scrolling snowy backdrop, `renderScrollingBackground` / `renderParallaxSprites`, placed through `FieldMap.drawing_offset()` and `screen_to_world`) and its models / sprites at the instance positions. Compare in the Effects gallery against a battle on the same map: whether the drawing offset or the depth slot puts the backdrop off the camera's view, or the instance's start position (its bone / caster table) is off.
-- **Status:** open.
+## Fixed
 
 ### I-30. Most techniques look very transparent
 - **Seen:** after 5d-5a / 5d-5b (2026-10-27), in the Effects gallery and in battle: most techniques' models and sprites are drawn, but very faint, almost invisible.
 - **To check against the original** (in the gallery, one technique at a time): the blend modes of the models' and sprites' STP texels (half / add on a bright background; `WorldSprites`, `PsxLit`), the sprites' tint (128 = 1.0), the textures' palettes and which texels carry the STP bit, the sRGB conversion of the additive passes.
-- **Status:** open. Not a missing feature: the drawing is there (`specs/battle_effects.md` "As built (5d-5a)", "(5d-5b)").
+- **Cause:** the PSX blends its semi-transparent texels in its own (gamma) colour values: an added texel of 0.5 over a 0.5 background gives full white. Godot's 3D (Forward+) blends in linear light, where the same add gives about 0.68, and a dim texel adds almost nothing: over the bright maps the effects all but vanished. The half mode darkened too much the same way.
+- **Fix (2026-10-27, checked in game):**
+  - **Where:** the blended passes of `PsxLit` (the effects' and every TMD's semi-transparent polygons) and of `WorldSprites` (the effects' sprites and polygons) do the PSX's blend themselves (`PsxLit.GAMMA_BLEND`).
+  - **How:** they read the screen behind them (the screen texture), convert it to gamma, add / halve / subtract / add a quarter, convert back, and write the difference with an additive blend, so overlapping effects still add up. `DropShadow` already did this for its subtraction.
+  - **Tests:** `tests/test_lighting.gd` checks the poop's shadow pass.
+  - **Left linear:** the effects' 1-pixel lines (`WorldSprites.line`) and the map overlays' sprites (`MapOverlays`).
+- **Status:** fixed (2026-10-27).
 
-## Fixed
+### I-31. Winter Blast draws away from the battle
+- **Seen:** 2026-10-27, in a real battle: Winter Blast's visual appears somewhere else on the map, not where the fighters are.
+- **To check:** its pieces are the 5d-5b screen primitives (the scrolling snowy backdrop, `renderScrollingBackground` / `renderParallaxSprites`, placed through `FieldMap.drawing_offset()` and `screen_to_world`) and its models / sprites at the instance positions. Compare in the Effects gallery against a battle on the same map: whether the drawing offset or the depth slot puts the backdrop off the camera's view, or the instance's start position (its bone / caster table) is off.
+- **Cause:** the battle adds a `DR_OFFSET` primitive at OT slot 0x20 every frame (`BTL_battleTickFrame`, `battle_main.c:2604`; the field's `applyDrawOffset` too), holding the screen centre (160, 120: `DR_OFFSETS`, `main.c:3579`). The primitives at slot 0x20 and below are drawn after it, from the screen centre; only the others are drawn from `DRAWING_OFFSET` (the projection centre). The port drew every screen primitive from the projection centre, which on most maps isn't the screen centre (TROP01: screen pixel (360, 192), off the right edge). Winter Blast's backdrop (slot 0x1E) landed there.
+- **Status:** fixed 2026-10-27: `BattleEffectContext.slot_point` (a point at slot ≤ 0x20 is taken from the screen centre), used by every screen primitive (`EfeView._screen_quad`, `_screen_line`, `BattleVisualsView.gs_sprite`). This also moves the other low-slot screen primitives (screen sprites, flashes, 2D quads and overlays at those slots) to where the original draws them. `tests/test_battle_visuals.gd` checks it.
 
 ### I-21. Recovery items show no healing effect
 - **Seen:** giving the partner a recovery item (e.g. Sm. recovery) heals it, but nothing shows on the partner.

@@ -494,3 +494,18 @@ The field's healing particles come with them (`addHealingParticleEffect`, ISSUES
 - **Open:**
   - **Lighting:** the confusion model is a lit TMD (`untextured_lit`); it is lit by the map's light like the Digimon. Whether the battle lights it differently is to compare.
   - **The visuals' order against the battle's own objects:** only the order among the visuals is the C's; the battle logic, the engine and the shared effects tick before them.
+
+## Fix (I-31, 2026-10-27): the screen origin of the low OT slots
+
+- **Corrects 5d-5b's placement:** the screen primitives were all placed from the drawing offset (the projection centre). The battle adds a `DR_OFFSET` primitive at OT slot 0x20 every frame (`BTL_battleTickFrame`, `battle_main.c:2604`), holding the screen centre (`DR_OFFSETS`, `main.c:3579`). The frame's primitives at slot 0x20 and below are drawn after it, from the screen centre; the others are drawn from `DRAWING_OFFSET`, whose value at the frame's end `GsSetOrign` applies.
+- **Port:** `BattleEffectContext.slot_point(point, slot)` gives a primitive's point relative to the projection centre (`SCREEN_ORIGIN_SLOT` 0x20). `EfeView._screen_quad` / `_screen_line` and `BattleVisualsView.gs_sprite` use it. The C's own shifts (the wireframes' and the negative-flip screen sprites' `0xA0 - DRAWING_OFFSET`) stay as they are.
+- **Effect:** Winter Blast's backdrop (slot 0x1E) now covers the screen on every map, as do the other screen primitives at those slots.
+
+## Fix (I-30, 2026-10-27): the blend in the PSX's gamma values
+
+- **The cause:** the semi-transparent texels were blended by Godot in linear light. The PSX adds, halves and subtracts its gamma values, so over a bright background the effects' added texels showed far fainter than on the PSX.
+- **The fix:** `PsxLit.GAMMA_BLEND`, in the blended passes of `PsxLit` and `WorldSprites`.
+  - **The blend:** the screen behind the pixel (the screen texture: the background and the opaque models) is taken to gamma, blended with the texel as the abr says, and taken back to linear.
+  - **The write:** the pass writes the difference with blend_add, so blended layers drawn over each other add up as in the OT.
+  - **One approximation:** a layer blends against the opaque scene, not the other layers already drawn.
+- **Still linear:** `WorldSprites.line` (the effects' lines) and `MapOverlays`.

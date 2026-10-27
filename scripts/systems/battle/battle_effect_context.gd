@@ -151,6 +151,22 @@ func drawing_offset() -> Vector2i:
 	return Vector2i(160, 120)
 
 
+## The OT slot of the battle's DR_OFFSET (BTL_battleTickFrame, battle_main.c:2604; the field's
+## applyDrawOffset too): the frame's primitives in this slot and below are drawn after it, with the
+## screen centre (160, 120: DR_OFFSETS, main.c:3579) as their origin instead of DRAWING_OFFSET.
+const SCREEN_ORIGIN_SLOT := 0x20
+
+
+## A primitive's screen point (as the C wrote it) at OT slot `slot`, relative to the projection
+## centre: a slot at or below SCREEN_ORIGIN_SLOT is drawn from the screen centre, the others from
+## the drawing offset (which is the projection centre).
+func slot_point(point: Vector2, slot: int) -> Vector2:
+	if slot > SCREEN_ORIGIN_SLOT:
+		return point
+	var ofs := drawing_offset()
+	return point + Vector2(0xA0 - ofs.x, 0x78 - ofs.y)
+
+
 ## The Godot point drawn at `relative` (screen pixels from the projection centre) at view depth
 ## `depth`: where the views put the effects' screen primitives.
 func screen_to_world(relative: Vector2, depth: float) -> Vector3:

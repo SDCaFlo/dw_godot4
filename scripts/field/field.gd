@@ -200,6 +200,9 @@ func _start() -> void:
 	if scripts.interpreter != null:
 		scripts.interpreter.battles = battle_host
 	death_host.field_map = _field
+	death_host.entities = entities.entities
+	death_host.battle_host = battle_host
+	death_host.map_session = map_session
 	death_host.configure(scripts.boxes, care_host.fade, _tamer, partner, scripts.script_ctx,
 			scripts.interpreter, _camera)
 	scripts.interpreter.death_host = death_host

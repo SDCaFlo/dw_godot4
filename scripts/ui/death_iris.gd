@@ -5,7 +5,7 @@ extends ColorRect
 ## In murd.c: lerp(0xC8, 0, start=0, end=35, t) - radius contracts from ~200 down to 0 onto the partner entity.
 
 const DURATION_FRAMES := 35
-const MAX_RADIUS := 1.5
+const MAX_RADIUS := 400.0
 
 var active := false
 var timer := 0
@@ -23,12 +23,12 @@ func _init() -> void:
 	var mat := ShaderMaterial.new()
 	var code := """shader_type canvas_item;
 uniform vec2 center = vec2(0.5, 0.5);
-uniform float radius = 1.5;
+uniform float radius_pixels = 400.0;
+uniform vec2 screen_size = vec2(320.0, 240.0);
 
 void fragment() {
-	vec2 diff = UV - center;
-	diff.x *= 4.0 / 3.0;
-	if (length(diff) > radius) {
+	vec2 diff = (UV - center) * screen_size;
+	if (length(diff) > radius_pixels) {
 		COLOR = vec4(0.0, 0.0, 0.0, 1.0);
 	} else {
 		COLOR = vec4(0.0, 0.0, 0.0, 0.0);
@@ -86,4 +86,5 @@ func _update_shader(r: float) -> void:
 	radius = r
 	if material is ShaderMaterial:
 		material.set_shader_parameter("center", center)
-		material.set_shader_parameter("radius", radius)
+		material.set_shader_parameter("radius_pixels", radius)
+		material.set_shader_parameter("screen_size", Vector2(320.0, 240.0))

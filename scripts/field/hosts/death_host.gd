@@ -32,6 +32,9 @@ var script_ctx: ScriptContext
 var interpreter: ScriptInterpreter
 var boxes: UIBoxes
 var game_state: Node
+var entities: RefCounted
+var battle_host: Node
+var map_session: Node
 
 var murd_box: MurdBox
 var iris: DeathIris
@@ -47,6 +50,7 @@ var _wireframe_nodes: Array[Node] = []
 var _dissolve_materials: Array[ShaderMaterial] = []
 var _dissolve_meshes: Array[MeshInstance3D] = []
 var _dissolve_orig_materials: Array[Material] = []
+var _hidden_nodes: Dictionary = {}
 var _egg_node: Node3D = null
 var _baby_key := ""
 
@@ -81,28 +85,18 @@ func start_scene(routine: int) -> void:
 	if tamer != null:
 		tamer.camera_follow = false
 
-	# Center iris on partner's screen position
-	var screen_center := Vector2(0.5, 0.5)
-	if camera != null and partner != null:
-		if not camera.is_position_behind(partner.global_position):
-			var pos_2d := camera.unproject_position(partner.global_position)
-			var cam_vp := camera.get_viewport()
-			if cam_vp != null and cam_vp.size.x > 0 and cam_vp.size.y > 0:
-				screen_center = Vector2(
-					clampf(pos_2d.x / float(cam_vp.size.x), 0.2, 0.8),
-					clampf(pos_2d.y / float(cam_vp.size.y), 0.2, 0.8)
-				)
+	# Hide all other entities, map shaders, and HUD elements so only partner is visible
+	_hide_all_except_partner()
+
+	# Center iris accurately on partner's body in screen coordinates
+	var screen_center := get_partner_screen_center()
 
 	match routine:
 		ScriptInterpreter.ROUTINE_COLLAPSE, ScriptInterpreter.ROUTINE_BATTLE_LOSS:
-			if tamer != null:
-				tamer.visible = false
 			iris.start_iris_in(screen_center)
 			scene_phase = 1
 		ScriptInterpreter.ROUTINE_DYING:
 			# Natural death: wireframe & texture fall dissolution
-			if tamer != null:
-				tamer.visible = false
 			_start_dissolution()
 			scene_phase = 10
 		ScriptInterpreter.ROUTINE_REBIRTH:
@@ -127,6 +121,7 @@ func tick() -> void:
 	match scene_phase:
 		# 1: Iris closing in on partner (partner visible on top of black)
 		1:
+			iris.center = get_partner_screen_center()
 			if iris.tick():
 				# Phase 2: Open MurdBox
 				scene_phase = 2
@@ -238,6 +233,103 @@ func tick() -> void:
 		22:
 			if scene_timer >= 10:
 				_finish_scene()
+
+
+func _get_partner_center_3d() -> Vector3:
+	if partner == null:
+		return Vector3.ZERO
+	var p: Vector3 = partner.bone_position(1) if partner.has_method("bone_position") else partner.global_position
+	if p == partner.global_position:
+		var r := float(partner.radius) if "radius" in partner and partner.radius > 0 else 24.0
+		p.y += r * 0.5
+	return p
+
+
+func get_partner_screen_center() -> Vector2:
+	if partner == null:
+		return Vector2(0.5, 0.5)
+	var target_3d := _get_partner_center_3d()
+	var screen_px := Vector2(160.0, 120.0)
+	if field_map != null and field_map.has_method("background_pixel"):
+		screen_px = field_map.background_pixel(target_3d) - field_map.scroll
+	elif camera != null:
+		var rs := 1.0
+		if "render_scale" in FieldMap:
+			rs = float(FieldMap.render_scale)
+		if rs <= 0.0:
+			rs = 1.0
+		screen_px = camera.unproject_position(target_3d) / rs
+	return Vector2(
+		clampf(screen_px.x / 320.0, 0.0, 1.0),
+		clampf(screen_px.y / 240.0, 0.0, 1.0)
+	)
+
+
+func _hide_all_except_partner() -> void:
+	_restore_hidden_nodes()
+
+	# 1. Hide Tamer
+	if tamer != null:
+		_hidden_nodes[tamer] = tamer.visible
+		tamer.visible = false
+
+	# 2. Hide other Digimons / NPCs in entities
+	if entities != null and entities.has_method("table"):
+		for e in entities.table():
+			if e != null and e != partner and is_instance_valid(e) and "visible" in e:
+				_hidden_nodes[e] = e.visible
+				e.visible = false
+
+	# Also search parent/world for any other Digimon or NPC instances
+	if partner != null and partner.get_parent() != null:
+		for child in partner.get_parent().find_children("*", "FieldDigimon", true, false):
+			if child != null and child != partner and is_instance_valid(child) and "visible" in child:
+				if not _hidden_nodes.has(child):
+					_hidden_nodes[child] = child.visible
+				child.visible = false
+		for child in partner.get_parent().find_children("*", "Npc", true, false):
+			if child != null and is_instance_valid(child) and "visible" in child:
+				if not _hidden_nodes.has(child):
+					_hidden_nodes[child] = child.visible
+				child.visible = false
+
+	# 3. Hide map overlays (all map shaders: water, bushes, animated effects)
+	if field_map != null:
+		if "overlays" in field_map and field_map.overlays != null and is_instance_valid(field_map.overlays):
+			_hidden_nodes[field_map.overlays] = field_map.overlays.visible
+			field_map.overlays.visible = false
+		var doors := field_map.get_node_or_null("Doors")
+		if doors != null and is_instance_valid(doors) and "visible" in doors:
+			_hidden_nodes[doors] = doors.visible
+			doors.visible = false
+
+	# 4. Hide map session items, chests, etc.
+	if map_session != null:
+		if "map_items" in map_session and map_session.map_items != null and is_instance_valid(map_session.map_items):
+			_hidden_nodes[map_session.map_items] = map_session.map_items.visible
+			map_session.map_items.visible = false
+		if "map_chests" in map_session and map_session.map_chests != null and is_instance_valid(map_session.map_chests):
+			_hidden_nodes[map_session.map_chests] = map_session.map_chests.visible
+			map_session.map_chests.visible = false
+
+	# 5. Hide battle elements
+	if battle_host != null:
+		if battle_host.hud_slot != null and is_instance_valid(battle_host.hud_slot):
+			_hidden_nodes[battle_host.hud_slot] = battle_host.hud_slot.visible
+			battle_host.hud_slot.visible = false
+		if battle_host.visuals_view != null and is_instance_valid(battle_host.visuals_view):
+			_hidden_nodes[battle_host.visuals_view] = battle_host.visuals_view.visible
+			battle_host.visuals_view.visible = false
+		if battle_host.fx_view != null and is_instance_valid(battle_host.fx_view):
+			_hidden_nodes[battle_host.fx_view] = battle_host.fx_view.visible
+			battle_host.fx_view.visible = false
+
+
+func _restore_hidden_nodes() -> void:
+	for node in _hidden_nodes.keys():
+		if is_instance_valid(node) and "visible" in node:
+			node.visible = _hidden_nodes[node]
+	_hidden_nodes.clear()
 
 
 func _start_dissolution() -> void:
@@ -377,6 +469,7 @@ func _spawn_digitama() -> void:
 func _warp_to_recovery_hospital() -> void:
 	if iris != null:
 		iris.hide_iris()
+	_restore_hidden_nodes()
 	var gs := _get_game_state()
 	var current_lives := 0
 	if gs != null and gs.state.has("partner"):
@@ -406,6 +499,7 @@ func _finish_scene() -> void:
 	is_active = false
 	if iris != null:
 		iris.hide_iris()
+	_restore_hidden_nodes()
 	if tamer != null:
 		tamer.camera_follow = true
 		tamer.visible = true

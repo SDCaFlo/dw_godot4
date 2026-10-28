@@ -57,6 +57,7 @@ var _maps: PackedStringArray
 @onready var _world: SubViewport = $World/SubViewport
 @onready var _hud: CanvasLayer = $Hud
 ## The hosts (specs/scenes.md §4.2).
+const DeathHost := preload("res://scripts/field/hosts/death_host.gd")
 @onready var entities: EntityHost = $Systems/Entities
 @onready var map_session: MapSession = $Systems/MapSession
 @onready var scripts: ScriptHost = $Systems/ScriptHost

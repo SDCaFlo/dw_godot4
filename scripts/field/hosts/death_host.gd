@@ -46,11 +46,6 @@ func _init() -> void:
 	iris = DeathIris.new()
 
 
-func _ready() -> void:
-	if iris != null and iris.get_parent() == null:
-		add_child(iris)
-
-
 func configure(p_boxes: UIBoxes, p_fade: Fade, p_tamer: Tamer, p_partner: Partner,
 		p_ctx: ScriptContext, p_interp: ScriptInterpreter, p_camera: Camera3D, p_gs: Node = null) -> void:
 	boxes = p_boxes

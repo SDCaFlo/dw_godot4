@@ -362,6 +362,9 @@ func _test_death_host_integration() -> void:
 			"Clinic open trigger routes to Jijimon House late (Map 205)")
 
 	# Test cutscene progression for Battle Loss
+	var fade := Fade.new()
+	fade._ready()
+	death_host.fade = fade
 	ctx.sync_bit = 0
 	death_host.start_scene(ScriptInterpreter.ROUTINE_BATTLE_LOSS)
 	_check(death_host.is_active, "DeathHost is active upon starting battle loss")
@@ -377,12 +380,19 @@ func _test_death_host_integration() -> void:
 	for i in 61:
 		death_host.tick()
 	_check(death_host.scene_phase == 4, "DeathHost advances to phase 4 (Warp completed)")
+	_check(not death_host.iris.visible, "DeathIris is hidden upon warp")
+	_check(fade.in_current > 0, "Fade from black is initiated after hospital warp")
 
 	# Advance warp delay (10 frames) -> Scene finishes and sync_bit is set
 	for i in 11:
 		death_host.tick()
 	_check(not death_host.is_active, "DeathHost finishes scene after warp")
 	_check(ctx.sync_bit == 1, "DeathHost sets script sync_bit upon completion")
+
+	# Tick fade to completion
+	for i in 25:
+		fade.tick()
+	_check(fade.progress == 0 and not fade.visible, "Fade finishes completely clear (no black screen)")
 
 	interp.death_host = null
 

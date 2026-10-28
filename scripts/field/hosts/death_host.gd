@@ -149,20 +149,40 @@ func tick() -> void:
 
 
 func _warp_to_recovery_hospital() -> void:
+	if iris != null:
+		iris.hide_iris()
+	var gs := _get_game_state()
+	if gs != null and gs.state.has("partner") and gs.state["partner"].has("care"):
+		var care: Dictionary = gs.state["partner"]["care"]
+		if int(care.get("remaining_lifetime", 0)) <= 0:
+			care["remaining_lifetime"] = 360
 	var target_map := determine_death_map()
 	if tamer != null and tamer.change_map.is_valid():
 		tamer.change_map.call(target_map, 1)
+	var f := _get_fade()
+	if f != null:
+		f.fade_from_black(0x14)
+	if partner != null:
+		partner.set_state(Partner.STATE_IDLE)
 
 
 func _finish_scene() -> void:
 	is_active = false
 	if iris != null:
-		iris.visible = false
+		iris.hide_iris()
 	if tamer != null:
 		tamer.camera_follow = true
 	# Set script sync bit to release WAIT_FOR_ENTITY in section 0x4DE / script 212
 	if script_ctx != null:
 		script_ctx.sync_bit = 1
+
+
+func _get_fade() -> Fade:
+	if fade != null:
+		return fade
+	if tamer != null and tamer.fade != null:
+		return tamer.fade
+	return null
 
 
 ## Selects destination map according to PSX decompilation (murd.c:781, dooa.c:1734):

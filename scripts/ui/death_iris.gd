@@ -64,6 +64,12 @@ func start_iris_out(screen_center: Vector2 = Vector2(0.5, 0.5)) -> void:
 	_update_shader(0.0)
 
 
+func hide_iris() -> void:
+	active = false
+	visible = false
+	_update_shader(1.0)
+
+
 func tick() -> bool:
 	if not active:
 		return true

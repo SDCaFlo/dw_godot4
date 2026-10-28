@@ -572,19 +572,26 @@ There is no save menu yet, so these checks are about the save file itself.
 
 ## Death, Lives, and Reincarnation (`scripts/field/hosts/death_host.gd`, `murd_box.gd`, `egg_select_box.gd`, `death_iris.gd`, `specs/death_reincarnation.md`)
 
-`test_death_reincarnation.gd` prints `OK: death & reincarnation checks (57 run)`.
+`test_death_reincarnation.gd` prints `OK: death & reincarnation checks (66 run)`.
 
 1. **Partner Collapse (Lives > 0):**
    - Triggering death with lives remaining (e.g. natural death from lifetime reaching 0, or losing a battle with lives > 0):
    - The partner plays its death collapse animation (animation 11) and stops.
-   - The lives banner (`MurdBox`, UI box 3) appears across the screen with the native `ETCHI/LIFE.png` backdrop showing 3 heart slots.
+   - The circular iris transition (`DeathIris`) contracts smoothly toward the screen center to black with an edgeless, pure black wipe.
+   - The partner model remains visible on top of the black floor throughout the iris wipe.
+   - The lives banner (`MurdBox`, UI box 3) appears across the screen with the native `ETCHI/LIFE.png` backdrop showing 3 heart slots, while the collapsed partner is visible below it.
    - The heart representing the lost life blinks empty/full before remaining empty.
    - Sound effect 5 plays.
-   - The circular iris transition (`DeathIris`) contracts smoothly toward the screen center to black.
    - The game warps to the hospital: Jijimon's House Early (Map 218 / `0xDA`) if prosperity < 50 and Centarumon's clinic is not recruited, or Jijimon's House Late (Map 205 / `0xCD`) if prosperity >= 50 or Centarumon is recruited.
    - Partner wakes up with restored lifetime and full HP/MP.
 
-2. **Natural Death Reincarnation (Egg Selection):**
+2. **Digital Shard Dissolution (0 Lives Death):**
+   - When the partner loses its final life, following the iris contraction and heart loss, the death dissolution sequence runs:
+   - The partner's textured polygons melt / slide downward along the Y-axis into a flat puddle on the floor.
+   - The partner's glowing 3D wireframe mesh remains upright in the collapsed pose above the fallen textures (matching PSX `dooa.c` / `doo2.c`).
+   - The wireframe flickers and flashes away with sound effect 8:2 / 8:3.
+
+3. **Natural Death Reincarnation (Egg Selection):**
    - When the partner passes away from old age / natural death, the partner fades away peacefully and the tamer is warped to Jijimon's House.
    - Jijimon asks which egg you want, opening the egg selection screen (`EggSelectBox`, UI box 3).
    - Four eggs are displayed horizontally (`ETCDAT/TAMA.p4-p7.png`):
@@ -595,14 +602,15 @@ There is no save menu yet, so these checks are about the save file itself.
    - Left / Right moves the selector cursor with sound 0; ✕ (Enter / Pad A) confirms the choice with sound 1.
    - The partner is reincarnated into the chosen Baby I Digimon with 3 lives, age 0, and stat inheritance equal to $\text{tamerLevel}\%$.
 
-3. **0 Lives Reincarnation (Penalty & Digitama Birth):**
+4. **0 Lives Reincarnation (Digitama Center Spawn & Rebirth Hop):**
    - When the partner loses its final life (`lives == 0`), Builtin 47 (`lostAllLives`) is invoked.
    - **Move Forgetting:** Non-basic techniques have a $(10 - \text{tamerLevel}) \times 2\%$ chance of being unlearned. If any moves were forgotten, section `0x4D8` line 7 announces the loss.
-   - **Partner Visibility:** The old partner dissolves and is hidden on the map while Jijimon explains the tragedy (*"Before fading away, [Partner] gave birth to a Digitama..."*).
-   - **Egg Assignment:** Per PSX `dooa.c:1764`, the egg is randomly assigned from the 4 eggs as a penalty rather than manually chosen.
-   - Rebirth routine (Routine 4) hatches the baby Digimon, reloads its 3D model, spawns it before the tamer, and plays sound 8:6.
+   - **Digitama Appearance:** The Digitama egg is spawned at `(0, 0, 0)` in the center of Jijimon's room while Jijimon explains the tragedy (*"Before fading away, [Partner] gave birth to a Digitama..."*).
+   - **Egg Assignment:** Per PSX `dooa.c:1764`, the egg is randomly assigned from the 4 eggs as a penalty.
+   - **Rebirth Routine:** Routine 4 causes the Digitama in the center of the room to wobble and shake, plays hatching sound 8:6, hatches the baby Digimon at `(0, 0, 0)`, and the baby Digimon hops across the floor to the Tamer before entering `STATE_NORMAL`.
 
-4. **Death Digivolutions (Script 212):**
-   - **Bakemon:** Champion partner dying from sickness has a 10% chance to digivolve into Bakemon instead of dying.
+5. **Death Digivolutions (Script 212):**
+   - **Bakemon:** Rookie partner dying in battle has a 10% chance to digivolve into Bakemon instead of losing a life.
+   - **Fast Dialogue:** Once the evolution finishes, the script delay is automatically capped to 20 frames so the digivolution announcement and controls return immediately without a 10-second pause.
    - **Sukamon:** Filling the virus bar (16 poop accidents) digivolves the partner into Sukamon.
    - **Devimon:** Champion partner losing a battle with discipline < 50% has a 50% chance to digivolve into Devimon.

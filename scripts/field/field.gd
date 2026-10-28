@@ -241,10 +241,12 @@ func _start_debug() -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
 	for node: Node in [care_host.bars, care_host.bubbles, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
-			care_host.fade, death_host.iris, scripts.boxes,
+			care_host.fade, scripts.boxes,
 			scripts.map_name]:
 		if node != null:
 			_hud.add_child(node)
+	if death_host != null and death_host.iris != null:
+		$World/SubViewport/Background.add_child(death_host.iris)
 
 
 ## The map layer's objects (MAP_LAYER_ENABLED: the doors, the overlay sprites, the items on the

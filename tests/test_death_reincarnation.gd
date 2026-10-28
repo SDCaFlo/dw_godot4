@@ -403,12 +403,31 @@ func _test_death_host_integration() -> void:
 	gs.state["partner"]["lives"] = 0
 	death_host._warp_to_recovery_hospital()
 	_check(not mock_partner.visible, "Partner is hidden after 0 lives death warp (dissolved)")
+	_check(death_host._egg_node != null and death_host._egg_node.position == Vector3.ZERO,
+			"Digitama egg is placed in the center of Jijimon's room (0, 0, 0)")
+
+	# Set mock tamer position across the room
+	var mock_tamer := Tamer.new()
+	mock_tamer.position = Vector3(120, 0, 100)
+	death_host.tamer = mock_tamer
 
 	# Execute Routine 4 (ROUTINE_REBIRTH)
 	interp.call_digimon_routine(ScriptInterpreter.ROUTINE_REBIRTH)
+	# Advance egg wobble (30 frames) & hatching in DeathHost
+	for i in 32:
+		death_host.tick()
 	_check(mock_partner.visible, "Partner becomes visible upon baby rebirth")
 	_check(mock_partner.digimon in ["dw1:botamon", "dw1:punimon", "dw1:poyomon", "dw1:yuramon"],
 			"Partner model reloaded to baby Digimon: %s" % mock_partner.digimon)
+	_check(death_host.scene_phase == 21, "DeathHost advances to phase 21 (Baby moving to player)")
+
+	# Test evolving delay speedup (Point 2)
+	interp._evolving_skip_delay = true
+	mock_partner.state = Partner.STATE_NORMAL
+	tb.delay_frames = 550
+	interp.ctx.active_instruction = ScriptContext.OP_DELAY
+	interp._tick_waiting_instruction()
+	_check(tb.delay_frames <= 20, "Post-evolution delay is capped to <= 20 frames (fast dialogue trigger)")
 
 	interp.death_host = null
 

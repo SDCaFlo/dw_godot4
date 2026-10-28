@@ -182,6 +182,7 @@ var _move_to_delta := Vector2i.ZERO
 ## A ported scene (CALL_DIGIMON_ROUTINE 0) cleared the sync bit and will set it again; any other
 ## clear is a scene not ported yet, whose waits end at once.
 var _sync_scene := false
+var _evolving_skip_delay := false
 ## tickLookAtEntity's HAS_ROTATION_DATA / ROTATION_DATA per entity (0-9): the target point taken
 ## on the first frame of a turn.
 var _has_rotation_data: Array = []
@@ -237,6 +238,7 @@ func call_section(script_id: int, section: int, is_event := 0) -> bool:
 	ctx.is_paused = false
 	ctx.sync_bit = 1
 	_sync_scene = false
+	_evolving_skip_delay = false
 	movement.fill(FREE)
 	textboxes.initialize_textbox()
 	if at < 0:
@@ -302,7 +304,10 @@ func tick_script() -> bool:
 func _tick_waiting_instruction() -> void:
 	match ctx.active_instruction:
 		ScriptContext.OP_DELAY:
+			if _evolving_skip_delay and partner != null and partner.state == Partner.STATE_NORMAL and textboxes.delay_frames > 20:
+				textboxes.delay_frames = 20
 			if textboxes.delay_frames == 0:
+				_evolving_skip_delay = false
 				ctx.active_instruction = 0
 		ScriptContext.OP_CALL_ROUTINE:
 			# The ported builtins tick until they end (ACTIVE_INSTRUCTION = 0); the others end at once.
@@ -1301,6 +1306,7 @@ func call_digimon_routine(routine: int) -> void:
 			game_state.state["partner"]["digimon"] = target_key
 			game_state.set_raised(target_key)
 		if partner != null:
+			_evolving_skip_delay = true
 			partner.set_state(Partner.STATE_EVOLVING)
 			ctx.sync_bit = 0
 			_sync_scene = true
@@ -1338,19 +1344,18 @@ func call_digimon_routine(routine: int) -> void:
 		if sound != null:
 			sound.play_sound(8, 6)
 		var d: Node = data if data != null else (ctx.data if ctx != null else null)
-		if partner != null and d != null:
-			var baby_key: String = game_state.state["partner"]["digimon"]
-			partner.load_digimon(d, baby_key)
-			partner.visible = true
-			if tamer != null:
-				partner.place_for_spawn({"position": tamer.position, "rotation": tamer.direction if "direction" in tamer else 0})
-			partner.set_state(Partner.STATE_NORMAL)
-		if death_host != null and death_host.has_method("start_scene"):
-			death_host.start_scene(routine)
-		if partner != null:
+		var baby_key: String = game_state.state["partner"]["digimon"]
+		if death_host != null and death_host.has_method("start_rebirth_sequence"):
+			death_host.start_rebirth_sequence(baby_key)
 			ctx.sync_bit = 0
 			_sync_scene = true
 		else:
+			if partner != null and d != null:
+				partner.load_digimon(d, baby_key)
+				partner.visible = true
+				if tamer != null:
+					partner.place_for_spawn({"position": tamer.position, "rotation": tamer.direction if "direction" in tamer else 0})
+				partner.set_state(Partner.STATE_NORMAL)
 			ctx.sync_bit = 1
 		return
 	if routine == ROUTINE_COLLAPSE:

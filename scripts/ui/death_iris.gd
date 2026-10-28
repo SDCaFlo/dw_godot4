@@ -16,6 +16,7 @@ var contracting := true
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	size = Vector2(320, 240)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	visible = false
 
@@ -23,19 +24,12 @@ func _init() -> void:
 	var code := """shader_type canvas_item;
 uniform vec2 center = vec2(0.5, 0.5);
 uniform float radius = 1.5;
-uniform vec4 border_color : source_color = vec4(0.8, 0.8, 0.8, 1.0);
-uniform float border_thickness = 0.01;
 
 void fragment() {
-	vec2 uv = UV;
-	// Aspect ratio correction (4:3)
-	vec2 diff = uv - center;
+	vec2 diff = UV - center;
 	diff.x *= 4.0 / 3.0;
-	float dist = length(diff);
-	if (dist > radius) {
+	if (length(diff) > radius) {
 		COLOR = vec4(0.0, 0.0, 0.0, 1.0);
-	} else if (dist > radius - border_thickness) {
-		COLOR = border_color;
 	} else {
 		COLOR = vec4(0.0, 0.0, 0.0, 0.0);
 	}

@@ -584,19 +584,25 @@ There is no save menu yet, so these checks are about the save file itself.
    - The game warps to the hospital: Jijimon's House Early (Map 218 / `0xDA`) if prosperity < 50 and Centarumon's clinic is not recruited, or Jijimon's House Late (Map 205 / `0xCD`) if prosperity >= 50 or Centarumon is recruited.
    - Partner wakes up with restored lifetime and full HP/MP.
 
-2. **0 Lives Reincarnation (Egg Selection):**
-   - When the partner loses its final life (`lives == 0`), Builtin 47 (`lostAllLives`) is invoked.
-   - **Move Forgetting:** Non-basic techniques have a $(10 - \text{tamerLevel}) \times 2\%$ chance of being unlearned. If any moves were forgotten, section `0x4D8` line 7 announces the loss.
-   - After the collapse and iris fade, the egg selection screen (`EggSelectBox`, UI box 3) appears in Jijimon's House.
+2. **Natural Death Reincarnation (Egg Selection):**
+   - When the partner passes away from old age / natural death, the partner fades away peacefully and the tamer is warped to Jijimon's House.
+   - Jijimon asks which egg you want, opening the egg selection screen (`EggSelectBox`, UI box 3).
    - Four eggs are displayed horizontally (`ETCDAT/TAMA.p4-p7.png`):
      - Slot 0: Green egg (`dw1:botamon`)
      - Slot 1: Pink egg (`dw1:punimon`)
      - Slot 2: Blue egg (`dw1:poyomon`)
      - Slot 3: Yellow striped egg (`dw1:yuramon`)
    - Left / Right moves the selector cursor with sound 0; ✕ (Enter / Pad A) confirms the choice with sound 1.
-   - The partner is reincarnated into the selected Baby I Digimon with 3 lives, reset age (0), reset weight, and inheritance stats (0% base inheritance on 0-lives death; $\text{tamerLevel}\%$ inheritance on natural death).
+   - The partner is reincarnated into the chosen Baby I Digimon with 3 lives, age 0, and stat inheritance equal to $\text{tamerLevel}\%$.
 
-3. **Death Digivolutions (Script 212):**
+3. **0 Lives Reincarnation (Penalty & Digitama Birth):**
+   - When the partner loses its final life (`lives == 0`), Builtin 47 (`lostAllLives`) is invoked.
+   - **Move Forgetting:** Non-basic techniques have a $(10 - \text{tamerLevel}) \times 2\%$ chance of being unlearned. If any moves were forgotten, section `0x4D8` line 7 announces the loss.
+   - **Partner Visibility:** The old partner dissolves and is hidden on the map while Jijimon explains the tragedy (*"Before fading away, [Partner] gave birth to a Digitama..."*).
+   - **Egg Assignment:** Per PSX `dooa.c:1764`, the egg is randomly assigned from the 4 eggs as a penalty rather than manually chosen.
+   - Rebirth routine (Routine 4) hatches the baby Digimon, reloads its 3D model, spawns it before the tamer, and plays sound 8:6.
+
+4. **Death Digivolutions (Script 212):**
    - **Bakemon:** Champion partner dying from sickness has a 10% chance to digivolve into Bakemon instead of dying.
    - **Sukamon:** Filling the virus bar (16 poop accidents) digivolves the partner into Sukamon.
    - **Devimon:** Champion partner losing a battle with discipline < 50% has a 50% chance to digivolve into Devimon.

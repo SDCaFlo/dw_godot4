@@ -74,10 +74,14 @@ func start_scene(routine: int) -> void:
 	# Center iris on partner's screen position
 	var screen_center := Vector2(0.5, 0.5)
 	if camera != null and partner != null:
-		var pos_2d := camera.unproject_position(partner.global_position)
-		var vp_size := get_viewport().get_visible_rect().size
-		if vp_size.x > 0 and vp_size.y > 0:
-			screen_center = Vector2(pos_2d.x / vp_size.x, pos_2d.y / vp_size.y)
+		if not camera.is_position_behind(partner.global_position):
+			var pos_2d := camera.unproject_position(partner.global_position)
+			var cam_vp := camera.get_viewport()
+			if cam_vp != null and cam_vp.size.x > 0 and cam_vp.size.y > 0:
+				screen_center = Vector2(
+					clampf(pos_2d.x / float(cam_vp.size.x), 0.2, 0.8),
+					clampf(pos_2d.y / float(cam_vp.size.y), 0.2, 0.8)
+				)
 
 	match routine:
 		ScriptInterpreter.ROUTINE_COLLAPSE, ScriptInterpreter.ROUTINE_BATTLE_LOSS:
@@ -152,10 +156,13 @@ func _warp_to_recovery_hospital() -> void:
 	if iris != null:
 		iris.hide_iris()
 	var gs := _get_game_state()
-	if gs != null and gs.state.has("partner") and gs.state["partner"].has("care"):
-		var care: Dictionary = gs.state["partner"]["care"]
-		if int(care.get("remaining_lifetime", 0)) <= 0:
-			care["remaining_lifetime"] = 360
+	var current_lives := 0
+	if gs != null and gs.state.has("partner"):
+		current_lives = int(gs.state["partner"].get("lives", 0))
+		if gs.state["partner"].has("care"):
+			var care: Dictionary = gs.state["partner"]["care"]
+			if int(care.get("remaining_lifetime", 0)) <= 0 and current_lives > 0:
+				care["remaining_lifetime"] = 360
 	var target_map := determine_death_map()
 	if tamer != null and tamer.change_map.is_valid():
 		tamer.change_map.call(target_map, 1)
@@ -163,7 +170,11 @@ func _warp_to_recovery_hospital() -> void:
 	if f != null:
 		f.fade_from_black(0x14)
 	if partner != null:
-		partner.set_state(Partner.STATE_IDLE)
+		if current_lives == 0:
+			partner.visible = false
+		else:
+			partner.visible = true
+			partner.set_state(Partner.STATE_IDLE)
 
 
 func _finish_scene() -> void:

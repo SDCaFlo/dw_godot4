@@ -5,11 +5,12 @@ extends ColorRect
 ## In murd.c: lerp(0xC8, 0, start=0, end=35, t) - radius contracts from ~200 down to 0 onto the partner entity.
 
 const DURATION_FRAMES := 35
+const MAX_RADIUS := 1.5
 
 var active := false
 var timer := 0
 var center := Vector2(0.5, 0.5)
-var radius := 1.0
+var radius := MAX_RADIUS
 var contracting := true
 
 
@@ -21,7 +22,7 @@ func _init() -> void:
 	var mat := ShaderMaterial.new()
 	var code := """shader_type canvas_item;
 uniform vec2 center = vec2(0.5, 0.5);
-uniform float radius = 1.0;
+uniform float radius = 1.5;
 uniform vec4 border_color : source_color = vec4(0.8, 0.8, 0.8, 1.0);
 uniform float border_thickness = 0.01;
 
@@ -52,7 +53,7 @@ func start_iris_in(screen_center: Vector2 = Vector2(0.5, 0.5)) -> void:
 	timer = 0
 	active = true
 	visible = true
-	_update_shader(1.0)
+	_update_shader(MAX_RADIUS)
 
 
 func start_iris_out(screen_center: Vector2 = Vector2(0.5, 0.5)) -> void:
@@ -67,7 +68,7 @@ func start_iris_out(screen_center: Vector2 = Vector2(0.5, 0.5)) -> void:
 func hide_iris() -> void:
 	active = false
 	visible = false
-	_update_shader(1.0)
+	_update_shader(MAX_RADIUS)
 
 
 func tick() -> bool:
@@ -76,7 +77,7 @@ func tick() -> bool:
 
 	timer += 1
 	var progress := clampf(float(timer) / float(DURATION_FRAMES), 0.0, 1.0)
-	var r := 1.0 - progress if contracting else progress
+	var r := (1.0 - progress) * MAX_RADIUS if contracting else progress * MAX_RADIUS
 	_update_shader(r)
 
 	if timer >= DURATION_FRAMES:

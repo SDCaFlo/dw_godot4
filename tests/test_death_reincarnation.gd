@@ -394,6 +394,22 @@ func _test_death_host_integration() -> void:
 		fade.tick()
 	_check(fade.progress == 0 and not fade.visible, "Fade finishes completely clear (no black screen)")
 
+	# Test 0 lives partner invisibility during Digitama talk, then model reload on ROUTINE_REBIRTH
+	var mock_partner := Partner.new()
+	mock_partner.digimon = "dw1:agumon"
+	mock_partner.visible = true
+	death_host.partner = mock_partner
+	interp.partner = mock_partner
+	gs.state["partner"]["lives"] = 0
+	death_host._warp_to_recovery_hospital()
+	_check(not mock_partner.visible, "Partner is hidden after 0 lives death warp (dissolved)")
+
+	# Execute Routine 4 (ROUTINE_REBIRTH)
+	interp.call_digimon_routine(ScriptInterpreter.ROUTINE_REBIRTH)
+	_check(mock_partner.visible, "Partner becomes visible upon baby rebirth")
+	_check(mock_partner.digimon in ["dw1:botamon", "dw1:punimon", "dw1:poyomon", "dw1:yuramon"],
+			"Partner model reloaded to baby Digimon: %s" % mock_partner.digimon)
+
 	interp.death_host = null
 
 

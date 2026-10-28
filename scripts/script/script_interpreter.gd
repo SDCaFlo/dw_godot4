@@ -1324,15 +1324,30 @@ func call_digimon_routine(routine: int) -> void:
 				if "selected_egg" in child:
 					death_routines = child
 					break
-		var baby_slot: int = int(death_routines.selected_egg) if death_routines != null else 0
 		var is_natural := bool(care.is_natural_death) if care != null else false
+		var baby_slot := 0
+		if is_natural:
+			baby_slot = int(death_routines.selected_egg) if death_routines != null else 0
+		else:
+			# PSX dooa.c:1764: sequence->eggSlot = rand() % 4 when partner->lives == 0
+			baby_slot = Rng.random_limit(4)
+
 		const REINCARNATE_BABY_IDS := [1, 15, 29, 43]
 		var baby_id: int = REINCARNATE_BABY_IDS[baby_slot % 4]
 		game_state.reincarnate_partner(baby_id, is_natural)
+		if sound != null:
+			sound.play_sound(8, 6)
+		var d: Node = data if data != null else (ctx.data if ctx != null else null)
+		if partner != null and d != null:
+			var baby_key: String = game_state.state["partner"]["digimon"]
+			partner.load_digimon(d, baby_key)
+			partner.visible = true
+			if tamer != null:
+				partner.place_for_spawn({"position": tamer.position, "rotation": tamer.direction if "direction" in tamer else 0})
+			partner.set_state(Partner.STATE_NORMAL)
 		if death_host != null and death_host.has_method("start_scene"):
 			death_host.start_scene(routine)
 		if partner != null:
-			partner.set_state(Partner.STATE_DYING2)
 			ctx.sync_bit = 0
 			_sync_scene = true
 		else:

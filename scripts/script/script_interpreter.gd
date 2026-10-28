@@ -62,6 +62,10 @@ const ROUTINE_TOILET := 0
 ## CALL_DIGIMON_ROUTINE 2 and 10: an evolution (partner state 13) into script value 5 (Sukamon's
 ## saved Digimon) or 0xFE (specs/evolution.md §2.6).
 const ROUTINE_EVOLVE_BACK := 2
+const ROUTINE_DYING := 3
+const ROUTINE_REBIRTH := 4
+const ROUTINE_COLLAPSE := 7
+const ROUTINE_BATTLE_LOSS := 9
 const ROUTINE_EVOLVE := 10
 const PSTAT_SUKAMON_BACKUP := 5
 const PSTAT_EVOLUTION := 0xFE
@@ -1285,12 +1289,68 @@ func call_digimon_routine(routine: int) -> void:
 		ctx.sync_bit = 0
 		_sync_scene = true
 		return
-	if (routine == ROUTINE_EVOLVE_BACK or routine == ROUTINE_EVOLVE) and partner != null and care != null:
-		care.evolution_target = game_state.script_value(
-				PSTAT_SUKAMON_BACKUP if routine == ROUTINE_EVOLVE_BACK else PSTAT_EVOLUTION)
-		partner.set_state(Partner.STATE_EVOLVING)
-		ctx.sync_bit = 0
-		_sync_scene = true
+	if routine == ROUTINE_EVOLVE_BACK or routine == ROUTINE_EVOLVE:
+		var target_id: int = int(game_state.script_value(
+				PSTAT_SUKAMON_BACKUP if routine == ROUTINE_EVOLVE_BACK else PSTAT_EVOLUTION))
+		if care != null:
+			care.evolution_target = target_id
+		if target_id > 0 and data != null:
+			var target_key: String = data.key_of("digimon/digimon_data", target_id)
+			game_state.state["partner"]["digimon"] = target_key
+			game_state.set_raised(target_key)
+		if partner != null:
+			partner.set_state(Partner.STATE_EVOLVING)
+			ctx.sync_bit = 0
+			_sync_scene = true
+		else:
+			ctx.sync_bit = 1
+		return
+	if routine == ROUTINE_DYING:
+		if partner != null:
+			partner.set_state(Partner.STATE_DYING)
+			ctx.sync_bit = 0
+			_sync_scene = true
+		else:
+			ctx.sync_bit = 1
+		return
+	if routine == ROUTINE_REBIRTH:
+		var death_routines: Node = null
+		if routines != null:
+			for child in routines.get_children():
+				if "selected_egg" in child:
+					death_routines = child
+					break
+		var baby_slot: int = int(death_routines.selected_egg) if death_routines != null else 0
+		var is_natural := bool(care.is_natural_death) if care != null else false
+		const REINCARNATE_BABY_IDS := [1, 15, 29, 43]
+		var baby_id: int = REINCARNATE_BABY_IDS[baby_slot % 4]
+		game_state.reincarnate_partner(baby_id, is_natural)
+		if partner != null:
+			partner.set_state(Partner.STATE_DYING2)
+			ctx.sync_bit = 0
+			_sync_scene = true
+		else:
+			ctx.sync_bit = 1
+		return
+	if routine == ROUTINE_COLLAPSE:
+		if tamer != null and tamer.has_method("set_state"):
+			tamer.set_state(Tamer.STATE_SICKNESS_LOST_LIFE)
+		if partner != null:
+			partner.set_state(Partner.STATE_SCRIPT)
+			ctx.sync_bit = 0
+			_sync_scene = true
+		else:
+			ctx.sync_bit = 1
+		return
+	if routine == ROUTINE_BATTLE_LOSS:
+		if tamer != null and tamer.has_method("set_state"):
+			tamer.set_state(Tamer.STATE_BATTLE_LOST_LIFE)
+		if partner != null:
+			partner.set_state(Partner.STATE_SCRIPT)
+			ctx.sync_bit = 0
+			_sync_scene = true
+		else:
+			ctx.sync_bit = 1
 		return
 	# Routines past 10 aren't cases of the C's switch: nothing happens (the gyms call 214).
 	if routine > ROUTINE_LAST:

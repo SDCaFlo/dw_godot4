@@ -1,0 +1,285 @@
+extends SceneTree
+## Tests for Death, Lives, Reincarnation, and Death Digivolution (specs/death_reincarnation.md):
+##   godot --headless --path . -s res://tests/test_death_reincarnation.gd
+## Exits 1 if a check fails.
+
+const DeathRoutines := preload("res://scripts/script/death_routines.gd")
+
+var _failed := 0
+var _checks := 0
+var _started := false
+
+var data: Node
+var gs: Node
+var interp: ScriptInterpreter
+var ctx: ScriptContext
+var tb: TextBoxes
+var boxes: UIBoxes
+var area: TextArea
+var pad: Pad
+var files: ScriptFiles
+var routines: ScriptRoutines
+var death: DeathRoutines
+
+
+func _process(_delta: float) -> bool:
+	if _started:
+		return false
+	_started = true
+
+	data = load("res://scripts/data/game_data.gd").new()
+	if not data.available() or not Content.exists("scripts/MAPHEAD/script.json"):
+		print("SKIP: porter output missing")
+		quit(0)
+		return false
+	PsxMath.setup(data)
+
+	_setup()
+	_test_reincarnation_math()
+	_test_move_unlearning()
+	_test_section_0x4de_dispatch()
+	_test_death_digivolutions()
+	_teardown()
+
+	var summary := "%s: death & reincarnation checks (%d run)" % ["FAILED %d" % _failed if _failed else "OK", _checks]
+	push_warning(summary)
+	print(summary)
+	quit(1 if _failed else 0)
+	return false
+
+
+func _setup() -> void:
+	gs = load("res://scripts/state/game_state.gd").new()
+	gs.data = data
+	gs.new_game()
+
+	boxes = UIBoxes.new()
+	area = TextArea.new(data, "en_us")
+	pad = Pad.new()
+	ctx = ScriptContext.new()
+	ctx.game_state = gs
+	ctx.data = data
+	tb = TextBoxes.new(boxes, area, ctx, pad, data, gs)
+	files = ScriptFiles.new()
+
+	routines = ScriptRoutines.new()
+	death = DeathRoutines.new()
+	routines.add_child(death)
+	routines.configure(ctx, tb, gs, data)
+
+	interp = ScriptInterpreter.new(ctx, files, tb)
+	interp.game_state = gs
+	interp.data = data
+	interp.routines = routines
+
+
+func _teardown() -> void:
+	pass
+
+
+func _check(cond: bool, msg: String) -> void:
+	_checks += 1
+	if not cond:
+		_failed += 1
+		print("FAIL: %s" % msg)
+
+
+# --- 1. Reincarnation Math & Resets -----------------------------------------------------------
+
+func _test_reincarnation_math() -> void:
+	# Natural death with Tamer Level 10: 10% stat inheritance
+	gs.new_game()
+	gs.state["tamer"]["level"] = 10
+	var prev_base: Dictionary = gs.state["partner"]["stats"]["base"]
+	prev_base["max_hp"] = 500
+	prev_base["max_mp"] = 800
+	prev_base["offense"] = 150
+	prev_base["defense"] = 120
+	prev_base["speed"] = 100
+	prev_base["brains"] = 90
+	gs.state["partner"]["care"]["age"] = 15
+	gs.state["partner"]["care"]["remaining_lifetime"] = 0
+	gs.state["partner"]["care"]["care_mistakes"] = 5
+	gs.state["partner"]["lives"] = 1
+
+	# Reincarnate into Botamon (id 1): base stats (90, 110, 10, 11, 9, 10) + 10%
+	gs.reincarnate_partner(1, true)
+	var new_base: Dictionary = gs.state["partner"]["stats"]["base"]
+	var care: Dictionary = gs.state["partner"]["care"]
+
+	_check(new_base["max_hp"] == 90 + 50, "Botamon natural death HP (90 + 50 = 140)")
+	_check(new_base["max_mp"] == 110 + 80, "Botamon natural death MP (110 + 80 = 190)")
+	_check(new_base["offense"] == 10 + 15, "Botamon natural death Offense (10 + 15 = 25)")
+	_check(new_base["defense"] == 11 + 12, "Botamon natural death Defense (11 + 12 = 23)")
+	_check(new_base["speed"] == 9 + 10, "Botamon natural death Speed (9 + 10 = 19)")
+	_check(new_base["brains"] == 10 + 9, "Botamon natural death Brains (10 + 9 = 19)")
+
+	_check(gs.state["partner"]["lives"] == 3, "Lives reset to 3")
+	_check(care["remaining_lifetime"] == 360, "Remaining lifetime reset to 360")
+	_check(care["age"] == 0, "Age reset to 0")
+	_check(care["care_mistakes"] == 0, "Care mistakes reset to 0")
+	_check(care["happiness"] == 50 and care["discipline"] == 50, "Happiness and discipline reset to 50")
+	_check(gs.state["partner"]["digimon"] == "dw1:botamon", "Partner digimon key set to botamon")
+	_check(gs.is_raised("dw1:botamon"), "Botamon marked as raised")
+
+	# Loss of all lives (is_natural_death = false): 0% stat inheritance
+	gs.state["tamer"]["level"] = 10
+	prev_base["max_hp"] = 1000
+	gs.reincarnate_partner(15, false)  # Poyomon / Punimon
+	var uninherited_base: Dictionary = gs.state["partner"]["stats"]["base"]
+	_check(uninherited_base["max_hp"] == 120, "0 lives lost: 0% inheritance, base HP 120")
+	_check(uninherited_base["offense"] == 16, "0 lives lost: base offense 16")
+
+
+# --- 2. Move Forgetting: Builtin 47 (lostAllLives) ---------------------------------------------
+
+func _test_move_unlearning() -> void:
+	gs.new_game()
+	# Learn 10 moves
+	var move_keys: Array = []
+	for i in range(1, 11):
+		var k: String = data.key_of("moves/move_data", i)
+		move_keys.append(k)
+		gs.learn_move(k)
+
+	_check(gs.state["partner"]["learned_moves"].size() == 10, "10 moves initially learned")
+
+	# Tamer Level 0: (10 - 0) * 2% = 20% of 10 moves = 2 moves forgotten
+	gs.state["tamer"]["level"] = 0
+	death.start(DeathRoutines.BUILTIN_LOST_ALL_LIVES)
+	_check(ctx.read_pstat(DeathRoutines.PSTAT_REMAINING_FORGOTTEN) == 2, "Tamer lvl 0: 2 moves to forget")
+
+	# Acknowledge first move
+	ctx.state_2 = 3
+	death.tick(DeathRoutines.BUILTIN_LOST_ALL_LIVES)
+	_check(ctx.read_pstat(DeathRoutines.PSTAT_REMAINING_FORGOTTEN) == 1, "1 move remaining to forget")
+
+	# Acknowledge second move
+	ctx.state_2 = 3
+	death.tick(DeathRoutines.BUILTIN_LOST_ALL_LIVES)
+	_check(ctx.active_instruction == 0, "Builtin 47 finishes when count reaches 0")
+	_check(gs.state["partner"]["learned_moves"].size() == 8, "Exactly 2 moves unlearned (8 left)")
+
+	# Tamer Level 10: (10 - 10) * 2% = 0% forgotten
+	gs.state["tamer"]["level"] = 10
+	var active := death.start(DeathRoutines.BUILTIN_LOST_ALL_LIVES)
+	_check(not active and ctx.active_instruction == 0, "Tamer lvl 10: 0 moves forgotten, completes immediately")
+	_check(gs.state["partner"]["learned_moves"].size() == 8, "No moves unlearned at level 10")
+
+
+# --- 3. Section 0x4DE Dispatching -------------------------------------------------------------
+
+func _test_section_0x4de_dispatch() -> void:
+	# Case A: 0 Lives Left -> CALL_DIGIMON_ROUTINE 7 and SECTION_ON_EXIT 73
+	gs.new_game()
+	gs.state["partner"]["lives"] = 0
+	gs.state["partner"]["care"]["remaining_lifetime"] = 100
+	gs.set_trigger(1)
+	gs.clear_trigger(41)
+	ctx.current_script_id = 212
+	ctx.active_instruction = 0
+
+	interp.call_section(0, 0x4DE)
+	# MAPHEAD section 0x4DE calls routine 7 then WAIT_FOR_ENTITY 255.
+	interp.tick_script()
+	# The cutscene routine completes, setting sync_bit = 1
+	ctx.sync_bit = 1
+	interp.tick_script()
+	_check(not gs.is_trigger_set(1) and gs.is_trigger_set(41), "Section 0x4DE: trigger 1 unset, trigger 41 set")
+	_check(ctx.code_id == 212 and ctx.pointer == ScriptFiles.section(files.script(212), 73),
+			"0 lives: routes to script 212 section 73")
+
+	# Case B: Natural Death (lifetime <= 0, lives > 0) -> CALL_DIGIMON_ROUTINE 3 and SECTION_ON_EXIT 71
+	gs.new_game()
+	gs.state["partner"]["lives"] = 2
+	gs.state["partner"]["care"]["remaining_lifetime"] = 0
+	ctx.current_script_id = 212
+	ctx.active_instruction = 0
+
+	interp.call_section(0, 0x4DE)
+	interp.tick_script()
+	ctx.sync_bit = 1
+	interp.tick_script()
+	_check(ctx.code_id == 212 and ctx.pointer == ScriptFiles.section(files.script(212), 71),
+			"lifetime 0: routes to script 212 section 71")
+
+	# Case C: Battle Loss / Fainting (lives > 0, lifetime > 0) -> CALL_DIGIMON_ROUTINE 9 and SECTION_ON_EXIT 72
+	gs.new_game()
+	gs.state["partner"]["lives"] = 2
+	gs.state["partner"]["care"]["remaining_lifetime"] = 200
+	ctx.current_script_id = 212
+	ctx.active_instruction = 0
+
+	interp.call_section(0, 0x4DE)
+	interp.tick_script()
+	ctx.sync_bit = 1
+	interp.tick_script()
+	_check(ctx.code_id == 212 and ctx.pointer == ScriptFiles.section(files.script(212), 72),
+			"lives > 0: routes to script 212 section 72")
+
+
+# --- 4. Death Digivolutions (Script 212 Section 72) --------------------------------------------
+
+func _test_death_digivolutions() -> void:
+	# Rookie with roll < 10 -> Bakemon (id 37)
+	gs.new_game("dw1:agumon")
+	gs.state["partner"]["digimon"] = "dw1:agumon"
+	gs.set_script_value(110, 5)    # Roll < 10 (successful roll)
+	_run_script_212_section_72(2138)
+	_check(gs.state["partner"]["digimon"] == "dw1:bakemon", "Agumon roll 5 evolves to Bakemon")
+	_check(gs.is_raised("dw1:bakemon"), "Bakemon marked as raised")
+
+	# Rookie with roll >= 10 -> stays Rookie
+	gs.new_game("dw1:agumon")
+	gs.set_script_value(110, 15)   # Roll >= 10 (fail roll)
+	_run_script_212_section_72(2138)
+	_check(gs.state["partner"]["digimon"] == "dw1:agumon", "Agumon roll 15 stays Agumon")
+
+	# MetalGreymon (12) with roll < 10 -> SkullGreymon (26)
+	gs.new_game("dw1:metalgreymon")
+	gs.set_script_value(110, 4)
+	_run_script_212_section_72(2214)
+	_check(gs.state["partner"]["digimon"] == "dw1:skullgreymon", "MetalGreymon roll 4 evolves to SkullGreymon")
+
+	# Kokatorimon (50) with roll < 10 -> Phoenixmon (59)
+	gs.new_game("dw1:kokatorimon")
+	gs.set_script_value(110, 8)
+	_run_script_212_section_72(2290)
+	_check(gs.state["partner"]["digimon"] == "dw1:phoenixmon", "Kokatorimon roll 8 evolves to Phoenixmon")
+
+	# Angemon (20) with discipline <= 49 and roll < 50 -> Devimon (6)
+	gs.new_game("dw1:angemon")
+	gs.state["partner"]["care"]["discipline"] = 40
+	gs.set_script_value(110, 30)
+	_run_script_212_section_72(2366)
+	_check(gs.state["partner"]["digimon"] == "dw1:devimon", "Angemon discipline 40 roll 30 evolves to Devimon")
+
+	# Angemon (20) with discipline > 49 and roll < 50 -> does not evolve
+	gs.new_game("dw1:angemon")
+	gs.state["partner"]["care"]["discipline"] = 60
+	gs.set_script_value(110, 30)
+	_run_script_212_section_72(2366)
+	_check(gs.state["partner"]["digimon"] == "dw1:angemon", "Angemon discipline 60 does not evolve")
+
+
+func _run_script_212_section_72(start_offset: int) -> void:
+	ctx.code = files.script(212)
+	ctx.code_id = 212
+	ctx.pointer = start_offset
+	ctx.active_instruction = 0
+	ctx.is_paused = false
+	_run_script_frames(30)
+
+
+func _run_script_frames(max_frames: int) -> void:
+	var frames := 0
+	while not ctx.is_paused and frames < max_frames:
+		interp.tick_script()
+		# Dismiss any textboxes automatically
+		if tb.entries[0].flags & TextBoxes.FLAG_OPEN != 0:
+			pad.polled = Pad.CONFIRM
+			pad.changed = Pad.CONFIRM
+			tb.tick_textbox_handling()
+			pad.polled = 0
+			pad.changed = 0
+		frames += 1

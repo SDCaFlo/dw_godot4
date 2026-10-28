@@ -30,6 +30,9 @@ const STATE_PRAISE := 15
 ## The toilet scene, started by CALL_DIGIMON_ROUTINE 0 (specs/care.md §2.16).
 const STATE_TOILET := 6
 const STATE_WILD_POOP := 7
+## Dying sequences (CALL_DIGIMON_ROUTINE 3 and 4; specs/death_reincarnation.md).
+const STATE_DYING := 8
+const STATE_DYING2 := 14
 ## Waits idling while the tamer is busy (e.g. his message box).
 const STATE_IDLE := 11
 ## A script moves it (scriptSetEntityWalking): nothing ticks but the animation (partner.c:246).

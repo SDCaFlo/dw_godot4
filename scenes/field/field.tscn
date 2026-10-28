@@ -22,6 +22,7 @@
 [ext_resource type="PackedScene" path="res://scenes/script/training_routines.tscn" id="12_training_routines"]
 [ext_resource type="PackedScene" path="res://scenes/script/naming_routines.tscn" id="12_naming_routines"]
 [ext_resource type="PackedScene" path="res://scenes/script/save_routines.tscn" id="12_save_routines"]
+[ext_resource type="PackedScene" path="res://scenes/script/death_routines.tscn" id="12_death_routines"]
 
 [sub_resource type="Environment" id="Environment_bg"]
 background_mode = 3
@@ -106,6 +107,8 @@ script = ExtResource("11_routines")
 [node name="NamingRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_naming_routines")]
 
 [node name="SaveRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_save_routines")]
+
+[node name="DeathRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_death_routines")]
 
 [node name="CareHost" type="Node" parent="Systems"]
 script = ExtResource("7_care_host")

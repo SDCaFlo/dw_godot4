@@ -28,6 +28,8 @@ const STATE_AWARD := 20
 ## Picking up an item from the ground (tamerTickPickupItem) and opening a chest (tamerTickTakeChest).
 const STATE_PICKUP := 7
 const STATE_CHEST := 14
+const STATE_SICKNESS_LOST_LIFE := 17
+const STATE_BATTLE_LOST_LIFE := 19
 ## A training station runs (tamerTickTraining, specs/training.md §2.6): his cheer, facing the partner.
 const STATE_TRAINING := 8
 ## tamerSetState(-1) (the Brains stations): no case in tamerTick, so nothing but his animation, as

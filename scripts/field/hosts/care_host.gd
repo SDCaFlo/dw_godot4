@@ -158,9 +158,11 @@ func _on_butterfly_changed(shown: bool) -> void:
 		bubbles.remove_current()
 
 
-## Stand-in for script section 0x4DE (the partner collapses or dies; scripts milestone): the values
-## partnerTickDying leaves (partner.c:674-676), then the script is over.
+## Triggered by Care when the partner collapses or dies (section 0x4DE; specs/death_reincarnation.md).
 func _on_script_requested(section: int) -> void:
+	if interpreter != null:
+		interpreter.call_section(0, section)
+		return
 	var values: Dictionary = GameState.state["partner"]["care"]
 	values["remaining_lifetime"] = 360
 	values["sickness_timer"] = 0

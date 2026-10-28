@@ -23,6 +23,7 @@ godot --headless --path . -s res://tests/test_text.gd
 godot --headless --path . -s res://tests/test_care.gd
 godot --headless --path . -s res://tests/test_partner.gd
 godot --headless --path . -s res://tests/test_clock.gd
+godot --headless --path . -s res://tests/test_death_reincarnation.gd
 godot --headless --path . -s res://tests/test_save_system.gd
 godot --headless --path . -s res://tests/test_game_state.gd
 godot --headless --path . -s res://tests/test_game_data.gd
@@ -568,3 +569,34 @@ There is no save menu yet, so these checks are about the save file itself.
    - When the partner goes to sleep (either via Menu > Sleep or naturally when exhausted), while the screen is completely faded to black, a prompt asks "Do you want to save?".
    - Choosing "No" continues waking up the partner normally.
    - Choosing "Yes" opens the slot selection box to save the game before waking up.
+
+## Death, Lives, and Reincarnation (`scripts/field/hosts/death_host.gd`, `murd_box.gd`, `egg_select_box.gd`, `death_iris.gd`, `specs/death_reincarnation.md`)
+
+`test_death_reincarnation.gd` prints `OK: death & reincarnation checks (57 run)`.
+
+1. **Partner Collapse (Lives > 0):**
+   - Triggering death with lives remaining (e.g. natural death from lifetime reaching 0, or losing a battle with lives > 0):
+   - The partner plays its death collapse animation (animation 11) and stops.
+   - The lives banner (`MurdBox`, UI box 3) appears across the screen with the native `ETCHI/LIFE.png` backdrop showing 3 heart slots.
+   - The heart representing the lost life blinks empty/full before remaining empty.
+   - Sound effect 5 plays.
+   - The circular iris transition (`DeathIris`) contracts smoothly toward the screen center to black.
+   - The game warps to the hospital: Jijimon's House Early (Map 218 / `0xDA`) if prosperity < 50 and Centarumon's clinic is not recruited, or Jijimon's House Late (Map 205 / `0xCD`) if prosperity >= 50 or Centarumon is recruited.
+   - Partner wakes up with restored lifetime and full HP/MP.
+
+2. **0 Lives Reincarnation (Egg Selection):**
+   - When the partner loses its final life (`lives == 0`), Builtin 47 (`lostAllLives`) is invoked.
+   - **Move Forgetting:** Non-basic techniques have a $(10 - \text{tamerLevel}) \times 2\%$ chance of being unlearned. If any moves were forgotten, section `0x4D8` line 7 announces the loss.
+   - After the collapse and iris fade, the egg selection screen (`EggSelectBox`, UI box 3) appears in Jijimon's House.
+   - Four eggs are displayed horizontally (`ETCDAT/TAMA.p4-p7.png`):
+     - Slot 0: Green egg (`dw1:botamon`)
+     - Slot 1: Pink egg (`dw1:punimon`)
+     - Slot 2: Blue egg (`dw1:poyomon`)
+     - Slot 3: Yellow striped egg (`dw1:yuramon`)
+   - Left / Right moves the selector cursor with sound 0; ✕ (Enter / Pad A) confirms the choice with sound 1.
+   - The partner is reincarnated into the selected Baby I Digimon with 3 lives, reset age (0), reset weight, and inheritance stats (0% base inheritance on 0-lives death; $\text{tamerLevel}\%$ inheritance on natural death).
+
+3. **Death Digivolutions (Script 212):**
+   - **Bakemon:** Champion partner dying from sickness has a 10% chance to digivolve into Bakemon instead of dying.
+   - **Sukamon:** Filling the virus bar (16 poop accidents) digivolves the partner into Sukamon.
+   - **Devimon:** Champion partner losing a battle with discipline < 50% has a 50% chance to digivolve into Devimon.

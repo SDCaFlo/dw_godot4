@@ -6,6 +6,8 @@ extends SceneTree
 const DeathRoutines := preload("res://scripts/script/death_routines.gd")
 const MurdBox := preload("res://scripts/ui/murd_box.gd")
 const EggSelectBox := preload("res://scripts/ui/egg_select_box.gd")
+const DeathHost := preload("res://scripts/field/hosts/death_host.gd")
+const DeathIris := preload("res://scripts/ui/death_iris.gd")
 
 var _failed := 0
 var _checks := 0
@@ -43,6 +45,7 @@ func _process(_delta: float) -> bool:
 	_test_death_digivolutions()
 	_test_murd_box()
 	_test_egg_select_box()
+	_test_death_host_integration()
 	_teardown()
 
 	var summary := "%s: death & reincarnation checks (%d run)" % ["FAILED %d" % _failed if _failed else "OK", _checks]
@@ -332,6 +335,56 @@ func _test_egg_select_box() -> void:
 	death.tick(DeathRoutines.BUILTIN_EGG_SELECT)
 	_check(death.selected_egg == 3, "DeathRoutines updates selected_egg to 3")
 	_check(ctx.active_instruction == 0, "Builtin 29 completes active_instruction on confirmation")
+
+
+# --- 6. Phase 3: DeathHost & Iris Integration ------------------------------------------------
+
+func _test_death_host_integration() -> void:
+	var death_host := DeathHost.new()
+	death_host.configure(boxes, null, null, null, ctx, interp, null)
+	interp.death_host = death_host
+
+	# Test hospital map routing formula
+	gs.new_game()
+	gs.clear_trigger(DeathHost.TRIGGER_CLINIC_OPEN)
+	gs.clear_trigger(DeathHost.TRIGGER_JIJIMON_EXTENDED)
+	gs.set_script_value(1, 10) # Prosperity = 10
+	_check(death_host.determine_death_map() == DeathHost.MAP_JIJIMON_HOUSE_EARLY,
+			"Low prosperity (<50) without clinic routes to Jijimon House early (Map 218)")
+
+	gs.set_script_value(1, 55) # Prosperity = 55
+	_check(death_host.determine_death_map() == DeathHost.MAP_JIJIMON_HOUSE_LATE,
+			"High prosperity (>=50) routes to Jijimon House late (Map 205)")
+
+	gs.set_script_value(1, 20)
+	gs.set_trigger(DeathHost.TRIGGER_CLINIC_OPEN)
+	_check(death_host.determine_death_map() == DeathHost.MAP_JIJIMON_HOUSE_LATE,
+			"Clinic open trigger routes to Jijimon House late (Map 205)")
+
+	# Test cutscene progression for Battle Loss
+	ctx.sync_bit = 0
+	death_host.start_scene(ScriptInterpreter.ROUTINE_BATTLE_LOSS)
+	_check(death_host.is_active, "DeathHost is active upon starting battle loss")
+	_check(death_host.scene_phase == 1, "DeathHost begins in phase 1 (Iris contraction)")
+
+	# Complete Iris contraction (35 frames)
+	for i in 36:
+		death_host.tick()
+	_check(death_host.scene_phase == 2, "DeathHost advances to phase 2 (MurdBox)")
+	_check(death_host.murd_box.is_open, "MurdBox is opened in phase 2")
+
+	# Advance MurdBox (60 frames) -> Phase 3 -> Phase 4
+	for i in 61:
+		death_host.tick()
+	_check(death_host.scene_phase == 4, "DeathHost advances to phase 4 (Warp completed)")
+
+	# Advance warp delay (10 frames) -> Scene finishes and sync_bit is set
+	for i in 11:
+		death_host.tick()
+	_check(not death_host.is_active, "DeathHost finishes scene after warp")
+	_check(ctx.sync_bit == 1, "DeathHost sets script sync_bit upon completion")
+
+	interp.death_host = null
 
 
 func _run_script_212_section_72(start_offset: int) -> void:

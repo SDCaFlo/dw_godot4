@@ -64,6 +64,7 @@ var _maps: PackedStringArray
 @onready var clock_host: ClockHost = $Systems/ClockHost
 @onready var menu_host: MenuHost = $Systems/MenuHost
 @onready var battle_host: BattleHost = $Systems/BattleHost
+@onready var death_host: DeathHost = $Systems/DeathHost
 @onready var debug: DebugHost = $Debug
 
 
@@ -197,6 +198,10 @@ func _start() -> void:
 	battle_host.message.connect(debug.show_message)
 	if scripts.interpreter != null:
 		scripts.interpreter.battles = battle_host
+	death_host.field_map = _field
+	death_host.configure(scripts.boxes, care_host.fade, _tamer, partner, scripts.script_ctx,
+			scripts.interpreter, _camera)
+	scripts.interpreter.death_host = death_host
 	map_session.partner = partner
 	map_session.entities = entities.entities
 	map_session.scripts = scripts
@@ -235,7 +240,7 @@ func _start_debug() -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
 	for node: Node in [care_host.bars, care_host.bubbles, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
-			care_host.fade, scripts.boxes,
+			care_host.fade, death_host.iris, scripts.boxes,
 			scripts.map_name]:
 		if node != null:
 			_hud.add_child(node)
@@ -286,6 +291,7 @@ func _frame() -> void:
 	debug.tick_gallery()
 	care_host.tick_visuals(in_menu)
 	care_host.tick_healing()
+	death_host.tick()
 	debug.tick_panel()
 	scripts.step_boxes()
 	care_host.tick_fade()

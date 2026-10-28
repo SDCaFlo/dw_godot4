@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://scripts/field/hosts/clock_host.gd" id="8_clock_host"]
 [ext_resource type="Script" path="res://scripts/field/hosts/debug_host.gd" id="9_debug"]
 [ext_resource type="Script" path="res://scripts/field/hosts/menu_host.gd" id="10_menu_host"]
+[ext_resource type="Script" path="res://scripts/field/hosts/death_host.gd" id="14_death_host"]
 [ext_resource type="Script" path="res://scripts/field/hosts/battle_host.gd" id="13_battle_host"]
 [ext_resource type="Script" path="res://scripts/script/script_routines.gd" id="11_routines"]
 [ext_resource type="PackedScene" path="res://scenes/script/shop_routines.tscn" id="12_shop_routines"]
@@ -121,6 +122,9 @@ script = ExtResource("10_menu_host")
 
 [node name="BattleHost" type="Node" parent="Systems"]
 script = ExtResource("13_battle_host")
+
+[node name="DeathHost" type="Node" parent="Systems"]
+script = ExtResource("14_death_host")
 
 [node name="Debug" type="Node" parent="."]
 script = ExtResource("9_debug")

@@ -161,6 +161,8 @@ var map_chests: MapChests
 ## The field's battles (BattleHost, specs/battle.md §5.3): start_battle(talked_entity),
 ## battle_done() and battle_outcome(). Without it START_BATTLE is skipped and reported.
 var battles: Object
+## The death and lives coordinator (DeathHost, specs/death_reincarnation.md).
+var death_host: Object
 ## The entity table (the NPCs, specs/npc.md); null: only the tamer and the partner.
 var entities: FieldEntities
 ## Field hooks for the map change (step 2): func(map, exit, show_name) -> bool done, called every
@@ -1306,6 +1308,8 @@ func call_digimon_routine(routine: int) -> void:
 			ctx.sync_bit = 1
 		return
 	if routine == ROUTINE_DYING:
+		if death_host != null and death_host.has_method("start_scene"):
+			death_host.start_scene(routine)
 		if partner != null:
 			partner.set_state(Partner.STATE_DYING)
 			ctx.sync_bit = 0
@@ -1325,6 +1329,8 @@ func call_digimon_routine(routine: int) -> void:
 		const REINCARNATE_BABY_IDS := [1, 15, 29, 43]
 		var baby_id: int = REINCARNATE_BABY_IDS[baby_slot % 4]
 		game_state.reincarnate_partner(baby_id, is_natural)
+		if death_host != null and death_host.has_method("start_scene"):
+			death_host.start_scene(routine)
 		if partner != null:
 			partner.set_state(Partner.STATE_DYING2)
 			ctx.sync_bit = 0
@@ -1335,6 +1341,8 @@ func call_digimon_routine(routine: int) -> void:
 	if routine == ROUTINE_COLLAPSE:
 		if tamer != null and tamer.has_method("set_state"):
 			tamer.set_state(Tamer.STATE_SICKNESS_LOST_LIFE)
+		if death_host != null and death_host.has_method("start_scene"):
+			death_host.start_scene(routine)
 		if partner != null:
 			partner.set_state(Partner.STATE_SCRIPT)
 			ctx.sync_bit = 0
@@ -1345,6 +1353,8 @@ func call_digimon_routine(routine: int) -> void:
 	if routine == ROUTINE_BATTLE_LOSS:
 		if tamer != null and tamer.has_method("set_state"):
 			tamer.set_state(Tamer.STATE_BATTLE_LOST_LIFE)
+		if death_host != null and death_host.has_method("start_scene"):
+			death_host.start_scene(routine)
 		if partner != null:
 			partner.set_state(Partner.STATE_SCRIPT)
 			ctx.sync_bit = 0

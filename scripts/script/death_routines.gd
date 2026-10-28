@@ -4,6 +4,8 @@ extends MenuRoutines
 ## Specs: specs/death_reincarnation.md §6.
 ## Child node of ScriptRoutines (scenes/script/death_routines.tscn).
 
+const EggSelectBox := preload("res://scripts/ui/egg_select_box.gd")
+
 const BUILTIN_EGG_SELECT := 29       # 0x1D
 const BUILTIN_LOST_ALL_LIVES := 47   # 0x2F
 
@@ -16,6 +18,19 @@ const PSTAT_REMAINING_FORGOTTEN := 0xF4
 
 ## Selected egg slot (0..3), set by UI in Phase 2 or test scripts.
 var selected_egg := 0
+
+var egg_select_box: EggSelectBox
+
+
+func _ready() -> void:
+	egg_select_box = EggSelectBox.new()
+
+
+func configure(routine_host: ScriptRoutines) -> void:
+	super(routine_host)
+	if egg_select_box != null:
+		egg_select_box.boxes = textboxes.boxes if textboxes != null else null
+		egg_select_box.pad = textboxes.pad if textboxes != null else null
 
 
 func start(routine: int) -> bool:
@@ -84,10 +99,19 @@ func _unlearn_next_move() -> void:
 # --- Builtin 29: DOO2_tickEggInput (doo2.c:739) ------------------------------------------------
 
 func _start_egg_select() -> bool:
-	# In Phase 1 without the UI modal box, finishes immediately.
-	ctx.active_instruction = 0
-	return false
+	if egg_select_box == null:
+		egg_select_box = EggSelectBox.new(textboxes.boxes if textboxes != null else null,
+				textboxes.pad if textboxes != null else null)
+	egg_select_box.open(selected_egg)
+	return true
 
 
 func _tick_egg_select() -> void:
-	pass
+	if egg_select_box == null:
+		ctx.active_instruction = 0
+		return
+
+	egg_select_box.tick()
+	if egg_select_box.confirmed:
+		selected_egg = egg_select_box.selected_egg
+		ctx.active_instruction = 0

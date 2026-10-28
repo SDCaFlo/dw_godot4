@@ -4,6 +4,8 @@ extends SceneTree
 ## Exits 1 if a check fails.
 
 const DeathRoutines := preload("res://scripts/script/death_routines.gd")
+const MurdBox := preload("res://scripts/ui/murd_box.gd")
+const EggSelectBox := preload("res://scripts/ui/egg_select_box.gd")
 
 var _failed := 0
 var _checks := 0
@@ -39,6 +41,8 @@ func _process(_delta: float) -> bool:
 	_test_move_unlearning()
 	_test_section_0x4de_dispatch()
 	_test_death_digivolutions()
+	_test_murd_box()
+	_test_egg_select_box()
 	_teardown()
 
 	var summary := "%s: death & reincarnation checks (%d run)" % ["FAILED %d" % _failed if _failed else "OK", _checks]
@@ -260,6 +264,74 @@ func _test_death_digivolutions() -> void:
 	gs.set_script_value(110, 30)
 	_run_script_212_section_72(2366)
 	_check(gs.state["partner"]["digimon"] == "dw1:angemon", "Angemon discipline 60 does not evolve")
+
+
+# --- 5. Phase 2 UI Components: MurdBox & EggSelectBox -----------------------------------------
+
+func _test_murd_box() -> void:
+	var murd := MurdBox.new(boxes)
+	murd.open(2) # 2 lives remaining (losing the 3rd life)
+	_check(murd.is_open, "MurdBox is open")
+	_check(murd.lives == 2, "MurdBox tracks 2 remaining lives")
+	_check(murd.state == 0, "MurdBox begins in state 0")
+
+	# Advance 10 frames -> state 1 (blinking)
+	for i in 10:
+		murd.tick()
+	_check(murd.state == 1, "MurdBox enters state 1 at frame 10")
+
+	# Advance to 30 frames -> state 2 (empty heart)
+	for i in 20:
+		murd.tick()
+	_check(murd.state == 2, "MurdBox enters state 2 at frame 30")
+
+	murd.close()
+	_check(not murd.is_open, "MurdBox is closed")
+
+
+func _test_egg_select_box() -> void:
+	var egg_box := EggSelectBox.new(boxes, pad)
+	egg_box.open(0)
+	_check(egg_box.is_open, "EggSelectBox is open")
+	_check(egg_box.selected_egg == 0, "Default egg selection is 0 (Botamon)")
+
+	# Ready for input
+	egg_box.ready_for_input = true
+
+	# Navigate Right -> egg 1 (Poyomon)
+	pad.changed = Pad.RIGHT
+	egg_box.tick()
+	_check(egg_box.selected_egg == 1, "Egg selection moves right to 1 (Poyomon)")
+
+	# Navigate Right -> egg 2 (Punimon)
+	pad.changed = Pad.RIGHT
+	egg_box.tick()
+	_check(egg_box.selected_egg == 2, "Egg selection moves right to 2 (Punimon)")
+
+	# Navigate Left -> egg 1
+	pad.changed = Pad.LEFT
+	egg_box.tick()
+	_check(egg_box.selected_egg == 1, "Egg selection moves left back to 1")
+
+	# Confirm selection
+	pad.changed = Pad.CONFIRM
+	egg_box.tick()
+	_check(egg_box.confirmed, "Egg selection is confirmed on Pad.CONFIRM")
+
+	# Integration test with DeathRoutines & Builtin 29
+	death.selected_egg = 0
+	ctx.current_script_id = 212
+	ctx.active_instruction = 0
+	death.start(DeathRoutines.BUILTIN_EGG_SELECT)
+	death.egg_select_box.ready_for_input = true
+
+	# Move to egg 3 (Yuramon)
+	pad.changed = Pad.LEFT
+	death.tick(DeathRoutines.BUILTIN_EGG_SELECT)
+	pad.changed = Pad.CONFIRM
+	death.tick(DeathRoutines.BUILTIN_EGG_SELECT)
+	_check(death.selected_egg == 3, "DeathRoutines updates selected_egg to 3")
+	_check(ctx.active_instruction == 0, "Builtin 29 completes active_instruction on confirmation")
 
 
 func _run_script_212_section_72(start_offset: int) -> void:

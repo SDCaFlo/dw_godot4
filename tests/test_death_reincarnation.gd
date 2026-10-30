@@ -429,6 +429,29 @@ func _test_death_host_integration() -> void:
 	interp._tick_waiting_instruction()
 	_check(tb.delay_frames <= 20, "Post-evolution delay is capped to <= 20 frames (fast dialogue trigger)")
 
+	# Iris geometry test: no PRESET_FULL_RECT anchors to prevent double scaling inside CanvasLayer
+	var iris := DeathIris.new()
+	_check(iris.size == Vector2(320, 240), "DeathIris base size is 320x240")
+	_check(iris.anchor_right == 0.0 and iris.anchor_bottom == 0.0, "DeathIris anchors are zero (fixed PSX size)")
+	_check(iris.offset_right == 320.0 and iris.offset_bottom == 240.0, "DeathIris offsets match 320x240 rect")
+	iris.start_iris_in(Vector2(0.5, 0.5))
+	_check(iris.size == Vector2(320, 240), "DeathIris size preserved after start_iris_in")
+
+	# Camera unprojection screen center test
+	if not mock_partner.is_inside_tree():
+		root.add_child(mock_partner)
+	var target_3d := death_host._get_partner_center_3d()
+	var cam := Camera3D.new()
+	cam.position = target_3d + Vector3(0, 0, 10)
+	cam.look_at_from_position(cam.position, target_3d)
+	root.add_child(cam)
+	death_host.camera = cam
+	var screen_c := death_host.get_partner_screen_center()
+	_check(absf(screen_c.x - 0.5) < 0.05 and absf(screen_c.y - 0.5) < 0.05,
+			"DeathHost screen center unprojects to center (0.5, 0.5): got %s" % screen_c)
+
+	cam.queue_free()
+	mock_partner.queue_free()
 	interp.death_host = null
 
 

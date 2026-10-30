@@ -250,15 +250,15 @@ func get_partner_screen_center() -> Vector2:
 		return Vector2(0.5, 0.5)
 	var target_3d := _get_partner_center_3d()
 	var screen_px := Vector2(160.0, 120.0)
-	if field_map != null and field_map.has_method("background_pixel"):
-		screen_px = field_map.background_pixel(target_3d) - field_map.scroll
-	elif camera != null:
+	if camera != null and camera.is_inside_tree():
 		var rs := 1.0
 		if "render_scale" in FieldMap:
 			rs = float(FieldMap.render_scale)
 		if rs <= 0.0:
 			rs = 1.0
 		screen_px = camera.unproject_position(target_3d) / rs
+	elif field_map != null and field_map.has_method("background_pixel"):
+		screen_px = field_map.background_pixel(target_3d) - field_map.scroll
 	return Vector2(
 		clampf(screen_px.x / 320.0, 0.0, 1.0),
 		clampf(screen_px.y / 240.0, 0.0, 1.0)

@@ -572,7 +572,7 @@ There is no save menu yet, so these checks are about the save file itself.
 
 ## Death, Lives, and Reincarnation (`scripts/field/hosts/death_host.gd`, `murd_box.gd`, `egg_select_box.gd`, `death_iris.gd`, `specs/death_reincarnation.md`)
 
-`test_death_reincarnation.gd` prints `OK: death & reincarnation checks (66 run)`.
+`test_death_reincarnation.gd` prints `OK: death & reincarnation checks (71 run)`.
 
 1. **Partner Collapse (Lives > 0):**
    - Triggering death with lives remaining (e.g. natural death from lifetime reaching 0, or losing a battle with lives > 0):

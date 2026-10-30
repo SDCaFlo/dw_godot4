@@ -16,8 +16,7 @@ var contracting := true
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	size = Vector2(320, 240)
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_reset_geometry()
 	visible = false
 
 	var mat := ShaderMaterial.new()
@@ -41,7 +40,28 @@ void fragment() {
 	material = mat
 
 
+func _reset_geometry() -> void:
+	# Keep fixed size (320, 240) without PRESET_FULL_RECT anchors.
+	# Inside $World/SubViewport/Background (CanvasLayer scaled by render_scale),
+	# anchors would scale size to SubViewport (320*rs, 240*rs), causing double scaling.
+	anchor_left = 0.0
+	anchor_top = 0.0
+	anchor_right = 0.0
+	anchor_bottom = 0.0
+	offset_left = 0.0
+	offset_top = 0.0
+	offset_right = 320.0
+	offset_bottom = 240.0
+	position = Vector2.ZERO
+	size = Vector2(320.0, 240.0)
+
+
+func _ready() -> void:
+	_reset_geometry()
+
+
 func start_iris_in(screen_center: Vector2 = Vector2(0.5, 0.5)) -> void:
+	_reset_geometry()
 	contracting = true
 	center = screen_center
 	timer = 0
@@ -51,6 +71,7 @@ func start_iris_in(screen_center: Vector2 = Vector2(0.5, 0.5)) -> void:
 
 
 func start_iris_out(screen_center: Vector2 = Vector2(0.5, 0.5)) -> void:
+	_reset_geometry()
 	contracting = false
 	center = screen_center
 	timer = 0

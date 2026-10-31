@@ -82,7 +82,7 @@ func _surfaces(model: Node) -> Array:
 func _materials() -> void:
 	var agumon := Content.load_model("mmd_files/MMD0/AGUM.gltf")
 	var mats := _surfaces(agumon)
-	_eq(mats.all(func(m): return m is ShaderMaterial and (m as ShaderMaterial).shader.code.contains("psx_light_0_dir")),
+	_eq(mats.all(func(m): return m is ShaderMaterial and (m as ShaderMaterial).shader.resource_path.begins_with("res://shaders/psx_lit/")),
 			true, "Agumon's lit materials take the field lighting (PsxLit)")
 	_eq((mats[0] as ShaderMaterial).get_shader_parameter("albedo_texture") != null, true, "with their texture")
 	agumon.free()
@@ -98,12 +98,12 @@ func _materials() -> void:
 	hyog.free()
 	# ISSUES.md I-5: the poop (ETCNA/UNTI): its body has no STP texels (opaque); its shadow disc has
 	# them all, drawn subtractively (abr 2) in a blended pass (the PSX's blend in gamma values,
-	# PsxLit.GAMMA_BLEND, ISSUES.md I-30).
+	# shaders/common/psx_gamma_blend.gdshaderinc, ISSUES.md I-30).
 	var poop := Content.load_model("tmd_files/ETCNA/UNTI.gltf")
 	var passes := []
 	for m in _surfaces(poop):
 		var next: ShaderMaterial = (m as ShaderMaterial).next_pass
-		var sub := next != null and next.shader.code.contains("hint_screen_texture") and int(next.get_shader_parameter("abr")) == PsxLit.SUBTRACT
+		var sub := next != null and next.shader.resource_path.begins_with("res://shaders/psx_lit/blended") and int(next.get_shader_parameter("abr")) == PsxLit.SUBTRACT
 		passes.append("sub" if sub else ("other" if next != null else "opaque"))
 	passes.sort()
 	_eq(passes, ["opaque", "sub"], "the poop: an opaque body, a shadow with a subtractive pass on its STP texels")

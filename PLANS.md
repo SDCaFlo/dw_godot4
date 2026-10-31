@@ -158,6 +158,7 @@ Last updated: 2026-10-26
 
 ## Done
 
+- 2026-10-31 — Shaders out of strings: the six shaders written as GDScript strings (PsxLit, PsxUiFilter, WorldSprites, DropShadow, MapOverlays, MapItems) are `.gdshader` files in `shaders/`, so a mod can replace them; variants that differ in `render_mode` share a `.gdshaderinc`, and the PSX gamma blend / sRGB helpers are shared includes (`shaders/common/`). Behaviour-neutral: a render of MAYO01 with Agumon is byte-identical before and after. `tests/test_rules.gd` now allows no shader strings.
 - 2026-10-24 — ISSUES.md I-8: the snow maps' scenery sprites (Freezeland's boulder, ice) were lost on the second overlay load and the tamer drew over them.
 
 - 2026-10-24 — Step 5c, sound and music: the songs rendered offline by the asset porter (`music` family: libsnd's sequencer and voice manager checked against DW's libsnd asm, on an SPU emulation with the Studio B reverb; tables read from the executable); the `Sound` autoload plays them (day / night variants, `SET_BGM`, `STOP_BGM`, the clock's `updateBGM`) and the sound effects voice by voice (`playSound`, the SPU envelope, voices 10–23): script `PLAY_SOUND`, text boxes and windows, the animations' footsteps, the map's and the partner's banks.

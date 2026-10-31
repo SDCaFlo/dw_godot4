@@ -504,7 +504,7 @@ The field's healing particles come with them (`addHealingParticleEffect`, ISSUES
 ## Fix (I-30, 2026-10-27): the blend in the PSX's gamma values
 
 - **The cause:** the semi-transparent texels were blended by Godot in linear light. The PSX adds, halves and subtracts its gamma values, so over a bright background the effects' added texels showed far fainter than on the PSX.
-- **The fix:** `PsxLit.GAMMA_BLEND`, in the blended passes of `PsxLit` and `WorldSprites`.
+- **The fix:** the PSX's blend done in the shader (`shaders/common/psx_gamma_blend.gdshaderinc`), in the blended passes of `PsxLit` and `WorldSprites`.
   - **The blend:** the screen behind the pixel (the screen texture: the background and the opaque models) is taken to gamma, blended with the texel as the abr says, and taken back to linear.
   - **The write:** the pass writes the difference with blend_add, so blended layers drawn over each other add up as in the OT.
   - **One approximation:** a layer blends against the opaque scene, not the other layers already drawn.

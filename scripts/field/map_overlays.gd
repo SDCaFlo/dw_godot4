@@ -51,7 +51,6 @@ var _move_delta: Array = []
 ## CURRENT_FRAME for the snow's drift (every third frame).
 var _frame_count := 0
 ## Shaders per blend mode, materials per (sprite, palette).
-var _shaders := {}
 var _materials := {}
 
 
@@ -393,25 +392,13 @@ func set_palette(value: int) -> void:
 # --- Materials -----------------------------------------------------------------------------------
 
 ## The texels without the STP bit are opaque; with it, a semi-transparent sprite blends them
-## (tim.md): one pass each. 50 / 50 is a mix at half alpha, +25 % an add of a quarter.
-const _SHADER := """shader_type spatial;
-render_mode unshaded, cull_disabled, depth_draw_never, %s;
-uniform sampler2D tex : source_color, filter_nearest;
-uniform sampler2D stp : filter_nearest;
-uniform bool use_stp = false;
-uniform bool blended_pass = false;
-uniform float alpha_scale = 1.0;
-uniform float color_scale = 1.0;
-void fragment() {
-	vec4 c = texture(tex, UV);
-	bool semi = use_stp && texture(stp, UV).r > 0.5;
-	if (c.a < 0.5 || semi != blended_pass) {
-		discard;
-	}
-	ALBEDO = c.rgb * color_scale;
-	ALPHA = blended_pass ? alpha_scale : 1.0;
+## (tim.md): one pass each. The shaders (res://shaders/map_overlay/, a mod may replace them), by
+## blend mode.
+const _SHADERS := {
+	"blend_mix": preload("res://shaders/map_overlay/mix.gdshader"),
+	"blend_add": preload("res://shaders/map_overlay/add.gdshader"),
+	"blend_sub": preload("res://shaders/map_overlay/sub.gdshader"),
 }
-"""
 
 
 func _material(sprite: int) -> Material:
@@ -445,12 +432,8 @@ func _material(sprite: int) -> Material:
 
 
 func _pass(blend: String, tex: Texture2D, stp_tex: Texture2D, blended: bool) -> ShaderMaterial:
-	if not _shaders.has(blend):
-		var shader := Shader.new()
-		shader.code = _SHADER % blend
-		_shaders[blend] = shader
 	var m := ShaderMaterial.new()
-	m.shader = _shaders[blend]
+	m.shader = _SHADERS[blend]
 	m.set_shader_parameter("tex", tex)
 	m.set_shader_parameter("use_stp", stp_tex != null)
 	if stp_tex != null:

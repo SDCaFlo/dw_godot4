@@ -7,7 +7,7 @@ class_name PsxLit
 ## - semi-transparency: a semi-transparent polygon blends only the texels whose colour has the STP
 ##   bit, with its tpage's abr mode (0 half / half, 1 add, 2 subtract, 3 add a quarter); the other
 ##   texels are opaque (asset_porter/specs/tmd.md "STP masks"). One pass each. The blend is the
-##   PSX's, in its gamma values (GAMMA_BLEND);
+##   PSX's, in its gamma values (shaders/common/psx_gamma_blend.gdshaderinc);
 ## - the battle effects' per-object state (specs/battle_effects.md §7.3): a UV offset added to the
 ##   byte UVs (BTL_offsetEFEPrimitiveUVs: each vertex's u / v wraps at 256, so the wrap is per
 ##   vertex, not per pixel), and a colour (setEFEModelObjectColor, 128 = 1.0).
@@ -21,96 +21,16 @@ const ADD_QUARTER := 3
 ## The PSX blends in its own (gamma) colour values; Godot's 3D blends in linear light, where an
 ## added texel brightens a lit background far less (ISSUES.md I-30: the techniques looked almost
 ## invisible over the bright maps) and a halved one darkens it more. So a blended pass does the
-## PSX's sum itself, as DropShadow does: the screen behind it (the copy Godot makes before the
-## transparent pass: the background and the opaque models) to gamma, blended with the texel's
-## colour `front` (gamma, already modulated and clamped) by the abr, back to linear; it writes the
-## difference to what was behind, added (render mode blend_add), so effects drawn over each other
-## still add up. `abr` is the shader's mode uniform.
-const GAMMA_BLEND_UNIFORMS := """uniform sampler2D screen_texture : hint_screen_texture, filter_nearest;
-uniform int abr = 1;"""
-const GAMMA_BLEND := """vec3 behind = clamp(texture(screen_texture, SCREEN_UV).rgb, 0.0, 1.0);
-	vec3 g = mix(12.92 * behind, 1.055 * pow(behind, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), behind));
-	vec3 f = abr == 3 ? front * 0.25 : front;
-	vec3 blended = abr == 0 ? (g + f) * 0.5 : (abr == 2 ? g - f : g + f);
-	ALBEDO = srgb_to_linear(clamp(blended, 0.0, 1.0)) - behind;"""
+## PSX's sum itself (res://shaders/common/psx_gamma_blend.gdshaderinc, shared with WorldSprites and
+## like DropShadow's); `abr` is the shader's mode uniform.
 
-const _CODE := """shader_type spatial;
-render_mode unshaded%s;
-
-global uniform vec3 psx_ambient;
-global uniform vec3 psx_light_0_dir;
-global uniform vec3 psx_light_0_color;
-global uniform vec3 psx_light_1_dir;
-global uniform vec3 psx_light_1_color;
-global uniform vec3 psx_light_2_dir;
-global uniform vec3 psx_light_2_color;
-
-// The texel's sRGB values: the PSX multiplies its 5-bit colours, so the maths stays there.
-uniform sampler2D albedo_texture : filter_nearest;
-uniform bool use_texture = true;
-uniform bool lit = true;
-uniform float alpha_cutoff = 0.5;
-// The STP mask (255 = bit set); the opaque pass skips those texels, the blended pass draws only them.
-uniform sampler2D stp_texture : filter_nearest;
-uniform bool use_stp = false;
-uniform bool blended_pass = false;
-%s
-// A model lit by its own light instead of the map's 3 (the Digimon / Player screens' model,
-// renderDigiviceEntity: one light, the ambient kept).
-uniform bool own_light = false;
-uniform vec3 own_light_dir;
-uniform vec3 own_light_color;
-// The effects' UV animation (texels, added per vertex mod 256) and object colour (1.0 = 128).
-uniform vec2 uv_offset = vec2(0.0);
-uniform vec3 tint = vec3(1.0);
-
-varying vec3 intensity;
-
-// `dir` is the direction the light travels: a surface facing against it is lit.
-vec3 shine(vec3 n, vec3 dir, vec3 color) {
-	return color * max(0.0, dot(n, -dir));
+## The shaders (res://shaders/psx_lit/, a mod may replace them): [blended pass][double-sided].
+const _SHADERS := {
+	false: {false: preload("res://shaders/psx_lit/opaque.gdshader"),
+			true: preload("res://shaders/psx_lit/opaque_double.gdshader")},
+	true: {false: preload("res://shaders/psx_lit/blended.gdshader"),
+			true: preload("res://shaders/psx_lit/blended_double.gdshader")},
 }
-
-void vertex() {
-	if (uv_offset != vec2(0.0)) {
-		UV = mod(floor(UV * 256.0 + 0.5) + uv_offset, 256.0) / 256.0;
-	}
-	vec3 n = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
-	if (own_light) {
-		intensity = lit ? psx_ambient + shine(n, own_light_dir, own_light_color) : vec3(1.0);
-	} else {
-		intensity = lit ? psx_ambient + shine(n, psx_light_0_dir, psx_light_0_color)
-				+ shine(n, psx_light_1_dir, psx_light_1_color) + shine(n, psx_light_2_dir, psx_light_2_color) : vec3(1.0);
-	}
-}
-
-// The GPU's texel: floor of the interpolated texel coordinate. The porter's UVs are texel / 256,
-// on a texel's edge: a polygon whose UVs sit on one texel column (a strip mapped onto a face)
-// would flip between two texels per pixel by rounding (ISSUES.md I-6). A nudge of 1 / 1024 texel
-// keeps it on the PSX's texel.
-vec2 psx_uv(sampler2D tex, vec2 uv) {
-	vec2 size = vec2(textureSize(tex, 0));
-	return (floor(uv * size + 1.0 / 1024.0) + 0.5) / size;
-}
-
-vec3 srgb_to_linear(vec3 c) {
-	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
-}
-
-void fragment() {
-	vec2 uv = use_texture ? psx_uv(albedo_texture, UV) : UV;
-	vec4 texel = use_texture ? texture(albedo_texture, uv) : vec4(1.0);
-	bool semi = use_stp && texture(stp_texture, uv).r > 0.5;
-	if (texel.a < alpha_cutoff || semi != blended_pass) {
-		discard;
-	}
-	// COLOR: the vertex colour as the porter wrote it (white when the mesh has none).
-	vec3 front = clamp(texel.rgb * COLOR.rgb * intensity * tint, 0.0, 1.0);
-	%s
-}
-"""
-
-static var _shaders := {}
 
 
 ## The material for a glTF material's texture and modes. `abr` -1: not semi-transparent (or no STP
@@ -118,12 +38,12 @@ static var _shaders := {}
 static func material(texture: Texture2D, double_sided: bool, alpha_cutoff := 0.5, abr := -1,
 		stp_texture: Texture2D = null, lit := true) -> ShaderMaterial:
 	var semi := abr >= 0 and stp_texture != null
-	var base := _pass("", double_sided, texture, alpha_cutoff, lit)
+	var base := _pass(false, double_sided, texture, alpha_cutoff, lit)
 	if not semi:
 		return base
 	base.set_shader_parameter("use_stp", true)
 	base.set_shader_parameter("stp_texture", stp_texture)
-	var blended := _pass("blend_add", double_sided, texture, alpha_cutoff, lit)
+	var blended := _pass(true, double_sided, texture, alpha_cutoff, lit)
 	blended.set_shader_parameter("use_stp", true)
 	blended.set_shader_parameter("stp_texture", stp_texture)
 	blended.set_shader_parameter("blended_pass", true)
@@ -151,21 +71,10 @@ static func use_own_light(model: Node, dir: Vector3, color: Vector3) -> void:
 			mesh_instance.set_surface_override_material(i, copy)
 
 
-## One pass: opaque (`blend` "") or blended (the PSX's blend, GAMMA_BLEND).
-static func _pass(blend: String, double_sided: bool, texture: Texture2D, alpha_cutoff: float, lit: bool) -> ShaderMaterial:
-	var key := "%s %s" % [blend, double_sided]
-	if not _shaders.has(key):
-		var modes := ""
-		if blend != "":
-			modes += ", %s, depth_draw_never" % blend
-		if double_sided:
-			modes += ", cull_disabled"
-		var shader := Shader.new()
-		shader.code = _CODE % [modes, GAMMA_BLEND_UNIFORMS if blend != "" else "",
-				GAMMA_BLEND if blend != "" else "ALBEDO = srgb_to_linear(front);"]
-		_shaders[key] = shader
+## One pass: opaque, or blended (the STP texels, with the PSX's blend in gamma values).
+static func _pass(blended: bool, double_sided: bool, texture: Texture2D, alpha_cutoff: float, lit: bool) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
-	m.shader = _shaders[key]
+	m.shader = _SHADERS[blended][double_sided]
 	m.set_shader_parameter("albedo_texture", texture)
 	m.set_shader_parameter("use_texture", texture != null)
 	m.set_shader_parameter("alpha_cutoff", alpha_cutoff)

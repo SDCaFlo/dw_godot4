@@ -11,37 +11,10 @@ extends Node3D
 ## at a depth is `world · H / depth`, so a size worked out as the C's pixels times depth / H shows
 ## at the C's size.
 
-const _CODE := """shader_type spatial;
-render_mode unshaded, cull_disabled%s;
-
-// The texel's sRGB values, as PsxLit.
-uniform sampler2D sprite_texture : filter_nearest;
-%s
-// The texels drawn (x, y, w, h; a negative size mirrors) and the colour (1.0 = 128); the vertex
-// colours (a gouraud polygon's, 1.0 = 128) multiply it.
-instance uniform vec4 region;
-instance uniform vec4 tint;
-
-vec3 srgb_to_linear(vec3 c) {
-	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
-}
-
-void fragment() {
-	vec2 size = vec2(textureSize(sprite_texture, 0));
-	vec2 t = floor(region.xy + UV * region.zw + 1.0 / 1024.0);
-	if (t.x < 0.0 || t.y < 0.0 || t.x >= size.x || t.y >= size.y) {
-		discard;
-	}
-	vec4 texel = texture(sprite_texture, (t + 0.5) / size);
-	if (texel.a < 0.5) {
-		discard;
-	}
-	vec3 front = clamp(texel.rgb * tint.rgb * COLOR.rgb, 0.0, 1.0);
-	%s
-}
-"""
-
-static var _shaders := {}
+## The shaders (res://shaders/world_sprite/, a mod may replace them): opaque, and blended (the
+## PSX's blend in gamma values, as PsxLit's).
+const _OPAQUE := preload("res://shaders/world_sprite/opaque.gdshader")
+const _BLENDED := preload("res://shaders/world_sprite/blended.gdshader")
 static var _solids := {}
 
 var _quad: QuadMesh
@@ -221,27 +194,21 @@ func _take() -> MeshInstance3D:
 func _material(texture: PsxTexture, abr: int) -> Material:
 	var key := "%d %d" % [texture.get_instance_id(), abr]
 	if not _materials.has(key):
-		var base := _pass("", texture.base)
+		var base := _pass(false, texture.base)
 		var stp: ShaderMaterial
 		if abr < 0:
-			stp = _pass("", texture.stp)
+			stp = _pass(false, texture.stp)
 		else:
-			# The PSX's blend in its gamma values (PsxLit.GAMMA_BLEND; ISSUES.md I-30).
-			stp = _pass("blend_add", texture.stp)
+			# The PSX's blend in its gamma values (ISSUES.md I-30).
+			stp = _pass(true, texture.stp)
 			stp.set_shader_parameter("abr", abr & 3)
 		base.next_pass = stp
 		_materials[key] = base
 	return _materials[key]
 
 
-static func _pass(blend: String, texture: Texture2D) -> ShaderMaterial:
-	if not _shaders.has(blend):
-		var shader := Shader.new()
-		shader.code = _CODE % [", %s, depth_draw_never" % blend if blend != "" else "",
-				PsxLit.GAMMA_BLEND_UNIFORMS if blend != "" else "",
-				PsxLit.GAMMA_BLEND if blend != "" else "ALBEDO = srgb_to_linear(front);"]
-		_shaders[blend] = shader
+static func _pass(blended: bool, texture: Texture2D) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
-	m.shader = _shaders[blend]
+	m.shader = _BLENDED if blended else _OPAQUE
 	m.set_shader_parameter("sprite_texture", texture)
 	return m

@@ -47,7 +47,7 @@ Written on 2026-10-30, after the review of step 6 (death and reincarnation; the 
 - Calls go down, signals go up. References are injected or come from `@export` / fixed child names. No lookups across the tree (R9).
 - Autoloads: inject them, falling back to `get_node_or_null("/root/<Name>")` in `_ready`. Never `Engine.has_singleton`, which doesn't see autoloads (R4).
 - Moddable parts are scenes that their owner instantiates. A scene file that exists must be used (R10).
-- Shaders go in `.gdshader` files, not strings (R10).
+- Shaders go in `.gdshader` files, not strings (R10): `shaders/`, or next to the scene that owns them. Variants that differ only in `render_mode` are small files sharing a `.gdshaderinc`.
 - Logic reads properties, never ids: record ids live in the data, which the data porter derives from the C and checks (R11).
 - Logic classes stay testable headless. The frame order stays in `Field._frame`.
 
@@ -65,7 +65,7 @@ Written on 2026-10-30, after the review of step 6 (death and reincarnation; the 
 A script can check part of §5, so `tests/test_rules.gd` does. It fails on:
 - a lookup across the tree (`get_tree().root`, `get_tree().current_scene`, `get_parent()` / `owner` searches, groups outside `scripts/debug/`), or a `/root/` path that isn't an autoload;
 - `Engine.has_singleton` / `Engine.get_singleton`;
-- a shader written as a string (except six older files listed in the test, to move out when next changed);
+- a shader written as a string;
 - a record id compared with a number in logic (`digimon_id == 15`), or kept as a constant (`BABY_IDS := [...]`).
 
 It would have caught R4, R9, R10 and R11 in step 6. When it fails, fix the code. Add an exception to the test only for a real one, with the reason.

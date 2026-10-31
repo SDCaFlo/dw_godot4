@@ -5,6 +5,8 @@ extends Node
 ## Each case starts free on MAYO01, sets up the partner, starts section 0x4DE as its trigger does
 ## (START_BATTLE's loss, tickSicknessMechanics, tickDeathCondition), presses ✕ for the text boxes and
 ## waits until the script is over and the tamer free. Prints what happened; exits 1 if a case fails.
+## The step 6-2 checks (specs/death_scene.md §7: the look of DOOA, in the two cases that run it) are
+## the reviewer's acceptance checks: with DW_STEP_6_2=1 they fail a case, else they print PENDING.
 
 const START_MAP := "MAYO01"
 const TIMEOUT := 4000
@@ -30,6 +32,10 @@ var _was_dark := false
 var _iris_seen := false
 ## A dialogue box opened while MURD or DOOA still ran (the script didn't wait for the scene).
 var _early_text := false
+## Step 6-2: the checks done this case (name -> true) and the failed ones.
+var _seen_62 := {}
+var _failed_62: Array[String] = []
+var _enforce_62 := OS.get_environment("DW_STEP_6_2") == "1"
 
 
 func _ready() -> void:
@@ -56,6 +62,8 @@ func _next() -> void:
 	_was_dark = false
 	_iris_seen = false
 	_early_text = false
+	_seen_62 = {}
+	_failed_62 = []
 	GameState.new_game("dw1:agumon")
 	_field.map_session.partner.load_digimon(GameData, "dw1:agumon")
 	_field.map_session.debug_change_map(START_MAP, 0)
@@ -97,6 +105,8 @@ func _process(_delta: float) -> void:
 			var text_open: bool = _field.scripts.textboxes.entries[0].flags & TextBoxes.FLAG_OPEN != 0
 			if text_open and (death.murd.active or (death.dooa.sequence == DooaScene.DISSOLVE and death.dooa.frame >= 0)):
 				_early_text = true
+			if case[3] != "battle":
+				_track_6_2(death, partner)
 			# The text boxes; a choice takes its second answer ("I'll keep his name", "Okay").
 			if ctx.active_instruction == ScriptContext.OP_SET_SELECTION:
 				if frames % 8 == 0:
@@ -143,6 +153,14 @@ func _check_end(case: Array, frames: int) -> void:
 	var ok: bool = partner.visible and tamer.visible and not _field.death_host.iris.visible and _iris_seen and not _early_text 			and fade.progress == 0 and not _field.death_host.darken.visible
 	var death_map: String = _screen()
 	ok = ok and death_map in ["ROOM08", "ROOM10"]
+	if case[3] != "battle":
+		_end_6_2(_field.death_host, partner)
+		for name in ["centred", "outlines", "shards on the floor", "the baby at the origin"]:
+			if not _seen_62.has(name):
+				_failed_62.append(name + " (never reached)")
+		if not _failed_62.is_empty():
+			line += ", 6-2 %s: %s" % ["FAILED" if _enforce_62 else "PENDING", ", ".join(_failed_62)]
+			ok = ok and not _enforce_62
 	match case[3]:
 		"battle":
 			ok = ok and int(p["lives"]) == 2
@@ -150,6 +168,72 @@ func _check_end(case: Array, frames: int) -> void:
 			# A rebirth: a Fresh Digimon with 3 lives.
 			ok = ok and int(p["lives"]) == 3 and str(p["digimon"]) in ["dw1:botamon", "dw1:punimon", "dw1:poyomon", "dw1:yuramon"]
 	_finish(line, not ok)
+
+
+## Step 6-2 (specs/death_scene.md §7), sampled once per DOOA frame.
+func _track_6_2(death: DeathHost, partner: Partner) -> void:
+	var dooa := death.dooa
+	var f := dooa.frame
+	if dooa.sequence == DooaScene.DISSOLVE:
+		if f == 0x63 and not _seen_62.has("centred"):
+			# D11: the camera looks at the partner's centre: it projects to the drawing offset.
+			_seen_62["centred"] = true
+			var h := int(GameData.digimon(GameState.state["partner"]["digimon"]).get("height", 0))
+			var want := Vector2(160, PsxMath.lerp_int(120, 120 + PsxMath.lerp_int(0, 20, 0, 200, h), 50, 100, 99))
+			var field_map: FieldMap = _field.map_session.field_map
+			var got := FieldMap.unproject(field_map.camera, partner.global_position + Vector3(0, h / 2.0, 0))
+			if got.distance_to(want) > 1.5:
+				_failed_62.append("centred (the partner at %s, want %s)" % [got, want])
+		if f == 0x8D and not _seen_62.has("outlines"):
+			_seen_62["outlines"] = true
+			var wire: Variant = death.get("wireframe")
+			if wire == null or wire.get("share") != 0:
+				_failed_62.append("outlines (no wireframe at share 0 at 0x8D)")
+		if f == 0x135 and not _seen_62.has("shards on the floor"):
+			_seen_62["shards on the floor"] = true
+			var shards: Variant = dooa.get("shards")
+			var list: Array = shards.get("shards") if shards != null else []
+			if list.is_empty() or not list.all(func(x): return x["center"].y == 0):
+				_failed_62.append("shards on the floor (%d shards at 0x135)" % list.size())
+		if f >= 0x185:
+			_check_no_egg(death, "the dialogue")
+	elif dooa.sequence == DooaScene.REBIRTH:
+		if f >= 0 and f < 100:
+			_check_no_egg(death, "rebirth frame %d" % f)
+		if f >= 202 and not _seen_62.has("the baby at the origin"):
+			_seen_62["the baby at the origin"] = true
+			if not partner.visible or partner.position.length() > 0.5:
+				_failed_62.append("the baby at the origin (at %s, %s)" % [partner.position, "shown" if partner.visible else "hidden"])
+
+
+## G: no egg until the rebirth's threshold rises (frame 100); the old stand-in egg never.
+func _check_no_egg(death: DeathHost, when: String) -> void:
+	if _seen_62.has("egg early"):
+		return
+	var egg: Variant = death.get("egg")
+	var stand_in: Variant = death.get("_egg")
+	var shown: bool = (egg != null and egg.visible and int(egg.call("shown_faces")) > 0) 			or (stand_in != null and is_instance_valid(stand_in) and stand_in.visible)
+	if shown:
+		_seen_62["egg early"] = true
+		_failed_62.append("an egg during %s" % when)
+
+
+## After the rebirth nothing of the scene is left, and the baby isn't squashed.
+func _end_6_2(death: DeathHost, partner: Partner) -> void:
+	var wire: Variant = death.get("wireframe")
+	var egg: Variant = death.get("egg")
+	var shards: Variant = death.dooa.get("shards")
+	var left := []
+	if wire != null and wire.get("share") != 16:
+		left.append("wireframe")
+	if egg != null and egg.visible:
+		left.append("egg")
+	if shards != null and not (shards.get("shards") as Array).is_empty():
+		left.append("shards")
+	if not partner.scale.is_equal_approx(Vector3.ONE):
+		left.append("the partner's scale %s" % partner.scale)
+	if not left.is_empty():
+		_failed_62.append("left after the rebirth: " + ", ".join(left))
 
 
 func _finish(line: String, failed: bool) -> void:

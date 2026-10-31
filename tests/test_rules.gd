@@ -49,8 +49,29 @@ func _initialize() -> void:
 		_files += 1
 		_check(path)
 	_ok(_files > 0, "found scripts under %s" % ROOT)
+	_stand_ins_6_2()
 	print("%s: rule checks (%d files)" % ["FAILED %d" % _failed if _failed else "OK", _files])
 	quit(1 if _failed else 0)
+
+
+## Step 6-2's stand-ins gone (specs/death_scene.md §2, §7): with DW_STEP_6_2=1 a finding fails,
+## else it is printed as PENDING (step 9 makes it a plain rule).
+const STAND_INS_6_2 := ["partner_dissolve.gdshader", "_spawn_egg", "_start_dissolve", "_draw_dissolve", "_end_dissolve"]
+
+
+func _stand_ins_6_2() -> void:
+	var found := []
+	for path in _scripts(ROOT):
+		var text := FileAccess.get_file_as_string(path)
+		for name in STAND_INS_6_2:
+			if text.contains(name):
+				found.append("%s in %s" % [name, path.get_file()])
+	if found.is_empty():
+		return
+	if OS.get_environment("DW_STEP_6_2") == "1":
+		_fail("6-2 stand-ins still there: " + ", ".join(found))
+	else:
+		print("PENDING (step 6-2): stand-ins still there: " + ", ".join(found))
 
 
 func _check(path: String) -> void:

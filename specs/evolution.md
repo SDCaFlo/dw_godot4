@@ -153,7 +153,7 @@ So these need no evolution code of their own: once routines 2 and 10 work (5f-1)
 - **3:** the palettes back, entities and map shown, the music back (`forceUpdateBGM`), animation 0xB (the new Digimon's pose), particles released, the map's sounds reloaded; → 4.
 - **4:** when animation 0xB ends: timer −1, the object ends.
 
-5f-2 ports this with Godot means (the palette fades as a fade of the field's colours, the shards from the model's meshes, the flashes like `ParticleFX`), with its own detailed section before coding.
+The wireframe body (`renderWireframed`, `PARTNER_WIREFRAME_TOTAL` / `PARTNER_WIREFRAME_SUB`) is specified in `specs/death_scene.md` §3 as a shared `PartnerWireframe` component: build it once for both scenes. 5f-2 ports this with Godot means (the palette fades as a fade of the field's colours, the shards from the model's meshes, the flashes like `ParticleFX`), with its own detailed section before coding.
 
 **The 5f-1 stand-in:** the loading part of §2.8 as in the C (animation 0, 55 frames, animation 1 with bubble 7, 55 frames, the music stops), then at once `EVL_applyEvolution`, animation 0xB of the new Digimon, and the end (−1) when it finishes; the music comes back. So the evolution plays, lasts about 6 s plus the pose, and every rule and state can be checked before the scene exists.
 

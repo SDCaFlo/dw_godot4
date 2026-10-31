@@ -26,6 +26,17 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 - **Cause:** `NewGameScene` runs Jijimon's scripted walk without triggering the animation footstep sound events / sound slot playback.
 - **Status:** open.
 
+### I-38. The last-life death and the rebirth look wrong (stand-in visuals)
+- **Seen:** 2026-10-30, all 3 lives lost, `issues/evidence/dw_very_bugy_death.mp4` (the rebirth part; the dissolve wasn't recorded). The dissolve is very glitchy (the textures fall to the floor, the partner stays a wireframe) and the partner isn't where it should be; in the dark room a solid egg hangs near Jijimon for the whole dialogue, then the room lights up and the baby pops in.
+- **What the original does** (`dooa.c`, `doo2.c`, `model.c:2911`):
+  - The body turns into a wireframe face group by face group: `PARTNER_WIREFRAME_TOTAL` goes 15 → 0 over frames 0x69–0x8C (`DOOA_SHARD_WAVE_SCHEDULE`), and `renderWireframed` draws a face textured while `WIREFRAME_RNG_TABLE[face & 15] < total`, else as lines. The same renderer serves the evolution scene (`evl.c:531–551`).
+  - Each wave turns ~3/4 of the faces of that group into shards (`DOOA_spawnBoneShards`: the face's vertices through its bone's matrix, around the face's centre). The shards fall onto the floor (shard state 0) and stay there through the dialogue; the wireframe body squashes (`DOOA_DISSOLVE_SCALE_CURVE`) and goes at 0xD1; a flash rises (0xD1–0x135).
+  - The cutscene camera orbits to the partner (`DOOA_updateCutsceneCamera`, 0x23–0x55) and follows it when it is moved to the room's origin at 0x56: in a black room with only the partner drawn, the camera is what keeps it in place.
+  - No egg in the dialogue: at 0x185–0x1B7 it is Jijimon (entity 2) whose model CLUT fades in (`DOO2_fadeClut` to the CLUT at (32, 488)).
+  - The rebirth: the floor shards spin up and outwards (state 1, frames 10–100), converge to the middle (state 3, 100–132) while the egg appears as a wireframe filling in (`DOOA_renderRebirth`, threshold 1 → 16), with spark streaks; the room's CLUT fades back 152–202; at 202 the baby shows and the egg's 6 pieces break off one by one with a sound (the sparkles).
+- **Cause:** none of that is ported yet (`specs/death_reincarnation.md` §9, `PLANS.md` 6-2). The port draws stand-ins: a shader sinking the skinned mesh's vertices (garbage on skinned models), a separate line mesh, no camera (the partner is moved to the origin with the field camera unchanged), and the egg model shown from 0x185.
+- **Status:** open — step 6-2, spec `specs/death_scene.md` (the wireframe renderer shared with 5f-2).
+
 ## Fixed
 
 ### I-37. Screen stays black after the death scenes' warp to Jijimon's house

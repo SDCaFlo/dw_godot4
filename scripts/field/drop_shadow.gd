@@ -14,33 +14,8 @@ const COLOR := 0x30 / 128.0
 ## Over the ground, so it doesn't fight with what lies there.
 const LIFT := 0.5
 
-## The PSX subtracts in its own (gamma) colour values; Godot blends in linear light, where a dark
-## ground (the night's backgrounds) is so close to 0 that even the spot's faint edge would wipe it
-## to black. So the shader does the subtraction itself: the screen behind it (the copy Godot makes
-## before the transparent pass: the background and the opaque models) to gamma, minus the raw
-## texel values (no source_color: the PSX's own) times the colour, back to linear.
-const _SHADER := """shader_type spatial;
-render_mode unshaded, cull_disabled, depth_draw_never, blend_mix;
-uniform sampler2D tex : filter_nearest;
-uniform sampler2D screen : hint_screen_texture, filter_nearest;
-uniform vec4 region;
-uniform float color_scale;
-vec3 to_gamma(vec3 c) {
-	return mix(12.92 * c, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
-}
-vec3 to_linear(vec3 c) {
-	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
-}
-void fragment() {
-	vec4 c = texture(tex, region.xy + UV * region.zw);
-	if (c.a < 0.5) {
-		discard;
-	}
-	vec3 behind = to_gamma(clamp(texture(screen, SCREEN_UV).rgb, 0.0, 1.0));
-	ALBEDO = to_linear(max(behind - c.rgb * color_scale, vec3(0.0)));
-	ALPHA = 1.0;
-}
-"""
+## The shader (a mod may replace it): the PSX's subtraction in its gamma values.
+const _SHADER := preload("res://shaders/drop_shadow.gdshader")
 
 ## The entity it lies under (its `field`, `radius`, `on_map`, `on_screen`); null: the parent.
 @export var entity: Node3D
@@ -54,10 +29,8 @@ var _radius := -1
 static func material() -> ShaderMaterial:
 	if _material != null:
 		return _material
-	var shader := Shader.new()
-	shader.code = _SHADER
 	_material = ShaderMaterial.new()
-	_material.shader = shader
+	_material.shader = _SHADER
 	_material.set_shader_parameter("tex", Content.load_texture(TEXTURE))
 	_material.set_shader_parameter("region", Vector4(CELL.position.x / 128.0, CELL.position.y / 128.0,
 			CELL.size.x / 128.0, CELL.size.y / 128.0))

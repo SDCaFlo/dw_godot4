@@ -112,7 +112,7 @@ Reported 2026-10-25.
 - **To check against the original** (in the gallery, one technique at a time): the blend modes of the models' and sprites' STP texels (half / add on a bright background; `WorldSprites`, `PsxLit`), the sprites' tint (128 = 1.0), the textures' palettes and which texels carry the STP bit, the sRGB conversion of the additive passes.
 - **Cause:** the PSX blends its semi-transparent texels in its own (gamma) colour values: an added texel of 0.5 over a 0.5 background gives full white. Godot's 3D (Forward+) blends in linear light, where the same add gives about 0.68, and a dim texel adds almost nothing: over the bright maps the effects all but vanished. The half mode darkened too much the same way.
 - **Fix (2026-10-27, checked in game):**
-  - **Where:** the blended passes of `PsxLit` (the effects' and every TMD's semi-transparent polygons) and of `WorldSprites` (the effects' sprites and polygons) do the PSX's blend themselves (`PsxLit.GAMMA_BLEND`).
+  - **Where:** the blended passes of `PsxLit` (the effects' and every TMD's semi-transparent polygons) and of `WorldSprites` (the effects' sprites and polygons) do the PSX's blend themselves (`shaders/common/psx_gamma_blend.gdshaderinc`; was `PsxLit.GAMMA_BLEND`).
   - **How:** they read the screen behind them (the screen texture), convert it to gamma, add / halve / subtract / add a quarter, convert back, and write the difference with an additive blend, so overlapping effects still add up. `DropShadow` already did this for its subtraction.
   - **Tests:** `tests/test_lighting.gd` checks the poop's shadow pass.
   - **Left linear:** the effects' 1-pixel lines (`WorldSprites.line`) and the map overlays' sprites (`MapOverlays`).

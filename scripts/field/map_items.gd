@@ -17,18 +17,8 @@ const NEAR_WIDTH := 0x20
 const SHADOW_SIZE := 200.0
 const ICONS := "tim_files/ETCDAT/ITEM%s.png"
 
-const _ICON_SHADER := """shader_type spatial;
-render_mode unshaded, cull_disabled, depth_draw_opaque;
-uniform sampler2D tex : source_color, filter_nearest;
-uniform vec4 region;
-void fragment() {
-	vec4 c = texture(tex, region.xy + UV * region.zw);
-	if (c.a < 0.5) {
-		discard;
-	}
-	ALBEDO = c.rgb;
-}
-"""
+## The icon's shader (a mod may replace it).
+const _ICON_SHADER := preload("res://shaders/map_item_icon.gdshader")
 
 ## The field map (camera, tiles).
 var field: FieldMap
@@ -38,7 +28,6 @@ var data: Node
 ## null when empty.
 var slots: Array = []
 
-static var _icon_shader: Shader
 var _icon_textures := {}
 
 
@@ -145,14 +134,11 @@ func _process(_delta: float) -> void:
 
 
 func _icon_material(slot: Dictionary) -> ShaderMaterial:
-	if _icon_shader == null:
-		_icon_shader = Shader.new()
-		_icon_shader.code = _ICON_SHADER
 	var clut: int = slot["clut"]
 	if not _icon_textures.has(clut):
 		_icon_textures[clut] = Content.load_texture(ICONS % ("" if clut == 0 else ".p%d" % clut))
 	var m := ShaderMaterial.new()
-	m.shader = _icon_shader
+	m.shader = _ICON_SHADER
 	m.set_shader_parameter("tex", _icon_textures[clut])
 	return m
 

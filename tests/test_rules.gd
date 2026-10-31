@@ -24,16 +24,8 @@ const TREE_ALLOWED := {
 ## Autoloads are not engine singletons: Engine.has_singleton("GameState") is always false.
 const SINGLETON_CALLS := ["Engine.has_singleton(", "Engine.get_singleton("]
 
-## Shaders go in .gdshader files so a mod can replace them (specs/scenes.md §3 rule 7).
-## These predate the rule; move one out when its file is next changed, then drop it here.
-const SHADER_STRING_ALLOWED := {
-	"res://scripts/content/psx_lit.gd": true,
-	"res://scripts/field/drop_shadow.gd": true,
-	"res://scripts/field/map_items.gd": true,
-	"res://scripts/field/map_overlays.gd": true,
-	"res://scripts/systems/battle/world_sprites.gd": true,
-	"res://scripts/ui/psx_ui_filter.gd": true,
-}
+## Shaders go in .gdshader files (res://shaders/, or next to their scene) so a mod can replace
+## them (specs/scenes.md §3 rule 7). Variants that differ in render_mode share a .gdshaderinc.
 
 ## specs/content.md §4: logic reads properties, never ids. A comparison of an id with a number
 ## other than the "none" sentinels (-1, 0, 0xFF) names a specific record, and so does a
@@ -82,7 +74,7 @@ func _check(path: String) -> void:
 		for call in SINGLETON_CALLS:
 			if code.contains(call):
 				_fail("%s: %s doesn't see autoloads; use the autoload name or inject it" % [at, call])
-		if code.contains("shader_type") and not SHADER_STRING_ALLOWED.has(path):
+		if code.contains("shader_type"):
 			_fail("%s: shader written as a string; put it in a .gdshader file" % at)
 		if id_scope:
 			if _id_const_re.search(code) != null:

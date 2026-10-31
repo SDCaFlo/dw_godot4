@@ -105,6 +105,12 @@ func read_pstat(index: int) -> int:
 	return game_state.script_value(index) if game_state != null else 0
 
 
+## writePStat.
+func write_pstat(index: int, value: int) -> void:
+	if game_state != null:
+		game_state.set_script_value(index, value)
+
+
 func is_trigger_set(trigger: int) -> bool:
 	return game_state != null and game_state.is_trigger_set(trigger)
 

@@ -20,7 +20,31 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 - **What the original does:** to check: the battle's walking (moving into range, `BTL_tickMeleeAttack` / `BTL_tickRangedAttack`, the move-forward probe `entityCheckCollision` like the knock-back's).
 - **Status:** open. The scan's runs differ (frame pacing), so it is intermittent; the next step is a run that dumps the partner's state when it happens.
 
+### I-36. Jijimon footsteps silent during new game intro
+- **Seen:** 2026-10-27 in new game intro scene (`newGameScene`). When Jijimon walks into the frame, his footsteps are silent.
+- **What the original does:** when Jijimon walks in during the intro cutscene, his footstep sounds play twice (2 steps).
+- **Cause:** `NewGameScene` runs Jijimon's scripted walk without triggering the animation footstep sound events / sound slot playback.
+- **Status:** open.
+
+### I-38. The last-life death and the rebirth look wrong (stand-in visuals)
+- **Seen:** 2026-10-30, all 3 lives lost, `issues/evidence/dw_very_bugy_death.mp4` (the rebirth part; the dissolve wasn't recorded). The dissolve is very glitchy (the textures fall to the floor, the partner stays a wireframe) and the partner isn't where it should be; in the dark room a solid egg hangs near Jijimon for the whole dialogue, then the room lights up and the baby pops in.
+- **What the original does** (`dooa.c`, `doo2.c`, `model.c:2911`):
+  - The body turns into a wireframe face group by face group: `PARTNER_WIREFRAME_TOTAL` goes 15 → 0 over frames 0x69–0x8C (`DOOA_SHARD_WAVE_SCHEDULE`), and `renderWireframed` draws a face textured while `WIREFRAME_RNG_TABLE[face & 15] < total`, else as lines. The same renderer serves the evolution scene (`evl.c:531–551`).
+  - Each wave turns ~3/4 of the faces of that group into shards (`DOOA_spawnBoneShards`: the face's vertices through its bone's matrix, around the face's centre). The shards fall onto the floor (shard state 0) and stay there through the dialogue; the wireframe body squashes (`DOOA_DISSOLVE_SCALE_CURVE`) and goes at 0xD1; a flash rises (0xD1–0x135).
+  - The cutscene camera orbits to the partner (`DOOA_updateCutsceneCamera`, 0x23–0x55) and follows it when it is moved to the room's origin at 0x56: in a black room with only the partner drawn, the camera is what keeps it in place.
+  - No egg in the dialogue: at 0x185–0x1B7 it is Jijimon (entity 2) whose model CLUT fades in (`DOO2_fadeClut` to the CLUT at (32, 488)).
+  - The rebirth: the floor shards spin up and outwards (state 1, frames 10–100), converge to the middle (state 3, 100–132) while the egg appears as a wireframe filling in (`DOOA_renderRebirth`, threshold 1 → 16), with spark streaks; the room's CLUT fades back 152–202; at 202 the baby shows and the egg's 6 pieces break off one by one with a sound (the sparkles).
+- **Cause:** none of that is ported yet (`specs/death_reincarnation.md` §9, `PLANS.md` 6-2). The port draws stand-ins: a shader sinking the skinned mesh's vertices (garbage on skinned models), a separate line mesh, no camera (the partner is moved to the origin with the field camera unchanged), and the egg model shown from 0x185.
+- **Status:** open — step 6-2, spec `specs/death_scene.md` (the wireframe renderer shared with 5f-2).
+
 ## Fixed
+
+### I-37. Screen stays black after the death scenes' warp to Jijimon's house
+- **Seen:** 2026-10-30 testing death on `feat/6-death-reincarnation`: after re-appearing in Jijimon's house the screen stays black.
+- **What the original does:** `changeToDeathMap` (`map.c:5420`) is a plain `changeMap`, with no fade: MURD and DOOA darken the screen themselves (`MURD_renderFullscreenFade`, `fadeoutCLUT1`) and lift it on their own timeline.
+- **Cause:** `MapSession.change_map` holds the fade black for the load (`Fade.hold(LOAD_FRAMES)`, port-only) until a fade in, which a normal warp starts (`tamerTickChangeMap`). MURD and DOOA called the map change without one, so the fade stayed at 160 (full black) forever. `tests/death_scan.tscn` didn't check the fade.
+- **Fix:** `DeathHost._change_to_death_map` releases the hold at once after the change (`fade_from_black(0)`); `death_scan` now fails on a black fade or darkening at the end (reproduced without the fix: fade 160 in all three cases).
+- **Status:** fixed (`feat/6-death-reincarnation`).
 
 ### I-35. Partner stuck walking towards tamer during Scold/Praise when blocked by an obstacle or NPC
 - **Seen:** 2026-10-27 in Green Gym (`TRAI00`), `issues/evidence/dw_issue_stuck_scold_animation.mp4`. Player scolded Gabumon from the △ triangle menu; Gabumon started walking towards the tamer, collided with Koromon (or was blocked by Koromon before menu open), and got stuck walking in place unable to get past Koromon or reach the tamer, causing an unrecoverable softlock.

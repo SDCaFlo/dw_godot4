@@ -189,7 +189,8 @@ The training bonus game ("Bonus Try", `../../specs/training.md` §7): one record
 ### `babies` (`BABY_IDS`, `script_common.c:253`; `REINCARNATE_BABY_TYPE[4]`, `src/dooa/dooa.c:209`)
 
 - `isPartnerBaby` treats the 4 Fresh and 4 In-Training Digimon as babies (`script_common.c:1440`).
-- Reincarnation egg slot 0–3 gives Botamon, Punimon, Poyomon or Yuramon (`DOOA_tickRebirth`, `dooa.c:1073–1103`).
+- Reincarnation egg slot 0–3 gives Digimon 1, 15, 29, 43 (Botamon, Punimon, Poyomon, Yuramon; `DOOA_tickRebirth`, `dooa.c:1073–1103`).
+- Each egg record carries `base_stats` (`max_hp`, `max_mp`, `offense`, `defense`, `speed`, `brains`): the literals of `initializeReincarnatedPartner` (`partner_impl.c:758`), one `if (type == id) setReincarnateStats(hp, mp, off, def, speed, brains);` per egg Digimon. They are code, not a table: the converter reads those calls and checks there is one per egg. `setReincarnateStats` adds `stat × tamerLevel / 100` of the dead partner's base stats when `IS_NATURAL_DEATH == 1` (`:810–844`), then clears `IS_NATURAL_DEATH`.
 - Checked against the Digimon levels.
 
 ### `jukebox` (`BGM_TRACK_NAMES[63]`, `script_common.c:363`)

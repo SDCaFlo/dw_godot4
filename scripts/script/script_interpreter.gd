@@ -62,6 +62,11 @@ const ROUTINE_TOILET := 0
 ## CALL_DIGIMON_ROUTINE 2 and 10: an evolution (partner state 13) into script value 5 (Sukamon's
 ## saved Digimon) or 0xFE (specs/evolution.md §2.6).
 const ROUTINE_EVOLVE_BACK := 2
+## CALL_DIGIMON_ROUTINE 3 / 4 / 7 / 9: the death and lives scenes (specs/death_reincarnation.md §2).
+const ROUTINE_DYING := 3
+const ROUTINE_REBIRTH := 4
+const ROUTINE_COLLAPSE := 7
+const ROUTINE_BATTLE_LOSS := 9
 const ROUTINE_EVOLVE := 10
 const PSTAT_SUKAMON_BACKUP := 5
 const PSTAT_EVOLUTION := 0xFE
@@ -328,10 +333,19 @@ func _wait_done() -> bool:
 ## (partner.c:586, :679, :783, :817; tamer.c:1676, :1692): the toilet (routine 0) is ported; for the
 ## others the bit is set at once, reported.
 func _sync_bit_set() -> bool:
-	if ctx.sync_bit == 0 and not _sync_scene:
+	if ctx.sync_bit == 0 and not _sync_scene and not _death_scene_running():
 		_report(OP_WAIT_FOR_ENTITY, "WAIT_FOR_ENTITY on the sync bit (partner / tamer scenes)")
 		ctx.sync_bit = 1
 	return ctx.sync_bit != 0
+
+
+## The death scenes set the bit across a map change (the change's callScriptSection set it, and
+## script 212's WAIT_FOR_ENTITY 0xD5 clears it again): the tamer in state 17 / 19 (MURD), the
+## partner in state 8 / 14 (DOOA) set it when they end (tamer.c:1711, :1744; partner.c:679, :817).
+func _death_scene_running() -> bool:
+	if tamer != null and (tamer.state == Tamer.STATE_SICKNESS_LOST_LIFE or tamer.state == Tamer.STATE_BATTLE_LOST_LIFE):
+		return true
+	return partner != null and (partner.state == Partner.STATE_DYING or partner.state == Partner.STATE_REBIRTH)
 
 
 ## tickScriptedMovements / tickScriptedMovement (script_interp.c:2821, :2275): every slot in use.
@@ -1289,6 +1303,27 @@ func call_digimon_routine(routine: int) -> void:
 		care.evolution_target = game_state.script_value(
 				PSTAT_SUKAMON_BACKUP if routine == ROUTINE_EVOLVE_BACK else PSTAT_EVOLUTION)
 		partner.set_state(Partner.STATE_EVOLVING)
+		ctx.sync_bit = 0
+		_sync_scene = true
+		return
+	# 3: the natural death (partnerTickDying), 4: the rebirth (partnerTickDying2), both with the DOOA
+	# scene (specs/death_reincarnation.md §2, §7).
+	if (routine == ROUTINE_DYING or routine == ROUTINE_REBIRTH) and partner != null:
+		partner.set_state(Partner.STATE_DYING if routine == ROUTINE_DYING else Partner.STATE_REBIRTH)
+		ctx.sync_bit = 0
+		_sync_scene = true
+		return
+	# 7: no life left (tamerTickSicknessLostLife: MURD then DOOA), 9: a life lost
+	# (tamerTickBattleLostLife: MURD); the partner is still (state 12), both stop walking.
+	if (routine == ROUTINE_COLLAPSE or routine == ROUTINE_BATTLE_LOSS) and partner != null and tamer != null:
+		tamer.set_state(Tamer.STATE_SICKNESS_LOST_LIFE if routine == ROUTINE_COLLAPSE else Tamer.STATE_BATTLE_LOST_LIFE)
+		partner.set_state(Partner.STATE_SCRIPT)
+		var tamer_anim: int = tamer.animation_id()
+		if tamer_anim == 2 or tamer_anim == 3:
+			tamer.start_animation(0)
+		var partner_anim: int = partner.animator.anim_id if partner.animator != null else 0
+		if partner_anim > 1 and partner_anim < 5:
+			partner.start_animation(Partner.ANIM_IDLE)
 		ctx.sync_bit = 0
 		_sync_scene = true
 		return

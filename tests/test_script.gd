@@ -368,10 +368,10 @@ func _step4() -> void:
 	_eq([ctx.is_paused, partner.state], [true, Partner.STATE_NORMAL], "the scene set the bit: the script ends, the partner is given back")
 	# Another routine: reported, the bit stays set, the wait ends at once.
 	gs.set_script_value(74, 0)
-	_run([0x49, 3, 0x4A, 0xC9, 0x1E, 0, 74, 1, 0xFE, 0])
+	_run([0x49, 1, 0x4A, 0xC9, 0x1E, 0, 74, 1, 0xFE, 0])
 	_frame()
-	_eq([gs.script_value(74), unported.has("CALL_DIGIMON_ROUTINE 3")], [1, true],
-			"CALL_DIGIMON_ROUTINE 3 (not ported): reported, the wait on the bit ends at once")
+	_eq([gs.script_value(74), unported.has("CALL_DIGIMON_ROUTINE 1")], [1, true],
+			"CALL_DIGIMON_ROUTINE 1 (not ported): reported, the wait on the bit ends at once")
 	interp.tamer = null
 	interp.partner = null
 	tamer.free()

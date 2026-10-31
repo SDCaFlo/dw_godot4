@@ -30,6 +30,10 @@ const STATE_PRAISE := 15
 ## The toilet scene, started by CALL_DIGIMON_ROUTINE 0 (specs/care.md §2.16).
 const STATE_TOILET := 6
 const STATE_WILD_POOP := 7
+## The death (partnerTickDying, CALL_DIGIMON_ROUTINE 3 and the DOOA map change) and the rebirth
+## (partnerTickDying2, routine 4; specs/death_reincarnation.md §2, §7).
+const STATE_DYING := 8
+const STATE_REBIRTH := 14
 ## Waits idling while the tamer is busy (e.g. his message box).
 const STATE_IDLE := 11
 ## A script moves it (scriptSetEntityWalking): nothing ticks but the animation (partner.c:246).
@@ -55,6 +59,8 @@ var sound: Node
 var item_use: ItemUse
 ## The evolution's scene (getEvoSequenceState); null: the evolution applies at once.
 var evolution_scene: EvolutionScene
+## The death and rebirth scene (DOOA_tick, DOOA_getSequenceState); null: states 8 and 14 end at once.
+var dooa: DooaScene
 ## Callable(on_done: Callable) -> void: opens the sleep save prompt (sub-state 5).
 var sleep_save_prompt: Callable
 var _tamer_hand_reset := false
@@ -153,6 +159,10 @@ func tick() -> void:
 				care.handle_condition_bubble()
 		STATE_EVOLVING:
 			tick_evolving()
+		STATE_DYING:
+			tick_dying()
+		STATE_REBIRTH:
+			tick_rebirth()
 	step = 0.0
 	on_screen = field.is_on_screen(global_position)
 	if care != null:
@@ -336,6 +346,70 @@ func tick_evolving() -> void:
 				else:
 					tamer.set_state(Tamer.STATE_FREE)
 					tamer.camera_follow = true
+
+
+# --- partnerTickDying (partner.c:640), partnerTickDying2 (:796) ---------------------------------
+
+## State 8 (CALL_DIGIMON_ROUTINE 3, the natural death; also set by DOOA's map change,
+## setSomeDyingState, at sub-state 2): it walks to the tamer, who looks at it; close to him the
+## dissolution starts and he stands; when it is over the care timers start again and the script's
+## sync bit is set. The C also closes the fishing, the △ menu, the inventory and box 1: the port's
+## partner doesn't tick while they are open (as tick_evolving).
+func tick_dying() -> void:
+	match sub_state:
+		0:
+			start_animation(ANIM_WALK)
+			tamer.look_at_psx(int(position.x), int(-position.z))
+			tamer.camera_follow = false
+			if sound != null:
+				sound.load_map_sounds(DooaScene.SOUND_SET)
+			sub_state = 1
+		1:
+			look_at_psx(int(tamer.position.x), int(-tamer.position.z))
+			if closeness() > 0:
+				if dooa != null:
+					dooa.start_dissolve()
+				tamer.set_state(Tamer.STATE_STILL)
+				tamer.camera_follow = false
+				sub_state = 2
+		2:
+			# Every frame once the object is over, as the C (it stays in this sub-state).
+			if dooa == null or dooa.frame == -1:
+				_reset_death_timers()
+				if script_ctx != null:
+					script_ctx.sync_bit = 1
+
+
+## State 14 (CALL_DIGIMON_ROUTINE 4): the rebirth (DOOA_getSequenceState: the egg hatches, the
+## partner is reincarnated in it); at its end the care timers start again, the sync bit is set and
+## time stands (script value 0, PSTAT_TIME_SPEED). The C reloads the map's sounds and its TFS too:
+## the port's map change keeps both.
+func tick_rebirth() -> void:
+	match sub_state:
+		0:
+			if dooa != null:
+				dooa.start_rebirth()
+			sub_state = 1
+		1:
+			if dooa == null or dooa.frame == -1:
+				_reset_death_timers()
+				if game_state != null:
+					game_state.state["partner"]["care"]["evo_timer"] = 0
+					game_state.set_script_value(Clock.PSTAT_TIME_SPEED, 0)
+				if script_ctx != null:
+					script_ctx.sync_bit = 1
+				sub_state = 2
+
+
+## The end of states 8 and 14: remainingLifetime 360, sicknessTimer and injuryTimer 0, and the
+## tamer's position kept (STORED_TAMER_POS).
+func _reset_death_timers() -> void:
+	if game_state != null:
+		var values: Dictionary = game_state.state["partner"]["care"]
+		values["remaining_lifetime"] = 360
+		values["sickness_timer"] = 0
+		values["injury_timer"] = 0
+	tamer.stored_position = tamer.position
 
 
 # --- partnerTickFeedItem (partner.c:425) ------------------------------------------------------

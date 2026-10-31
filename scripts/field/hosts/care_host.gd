@@ -52,6 +52,8 @@ func start() -> void:
 		care.field = field_map
 		care.partner = partner
 		care.tamer = tamer
+		if interpreter != null:
+			care.script_ctx = interpreter.ctx
 		care.fade = fade
 		care.text_area = text_area
 		if interpreter != null:
@@ -158,9 +160,13 @@ func _on_butterfly_changed(shown: bool) -> void:
 		bubbles.remove_current()
 
 
-## Stand-in for script section 0x4DE (the partner collapses or dies; scripts milestone): the values
-## partnerTickDying leaves (partner.c:674-676), then the script is over.
+## callScriptSection(0, section, 0) from Care (section 0x4DE: a life lost to sickness, or the
+## natural death; specs/death_reincarnation.md §1). Without an interpreter, the values
+## partnerTickDying leaves (partner.c:674-676) and the script is over.
 func _on_script_requested(section: int) -> void:
+	if interpreter != null:
+		interpreter.call_section(0, section)
+		return
 	var values: Dictionary = GameState.state["partner"]["care"]
 	values["remaining_lifetime"] = 360
 	values["sickness_timer"] = 0

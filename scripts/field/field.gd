@@ -64,6 +64,7 @@ var _maps: PackedStringArray
 @onready var clock_host: ClockHost = $Systems/ClockHost
 @onready var menu_host: MenuHost = $Systems/MenuHost
 @onready var battle_host: BattleHost = $Systems/BattleHost
+@onready var death_host: DeathHost = $Systems/DeathHost
 @onready var debug: DebugHost = $Debug
 
 
@@ -197,6 +198,28 @@ func _start() -> void:
 	battle_host.message.connect(debug.show_message)
 	if scripts.interpreter != null:
 		scripts.interpreter.battles = battle_host
+	# The death and lives scenes (specs/death_reincarnation.md §8): MURD and DOOA, which the tamer's
+	# states 17 / 19 and the partner's 8 / 14 run.
+	death_host.camera = _camera
+	death_host.tamer = _tamer
+	death_host.partner = partner
+	death_host.entities = entities.entities
+	death_host.evolution = care_host.evolution
+	death_host.boxes = scripts.boxes
+	death_host.script_ctx = scripts.script_ctx
+	death_host.game_state = GameState
+	death_host.data = GameData
+	death_host.sound = Sound
+	death_host.change_map = map_session.change_map
+	death_host.map_layer_nodes = map_layer_nodes
+	death_host.world = _world
+	death_host.fade = care_host.fade
+	death_host.start()
+	$World/SubViewport/Background.add_child(death_host.iris)
+	# Builtin 29's egg panel writes the DOOA sequence's egg slot.
+	for child in scripts.get_node("Routines").get_children():
+		if child is DeathRoutines:
+			child.dooa = death_host.dooa
 	map_session.partner = partner
 	map_session.entities = entities.entities
 	map_session.scripts = scripts
@@ -235,7 +258,7 @@ func _start_debug() -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
 	for node: Node in [care_host.bars, care_host.bubbles, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
-			care_host.fade, scripts.boxes,
+			care_host.fade, scripts.boxes, death_host.darken,
 			scripts.map_name]:
 		if node != null:
 			_hud.add_child(node)
@@ -281,6 +304,7 @@ func _frame() -> void:
 		scripts.tick_script()
 		_field.tick_pan()
 		scripts.tick_objects()
+		death_host.tick_objects()
 		_field.overlays.tick()
 	debug.tick_message()
 	debug.tick_gallery()

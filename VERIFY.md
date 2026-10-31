@@ -23,6 +23,7 @@ godot --headless --path . -s res://tests/test_text.gd
 godot --headless --path . -s res://tests/test_care.gd
 godot --headless --path . -s res://tests/test_partner.gd
 godot --headless --path . -s res://tests/test_clock.gd
+godot --headless --path . -s res://tests/test_death_reincarnation.gd
 godot --headless --path . -s res://tests/test_save_system.gd
 godot --headless --path . -s res://tests/test_game_state.gd
 godot --headless --path . -s res://tests/test_game_data.gd
@@ -568,3 +569,27 @@ There is no save menu yet, so these checks are about the save file itself.
    - When the partner goes to sleep (either via Menu > Sleep or naturally when exhausted), while the screen is completely faded to black, a prompt asks "Do you want to save?".
    - Choosing "No" continues waking up the partner normally.
    - Choosing "Yes" opens the slot selection box to save the game before waking up.
+
+## Death, lives and reincarnation (`specs/death_reincarnation.md`)
+
+Code: `scripts/field/death/` (`MurdScene`, `DooaScene`), the tamer's states 17 / 19 and the partner's 8 / 14, `scripts/field/hosts/death_host.gd` (scene `scenes/field/hosts/death_host.tscn`), `Evolution.reincarnate`, `scripts/script/death_routines.gd` (builtins 29, 47).
+
+Automated: `test_death_reincarnation.gd` prints `OK: death & reincarnation checks (95 run)`; `tests/death_scan.tscn` (`godot --headless --fixed-fps 60 --path . res://tests/death_scan.tscn`) plays the three cases in the real field and prints three `ok` lines; `tests/exit_scan.tscn` reaches them through Toy Town's traps (OMOC07).
+
+Stand-ins (not the original's look yet): DOOA's shards and flashes (a sinking texture with a wireframe instead), the cutscene camera, the lights MURD sets, the squash curve. Timings, sounds, map changes, states and texts follow the C.
+
+How to get there fast: lose a battle (a strong wild Digimon, or Toy Town's trap doors on OMOC07 with a weak partner). For the last life, lose battles until the lives box shows one heart.
+
+1. **A life lost, lives left** (battle loss or 12 hours sick):
+   - A black circle closes on the partner over about 2 s; everyone else disappears, the partner stays in front.
+   - The lives box grows out of the partner: the backdrop and 3 heart slots, the lost heart blinks, then stays empty.
+   - The screen darkens to black (it darkens, it doesn't flash white), and you are in Jijimon's house (ROOM08), or ROOM10 once the clinic is open or prosperity is 50+. The screen lightens again.
+   - Only then does the dialogue start (Jijimon or Centarumon). There is a 10 % chance of a death evolution (a Rookie into Bakemon, …); it plays the evolution scene, and its 550-frame wait stays as long as the original.
+2. **The last life lost**:
+   - The same iris and lives box; then the box shrinks back to the partner, and you are in Jijimon's house in the dark. Only the partner shows; it sinks away while its wireframe stays, then disappears.
+   - The egg fades in in the middle of the room, then Jijimon (and only then) talks. Techniques may be forgotten ("… has been forgotten!", one per ✕).
+   - The egg hatches into a random baby: sparkle sounds, the room lights up, the baby stands in the middle of the room (it doesn't walk to you), poses, then you are asked about its name.
+3. **The natural death** (lifetime 0):
+   - The partner walks up to you before anything happens; then the iris closes, the map changes, it dissolves as in 2.
+   - Jijimon's egg panel: 4 eggs, ← → moves (cursor sound), ✕ closes the box. That egg hatches. The new partner keeps (tamer level) % of the old one's stats.
+4. **After any rebirth**: 3 hearts, lifetime 360 h, the baby's first technique equipped. A later natural death or last life lost works again (the care checks resume once the script is over).

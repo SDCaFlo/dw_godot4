@@ -62,6 +62,7 @@ const ROUTINE_TOILET := 0
 ## CALL_DIGIMON_ROUTINE 2 and 10: an evolution (partner state 13) into script value 5 (Sukamon's
 ## saved Digimon) or 0xFE (specs/evolution.md §2.6).
 const ROUTINE_EVOLVE_BACK := 2
+## CALL_DIGIMON_ROUTINE 3 / 4 / 7 / 9: the death and lives scenes (specs/death_reincarnation.md §2).
 const ROUTINE_DYING := 3
 const ROUTINE_REBIRTH := 4
 const ROUTINE_COLLAPSE := 7
@@ -161,8 +162,6 @@ var map_chests: MapChests
 ## The field's battles (BattleHost, specs/battle.md §5.3): start_battle(talked_entity),
 ## battle_done() and battle_outcome(). Without it START_BATTLE is skipped and reported.
 var battles: Object
-## The death and lives coordinator (DeathHost, specs/death_reincarnation.md).
-var death_host: Object
 ## The entity table (the NPCs, specs/npc.md); null: only the tamer and the partner.
 var entities: FieldEntities
 ## Field hooks for the map change (step 2): func(map, exit, show_name) -> bool done, called every
@@ -182,7 +181,6 @@ var _move_to_delta := Vector2i.ZERO
 ## A ported scene (CALL_DIGIMON_ROUTINE 0) cleared the sync bit and will set it again; any other
 ## clear is a scene not ported yet, whose waits end at once.
 var _sync_scene := false
-var _evolving_skip_delay := false
 ## tickLookAtEntity's HAS_ROTATION_DATA / ROTATION_DATA per entity (0-9): the target point taken
 ## on the first frame of a turn.
 var _has_rotation_data: Array = []
@@ -238,7 +236,6 @@ func call_section(script_id: int, section: int, is_event := 0) -> bool:
 	ctx.is_paused = false
 	ctx.sync_bit = 1
 	_sync_scene = false
-	_evolving_skip_delay = false
 	movement.fill(FREE)
 	textboxes.initialize_textbox()
 	if at < 0:
@@ -304,10 +301,7 @@ func tick_script() -> bool:
 func _tick_waiting_instruction() -> void:
 	match ctx.active_instruction:
 		ScriptContext.OP_DELAY:
-			if _evolving_skip_delay and partner != null and partner.state == Partner.STATE_NORMAL and textboxes.delay_frames > 20:
-				textboxes.delay_frames = 20
 			if textboxes.delay_frames == 0:
-				_evolving_skip_delay = false
 				ctx.active_instruction = 0
 		ScriptContext.OP_CALL_ROUTINE:
 			# The ported builtins tick until they end (ACTIVE_INSTRUCTION = 0); the others end at once.
@@ -339,10 +333,19 @@ func _wait_done() -> bool:
 ## (partner.c:586, :679, :783, :817; tamer.c:1676, :1692): the toilet (routine 0) is ported; for the
 ## others the bit is set at once, reported.
 func _sync_bit_set() -> bool:
-	if ctx.sync_bit == 0 and not _sync_scene:
+	if ctx.sync_bit == 0 and not _sync_scene and not _death_scene_running():
 		_report(OP_WAIT_FOR_ENTITY, "WAIT_FOR_ENTITY on the sync bit (partner / tamer scenes)")
 		ctx.sync_bit = 1
 	return ctx.sync_bit != 0
+
+
+## The death scenes set the bit across a map change (the change's callScriptSection set it, and
+## script 212's WAIT_FOR_ENTITY 0xD5 clears it again): the tamer in state 17 / 19 (MURD), the
+## partner in state 8 / 14 (DOOA) set it when they end (tamer.c:1711, :1744; partner.c:679, :817).
+func _death_scene_running() -> bool:
+	if tamer != null and (tamer.state == Tamer.STATE_SICKNESS_LOST_LIFE or tamer.state == Tamer.STATE_BATTLE_LOST_LIFE):
+		return true
+	return partner != null and (partner.state == Partner.STATE_DYING or partner.state == Partner.STATE_REBIRTH)
 
 
 ## tickScriptedMovements / tickScriptedMovement (script_interp.c:2821, :2275): every slot in use.
@@ -1296,91 +1299,33 @@ func call_digimon_routine(routine: int) -> void:
 		ctx.sync_bit = 0
 		_sync_scene = true
 		return
-	if routine == ROUTINE_EVOLVE_BACK or routine == ROUTINE_EVOLVE:
-		var target_id: int = int(game_state.script_value(
-				PSTAT_SUKAMON_BACKUP if routine == ROUTINE_EVOLVE_BACK else PSTAT_EVOLUTION))
-		if care != null:
-			care.evolution_target = target_id
-		if target_id > 0 and data != null:
-			var target_key: String = data.key_of("digimon/digimon_data", target_id)
-			game_state.state["partner"]["digimon"] = target_key
-			game_state.set_raised(target_key)
-		if partner != null:
-			_evolving_skip_delay = true
-			partner.set_state(Partner.STATE_EVOLVING)
-			ctx.sync_bit = 0
-			_sync_scene = true
-		else:
-			ctx.sync_bit = 1
+	if (routine == ROUTINE_EVOLVE_BACK or routine == ROUTINE_EVOLVE) and partner != null and care != null:
+		care.evolution_target = game_state.script_value(
+				PSTAT_SUKAMON_BACKUP if routine == ROUTINE_EVOLVE_BACK else PSTAT_EVOLUTION)
+		partner.set_state(Partner.STATE_EVOLVING)
+		ctx.sync_bit = 0
+		_sync_scene = true
 		return
-	if routine == ROUTINE_DYING:
-		if death_host != null and death_host.has_method("start_scene"):
-			death_host.start_scene(routine)
-		if partner != null:
-			partner.set_state(Partner.STATE_DYING)
-			ctx.sync_bit = 0
-			_sync_scene = true
-		else:
-			ctx.sync_bit = 1
+	# 3: the natural death (partnerTickDying), 4: the rebirth (partnerTickDying2), both with the DOOA
+	# scene (specs/death_reincarnation.md §2, §7).
+	if (routine == ROUTINE_DYING or routine == ROUTINE_REBIRTH) and partner != null:
+		partner.set_state(Partner.STATE_DYING if routine == ROUTINE_DYING else Partner.STATE_REBIRTH)
+		ctx.sync_bit = 0
+		_sync_scene = true
 		return
-	if routine == ROUTINE_REBIRTH:
-		var death_routines: Node = null
-		if routines != null:
-			for child in routines.get_children():
-				if "selected_egg" in child:
-					death_routines = child
-					break
-		var is_natural := bool(care.is_natural_death) if care != null else false
-		var baby_slot := 0
-		if is_natural:
-			baby_slot = int(death_routines.selected_egg) if death_routines != null else 0
-		else:
-			# PSX dooa.c:1764: sequence->eggSlot = rand() % 4 when partner->lives == 0
-			baby_slot = Rng.random_limit(4)
-
-		const REINCARNATE_BABY_IDS := [1, 15, 29, 43]
-		var baby_id: int = REINCARNATE_BABY_IDS[baby_slot % 4]
-		game_state.reincarnate_partner(baby_id, is_natural)
-		if sound != null:
-			sound.play_sound(8, 6)
-		var d: Node = data if data != null else (ctx.data if ctx != null else null)
-		var baby_key: String = game_state.state["partner"]["digimon"]
-		if death_host != null and death_host.has_method("start_rebirth_sequence"):
-			death_host.start_rebirth_sequence(baby_key)
-			ctx.sync_bit = 0
-			_sync_scene = true
-		else:
-			if partner != null and d != null:
-				partner.load_digimon(d, baby_key)
-				partner.visible = true
-				if tamer != null:
-					partner.place_for_spawn({"position": tamer.position, "rotation": tamer.direction if "direction" in tamer else 0})
-				partner.set_state(Partner.STATE_NORMAL)
-			ctx.sync_bit = 1
-		return
-	if routine == ROUTINE_COLLAPSE:
-		if tamer != null and tamer.has_method("set_state"):
-			tamer.set_state(Tamer.STATE_SICKNESS_LOST_LIFE)
-		if death_host != null and death_host.has_method("start_scene"):
-			death_host.start_scene(routine)
-		if partner != null:
-			partner.set_state(Partner.STATE_SCRIPT)
-			ctx.sync_bit = 0
-			_sync_scene = true
-		else:
-			ctx.sync_bit = 1
-		return
-	if routine == ROUTINE_BATTLE_LOSS:
-		if tamer != null and tamer.has_method("set_state"):
-			tamer.set_state(Tamer.STATE_BATTLE_LOST_LIFE)
-		if death_host != null and death_host.has_method("start_scene"):
-			death_host.start_scene(routine)
-		if partner != null:
-			partner.set_state(Partner.STATE_SCRIPT)
-			ctx.sync_bit = 0
-			_sync_scene = true
-		else:
-			ctx.sync_bit = 1
+	# 7: no life left (tamerTickSicknessLostLife: MURD then DOOA), 9: a life lost
+	# (tamerTickBattleLostLife: MURD); the partner is still (state 12), both stop walking.
+	if (routine == ROUTINE_COLLAPSE or routine == ROUTINE_BATTLE_LOSS) and partner != null and tamer != null:
+		tamer.set_state(Tamer.STATE_SICKNESS_LOST_LIFE if routine == ROUTINE_COLLAPSE else Tamer.STATE_BATTLE_LOST_LIFE)
+		partner.set_state(Partner.STATE_SCRIPT)
+		var tamer_anim: int = tamer.animation_id()
+		if tamer_anim == 2 or tamer_anim == 3:
+			tamer.start_animation(0)
+		var partner_anim: int = partner.animator.anim_id if partner.animator != null else 0
+		if partner_anim > 1 and partner_anim < 5:
+			partner.start_animation(Partner.ANIM_IDLE)
+		ctx.sync_bit = 0
+		_sync_scene = true
 		return
 	# Routines past 10 aren't cases of the C's switch: nothing happens (the gyms call 214).
 	if routine > ROUTINE_LAST:

@@ -28,6 +28,8 @@ const STATE_AWARD := 20
 ## Picking up an item from the ground (tamerTickPickupItem) and opening a chest (tamerTickTakeChest).
 const STATE_PICKUP := 7
 const STATE_CHEST := 14
+## No life left (tamerTickSicknessLostLife: MURD, then DOOA) and a life lost
+## (tamerTickBattleLostLife: MURD), CALL_DIGIMON_ROUTINE 7 and 9 (specs/death_reincarnation.md §3).
 const STATE_SICKNESS_LOST_LIFE := 17
 const STATE_BATTLE_LOST_LIFE := 19
 ## A training station runs (tamerTickTraining, specs/training.md §2.6): his cheer, facing the partner.
@@ -119,6 +121,11 @@ const ICONS := "tim_files/ETCDAT/ITEM%s.png"
 var _held_icon: Sprite3D
 ## The care rules (ITEM_SCOLD_FLAG picks the partner's scolded animation).
 var care: Care
+## The life-loss scenes (MURD_tick, DOOA_tick) and the sync bit they release; null: states 17 and
+## 19 end at once.
+var murd: MurdScene
+var dooa: DooaScene
+var script_ctx: ScriptContext
 ## For the pickup and the chests (specs/map_items.md): the items on the ground, the chests, the
 ## pickup / chest box (box 1, no arrow), the GameState and GameData nodes, the sound.
 var map_items: MapItems
@@ -277,6 +284,8 @@ func tick() -> void:
 			tick_take_chest()
 		STATE_TRAINING:
 			tick_training()
+		STATE_SICKNESS_LOST_LIFE, STATE_BATTLE_LOST_LIFE:
+			tick_lost_life()
 	if state != STATE_FREE:
 		step_blocked = false
 	step = 0.0
@@ -301,6 +310,23 @@ func tick_training() -> void:
 		sub_state = 1
 	elif partner != null:
 		look_at_psx(int(partner.position.x), int(-partner.position.z))
+
+
+## tamerTickSicknessLostLife (tamer.c:1699) and tamerTickBattleLostLife (:1734): the MURD scene;
+## the sync bit is set once it is over (and, with no life left, DOOA's dissolution too: DOOA's map
+## change puts him in state 6 first, so that end comes from the partner's state 8).
+func tick_lost_life() -> void:
+	match sub_state:
+		0:
+			if murd != null:
+				murd.start()
+			sub_state = 1
+		1:
+			var over := murd == null or murd.timer < 0
+			if state == STATE_SICKNESS_LOST_LIFE:
+				over = over and (dooa == null or dooa.frame < 0)
+			if over and script_ctx != null:
+				script_ctx.sync_bit = 1
 
 
 ## tamerTickIdle (tamer.c:1602): animation 0 once.

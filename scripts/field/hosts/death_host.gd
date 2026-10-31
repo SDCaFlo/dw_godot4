@@ -1,552 +1,262 @@
 class_name DeathHost
 extends Node
-## Coordinates death cutscenes, lives loss, hospital recovery, and reincarnation
-## (specs/death_reincarnation.md; src/murd/murd.c, src/dooa/dooa.c).
-##
-## Features:
-## 1. Iris transition onto partner on life loss / collapse with edgeless full black wipe.
-## 2. MurdBox presentation with heart blink/loss animation with partner visible on screen.
-## 3. Hospital warp to Centar Clinic (Map 213) or Jijimon's House (Map 205 / 218) with recovery states.
-## 4. Digital shard dissolution (textures falling into floor leaving wireframe, PSX dooa.c / doo2.c).
-## 5. Digitama in center of Jijimon's room on 0 lives, hatching baby and moving to player.
+## The death and lives scenes (specs/death_reincarnation.md §9; scenes/field/hosts/death_host.tscn).
+## Its children are the logic: MurdScene (a life lost) and DooaScene (the dissolution and the
+## rebirth), ticked by the field's frame order as objects; the tamer's states 17 / 19 and the
+## partner's 8 / 14 start them and wait for them, as in the C. The host wires them and draws them:
+## the iris and the background's darkening (DeathIris, on the background layer), MURD's full-screen
+## darkening (DeathDarken, in the HUD), and, until the shards are ported, a stand-in dissolve on the
+## partner's model (partner_dissolve.gdshader) and the egg model in the room.
 
-const MAP_JIJIMON_HOUSE_EARLY := 218   # ROOM08
-const MAP_JIJIMON_HOUSE_LATE := 205    # ROOM10
-const MAP_CLINIC := 213                # Centar Clinic (Centarumon)
+const IRIS_SCENE := preload("res://scenes/field/death/death_iris.tscn")
+const DARKEN_SCENE := preload("res://scenes/field/death/death_darken.tscn")
+const DISSOLVE_SHADER := preload("res://scenes/field/death/partner_dissolve.gdshader")
+## DOOA_EGG_TMD_PATH: the eggs' model (one per egg slot, as the C's GsLinkObject4 index).
+const EGG_MODEL := "tmd_files/ETCDAT/TAMA.gltf"
+## The stand-in dissolve: the faces sink over the shard waves (0x69-0xBF) and fade by 0xD1.
+const SINK_START := 0x69
+const SINK_END := 0xBF
+const WIRE_COLOR := Color(0.85, 0.85, 0.95, 1.0)
 
-const TRIGGER_JIJIMON_EXTENDED := 0xDC
-const TRIGGER_CLINIC_OPEN := 0xD6
-
-const MurdBox := preload("res://scripts/ui/murd_box.gd")
-const DeathIris := preload("res://scripts/ui/death_iris.gd")
-const ContentClass := preload("res://scripts/content/content.gd")
-
-## Injected field dependencies
-var field_map: FieldMap
 var camera: Camera3D
 var tamer: Tamer
 var partner: Partner
-var clock: Clock
-var fade: Fade
-var script_ctx: ScriptContext
-var interpreter: ScriptInterpreter
+var entities: FieldEntities
+var evolution: Evolution
 var boxes: UIBoxes
+var script_ctx: ScriptContext
 var game_state: Node
-var entities: RefCounted
-var battle_host: Node
-var map_session: Node
+var data: Node
+var sound: Node
+## changeMap(map, exit) (MapSession.change_map).
+var change_map := Callable()
+## The map layer's nodes (Field.map_layer_nodes): setMapLayerEnabled hides them.
+var map_layer_nodes := Callable()
+## The world the egg is added to.
+var world: Node
 
-var murd_box: MurdBox
+@onready var murd: MurdScene = $MurdScene
+@onready var dooa: DooaScene = $DooaScene
+## Made in start(); the field adds the iris to the background layer, the darkening to the HUD.
 var iris: DeathIris
+var darken: ColorRect
 
-## Active scene execution state
-var is_active := false
-var scene_phase := 0
-var scene_timer := 0
-var routine_id := 0
-
-## Dissolution and rebirth visuals
-var _wireframe_nodes: Array[Node] = []
-var _dissolve_materials: Array[ShaderMaterial] = []
+var _hidden_layer := {}
+var _wireframes: Array[MeshInstance3D] = []
 var _dissolve_meshes: Array[MeshInstance3D] = []
-var _dissolve_orig_materials: Array[Material] = []
-var _hidden_nodes: Dictionary = {}
-var _egg_node: Node3D = null
-var _baby_key := ""
+var _dissolve_materials: Array[Material] = []
+var _dissolve_shaders: Array[ShaderMaterial] = []
+var _egg: Node3D
 
 
-func _init() -> void:
-	murd_box = MurdBox.new()
-	iris = DeathIris.new()
+## Hands the logic its references and gives the tamer and the partner their scenes.
+func start() -> void:
+	for scene: Node in [murd, dooa]:
+		scene.set("partner", partner)
+		scene.set("tamer", tamer)
+		scene.set("entities", entities)
+		scene.set("game_state", game_state)
+		scene.set("sound", sound)
+		scene.set("change_map", change_map)
+		scene.set("map_layer", _set_map_layer)
+	murd.boxes = boxes
+	murd.dooa = dooa
+	murd.screen_point = _screen_point
+	dooa.evolution = evolution
+	dooa.data = data
+	dooa.phase_changed.connect(_on_dooa_phase)
+	tamer.murd = murd
+	tamer.dooa = dooa
+	tamer.script_ctx = script_ctx
+	partner.dooa = dooa
+	iris = IRIS_SCENE.instantiate()
+	darken = DARKEN_SCENE.instantiate()
 
 
-func configure(p_boxes: UIBoxes, p_fade: Fade, p_tamer: Tamer, p_partner: Partner,
-		p_ctx: ScriptContext, p_interp: ScriptInterpreter, p_camera: Camera3D, p_gs: Node = null) -> void:
-	boxes = p_boxes
-	fade = p_fade
-	tamer = p_tamer
-	partner = p_partner
-	script_ctx = p_ctx
-	interpreter = p_interp
-	camera = p_camera
-	game_state = p_gs if p_gs != null else (p_ctx.game_state if p_ctx != null else null)
-	if murd_box != null:
-		murd_box.boxes = boxes
+## The objects' frame (their place in the object list: after the script's objects).
+func tick_objects() -> void:
+	murd.tick()
+	dooa.tick()
 
 
-## Start MURD or DOOA cutscene for the given routine
-func start_scene(routine: int) -> void:
-	routine_id = routine
-	is_active = true
-	scene_phase = 0
-	scene_timer = 0
-
-	# Disable camera follow on player during cutscene
-	if tamer != null:
-		tamer.camera_follow = false
-
-	# Hide all other entities, map shaders, and HUD elements so only partner is visible
-	_hide_all_except_partner()
-
-	# Center iris accurately on partner's body in screen coordinates
-	var screen_center := get_partner_screen_center()
-
-	match routine:
-		ScriptInterpreter.ROUTINE_COLLAPSE, ScriptInterpreter.ROUTINE_BATTLE_LOSS:
-			iris.start_iris_in(screen_center)
-			scene_phase = 1
-		ScriptInterpreter.ROUTINE_DYING:
-			# Natural death: wireframe & texture fall dissolution
-			_start_dissolution()
-			scene_phase = 10
-		ScriptInterpreter.ROUTINE_REBIRTH:
-			# Egg hatching into baby
-			scene_phase = 20
-
-
-func start_rebirth_sequence(baby_key: String) -> void:
-	_baby_key = baby_key
-	is_active = true
-	scene_phase = 20
-	scene_timer = 0
-	if script_ctx != null:
-		script_ctx.sync_bit = 0
-
-
-func tick() -> void:
-	if not is_active:
+## Draws the scenes' state every frame (the C's render functions).
+func _process(_delta: float) -> void:
+	if iris == null:
 		return
-
-	scene_timer += 1
-	match scene_phase:
-		# 1: Iris closing in on partner (partner visible on top of black)
-		1:
-			iris.center = get_partner_screen_center()
-			if iris.tick():
-				# Phase 2: Open MurdBox
-				scene_phase = 2
-				scene_timer = 0
-				var current_lives: int = int(_get_game_state().state["partner"].get("lives", 0)) if _get_game_state() != null else 0
-				murd_box.open(current_lives)
-		# 2: MurdBox ticking (heart blinking/fade; partner visible beneath)
-		2:
-			murd_box.tick()
-			# At frame 60, finish MurdBox and proceed
-			if scene_timer >= 60:
-				murd_box.close()
-				var current_lives: int = int(_get_game_state().state["partner"].get("lives", 0)) if _get_game_state() != null else 0
-				if current_lives == 0:
-					# 0 lives: start dissolution (textures fall to floor leaving wireframe)
-					_start_dissolution()
-					scene_phase = 10
-					scene_timer = 0
-				else:
-					# Remaining lives: warp to recovery map
-					scene_phase = 3
-					scene_timer = 0
-		# 3: Recovery map warp (Centar Clinic or Jijimon's House)
-		3:
-			_warp_to_recovery_hospital()
-			scene_phase = 4
-			scene_timer = 0
-		# 4: Wait after warp, set sync bit
-		4:
-			if scene_timer >= 10:
-				_finish_scene()
-
-		# 10..12: Death Dissolution (Wireframe & Texture Fall)
-		10:
-			# Progressively melt/fall textures down to floor level over 35 frames
-			var p := clampf(float(scene_timer) / 35.0, 0.0, 1.0)
-			for mat in _dissolve_materials:
-				mat.set_shader_parameter("fall_progress", p)
-			if scene_timer >= 40:
-				if Engine.has_singleton("Sound"):
-					Engine.get_singleton("Sound").play_sound(8, 2)
-				scene_phase = 11
-				scene_timer = 0
-		11:
-			# Wireframe flickers and floor puddle fades out
-			var alpha := clampf(1.0 - float(scene_timer) / 20.0, 0.0, 1.0)
-			for mat in _dissolve_materials:
-				mat.set_shader_parameter("alpha", alpha)
-			var visible_toggle := (scene_timer % 2 == 0)
-			for wf in _wireframe_nodes:
-				if is_instance_valid(wf):
-					wf.visible = visible_toggle
-			if scene_timer >= 20:
-				_cleanup_dissolution()
-				if Engine.has_singleton("Sound"):
-					Engine.get_singleton("Sound").play_sound(8, 3)
-				if partner != null:
-					partner.visible = false
-				_warp_to_recovery_hospital()
-				scene_phase = 12
-				scene_timer = 0
-		12:
-			if scene_timer >= 10:
-				_finish_scene()
-
-		# 20..22: Rebirth Digitama Hatching & Hop to Player (Point 3)
-		20:
-			# Digitama egg wobbles / shakes in the center of the room
-			if _egg_node != null and is_instance_valid(_egg_node):
-				_egg_node.rotation.z = sin(float(scene_timer) * 0.8) * 0.25
-			if scene_timer >= 30:
-				if _egg_node != null and is_instance_valid(_egg_node):
-					_egg_node.queue_free()
-					_egg_node = null
-
-				# Load baby model at room center (0, 0, 0)
-				var d: Node = _get_data()
-				if partner != null and d != null and _baby_key != "":
-					partner.load_digimon(d, _baby_key)
-					partner.position = Vector3(0, 0, 0)
-					partner.visible = true
-					if tamer != null:
-						partner.look_at_psx(int(tamer.position.x), int(-tamer.position.z))
-					partner.start_animation(Partner.ANIM_WALK)
-
-				if Engine.has_singleton("Sound"):
-					Engine.get_singleton("Sound").play_sound(8, 6)
-
-				scene_phase = 21
-				scene_timer = 0
-		21:
-			# Baby moves towards tamer
-			if partner != null and tamer != null:
-				var to_tamer := tamer.position - partner.position
-				var dist_xz := Vector2(to_tamer.x, to_tamer.z).length()
-				if dist_xz > 60.0 and scene_timer < 120:
-					var step_dir := Vector3(to_tamer.x, 0, to_tamer.z).normalized()
-					partner.position += step_dir * 4.0
-					partner.look_at_psx(int(tamer.position.x), int(-tamer.position.z))
-				else:
-					partner.start_animation(Partner.ANIM_IDLE)
-					partner.look_at_psx(int(tamer.position.x), int(-tamer.position.z))
-					partner.set_state(Partner.STATE_NORMAL)
-					scene_phase = 22
-					scene_timer = 0
-			else:
-				scene_phase = 22
-				scene_timer = 0
-		22:
-			if scene_timer >= 10:
-				_finish_scene()
+	_draw_iris()
+	var level := murd.darken if murd.active else 0
+	darken.visible = level > 0
+	darken.color = Color(level / 255.0, level / 255.0, level / 255.0)
+	if dooa.sequence == DooaScene.DISSOLVE:
+		_draw_dissolve()
+	if _egg != null:
+		_egg.visible = dooa.egg_fade > 0
 
 
-func _get_partner_center_3d() -> Vector3:
-	if partner == null:
-		return Vector3.ZERO
-	var p: Vector3 = partner.bone_position(1) if partner.has_method("bone_position") else partner.global_position
-	if p == partner.global_position:
-		var r := float(partner.radius) if "radius" in partner and partner.radius > 0 else 24.0
-		p.y += r * 0.5
-	return p
-
-
-func get_partner_screen_center() -> Vector2:
-	if partner == null:
-		return Vector2(0.5, 0.5)
-	var target_3d := _get_partner_center_3d()
-	var screen_px := Vector2(160.0, 120.0)
-	if camera != null and camera.is_inside_tree():
-		var rs := 1.0
-		if "render_scale" in FieldMap:
-			rs = float(FieldMap.render_scale)
-		if rs <= 0.0:
-			rs = 1.0
-		screen_px = camera.unproject_position(target_3d) / rs
-	elif field_map != null and field_map.has_method("background_pixel"):
-		screen_px = field_map.background_pixel(target_3d) - field_map.scroll
-	return Vector2(
-		clampf(screen_px.x / 320.0, 0.0, 1.0),
-		clampf(screen_px.y / 240.0, 0.0, 1.0)
-	)
-
-
-func _hide_all_except_partner() -> void:
-	_restore_hidden_nodes()
-
-	# 1. Hide Tamer
-	if tamer != null:
-		_hidden_nodes[tamer] = tamer.visible
-		tamer.visible = false
-
-	# 2. Hide other Digimons / NPCs in entities
-	if entities != null and entities.has_method("table"):
-		for e in entities.table():
-			if e != null and e != partner and is_instance_valid(e) and "visible" in e:
-				_hidden_nodes[e] = e.visible
-				e.visible = false
-
-	# Also search parent/world for any other Digimon or NPC instances
-	if partner != null and partner.get_parent() != null:
-		for child in partner.get_parent().find_children("*", "FieldDigimon", true, false):
-			if child != null and child != partner and is_instance_valid(child) and "visible" in child:
-				if not _hidden_nodes.has(child):
-					_hidden_nodes[child] = child.visible
-				child.visible = false
-		for child in partner.get_parent().find_children("*", "Npc", true, false):
-			if child != null and is_instance_valid(child) and "visible" in child:
-				if not _hidden_nodes.has(child):
-					_hidden_nodes[child] = child.visible
-				child.visible = false
-
-	# 3. Hide map overlays (all map shaders: water, bushes, animated effects)
-	if field_map != null:
-		if "overlays" in field_map and field_map.overlays != null and is_instance_valid(field_map.overlays):
-			_hidden_nodes[field_map.overlays] = field_map.overlays.visible
-			field_map.overlays.visible = false
-		var doors := field_map.get_node_or_null("Doors")
-		if doors != null and is_instance_valid(doors) and "visible" in doors:
-			_hidden_nodes[doors] = doors.visible
-			doors.visible = false
-
-	# 4. Hide map session items, chests, etc.
-	if map_session != null:
-		if "map_items" in map_session and map_session.map_items != null and is_instance_valid(map_session.map_items):
-			_hidden_nodes[map_session.map_items] = map_session.map_items.visible
-			map_session.map_items.visible = false
-		if "map_chests" in map_session and map_session.map_chests != null and is_instance_valid(map_session.map_chests):
-			_hidden_nodes[map_session.map_chests] = map_session.map_chests.visible
-			map_session.map_chests.visible = false
-
-	# 5. Hide battle elements
-	if battle_host != null:
-		if battle_host.hud_slot != null and is_instance_valid(battle_host.hud_slot):
-			_hidden_nodes[battle_host.hud_slot] = battle_host.hud_slot.visible
-			battle_host.hud_slot.visible = false
-		if battle_host.visuals_view != null and is_instance_valid(battle_host.visuals_view):
-			_hidden_nodes[battle_host.visuals_view] = battle_host.visuals_view.visible
-			battle_host.visuals_view.visible = false
-		if battle_host.fx_view != null and is_instance_valid(battle_host.fx_view):
-			_hidden_nodes[battle_host.fx_view] = battle_host.fx_view.visible
-			battle_host.fx_view.visible = false
-
-
-func _restore_hidden_nodes() -> void:
-	for node in _hidden_nodes.keys():
-		if is_instance_valid(node) and "visible" in node:
-			node.visible = _hidden_nodes[node]
-	_hidden_nodes.clear()
-
-
-func _start_dissolution() -> void:
-	_cleanup_dissolution()
-	if partner == null:
+## MURD_renderScene (timer < 0x24) and DOOA_renderDissolve (frame < 36): the window closing on the
+## partner; the map background's darkness while either scene holds it.
+func _draw_iris() -> void:
+	var radius := -1.0
+	if murd.active and murd.timer >= 0 and murd.timer < MurdScene.IRIS_DRAWN:
+		radius = _iris_radius(murd.timer, MurdScene.IRIS_END)
+	elif dooa.sequence == DooaScene.DISSOLVE and dooa.frame >= 0 and dooa.frame < DooaScene.IRIS_DRAWN:
+		radius = _iris_radius(dooa.frame, DooaScene.IRIS_END)
+	var darkness := 0
+	if murd.active:
+		darkness = murd.darkness
+	if dooa.darkness > darkness:
+		darkness = dooa.darkness
+	if radius < 0.0 and darkness == 0:
+		iris.hide_iris()
 		return
+	var center := _screen_point(_partner_centre()) + FieldMap.SCREEN / 2
+	iris.show_iris(center, maxf(radius, 0.0) if radius >= 0.0 else DeathIris.MAX_RADIUS * 2, darkness)
 
-	var mesh_instances := partner.find_children("*", "MeshInstance3D", true, false)
-	for mi in mesh_instances:
-		var mesh_instance := mi as MeshInstance3D
-		if mesh_instance == null or mesh_instance.mesh == null:
+
+static func _iris_radius(t: int, end: int) -> float:
+	return 2.0 * PsxMath.lerp_int(200, 0, 0, end, mini(t, end))
+
+
+## The partner's middle: its location raised by half its height (MURD_renderIris).
+func _partner_centre() -> Vector3:
+	var height := 0
+	if data != null and partner.digimon != "":
+		height = int(data.digimon(partner.digimon).get("height", 0))
+	return partner.global_position + Vector3(0, height / 2.0, 0)
+
+
+## worldPosToScreenPos: centred PSX screen pixels.
+func _screen_point(world_point: Vector3) -> Vector2:
+	if camera == null or not camera.is_inside_tree():
+		return Vector2.ZERO
+	return FieldMap.unproject(camera, world_point) - FieldMap.SCREEN / 2
+
+
+## setMapLayerEnabled (as FieldBattleWorld's): the map's objects hidden, then back as they were.
+func _set_map_layer(enabled: bool) -> void:
+	if not enabled:
+		var nodes: Array = map_layer_nodes.call() if map_layer_nodes.is_valid() else []
+		for n in nodes:
+			if n != null and is_instance_valid(n) and not _hidden_layer.has(n):
+				_hidden_layer[n] = n.visible
+				n.visible = false
+	else:
+		for n in _hidden_layer:
+			if is_instance_valid(n):
+				n.visible = _hidden_layer[n]
+		_hidden_layer.clear()
+
+
+# --- the stand-ins --------------------------------------------------------------------------------
+
+func _on_dooa_phase(phase: int) -> void:
+	match phase:
+		DooaScene.PHASE_SHARDS:
+			_start_dissolve()
+		DooaScene.PHASE_RISE:
+			_end_dissolve()
+		DooaScene.PHASE_EGG:
+			_spawn_egg()
+		DooaScene.PHASE_BABY_FADE:
+			if _egg != null:
+				_egg.queue_free()
+				_egg = null
+
+
+func _draw_dissolve() -> void:
+	var progress := clampf(float(dooa.frame - SINK_START) / (SINK_END - SINK_START), 0.0, 1.0)
+	for mat in _dissolve_shaders:
+		mat.set_shader_parameter("fall_progress", progress)
+		mat.set_shader_parameter("alpha", 1.0 - progress)
+	partner.scale = Vector3(dooa.squash.y, dooa.squash.x, dooa.squash.y)
+
+
+## The partner's meshes get the sinking material and a wireframe copy (its triangles' edges) that
+## follows the same skeleton.
+func _start_dissolve() -> void:
+	_end_dissolve()
+	var model := partner.get_node_or_null("Model")
+	if model == null:
+		return
+	for node in model.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		if mesh_instance == null or mesh_instance.mesh == null or mesh_instance in _wireframes:
 			continue
-
-		var m := mesh_instance.mesh
-		# 1. Build wireframe mesh
-		var wire_mesh := ArrayMesh.new()
-		for s in m.get_surface_count():
-			var arrays := m.surface_get_arrays(s)
-			if arrays.is_empty():
-				continue
-			var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-			var line_indices := PackedInt32Array()
-			for t in range(0, indices.size(), 3):
-				if t + 2 < indices.size():
-					var a := indices[t]
-					var b := indices[t + 1]
-					var c := indices[t + 2]
-					line_indices.append_array([a, b, b, c, c, a])
-
-			var line_arrays := []
-			line_arrays.resize(Mesh.ARRAY_MAX)
-			line_arrays[Mesh.ARRAY_VERTEX] = arrays[Mesh.ARRAY_VERTEX]
-			line_arrays[Mesh.ARRAY_INDEX] = line_indices
-			if arrays[Mesh.ARRAY_BONES] != null:
-				line_arrays[Mesh.ARRAY_BONES] = arrays[Mesh.ARRAY_BONES]
-			if arrays[Mesh.ARRAY_WEIGHTS] != null:
-				line_arrays[Mesh.ARRAY_WEIGHTS] = arrays[Mesh.ARRAY_WEIGHTS]
-			wire_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, line_arrays)
-
-		var wire_inst := MeshInstance3D.new()
-		wire_inst.mesh = wire_mesh
-		wire_inst.skin = mesh_instance.skin
-		wire_inst.skeleton = mesh_instance.skeleton
-		var wire_mat := StandardMaterial3D.new()
-		wire_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		wire_mat.albedo_color = Color(0.85, 0.85, 0.95, 1.0)
-		wire_inst.material_override = wire_mat
-		mesh_instance.get_parent().add_child(wire_inst)
-		_wireframe_nodes.append(wire_inst)
-
-		# 2. Setup texture fall shader on the original mesh
-		var orig_mat := mesh_instance.material_override
-		if orig_mat == null and mesh_instance.get_surface_override_material(0) != null:
-			orig_mat = mesh_instance.get_surface_override_material(0)
+		var wire := _wireframe(mesh_instance)
+		if wire != null:
+			mesh_instance.get_parent().add_child(wire)
+			_wireframes.append(wire)
+		var original := mesh_instance.material_override
+		if original == null:
+			original = mesh_instance.get_surface_override_material(0)
+		var texture: Texture2D = null
+		if original is ShaderMaterial:
+			texture = (original as ShaderMaterial).get_shader_parameter("albedo_texture")
+		elif original is BaseMaterial3D:
+			texture = (original as BaseMaterial3D).albedo_texture
+		var sink := ShaderMaterial.new()
+		sink.shader = DISSOLVE_SHADER
+		if texture != null:
+			sink.set_shader_parameter("albedo_texture", texture)
 		_dissolve_meshes.append(mesh_instance)
-		_dissolve_orig_materials.append(orig_mat)
-
-		var tex: Texture2D = null
-		if orig_mat is ShaderMaterial:
-			tex = (orig_mat as ShaderMaterial).get_shader_parameter("albedo_texture")
-		elif orig_mat is BaseMaterial3D:
-			tex = (orig_mat as BaseMaterial3D).albedo_texture
-
-		var fall_shader := Shader.new()
-		fall_shader.code = """shader_type spatial;
-render_mode cull_disabled;
-uniform sampler2D albedo_texture : source_color, filter_nearest;
-uniform float fall_progress : hint_range(0.0, 1.0) = 0.0;
-uniform float alpha : hint_range(0.0, 1.0) = 1.0;
-
-void vertex() {
-	if (fall_progress > 0.0) {
-		float p = clamp(fall_progress, 0.0, 1.0);
-		VERTEX.y = mix(VERTEX.y, 0.0, p);
-		float seed = float(VERTEX_ID);
-		VERTEX.x += (fract(sin(seed * 12.9898) * 43758.5453) - 0.5) * p * 0.15;
-		VERTEX.z += (fract(cos(seed * 78.233) * 43758.5453) - 0.5) * p * 0.15;
-	}
-}
-
-void fragment() {
-	vec4 col = texture(albedo_texture, UV);
-	ALBEDO = col.rgb;
-	ALPHA = col.a * alpha;
-}
-"""
-		var fall_mat := ShaderMaterial.new()
-		fall_mat.shader = fall_shader
-		if tex != null:
-			fall_mat.set_shader_parameter("albedo_texture", tex)
-		fall_mat.set_shader_parameter("fall_progress", 0.0)
-		fall_mat.set_shader_parameter("alpha", 1.0)
-		mesh_instance.material_override = fall_mat
-		_dissolve_materials.append(fall_mat)
+		_dissolve_materials.append(mesh_instance.material_override)
+		_dissolve_shaders.append(sink)
+		mesh_instance.material_override = sink
 
 
-func _cleanup_dissolution() -> void:
-	for node in _wireframe_nodes:
-		if is_instance_valid(node):
-			node.queue_free()
-	_wireframe_nodes.clear()
-	for i in range(_dissolve_meshes.size()):
-		var mi := _dissolve_meshes[i]
-		if is_instance_valid(mi):
-			mi.material_override = _dissolve_orig_materials[i]
+func _wireframe(source: MeshInstance3D) -> MeshInstance3D:
+	var wire_mesh := ArrayMesh.new()
+	for s in source.mesh.get_surface_count():
+		var arrays := source.mesh.surface_get_arrays(s)
+		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		var lines := PackedInt32Array()
+		for t in range(0, indices.size() - 2, 3):
+			lines.append_array([indices[t], indices[t + 1], indices[t + 1], indices[t + 2], indices[t + 2], indices[t]])
+		if lines.is_empty():
+			continue
+		var line_arrays := []
+		line_arrays.resize(Mesh.ARRAY_MAX)
+		line_arrays[Mesh.ARRAY_VERTEX] = arrays[Mesh.ARRAY_VERTEX]
+		line_arrays[Mesh.ARRAY_INDEX] = lines
+		line_arrays[Mesh.ARRAY_BONES] = arrays[Mesh.ARRAY_BONES]
+		line_arrays[Mesh.ARRAY_WEIGHTS] = arrays[Mesh.ARRAY_WEIGHTS]
+		wire_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, line_arrays)
+	if wire_mesh.get_surface_count() == 0:
+		return null
+	var wire := MeshInstance3D.new()
+	wire.mesh = wire_mesh
+	wire.skin = source.skin
+	wire.skeleton = source.skeleton
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = WIRE_COLOR
+	wire.material_override = mat
+	return wire
+
+
+func _end_dissolve() -> void:
+	for wire in _wireframes:
+		if is_instance_valid(wire):
+			wire.queue_free()
+	_wireframes.clear()
+	for i in _dissolve_meshes.size():
+		if is_instance_valid(_dissolve_meshes[i]):
+			_dissolve_meshes[i].material_override = _dissolve_materials[i]
 	_dissolve_meshes.clear()
-	_dissolve_orig_materials.clear()
 	_dissolve_materials.clear()
-
-
-func _spawn_digitama() -> void:
-	if _egg_node != null and is_instance_valid(_egg_node):
-		_egg_node.queue_free()
-	_egg_node = null
-
-	var egg: Node3D = null
-	if ContentClass.exists("tmd_files/ETCDAT/TAMA.gltf"):
-		egg = ContentClass.load_model("tmd_files/ETCDAT/TAMA.gltf")
-	if egg == null:
-		egg = Node3D.new()
-		var mi := MeshInstance3D.new()
-		var sphere := SphereMesh.new()
-		sphere.radius = 16.0
-		sphere.height = 36.0
-		mi.mesh = sphere
-		egg.add_child(mi)
-
-	egg.name = "Digitama"
-	egg.position = Vector3(0, 0, 0)
-	if field_map != null:
-		field_map.add_child(egg)
-	elif partner != null and partner.get_parent() != null:
-		partner.get_parent().add_child(egg)
-	_egg_node = egg
-
-
-func _warp_to_recovery_hospital() -> void:
-	if iris != null:
-		iris.hide_iris()
-	_restore_hidden_nodes()
-	var gs := _get_game_state()
-	var current_lives := 0
-	if gs != null and gs.state.has("partner"):
-		current_lives = int(gs.state["partner"].get("lives", 0))
-		if gs.state["partner"].has("care"):
-			var care: Dictionary = gs.state["partner"]["care"]
-			if int(care.get("remaining_lifetime", 0)) <= 0 and current_lives > 0:
-				care["remaining_lifetime"] = 360
-	var target_map := determine_death_map()
-	if tamer != null and tamer.change_map.is_valid():
-		tamer.change_map.call(target_map, 1)
-	var f := _get_fade()
-	if f != null:
-		f.fade_from_black(0x14)
+	_dissolve_shaders.clear()
 	if partner != null:
-		if current_lives == 0:
-			partner.visible = false
-			_spawn_digitama()
-		else:
-			partner.visible = true
-			partner.set_state(Partner.STATE_IDLE)
-	if tamer != null:
-		tamer.visible = true
+		partner.scale = Vector3.ONE
 
 
-func _finish_scene() -> void:
-	is_active = false
-	if iris != null:
-		iris.hide_iris()
-	_restore_hidden_nodes()
-	if tamer != null:
-		tamer.camera_follow = true
-		tamer.visible = true
-	# Set script sync bit to release WAIT_FOR_ENTITY in section 0x4DE / script 212
-	if script_ctx != null:
-		script_ctx.sync_bit = 1
-
-
-func _get_data() -> Node:
-	if script_ctx != null and script_ctx.data != null:
-		return script_ctx.data
-	if interpreter != null and interpreter.data != null:
-		return interpreter.data
-	if Engine.has_singleton("GameData"):
-		return Engine.get_singleton("GameData")
-	return null
-
-
-func _get_fade() -> Fade:
-	if fade != null:
-		return fade
-	if tamer != null and tamer.fade != null:
-		return tamer.fade
-	return null
-
-
-## Selects destination map according to PSX decompilation (murd.c:781, dooa.c:1734):
-## If trigger 0xDC (Centarumon clinic) or 0xD6 (Clinic open) is set, or prosperity (pstat 1) >= 50:
-##   target = 0xCD (205, Jijimon's House late)
-## Else:
-##   target = 0xDA (218, Jijimon's House early)
-func determine_death_map() -> int:
-	var gs := _get_game_state()
-	if gs == null:
-		return MAP_JIJIMON_HOUSE_EARLY
-	var clinic_open: bool = gs.is_trigger_set(TRIGGER_CLINIC_OPEN) or gs.is_trigger_set(TRIGGER_JIJIMON_EXTENDED)
-	var prosperity := int(gs.script_value(1))
-	if clinic_open or prosperity >= 50:
-		return MAP_JIJIMON_HOUSE_LATE
-	return MAP_JIJIMON_HOUSE_EARLY
-
-
-func _get_game_state() -> Node:
-	if game_state != null:
-		return game_state
-	if script_ctx != null and script_ctx.game_state != null:
-		return script_ctx.game_state
-	if Engine.has_singleton("GameState"):
-		return Engine.get_singleton("GameState")
-	return null
+## DOOA phase 0x66: the egg model at the room's centre (shown while it fades in, DOO2_fadeClut).
+func _spawn_egg() -> void:
+	if _egg != null:
+		_egg.queue_free()
+	_egg = Content.load_model(EGG_MODEL) if Content.exists(EGG_MODEL) else null
+	if _egg == null or world == null:
+		return
+	_egg.name = "Digitama"
+	_egg.position = Vector3.ZERO
+	_egg.visible = false
+	world.add_child(_egg)

@@ -57,7 +57,6 @@ var _maps: PackedStringArray
 @onready var _world: SubViewport = $World/SubViewport
 @onready var _hud: CanvasLayer = $Hud
 ## The hosts (specs/scenes.md §4.2).
-const DeathHost := preload("res://scripts/field/hosts/death_host.gd")
 @onready var entities: EntityHost = $Systems/Entities
 @onready var map_session: MapSession = $Systems/MapSession
 @onready var scripts: ScriptHost = $Systems/ScriptHost
@@ -199,13 +198,27 @@ func _start() -> void:
 	battle_host.message.connect(debug.show_message)
 	if scripts.interpreter != null:
 		scripts.interpreter.battles = battle_host
-	death_host.field_map = _field
+	# The death and lives scenes (specs/death_reincarnation.md §8): MURD and DOOA, which the tamer's
+	# states 17 / 19 and the partner's 8 / 14 run.
+	death_host.camera = _camera
+	death_host.tamer = _tamer
+	death_host.partner = partner
 	death_host.entities = entities.entities
-	death_host.battle_host = battle_host
-	death_host.map_session = map_session
-	death_host.configure(scripts.boxes, care_host.fade, _tamer, partner, scripts.script_ctx,
-			scripts.interpreter, _camera)
-	scripts.interpreter.death_host = death_host
+	death_host.evolution = care_host.evolution
+	death_host.boxes = scripts.boxes
+	death_host.script_ctx = scripts.script_ctx
+	death_host.game_state = GameState
+	death_host.data = GameData
+	death_host.sound = Sound
+	death_host.change_map = map_session.change_map
+	death_host.map_layer_nodes = map_layer_nodes
+	death_host.world = _world
+	death_host.start()
+	$World/SubViewport/Background.add_child(death_host.iris)
+	# Builtin 29's egg panel writes the DOOA sequence's egg slot.
+	for child in scripts.get_node("Routines").get_children():
+		if child is DeathRoutines:
+			child.dooa = death_host.dooa
 	map_session.partner = partner
 	map_session.entities = entities.entities
 	map_session.scripts = scripts
@@ -244,12 +257,10 @@ func _start_debug() -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
 	for node: Node in [care_host.bars, care_host.bubbles, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
-			care_host.fade, scripts.boxes,
+			care_host.fade, scripts.boxes, death_host.darken,
 			scripts.map_name]:
 		if node != null:
 			_hud.add_child(node)
-	if death_host != null and death_host.iris != null:
-		$World/SubViewport/Background.add_child(death_host.iris)
 
 
 ## The map layer's objects (MAP_LAYER_ENABLED: the doors, the overlay sprites, the items on the
@@ -292,12 +303,12 @@ func _frame() -> void:
 		scripts.tick_script()
 		_field.tick_pan()
 		scripts.tick_objects()
+		death_host.tick_objects()
 		_field.overlays.tick()
 	debug.tick_message()
 	debug.tick_gallery()
 	care_host.tick_visuals(in_menu)
 	care_host.tick_healing()
-	death_host.tick()
 	debug.tick_panel()
 	scripts.step_boxes()
 	care_host.tick_fade()

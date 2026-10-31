@@ -570,47 +570,26 @@ There is no save menu yet, so these checks are about the save file itself.
    - Choosing "No" continues waking up the partner normally.
    - Choosing "Yes" opens the slot selection box to save the game before waking up.
 
-## Death, Lives, and Reincarnation (`scripts/field/hosts/death_host.gd`, `murd_box.gd`, `egg_select_box.gd`, `death_iris.gd`, `specs/death_reincarnation.md`)
+## Death, lives and reincarnation (`specs/death_reincarnation.md`)
 
-`test_death_reincarnation.gd` prints `OK: death & reincarnation checks (71 run)`.
+Code: `scripts/field/death/` (`MurdScene`, `DooaScene`), the tamer's states 17 / 19 and the partner's 8 / 14, `scripts/field/hosts/death_host.gd` (scene `scenes/field/hosts/death_host.tscn`), `Evolution.reincarnate`, `scripts/script/death_routines.gd` (builtins 29, 47).
 
-1. **Partner Collapse (Lives > 0):**
-   - Triggering death with lives remaining (e.g. natural death from lifetime reaching 0, or losing a battle with lives > 0):
-   - The partner plays its death collapse animation (animation 11) and stops.
-   - The circular iris transition (`DeathIris`) contracts smoothly toward the screen center to black with an edgeless, pure black wipe.
-   - The partner model remains visible on top of the black floor throughout the iris wipe.
-   - The lives banner (`MurdBox`, UI box 3) appears across the screen with the native `ETCHI/LIFE.png` backdrop showing 3 heart slots, while the collapsed partner is visible below it.
-   - The heart representing the lost life blinks empty/full before remaining empty.
-   - Sound effect 5 plays.
-   - The game warps to the hospital: Jijimon's House Early (Map 218 / `0xDA`) if prosperity < 50 and Centarumon's clinic is not recruited, or Jijimon's House Late (Map 205 / `0xCD`) if prosperity >= 50 or Centarumon is recruited.
-   - Partner wakes up with restored lifetime and full HP/MP.
+Automated: `test_death_reincarnation.gd` prints `OK: death & reincarnation checks (95 run)`; `tests/death_scan.tscn` (`godot --headless --fixed-fps 60 --path . res://tests/death_scan.tscn`) plays the three cases in the real field and prints three `ok` lines; `tests/exit_scan.tscn` reaches them through Toy Town's traps (OMOC07).
 
-2. **Digital Shard Dissolution (0 Lives Death):**
-   - When the partner loses its final life, following the iris contraction and heart loss, the death dissolution sequence runs:
-   - The partner's textured polygons melt / slide downward along the Y-axis into a flat puddle on the floor.
-   - The partner's glowing 3D wireframe mesh remains upright in the collapsed pose above the fallen textures (matching PSX `dooa.c` / `doo2.c`).
-   - The wireframe flickers and flashes away with sound effect 8:2 / 8:3.
+Stand-ins (not the original's look yet): DOOA's shards and flashes (a sinking texture with a wireframe instead), the cutscene camera, the lights MURD sets, the squash curve. Timings, sounds, map changes, states and texts follow the C.
 
-3. **Natural Death Reincarnation (Egg Selection):**
-   - When the partner passes away from old age / natural death, the partner fades away peacefully and the tamer is warped to Jijimon's House.
-   - Jijimon asks which egg you want, opening the egg selection screen (`EggSelectBox`, UI box 3).
-   - Four eggs are displayed horizontally (`ETCDAT/TAMA.p4-p7.png`):
-     - Slot 0: Green egg (`dw1:botamon`)
-     - Slot 1: Pink egg (`dw1:punimon`)
-     - Slot 2: Blue egg (`dw1:poyomon`)
-     - Slot 3: Yellow striped egg (`dw1:yuramon`)
-   - Left / Right moves the selector cursor with sound 0; ✕ (Enter / Pad A) confirms the choice with sound 1.
-   - The partner is reincarnated into the chosen Baby I Digimon with 3 lives, age 0, and stat inheritance equal to $\text{tamerLevel}\%$.
+How to get there fast: lose a battle (a strong wild Digimon, or Toy Town's trap doors on OMOC07 with a weak partner). For the last life, lose battles until the lives box shows one heart.
 
-4. **0 Lives Reincarnation (Digitama Center Spawn & Rebirth Hop):**
-   - When the partner loses its final life (`lives == 0`), Builtin 47 (`lostAllLives`) is invoked.
-   - **Move Forgetting:** Non-basic techniques have a $(10 - \text{tamerLevel}) \times 2\%$ chance of being unlearned. If any moves were forgotten, section `0x4D8` line 7 announces the loss.
-   - **Digitama Appearance:** The Digitama egg is spawned at `(0, 0, 0)` in the center of Jijimon's room while Jijimon explains the tragedy (*"Before fading away, [Partner] gave birth to a Digitama..."*).
-   - **Egg Assignment:** Per PSX `dooa.c:1764`, the egg is randomly assigned from the 4 eggs as a penalty.
-   - **Rebirth Routine:** Routine 4 causes the Digitama in the center of the room to wobble and shake, plays hatching sound 8:6, hatches the baby Digimon at `(0, 0, 0)`, and the baby Digimon hops across the floor to the Tamer before entering `STATE_NORMAL`.
-
-5. **Death Digivolutions (Script 212):**
-   - **Bakemon:** Rookie partner dying in battle has a 10% chance to digivolve into Bakemon instead of losing a life.
-   - **Fast Dialogue:** Once the evolution finishes, the script delay is automatically capped to 20 frames so the digivolution announcement and controls return immediately without a 10-second pause.
-   - **Sukamon:** Filling the virus bar (16 poop accidents) digivolves the partner into Sukamon.
-   - **Devimon:** Champion partner losing a battle with discipline < 50% has a 50% chance to digivolve into Devimon.
+1. **A life lost, lives left** (battle loss or 12 hours sick):
+   - A black circle closes on the partner over about 2 s; everyone else disappears, the partner stays in front.
+   - The lives box grows out of the partner: the backdrop and 3 heart slots, the lost heart blinks, then stays empty.
+   - The screen darkens to black (it darkens, it doesn't flash white), and you are in Jijimon's house (ROOM08), or ROOM10 once the clinic is open or prosperity is 50+. The screen lightens again.
+   - Only then does the dialogue start (Jijimon or Centarumon). There is a 10 % chance of a death evolution (a Rookie into Bakemon, …); it plays the evolution scene, and its 550-frame wait stays as long as the original.
+2. **The last life lost**:
+   - The same iris and lives box; then the box shrinks back to the partner, and you are in Jijimon's house in the dark. Only the partner shows; it sinks away while its wireframe stays, then disappears.
+   - The egg fades in in the middle of the room, then Jijimon (and only then) talks. Techniques may be forgotten ("… has been forgotten!", one per ✕).
+   - The egg hatches into a random baby: sparkle sounds, the room lights up, the baby stands in the middle of the room (it doesn't walk to you), poses, then you are asked about its name.
+3. **The natural death** (lifetime 0):
+   - The partner walks up to you before anything happens; then the iris closes, the map changes, it dissolves as in 2.
+   - Jijimon's egg panel: 4 eggs, ← → moves (cursor sound), ✕ closes the box. That egg hatches. The new partner keeps (tamer level) % of the old one's stats.
+4. **After any rebirth**: 3 hearts, lifetime 360 h, the baby's first technique equipped. A later natural death or last life lost works again (the care checks resume once the script is over).

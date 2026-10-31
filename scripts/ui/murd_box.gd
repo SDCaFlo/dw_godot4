@@ -1,6 +1,6 @@
 class_name MurdBox
 extends RefCounted
-## The MURD life loss display box (src/murd/murd.c:416-457, 690-753; specs/death_reincarnation.md §3).
+## The MURD life loss display box (src/murd/murd.c:416-470, 690-753; specs/death_reincarnation.md §3).
 ## Uses UI box ID 3 to display the remaining lives banner and animate the lost heart.
 ##
 ## Texture: ETCHI/LIFE.png (112 x 24)
@@ -54,6 +54,13 @@ func close(target_rect: Rect2i = START_POS) -> void:
 	is_open = false
 	if boxes != null and boxes.boxes[BOX_ID].state != UIBoxes.STATE_CLOSED:
 		boxes.remove_animated(BOX_ID, target_rect)
+
+
+## MURD_removeLivesBox (murd.c:470): removeStaticUIBox(3), gone at once.
+func remove_static() -> void:
+	is_open = false
+	if boxes != null:
+		boxes.remove_static(BOX_ID)
 
 
 func tick(_id := 0) -> void:

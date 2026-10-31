@@ -28,8 +28,12 @@ const EXITS := [
 	["OMOC07", 0x51, {"values": {110: 0}}], ["OMOC07", 0x52, {"values": {110: 1}}],
 	["OMOC07", 0x53, {"values": {110: 2}}], ["OMOC07", 0x53, {"values": {110: 0}, "warp": false}],
 ]
-## Game frames an exit may take before it counts as stuck.
-const TIMEOUT := 1500
+## Game frames an exit may take before it counts as stuck. Toy Town's traps can lose a battle: the
+## death scenes then play in full (MURD, DOOA's dissolution and rebirth, script 212: ~1500 frames).
+const TIMEOUT := 3000
+## Script 212: the death sections (a trap battle lost); its choices take their second answer
+## ("I'll keep his name", "Okay").
+const DEATH_SCRIPT := 212
 ## Times the tamer enters the cell before the exit counts as not warping.
 const VISITS := 3
 
@@ -85,8 +89,10 @@ func _process(_delta: float) -> void:
 	var ctx: ScriptContext = _field.scripts.script_ctx
 	var frames := GameLoop.frame_count - _start_frame
 	if frames > TIMEOUT:
-		_finish("%s 0x%X: stuck in phase %d on %s (fade in %d, warp at %d, script paused %s, tamer state %d, waiting 0x%02X at %d)" % [
-				map, section, _phase, _screen_file(), _field.care_host.fade.in_current, _warp_frame, ctx.is_paused, tamer.state, ctx.active_instruction, ctx.pointer], true)
+		var death: DeathHost = _field.death_host
+		_finish("%s 0x%X: stuck in phase %d on %s (fade in %d, warp at %d, script paused %s, tamer state %d, waiting 0x%02X at %d, partner state %d/%d, MURD %d/%d, DOOA %d/%d)" % [
+				map, section, _phase, _screen_file(), _field.care_host.fade.in_current, _warp_frame, ctx.is_paused, tamer.state, ctx.active_instruction, ctx.pointer,
+				_field.map_session.partner.state, _field.map_session.partner.sub_state, death.murd.timer, death.murd.phase, death.dooa.frame, death.dooa.phase], true)
 		return
 	match _phase:
 		0:
@@ -116,7 +122,13 @@ func _process(_delta: float) -> void:
 			_moved = maxf(_moved, tamer.position.distance_to(_start_position))
 			if not ctx.is_paused:
 				_ran = true
-			if frames % 4 == 0 and (not ctx.is_paused or (section >= 80 and _warp_frame < 0)):
+			if ctx.code_id == DEATH_SCRIPT and ctx.active_instruction == ScriptContext.OP_SET_SELECTION:
+				# The rename prompt after a rebirth: the first answer always asks again.
+				if frames % 8 == 0:
+					GameLoop.press("pad_down")
+				elif frames % 8 == 4:
+					GameLoop.press("pad_cross")
+			elif frames % 4 == 0 and (not ctx.is_paused or (section >= 80 and _warp_frame < 0)):
 				GameLoop.press("pad_cross")
 			var screen := _screen_file()
 			if _warp_frame < 0 and screen != map:

@@ -58,8 +58,10 @@ var bubble_timer := 0
 var has_butterfly := false
 ## MENU_OPTIONS[6].disabled: the menu's "Sleep" (setSleepDisabled).
 var sleep_enabled := false
-## IS_SCRIPT_PAUSED == 0: a script runs (the stand-in for script_requested sets it).
+## IS_SCRIPT_PAUSED == 0: a script runs. Read from the script context when there is one; without
+## (the tests) set by script_requested's caller.
 var script_running := false
+var script_ctx: ScriptContext
 ## EVOLUTION_TARGET: the Digimon of the evolution that runs or starts, -1 = none (specs/evolution.md).
 var evolution_target := -1
 ## NANIMON_TRIGGER: a Rookie scolded at discipline 0 and happiness -100 (handlePraiseScold); the
@@ -227,7 +229,7 @@ func tick_conditions() -> void:
 ## tickDeathCondition (:1917).
 func tick_death_condition() -> void:
 	if _in_immortal_hour() or _val("remaining_lifetime") > 0 or _partner_state() == PARTNER_DYING \
-			or _tamer_state() != 0 or script_running:
+			or _tamer_state() != 0 or _script_running():
 		return
 	is_natural_death = true
 	game_state.set_script_value(PSTAT_DEATH, 0)
@@ -347,7 +349,7 @@ func tick_sickness_mechanics() -> void:
 	if not was_sick and _cond(SICK):
 		_show_sick_message()
 	if _val("sickness_timer") >= 12 and _partner_state() != PARTNER_DYING and _tamer_state() == 0 \
-			and _val("remaining_lifetime") != 0 and not script_running:
+			and _val("remaining_lifetime") != 0 and not _script_running():
 		game_state.set_script_value(PSTAT_DEATH, 0)
 		game_state.state["partner"]["lives"] = int(game_state.state["partner"]["lives"]) - 1
 		_call_script(SCRIPT_COLLAPSE)
@@ -956,3 +958,7 @@ func handle_post_battle_tiredness() -> void:
 func _call_script(section: int) -> void:
 	script_running = true
 	script_requested.emit(section)
+
+
+func _script_running() -> bool:
+	return not script_ctx.is_paused if script_ctx != null else script_running

@@ -425,6 +425,75 @@ func apply_evolution(target: int) -> String:
 	return key
 
 
+# --- reincarnatePartner (evolution.c:1054) -------------------------------------------------------
+
+## The reincarnation egg records (systems/babies `reincarnation_eggs`: REINCARNATE_BABY_TYPE and
+## the base stats of initializeReincarnatedPartner's setReincarnateStats calls).
+func reincarnation_eggs() -> Array:
+	var rows: Array = data.system("babies")
+	return rows[0].get("reincarnation_eggs", []) if not rows.is_empty() else []
+
+
+## reincarnatePartner with REINCARNATE_BABY_TYPE[egg] (DOOA_tickRebirth, dooa.c:1103): the dead
+## partner's stats kept (DEATH_STATS), the techniques reset (slot 0 = the new Digimon's technique
+## slot 0, 0x2E; the others empty, nothing learnt), the stat_gains target of the egg's Digimon set
+## up by initializeReincarnatedPartner (partner_impl.c:758) and setReincarnateStats (:810), 3
+## lives, the raised mark. Returns the new Digimon's key ("" for an unknown egg).
+func reincarnate(egg: int) -> String:
+	var eggs := reincarnation_eggs()
+	if egg < 0 or egg >= eggs.size():
+		return ""
+	var record: Dictionary = eggs[egg]
+	var new_id := int(data.evolution_gains(_ref_id(record["digimon"])).get("target", _ref_id(record["digimon"])))
+	var death_stats := _base().duplicate()
+	var key: String = data.key_of("digimon/digimon_data", new_id)
+	game_state.state["partner"]["digimon"] = key
+	var moves: Array = _base()["moves"]
+	var slots: Array = data.digimon(new_id).get("moves", [])
+	moves[0] = data.key_of("moves/move_data", _ref_id(slots[0].get("move"))) if not slots.is_empty() else null
+	moves[1] = null
+	moves[2] = null
+	moves[3] = null
+	# setReincarnateStats: the egg's stats plus tamer level % of the dead partner's after a natural
+	# death (IS_NATURAL_DEATH), which it clears.
+	var percentage: int = int(game_state.state["tamer"]["level"]) if care.is_natural_death else 0
+	var base := _base()
+	var stats: Dictionary = record.get("base_stats", {})
+	for stat in BASE:
+		base[stat] = int(stats.get(stat, 0)) + int(death_stats[stat]) * percentage / 100
+	var current: Dictionary = game_state.state["partner"]["stats"]["current"]
+	current["hp"] = base["max_hp"]
+	current["mp"] = base["max_mp"]
+	care.is_natural_death = false
+	# initializeReincarnatedPartner's care values.
+	var c := _care()
+	c["condition"] = 0
+	care.set_sleep_times()
+	c["missed_sleep_hours"] = 0
+	c["tiredness_sleep_timer"] = 0
+	care.reset_partner_para()
+	c["discipline"] = 50
+	c["happiness"] = 50
+	c["unused3"] = 50
+	c["times_being_sick"] = 0
+	c["remaining_lifetime"] = 360
+	c["age"] = 0
+	c["evo_timer"] = 0
+	care.evolution_target = -1
+	c["care_mistakes"] = 0
+	c["battles"] = 0
+	c["weight"] = int(data.raise_data(new_id).get("default_weight", 0))
+	var tamer: Dictionary = game_state.state["tamer"]
+	tamer["raised_count"] = mini(int(tamer["raised_count"]) + 1, 99)
+	care.has_immortal_hour = false
+	care.immortal_hour = -1
+	game_state.state["partner"]["lives"] = 3
+	game_state.set_raised(new_id)
+	game_state.changed.emit("partner")
+	game_state.changed.emit("tamer")
+	return key
+
+
 ## The new technique: in the block of the new Digimon's first element (rules `technique_block`,
 ## first..last inclusive), the candidate of lowest non-zero power, starting from the first; learnt
 ## and equipped in slot 0 (below Rookie: the first move slot); slots 1, 2 empty; slot 3 the last

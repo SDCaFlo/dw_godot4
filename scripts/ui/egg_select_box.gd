@@ -1,6 +1,6 @@
 class_name EggSelectBox
 extends RefCounted
-## The DOO2 reincarnation egg selection box (src/doo2/doo2.c:335-352, 721-769; specs/death_reincarnation.md §5).
+## The DOO2 reincarnation egg selection box (src/doo2/doo2.c:335-352, 721-769; specs/death_reincarnation.md §7).
 ## Used by Script Builtin 29 to allow the player to choose their reborn Digimon egg.
 ##
 ## Box: ID 3, Rect (-84, -70, 168, 80)
@@ -11,8 +11,8 @@ extends RefCounted
 ## - Egg sprite size: 32 x 32
 ## - Egg sprite u offset: (icons[i] * 32) + 96, where icons = [0, 2, 3, 1]
 ##   * Egg 0: u = 96, palette 4 (green stripe Botamon egg)
-##   * Egg 1: u = 160, palette 5 (pink stripe Poyomon egg)
-##   * Egg 2: u = 192, palette 6 (blue stripe Punimon egg)
+##   * Egg 1: u = 160, palette 5 (pink stripe egg: Punimon, systems/babies)
+##   * Egg 2: u = 192, palette 6 (blue stripe egg: Poyomon)
 ##   * Egg 3: u = 128, palette 7 (purple stripe Yuramon egg)
 ## - Cursor sprite: x = (selected_egg * 36) - 54, y = -30 (-0x1e)
 ##   * Size: 40 x 40 (0x28 x 0x28), u = 96, v = 32 (centered at origin with 4px margin)

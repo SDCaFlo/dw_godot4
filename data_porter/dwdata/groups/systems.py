@@ -718,12 +718,18 @@ def convert(input_root, output_root) -> GroupWriter:
         bad["babies"].append(f"levels {[level[b] for b in babies]} / {[level[e] for e in eggs]}")
     out.check("babies are Fresh / In-Training, eggs give Fresh Digimon", not bad["babies"],
               "; ".join(bad["babies"]) or "ok")
+    egg_stats = _reincarnate_stats(decomp)
+    out.check("every reincarnation egg's Digimon has its setReincarnateStats call (initializeReincarnatedPartner)",
+              set(egg_stats) == set(eggs), f"calls for {sorted(egg_stats)}, eggs {list(eggs)}")
     write("babies", ["BABY_IDS", "REINCARNATE_BABY_TYPE"], {
         "baby_ids": {"meaning": "isPartnerBaby (script_common.c:1440): partner types treated as babies"},
         "reincarnation_eggs": {"meaning": "egg slot -> Fresh Digimon of the reincarnation (DOOA_tickRebirth, "
-                                          "dooa.c:1073-1103)"},
+                                          "dooa.c:1073-1103) and its base stats before the inheritance "
+                                          "(setReincarnateStats(hp, mp, offense, defense, speed, brains) under "
+                                          "'if (type == id)' in initializeReincarnatedPartner, partner_impl.c:758)"},
     }, [{"baby_ids": [dref(b) for b in babies],
-         "reincarnation_eggs": [{"egg": k, "digimon": dref(e)} for k, e in enumerate(eggs)]}],
+         "reincarnation_eggs": [{"egg": k, "digimon": dref(e), "base_stats": egg_stats.get(e, {})}
+                                for k, e in enumerate(eggs)]}],
         {"access": "GameData.system('babies')"})
 
     tracks = us["BGM_TRACK_NAMES"]
@@ -841,6 +847,20 @@ def _new_game(out, index, L, strings, dref, sources, write) -> None:
     }, [{"movie": k, "file": m["path"].split("\\")[-1].split(".")[0], "start_frame": m["startFrame"],
          "last_frame": m["frameCount"], "skippable": k != MOVIE_UNSKIPPABLE, "c": m} for k, m in enumerate(movies)],
         {"access": "GameData.system('movies')"}, binary="mov")
+
+
+REINCARNATE_STATS = ("max_hp", "max_mp", "offense", "defense", "speed", "brains")
+
+
+def _reincarnate_stats(decomp) -> dict:
+    """initializeReincarnatedPartner's literal stats: 'if (type == N) setReincarnateStats(hp, mp, off, def,
+    speed, brains);' per egg Digimon (code, not a table)."""
+    text = (decomp.root / PARTNER_IMPL_C).read_text(encoding="utf-8", errors="replace")
+    match = re.search(r"void initializeReincarnatedPartner\([^;{]*\)\s*\{", text)
+    body = text[match.end():text.find("\n}\n", match.end())] if match else ""
+    calls = re.findall(r"if \(type == (\w+)\)\s*setReincarnateStats\(([^)]*)\);", body)
+    return {int(t, 0): dict(zip(REINCARNATE_STATS, (int(v, 0) for v in args.split(","))))
+            for t, args in calls}
 
 
 def _stat_limits(out, decomp, us, write) -> None:

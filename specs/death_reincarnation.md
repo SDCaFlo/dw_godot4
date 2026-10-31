@@ -1,226 +1,143 @@
-# Death, Lives, and Reincarnation Spec
+# Death, lives and reincarnation
 
-Specification for porting the partner lives system, death, hospital recovery, death digivolution, and reincarnation (`CALL_DIGIMON_ROUTINE` 3, 4, 7, 9, 10; script builtins 29 and 47; MAPHEAD section `0x4DE`, and DG script 212 sections 71, 72, 73).
+Port spec of the partner's lives, the life-loss scene (`MURD`), the death and rebirth scene (`DOOA`), the egg panel (`DOO2`) and the reincarnation: `CALL_DIGIMON_ROUTINE` 3, 4, 7, 9, 10; builtins 29 and 47; MAPHEAD section `0x4DE`; script 212 sections 71, 72, 73.
+
+Status (2026-10-30): ported, with stand-in visuals for DOOA's shards (§9). First pass 2026-10-27 (`f558e5f` … `3249259`), reworked after review (`PLANS.md` step 6, R1–R13).
 
 Source references:
-- `src/murd/murd.c` (796 lines: lives box, heart loss animation, iris transition, map warp)
-- `src/dooa/dooa.c` (1760 lines: digital shard dissolution, rebirth cutscene, baby hatching, stat inheritance)
-- `src/doo2/doo2.c` (800 lines: egg selection box UI, egg icons, shard sets)
-- `src/main/evolution.c` (`reincarnatePartner`:1054)
-- `src/main/partner_impl.c` (`initializeReincarnatedPartner`:758, `setReincarnateStats`:810)
-- `src/main/script_common.c` (`lostAllLives`:2456, builtin 47)
-- `src/main/script_interp.c` (routine dispatch, builtins 29 and 47)
-- `src/main/tamer.c` (`tamerTickSicknessLostLife`:1699, `tamerTickBattleLostLife`:1734, `addTamerLevel`:1309)
-- `asset_porter/output/scripts/MAPHEAD/script.json` (section `0x4DE`)
-- `asset_porter/output/scripts/DG/script_212.json` (sections 71, 72, 73)
+- `src/murd/murd.c`: `MURD_tick` (:760), `MURD_tickScene` (:189), the lives box (:418–:470, :690–:753), the iris (`MURD_renderIris`).
+- `src/dooa/dooa.c`: `DOOA_tick` (:1700), `DOOA_tickDissolve` (:310), `DOOA_getSequenceState` (:1748), `DOOA_tickRebirth` (:1003), `REINCARNATE_BABY_TYPE` (:209), `DOOA_SPARKLE_BONE_IDS` (:291).
+- `src/doo2/doo2.c`: `DOO2_openEggBox` (:721), `DOO2_tickEggInput` (:739).
+- `src/main/partner.c`: `callDigimonRoutine` (:1139), `partnerTickDying` (:640), `partnerTickDying2` (:796), `setSomeDyingState` (:1120).
+- `src/main/tamer.c`: `tamerTickSicknessLostLife` (:1699), `tamerTickBattleLostLife` (:1734).
+- `src/main/evolution.c`: `reincarnatePartner` (:1054); `src/main/partner_impl.c`: `initializeReincarnatedPartner` (:758), `setReincarnateStats` (:810), `tickSicknessMechanics` (:1907), `tickDeathCondition` (:1917).
+- `src/main/script_interp.c`: `START_BATTLE`'s loss (:1919), `WAIT_FOR_ENTITY 0xD5` (:1389), builtins 29 / 47 (:483, :493, :1677, :1765); `src/main/script_common.c`: `lostAllLives` (:2456).
+- `src/main/map.c`: `setDeathMap`, `changeToDeathMap` (:5400–:5423).
 
 ---
 
-## 1. Overview & Life Loss Triggers
+## 1. Life loss triggers
 
-The partner Digimon has a life counter (`PARTNER_PARA.lives`, starting at 3 hearts). A life is lost under two circumstances:
-1. **Battle Loss:** Partner HP drops to 0 in battle. `handleItemLoss` runs, partner loses 1 life (`lives = max(0, lives - 1)`). If `lives == 0`, `remainingLifetime = 0`.
-2. **Prolonged Sickness:** Partner remains sick for 12 cumulative hours (`sickness_timer >= 12 * 60`). The sickness timer resets to 0, and partner loses 1 life. If `lives == 0`, `remainingLifetime = 0`.
+The partner has `lives` (3). Section `0x4DE` of MAPHEAD (script 0) runs when:
 
-A third condition triggers **Natural Death (Old Age)**:
-3. **Lifetime Expiration:** `remainingLifetime <= 0` while outside the immortal hour. Flags `IS_NATURAL_DEATH = true`.
+1. **A battle is lost** (`START_BATTLE`, outcome -1): `handleItemLoss`, `lives -= 1`, `remainingLifetime = 0` if no life is left, and the script jumps to script 0 section `0x4DE` (`ScriptInterpreter._after_battle`).
+2. **12 hours sick** (`tickSicknessMechanics`): with partner state ≠ 8, tamer state 0, lifetime ≠ 0 and `IS_SCRIPT_PAUSED == 1`: script value 0xFF = 0, `lives -= 1`, `callScriptSection(0, 0x4DE, 0)`, sickness timer 0 (`Care.tick_sickness_mechanics` → `script_requested` → `CareHost` calls the interpreter).
+3. **Old age** (`tickDeathCondition`): lifetime ≤ 0 outside the immortal hour, partner state ≠ 8, tamer state 0, the script paused: `IS_NATURAL_DEATH = 1`, value 0xFF = 0, section `0x4DE`.
 
-All three conditions trigger script section `0x4DE` of `MAPHEAD.SCN`.
+Care reads `IS_SCRIPT_PAUSED` from the script context (`Care.script_ctx`); `script_running` is only its stand-in without one (the tests).
 
----
+## 2. Section `0x4DE`
 
-## 2. MAPHEAD Section `0x4DE` (The Dispatcher)
+`UNSET_TRIGGER 1`, `SET_TRIGGER 41`, then by the partner's values:
 
-Section `0x4DE` coordinates the transition between the active field/battle context and the death/recovery scenes:
+| Case | `SECTION_ON_EXIT` | Routine | C |
+|---|---|---|---|
+| no life left | 73 | 7 | `tamerSetState(17)`, `partnerSetState(12)`, walk / run animations back to 0 |
+| lifetime ≤ 0 | 71 | 3 | `partnerSetState(8)` |
+| a life lost | 72 | 9 | `tamerSetState(19)`, `partnerSetState(12)`, animations as 7 |
 
-```mermaid
-flowchart TD
-    Start["Trigger Section 0x4DE"] --> Unset["UNSET_TRIGGER 1, SET_TRIGGER 41"]
-    Unset --> CheckLives{"lives == 0?"}
-    
-    CheckLives -- "Yes" --> SicknessOrBattleLoss["SECTION_ON_EXIT 73\nCALL_DIGIMON_ROUTINE 7\nWAIT_FOR_ENTITY 255\nEND_SECTION"]
-    CheckLives -- "No" --> CheckLifetime{"lifetime <= 0?"}
-    
-    CheckLifetime -- "Yes (Natural Death)" --> NaturalDeath["SECTION_ON_EXIT 71\nCALL_DIGIMON_ROUTINE 3\nWAIT_FOR_ENTITY 255\nEND_SECTION"]
-    CheckLifetime -- "No (Lives > 0)" --> BattleLossRemaining["SECTION_ON_EXIT 72\nCALL_DIGIMON_ROUTINE 9\nWAIT_FOR_ENTITY 255\nEND_SECTION"]
-```
+Then `WAIT_FOR_ENTITY 255` (the sync bit; every routine clears it). `SECTION_ON_EXIT` pushes `{4, section}` on the script stack: the death map's change runs its MAPHEAD section (`changeMap` → `runMapHeadScript`, which replaces section 0x4DE), whose end runs that section of the map's script (212).
 
-- **`CALL_DIGIMON_ROUTINE 7` (0 Lives Left, Death):** Sets tamer state 17 (`tamerTickSicknessLostLife`) and partner state 12. Executes `MURD` scene displaying 0 hearts, then transitions into `DOOA` dissolution.
-- **`CALL_DIGIMON_ROUTINE 3` (Natural Death):** Sets partner state 8 (`partnerTickDying`). Unsets camera follow, loads `DOOA`, and begins particle dissolution immediately.
-- **`CALL_DIGIMON_ROUTINE 9` (Lives Remaining > 0):** Sets tamer state 19 (`tamerTickBattleLostLife`) and partner state 12. Executes `MURD` scene displaying remaining hearts and animating the lost heart.
+Script 212's sections start with `WAIT_FOR_ENTITY 0xD5`: it clears the sync bit and waits for it; the scene sets it when it is over (MURD with lives left; the partner's state 8 after DOOA). The interpreter counts the tamer in 17 / 19 and the partner in 8 / 14 as a scene that sets the bit (`_death_scene_running`), so these waits hold until the scene ends.
 
----
+Routine 4 (`partnerSetState(14)`) starts the rebirth; routine 10 (`EVOLUTION_TARGET = readPStat(254)`, `partnerSetState(13)`) a death evolution. Routines 2 / 10 only set the target and state 13: the evolution scene applies it (`specs/evolution.md`).
 
-## 3. The `MURD` Scene (Lives Box & Iris Transition)
+## 3. MURD: a life lost (`MurdScene`)
 
-`MURD` (`src/murd/murd.c`) renders the life loss cutscene:
+Started by the tamer's state 17 / 19 (`MURD_tick(partner, 0)`): timer 0, phase 0, the lives; with lives left the death map is chosen now (§5). `MurdScene.tick` is `MURD_tickScene`, one object frame; `timer` is what `MURD_tick(.., 1)` returns, `OVER` (-10) once removed.
 
-### 3.1 Visual Assets & Layout
-- Texture: `ETCHI/LIFE.TIM` (palette 0, CLUT at (128, 488)):
-  - Backdrop banner (`MURD_LIVES_BACKDROP`): 64 × 24 px at (-85, -40).
-  - Full heart (`MURD_LIFE_FULL`): 24 × 24 px at (-11 + heart_index * 26, -40).
-  - Empty heart (`MURD_LIFE_EMPTY`): 24 × 24 px at (-11 + heart_index * 26, -40).
-- Box animation:
-  - Starts collapsed at (-8, -6, 16, 12), animates out to (-95, -50, 190, 44) over 12 frames.
+| Phase | Frames | What |
+|---|---|---|
+| 0 | 0–0x23 | the iris closes on the partner (radius `2 × lerp(200, 0, 0, 0x23, t)` px around its middle, location − height / 2); drawn while timer < 0x24 |
+| → 1 | 0x23 | background black (`fadeoutCLUT1(0xFF)`), every entity but the partner hidden, the lives box opens (box 3, from the partner's screen point), `stopBGM`, the map layer off |
+| 1–2 | to 0x5F | the partner shown; lives left → 3, none → 0x64 (the box shrinks back to the partner) |
+| 3 | 0x5F–0x87 | full-screen darkening `lerp(0, 0xA0)` (subtractive, `MURD_renderFullscreenFade`: it darkens, no white flash); at 0x87 the box is removed (static) |
+| 4 | | black (0xFF) until box 3 is free |
+| 5 | | `changeToDeathMap`; `tamerSetFullState(0x13, 1)`, partner state 11, the tamer shown |
+| 6 | to 0x91 | black; then the map layer on |
+| 7 | 0x91–0xB9 | darkening `lerp(0xA0, 0)`; then the object is removed |
+| 0x64 | | until box 3 is free |
+| 0x65 | | removed; `DOOA_tick(partner, .., 0)`: the dissolution, the partner off the map |
 
-### 3.2 Sequence Timeline
-1. **Iris In:** Black circular iris closes centered on the partner Digimon over 35 frames (`0x23`).
-2. **Lives Display:** Background map disables. Three hearts appear showing the previous life count. The lost heart flashes and switches to the empty heart sprite.
-3. **Screen Flash & Fade:** White screen flash rises (`lerp(0, 0xA0)`), holds, and fades to black.
-4. **Warp to Recovery Map:**
-   - Evaluates destination:
-     - If `prosperity >= 50` OR Trigger `0xDC` (Centarumon clinic) OR Trigger `0xD6`: destination is `ROOM10` (map `0xCD`, Centarumon's clinic / File City Clinic).
-     - Otherwise: destination is `ROOM08` (map `0xDA`, File City house / bed).
-   - On warp, executes the registered `SECTION_ON_EXIT` script (Section 72 or 73 of Script 212).
+The lives box (`MurdBox`, `ETCHI/LIFE.TIM`): backdrop 64 × 24 at (-85, -40); hearts 24 × 24 at x = `i × 0x22 − 11` (34 px apart), y = -40: `lives` full, the lost one (index `lives`) full for 10 frames, blinking every 2 frames until 30, then empty; the rest empty. Not ported: the flat lights MURD sets for the partner.
 
----
+Tamer states: **17** `tamerTickSicknessLostLife`: sub-state 0 starts MURD; 1 sets the sync bit once MURD and DOOA are both over (DOOA's map change puts him in state 6 first, so with no life left the bit comes from the partner's state 8). **19** `tamerTickBattleLostLife`: the same with MURD only.
 
-## 4. Death Digivolution (Script 212 Section 72)
+## 4. Death evolutions (script 212 section 72)
 
-When waking up in the clinic after losing a battle with lives remaining, Script 212 Section 72 executes. At offset 2020, the game rolls a random number 0–99 (`STORE_RANDOM 99, PSTAT 110`) to check for death digivolution:
+At 2020 the section rolls `STORE_RANDOM 99` into script value 110:
 
-| Partner Digimon Stage / Species | Trigger Condition | Roll (0–99) | Evolves Into | Digimon ID |
-| :--- | :--- | :--- | :--- | :--- |
-| **Rookies** (Agumon, Betamon, Gabumon, Elecmon, Patamon, Kunemon, Biyomon, Palmon) | None | `< 10` (10%) | **Bakemon** | 37 |
-| **MetalGreymon** (12) / **Megadramon** (54) | None | `< 10` (10%) | **SkullGreymon** | 26 |
-| **Kokatorimon** (50) | None | `< 10` (10%) | **Phoenixmon** | 59 |
-| **Angemon** (20) | Discipline $\le$ 49 | `< 50` (50%) | **Devimon** | 6 |
+| Partner | Condition | Roll | Into |
+|---|---|---|---|
+| Rookies (Agumon, Betamon, Gabumon, Elecmon, Patamon, Kunemon, Biyomon, Palmon) | | < 10 | Bakemon (37) |
+| MetalGreymon (12), Megadramon (54) | | < 10 | SkullGreymon (26) |
+| Kokatorimon (50) | | < 10 | Phoenixmon (59) |
+| Angemon (20) | discipline ≤ 49 | < 50 | Devimon (6) |
 
-### Digivolution Execution
-1. If roll succeeds:
-   - Sets `PSTAT 254` to target Digimon ID.
-   - Calls `CALL_DIGIMON_ROUTINE 10` (`EVOLUTION_TARGET = readPStat(254); partnerSetState(13)`).
-   - Delays 550 frames while the evolution cutscene plays.
-   - Displays textbox: `"{partner_name} has digivolved!"`.
-2. If roll fails or Digimon is ineligible:
-   - Digimon remains unchanged.
-   - Fully restores HP and MP (`ADD_STAT 6, 9999; ADD_STAT 7, 9999`).
-   - Clears injury / sickness conditions (`REMOVE_CONDITION 32; REMOVE_CONDITION 64`).
-   - Jijimon or Centarumon comments on their recovery.
+A success sets value 254, calls routine 10 (state 13, the evolution scene), waits `DELAY 550` and shows "{name} has digivolved!". Otherwise HP / MP are refilled and the injury and sickness removed, and Jijimon or Centarumon comments. These are script data; the port runs them through the interpreter.
 
----
+## 5. The death map
 
-## 5. The Death & Dissolution Scene (`DOOA`)
+`setDeathMap(map, 1)` (`murd.c:781`, `dooa.c:1734`): **ROOM10** (map 0xCD = 205) when trigger 0xDC or 0xD6 is set or prosperity (script value 1) ≥ 50, else **ROOM08** (0xDA = 218); entrance 1 (`DooaScene.choose_death_map`). These ids and triggers are dw1 rules kept as constants (content.md §4: listed here deliberately).
 
-When `lives == 0` or upon natural death (`lifetime <= 0`), the partner dissolves into digital particles (`src/dooa/dooa.c`):
+## 6. DOOA: the dissolution (`DooaScene`, `DISSOLVE`)
 
-1. **Dissolution (`DOOA_tickDissolve`):**
-   - Partner Digimon model freezes or plays dying animation (`0x2C` or idle).
-   - 3D triangle and quad shards break away from the model's bones, spinning and floating outwards.
-   - Screen irises/fades to black.
-   - Destination set to Jijimon's house interior (`TWNA01` / `0xCC`).
-2. **Script 212 Section 71 (Natural Death) vs Section 73 (0 Lives):**
-   - **Section 71:** Jijimon explains that the partner passed away peacefully and gave birth to a Digitama. Calls **Builtin 29** (`DOO2_tickEggInput`) allowing player to pick an egg.
-   - **Section 73:** Jijimon explains that partner lost all life. Tamer Level reduced by 1. Calls **Builtin 47** (`lostAllLives`) to forget moves. Egg is assigned randomly (`rand() % 4`).
+`DOOA_tick(partner, .., 0)`: frame 0 (lives left: the natural death, which draws its own iris) or 0x23 (no life left: MURD drew it; the partner is off the map); animation 1 with lives left; the death map. `DooaScene.tick` is `DOOA_tickDissolve` (frame + 1 first; animation 0xC at its end goes back to 1):
 
----
+| Phase | Frames | What |
+|---|---|---|
+| 0 | 0–0x23 | the iris (0–0x21, drawn while frame < 36); at 0x23: `changeToDeathMap`, `stopBGM`, `loadMapSounds2(0x13)`, `setSomeDyingState` (tamer 6, partner 8 sub-state 2, no camera follow), the partner back at its place, animation 1 (lives left) or 0x2C, the others hidden and kept (`DOOA_setOtherEntitiesVisible(0)`), the map layer off, `DOOA_hideAllButPartner`, the background black |
+| 1 | to 0x56 | the partner shown; then it stands at the room's origin facing the tamer, animation 0xC with lives left |
+| 2 | 0x69–0xBF | `playSound2(8, 0)` at 0x69, `stopSound` at 0x8C, shard waves 0x69–0x8C; at 0xBF `stopSound`, `playSound(8, 1)` |
+| 0x64 | 0xBF–0xD1 | the squash (`DOOA_DISSOLVE_SCALE_CURVE`); at 0xD1 animation 0x21, the partner off the map, `playSound(8, 2)` |
+| 0x65 | to 0x135 | the rising flash; then `playSound2(8, 3)` |
+| 3 | to 0x17B | the camera; then the egg model is loaded |
+| 0x66 | 0x185–0x1B7 | entity 2 shown, the egg fades in (`DOO2_fadeClut`) |
+| 4 | | the camera reset, the object removed, frame -1 |
 
-## 6. Builtin 29 (Egg Selection) & Builtin 47 (Lost All Lives)
+The partner is gone at the end whatever its lives (a natural death too); the background stays black until the rebirth.
 
-### 6.1 Builtin 29: Egg Selection UI (`DOO2_tickEggInput`)
-- Opens UI Box 3 (`MAIN_D_80134B90`, 168 × 80 px).
-- Displays 4 eggs (`ETCDAT/TAMA.TIM`):
-  - Index 0: **Botamon** (baby ID 1)
-  - Index 1: **Poyomon** (baby ID 15)
-  - Index 2: **Punimon** (baby ID 29)
-  - Index 3: **Yuramon** (baby ID 43)
-- Controls:
-  - Left / Right (D-pad): changes `eggSlot = (eggSlot +/- 1) % 4`, plays sound (0, 2).
-  - Cross (✕): confirms egg selection, plays sound (0, 3), closes box.
+Partner state **8** (`partnerTickDying`): sub-state 0: walk animation, the tamer looks at it, no camera follow, `loadMapSounds2(19)`; 1: it faces the tamer and walks; close to him (`getPartnerTamerCloseness > 0`) DOOA starts, the tamer stands (6); 2: once DOOA's frame is -1, every frame: lifetime 360, sickness and injury timers 0, the tamer's position kept, the sync bit set. The C also closes the fishing, the △ menu, the inventory and box 1 (the port's partner doesn't tick while they are open).
 
-### 6.2 Builtin 47: Move Loss (`lostAllLives`)
-When dying with 0 lives, trauma causes the player/partner to forget learned techniques:
-- Percentage forgotten: $P = (10 - \text{tamerLevel}) \times 2\%$.
-- Number of moves forgotten: $N = \text{round}(P \times \text{totalLearnedMoves} / 100)$.
-- For each forgotten move:
-  - Picks a random move from the learned pool.
-  - Calls `unlearnMove(moveId)`.
-  - Displays MAPHEAD textbox section `0x4D8`: `"{move} has been forgotten!"`.
+## 7. Builtins 29 and 47 (`DeathRoutines`)
 
----
+- **29** (`DOO2_openEggBox` + `DOO2_tickEggInput`): egg slot 0 in DOOA's sequence, box 3 (168 × 80) with the 4 eggs (`ETCDAT/TAMA`), `stopSound`, `playSound(8, 4)`. → / ← move the slot (`(slot ± 1) % 4`, sound 2), ✕ shrinks the box (sound 3); the routine ends once box 3 is free. The slot is `DooaScene.egg_slot` (`DOOA_REINCARNATION_SEQ.eggSlot`); the field hands the routine node the DOOA scene.
+- **47** (`lostAllLives`): set up by `CALL_ROUTINE` (step 0); its tick: step 0 counts the learnt techniques (the C's `hasMove(0..0x39)`: moves of category `technique`), `n = (10 − tamerLevel) × 2 × n`, rounded at 50 / 100; none → the routine ends; else value 0xF4 = n, step 2. Step 2: a random one (`randomLimit` over the pool in id order) is unlearnt, value 0xF3 = it, MAPHEAD `0x4D8` line 7 ("… has been forgotten!"), ✕ → step 3. Step 3: 0xF4 − 1; 0 → the box closes, the routine ends; else step 2.
 
-## 7. Rebirth & Stat Inheritance (`CALL_DIGIMON_ROUTINE 4`)
+## 8. DOOA: the rebirth and the reincarnation
 
-`reincarnatePartner` (`src/main/evolution.c:1054`) and `initializeReincarnatedPartner` (`src/main/partner_impl.c:758`):
+Partner state **14** (`partnerTickDying2`): sub-state 0 starts the rebirth (`DOOA_getSequenceState(0, 0)`: with no life left the egg is `rand() % 4`, else the panel's); 1: once it is over: lifetime 360, evo timer 0, sickness and injury 0, the tamer's position kept, the sync bit, script value 0 (`PSTAT_TIME_SPEED`) = 0, sub-state 2. The C also reloads the map's sounds and TFS.
 
-### 7.1 Fresh Digimon Base Stats
-| Egg / Baby | HP | MP | Offense | Defense | Speed | Brains |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Botamon** (1) | 90 | 110 | 10 | 11 | 9 | 10 |
-| **Poyomon** (15) | 120 | 100 | 16 | 8 | 8 | 6 |
-| **Punimon** (29) | 100 | 140 | 12 | 6 | 6 | 8 |
-| **Yuramon** (43) | 100 | 120 | 8 | 8 | 8 | 8 |
+`DOOA_tickRebirth`: 10 `stopSound`, `playSound(8, 5)`; 50, 100 the shards; 132 `playSound(8, 6)`, the baby's model loads; **152** `reincarnatePartner`, the partner at (0, 0, 0), the others back (`DOOA_setOtherEntitiesVisible(1)`), entity 2 and the tamer shown, the partner still hidden, the map layer on; 152–202 the background fades back; **202** the partner shown, animation 0x1C; then 47 frames of sparkles (`playSound(8, 7)` where `DOOA_SPARKLE_BONE_IDS` ≥ 0: 6 times); 262 animation 0xB; its end: frame -1. The baby stays at the room's centre.
 
-### 7.2 Stat Inheritance Formula
-$$\text{inheritedStat} = \begin{cases} \lfloor \text{DEATH\_STATS.stat} \times \frac{\text{tamerLevel}}{100} \rfloor & \text{if } \text{IS\_NATURAL\_DEATH} = 1 \\ 0 & \text{if } \text{IS\_NATURAL\_DEATH} = 0 \text{ (0 lives)} \end{cases}$$
-- If Tamer Level is 10 and natural death occurs, 10% of the previous partner's stats are inherited.
-- If death was from 0 lives, 0% stats are inherited.
+`reincarnatePartner` / `initializeReincarnatedPartner` / `setReincarnateStats` (`Evolution.reincarnate(egg)`):
+- the egg's Digimon (`systems/babies` `reincarnation_eggs`: 1 Botamon, 15 Punimon, 29 Poyomon, 43 Yuramon), through its `stat_gains` target;
+- techniques: slot 0 = `0x2E` (the new Digimon's technique slot 0), the others empty; nothing learnt;
+- base stats: the egg record's `base_stats` (the C's literals, read by the data porter) + `stat × tamerLevel / 100` of the dead partner's when `IS_NATURAL_DEATH == 1`; HP / MP full; `IS_NATURAL_DEATH` cleared;
+- condition 0, sleep times, missed sleep 0, tiredness sleep timer 0, `resetPartnerPara`; discipline, happiness, `unused3` 50; times sick 0; lifetime 360; age 0; evo timer 0; `EVOLUTION_TARGET = -1`; care mistakes, battles 0; weight = the baby's default; raised count + 1 (max 99); no immortal hour; 3 lives; the Digimon marked raised.
 
-### 7.3 Reset Parameters
-- `lives`: set to 3.
-- `remainingLifetime`: 360 hours (15 days).
-- `age`: 0.
-- `weight`: `defaultWeight` of baby Digimon.
-- `happiness`: 50, `discipline`: 50.
-- `careMistakes`: 0, `battles`: 0.
-- `sicknessTimer`: 0, `injuryTimer`: 0.
-- `moves`: equipped move set to `0x2E` (Bubble), remaining 3 slots cleared (`0xFF`).
-- `tamer.raisedCount`: incremented by 1 (max 99).
-- Partner marked as raised (`setDigimonRaised(babyId)`).
-- Jijimon asks if the tamer wants to rename the partner (`CALL_ROUTINE 0x20`).
+Then script 212 asks about the name (`SET_SELECTION`, builtin 0x20).
 
----
-
-## 8. Godot Architecture & Composition Design
-
-In alignment with Godot's design philosophy and our decoupled architecture (`specs/scenes.md`, `specs/content.md`):
+## 9. Godot design (as built)
 
 ```
-scenes/field/hosts/
-└── death_host.tscn          <-- Dedicated host node for life loss & reincarnation
-scripts/field/hosts/
-└── death_host.gd            <-- Manages MURD, DOOA, egg selection, and warp routing
-scripts/ui/
-├── murd_box.gd              <-- 3-heart lives box UI and heart loss animations
-└── egg_select_box.gd        <-- Builtin 29 4-egg selector dialog
-scripts/script/
-└── death_routines.gd        <-- Builtins 29, 47, and Digimon routines 3, 4, 7, 9, 10
+scenes/field/hosts/death_host.tscn   DeathHost: wires the scenes, draws them
+├─ MurdScene                          scripts/field/death/murd_scene.gd (logic: MURD_tickScene)
+└─ DooaScene                          scripts/field/death/dooa_scene.gd (logic: DOOA_tickDissolve, DOOA_tickRebirth)
+scenes/field/death/death_iris.tscn    DeathIris + death_iris.gdshader: the iris and the background's darkness (background layer)
+scenes/field/death/death_darken.tscn  MURD's full-screen darkening (subtractive, in the HUD after the UI boxes)
+scenes/field/death/partner_dissolve.gdshader  the stand-in dissolve
+scripts/ui/murd_box.gd, egg_select_box.gd     the UI boxes (box 3)
+scripts/script/death_routines.gd              builtins 29, 47 (scenes/script/death_routines.tscn under ScriptHost/Routines)
 ```
 
-- **`DeathHost`**:
-  - Sits under `Field/Systems/DeathHost`.
-  - Connects to `CareHost.life_lost`, `CareHost.natural_death`, and `BattleHost.battle_lost`.
-  - Handles the visual iris close, screen flashes, and camera control during death sequences.
-- **`MurdBox`**:
-  - Independent UI control that renders `ETCHI/LIFE` textured quads with `PsxUiFilter`.
-  - Uses `POLY_G4` / `PsxDraw` for authentic PSX aesthetics.
-- **`EggSelectBox`**:
-  - Reusable modal box for builtin 29, emitting `egg_selected(slot)`.
-- **`DeathRoutines`**:
-  - Plugs directly into `ScriptInterpreter.routines` and `ScriptContext`.
-  - Enables section `0x4DE` and Script 212 to execute natively through the bytecode VM.
+- **Logic like the C:** routines 3 / 4 / 7 / 9 only set the tamer's and the partner's states; those states start MURD / DOOA and wait for them (`Tamer.tick_lost_life`, `Partner.tick_dying`, `Partner.tick_rebirth`), as `EvolutionScene` for state 13. `MurdScene` and `DooaScene` are objects ticked in the field's frame after the script's objects (`DeathHost.tick_objects`); they read and change the entities through references, the map through `change_map` / `map_layer` callables, and report DOOA's phases with `phase_changed`. They run headless with `.new()` (the tests).
+- **Presentation:** `DeathHost._process` draws from their state (MURD's and DOOA's render functions): the iris and the background's darkness (`DeathIris` in the background canvas layer, under the 3D world, so the partner stays in front: a stand-in for the C drawing it over the iris), the full-screen darkening, the stand-in dissolve and the egg model (`tmd_files/ETCDAT/TAMA.gltf` at the origin).
+- **Modding:** `death_host.tscn` and its children, the iris and darkening scenes and the shaders can be replaced; the routines node is replaceable as every builtin node.
+- **Stand-ins** (to port later): DOOA's shards, wireframes and flashes (`DOOA_spawnShardWave`, `DOOA_updateShards`, `EFECreateFlash`), the scale curve, the cutscene camera (`DOOA_updateCutsceneCamera`), the models' CLUT fades, MURD's lights; the C's iris layering (the partner over the iris only once it is larger than the window).
 
----
+## 10. Tests
 
-## 9. Verification & Automated Tests
-
-A dedicated test suite `tests/test_death_reincarnation.gd` will verify:
-1. **Section `0x4DE` Routing:**
-   - With `lives > 0` and `lifetime > 0` $\rightarrow$ calls routine 9, sets `SECTION_ON_EXIT 72`.
-   - With `lives == 0` $\rightarrow$ calls routine 7, sets `SECTION_ON_EXIT 73`.
-   - With `lifetime <= 0` $\rightarrow$ calls routine 3, sets `SECTION_ON_EXIT 71`.
-2. **Death Digivolutions (Section 72):**
-   - Agumon with roll 5 evolves to Bakemon (37).
-   - Agumon with roll 15 stays Agumon.
-   - MetalGreymon with roll 8 evolves to SkullGreymon (26).
-   - Kokatorimon with roll 7 evolves to Phoenixmon (59).
-   - Angemon with discipline 40 and roll 30 evolves to Devimon (6).
-   - Angemon with discipline 60 does not evolve.
-3. **Move Forgetting (Builtin 47):**
-   - Calculates correct forgotten count according to formula $(10 - \text{level}) \times 2\%$.
-   - Unlearns chosen moves and preserves remaining moves.
-4. **Egg Selection & Stat Inheritance:**
-   - Base stats assigned for all 4 baby Digimon.
-   - Stat inheritance applies strictly when `IS_NATURAL_DEATH == 1` based on `tamerLevel`.
-   - 0% stat inheritance when `IS_NATURAL_DEATH == 0`.
-   - Lives reset to 3, lifetime reset to 360, age to 0, moves to Bubble.
+- `tests/test_death_reincarnation.gd` (95 checks): the egg records; `reincarnate` (inheritance, the cleared flag, techniques, care values, raised count); builtin 47's steps and rounding; section 0x4DE's three branches; the death evolutions (routine 10's target and state 13, the Digimon untouched, `DELAY` kept); MurdBox; builtin 29 with DOOA's slot; MURD with lives left and with none (frames, map change, states, sounds, sync bit); the natural death (walk, phases in order, sounds, the partner gone); the rebirth (frame 152, 202, sparkles, the end values); Care reading `IS_SCRIPT_PAUSED`.
+- `tests/death_scan.tscn`: the three cases in the real field (battle loss, the last life to sickness, the natural death), checking the death map, the iris, no dialogue before the scene ends, the rebirth.
+- `tests/exit_scan.tscn`: Toy Town's trap battles reach these scenes (its timeout covers them; script 212's choices take their second answer).

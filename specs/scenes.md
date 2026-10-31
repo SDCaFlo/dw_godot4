@@ -112,6 +112,7 @@ Each menu is a scene (`scenes/ui/<menu>.tscn`) on the existing UI pieces (`UIBox
 - The logic tests stay as they are (`.new()` and injected references).
 - The tests that need an entity load its scene (`load("res://scenes/field/partner.tscn").instantiate()`). This works headless; models come from `Content` as today.
 - `tests/exit_scan.tscn` and the render checks keep driving the real `Field.tscn`, so they cover the wiring after each step.
+- `tests/test_rules.gd` checks the rules of §3 that a script can see (lookups across the tree, `Engine.has_singleton`, shaders as strings, record ids in logic; `docs/porting_checklist.md` §7).
 
 ## 7. Order of work
 

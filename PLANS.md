@@ -8,6 +8,7 @@ Last updated: 2026-10-26
 
 - Game content (assets, data, text) is generated locally and never committed. Editor helpers may show it, but only from memory or from gitignored folders: nodes created for a preview have no `owner` (not saved), saved properties are reset before a save (`NOTIFICATION_EDITOR_PRE_SAVE`), glTF textures are kept in memory (`Content.load_model`), and game content is only copied into the gitignored `res://content/dw1/` mirror. An export preset must exclude `content/dw1/*`.
 - **Content architecture** (`specs/content.md`, decided 2026-10-23): everything is a content pack (the original game is the `dw1` pack); records have namespaced keys (`dw1:agumon`), numeric ids stay as `dw1` aliases; packs merge per record; **game logic reads properties, never id ranges or counts**. Modding is the last step, but nothing may be built in a way that blocks it.
+- **Every value has a C source** (`docs/porting_checklist.md`, decided 2026-10-30 after the step 6 review): each constant and timeline in a spec gets a table row (C function, line, value); anything with no source is marked `port-only` or `stand-in`, or the step isn't done. The implementer of a step doesn't write its spec or review it (`docs/agent_workflow.md`). `tests/test_rules.gd` checks the code rules a script can check.
 
 ## Next
 

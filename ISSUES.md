@@ -28,6 +28,13 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Fixed
 
+### I-37. Screen stays black after the death scenes' warp to Jijimon's house
+- **Seen:** 2026-10-30 testing death on `feat/6-death-reincarnation`: after re-appearing in Jijimon's house the screen stays black.
+- **What the original does:** `changeToDeathMap` (`map.c:5420`) is a plain `changeMap`, with no fade: MURD and DOOA darken the screen themselves (`MURD_renderFullscreenFade`, `fadeoutCLUT1`) and lift it on their own timeline.
+- **Cause:** `MapSession.change_map` holds the fade black for the load (`Fade.hold(LOAD_FRAMES)`, port-only) until a fade in, which a normal warp starts (`tamerTickChangeMap`). MURD and DOOA called the map change without one, so the fade stayed at 160 (full black) forever. `tests/death_scan.tscn` didn't check the fade.
+- **Fix:** `DeathHost._change_to_death_map` releases the hold at once after the change (`fade_from_black(0)`); `death_scan` now fails on a black fade or darkening at the end (reproduced without the fix: fade 160 in all three cases).
+- **Status:** fixed (`feat/6-death-reincarnation`).
+
 ### I-35. Partner stuck walking towards tamer during Scold/Praise when blocked by an obstacle or NPC
 - **Seen:** 2026-10-27 in Green Gym (`TRAI00`), `issues/evidence/dw_issue_stuck_scold_animation.mp4`. Player scolded Gabumon from the △ triangle menu; Gabumon started walking towards the tamer, collided with Koromon (or was blocked by Koromon before menu open), and got stuck walking in place unable to get past Koromon or reach the tamer, causing an unrecoverable softlock.
 - **What the original does:**

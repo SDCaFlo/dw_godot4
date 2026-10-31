@@ -137,7 +137,10 @@ func _check_end(case: Array, frames: int) -> void:
 			case[0], frames, _maps, _states, p["digimon"], "shown" if partner.visible else "HIDDEN", p["lives"],
 			p["care"]["remaining_lifetime"], _was_dark, str(_iris_seen) + (", TEXT DURING THE SCENE" if _early_text else ""),
 			", unported: " + ", ".join(_unported) if not _unported.is_empty() else ""]
-	var ok: bool = partner.visible and tamer.visible and not _field.death_host.iris.visible and _iris_seen and not _early_text
+	var fade: Fade = _field.care_host.fade
+	if fade.progress != 0:
+		line += ", SCREEN BLACK (fade %d)" % fade.progress
+	var ok: bool = partner.visible and tamer.visible and not _field.death_host.iris.visible and _iris_seen and not _early_text 			and fade.progress == 0 and not _field.death_host.darken.visible
 	var death_map: String = _screen()
 	ok = ok and death_map in ["ROOM08", "ROOM10"]
 	match case[3]:

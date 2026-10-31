@@ -34,6 +34,8 @@ var change_map := Callable()
 var map_layer_nodes := Callable()
 ## The world the egg is added to.
 var world: Node
+## The field's fade: the map change holds it black while the map loads (Fade.hold, not in the C).
+var fade: Fade
 
 @onready var murd: MurdScene = $MurdScene
 @onready var dooa: DooaScene = $DooaScene
@@ -57,7 +59,7 @@ func start() -> void:
 		scene.set("entities", entities)
 		scene.set("game_state", game_state)
 		scene.set("sound", sound)
-		scene.set("change_map", change_map)
+		scene.set("change_map", _change_to_death_map)
 		scene.set("map_layer", _set_map_layer)
 	murd.boxes = boxes
 	murd.dooa = dooa
@@ -130,6 +132,17 @@ func _screen_point(world_point: Vector3) -> Vector2:
 	if camera == null or not camera.is_inside_tree():
 		return Vector2.ZERO
 	return FieldMap.unproject(camera, world_point) - FieldMap.SCREEN / 2
+
+
+## changeToDeathMap: the field's map change, then the fade released. MapSession.change_map holds
+## the screen black for the load (Fade.hold, port-only) until a fade in; the C's death map change
+## has no fade (MURD and DOOA darken the screen themselves), so the fade clears at once after the
+## hold.
+func _change_to_death_map(map: int, exit: int) -> void:
+	if change_map.is_valid():
+		change_map.call(map, exit)
+	if fade != null:
+		fade.fade_from_black(0)
 
 
 ## setMapLayerEnabled (as FieldBattleWorld's): the map's objects hidden, then back as they were.

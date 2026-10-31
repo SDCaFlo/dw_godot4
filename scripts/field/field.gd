@@ -213,6 +213,7 @@ func _start() -> void:
 	death_host.change_map = map_session.change_map
 	death_host.map_layer_nodes = map_layer_nodes
 	death_host.world = _world
+	death_host.fade = care_host.fade
 	death_host.start()
 	$World/SubViewport/Background.add_child(death_host.iris)
 	# Builtin 29's egg panel writes the DOOA sequence's egg slot.

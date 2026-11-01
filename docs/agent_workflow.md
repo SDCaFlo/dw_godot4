@@ -5,12 +5,24 @@ Notes from 2026-10-26 on handing a spec'd step to Claude sub-agents. The first t
 ## The flow
 
 1. **The spec is written in the main session**, from the decomp, because that is where the context is. The user approves it, as always.
-2. **The main session rates the step and picks the model:**
-   - **Medium** (logic, tables, hooks; a literal spec): Sonnet 5.5, medium effort.
-   - **Complex** (rendering, VRAM / textures, unclear original behaviour, many systems): Opus 5.5, medium effort.
-   - A step can be split by kind: e.g. 4d-3's logic, data and station hooks on Sonnet, and its textures and render on Opus.
+2. **The spec rates every step and names its model** ("Complexity and model" below). The main session checks the rating when it writes the brief.
 3. **The main session writes each agent's brief** and the step's acceptance checks (`docs/porting_checklist.md` §6). It then reviews the result against the spec, runs every suite itself and reports to the user. **Agents never commit**; the user says "commit".
 4. **Roles stay apart.** The model that implements a step doesn't write its spec, its acceptance checks or its review. This holds for every model, including models other than Claude working in their own worktree.
+
+## Complexity and model
+
+Decided 2026-10-31. Every spec that defines steps and tests gives **each step** a complexity and the model recommended for it (a task mixes kinds: 6-2's squash is pure numbers, its iris layering is rendering).
+
+| Level | Criteria | Recommended model |
+|---|---|---|
+| **Low** | Logic only; every value in the spec's C table; the acceptance tests fully decide whether it is right; one or two files | Gemini 3.8 Flash (High) |
+| **Medium** | Several files or systems wired together (scenes, signals, hosts); the tests cover most of it, a short in-game check covers the rest | Claude Sonnet 5.5 (Medium) |
+| **Hard** | Rendering or visuals the tests can't judge; textures / VRAM; C behaviour that needs interpretation; design choices inside the step | Claude Opus 5.5 (Medium) |
+
+- **Any one Hard criterion makes the step Hard.** In doubt between two levels, take the higher.
+- A step that mixes kinds is split by kind (e.g. a logic class Low, its view Hard), each half rated on its own.
+- **The rating is for the implementation only.** The spec, the acceptance tests and the review of each step are always done by the strongest model (Claude Opus 5.5 or the main session), whatever the step's level (the step 6 lesson below).
+- The format in a spec: after each step's title, `**Complexity:** Low · **Model:** Gemini 3.8 Flash (High)`, with the criterion that decided it when it isn't obvious.
 
 ## What a spec must carry
 
@@ -68,7 +80,7 @@ The more exact the spec (states, constants, C line numbers), the better a cheape
   - **Tests checked its own guesses.** The suite asserted the invented timelines and passed. The end-to-end scans weren't run. Fixed by acceptance checks written outside the implementer (checklist §6).
   - **Symptom fixes.** Each user report got a patch that made the symptom go away (a rebirth hop, a shorter evolution delay, hiding all entities) instead of a new look at `dooa.c`. Fixed by checklist §4.
   - **Rules as prose.** The `specs/scenes.md` / `specs/content.md` rules were read but not applied while writing code (R4, R9, R10, R11). Fixed by `tests/test_rules.gd`, which fails on 15 lines of that branch's code.
-- **Model choice:** a Flash-class model fits "medium" steps with a literal, reviewed spec. A step with long C timelines, several interacting systems and visuals is "complex": its spec and review need a strong model, whoever writes the code.
+- **Model choice:** a Flash-class model fits steps with a literal, reviewed spec and tests that decide them. A step with long C timelines, several interacting systems and visuals needs a strong model for its spec and review, whoever writes the code. Now a rule: "Complexity and model" above.
 
 ## Ideas to cut the cost
 

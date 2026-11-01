@@ -298,16 +298,30 @@ Data sources: the model's sidecar (`<model>.json`: `tmd.objects[i].primitives` i
 
 ## 6. Order of work
 
-Each step: its files (owned; no other file changes), its model rating (`docs/agent_workflow.md`), the tests that must pass, and the user's in-game check. All suites and both scans pass after every step.
+Each step: its complexity and model (`docs/agent_workflow.md` "Complexity and model"), its files (owned; no other file changes), the tests that must pass, and the user's in-game check. A step that mixes logic and rendering is rated per half. All suites and both scans pass after every step.
 
-1. **Face groups and the wireframe body** (Opus: meshes from sidecar + bones). Files: `tmd_face_groups.gd`, `partner_wireframe.tscn/.gd`, `shaders/wireframe_line.gdshader`, `DooaScene` (`wireframe_total`, B2, B3, A6), `DeathHost` (attach / share / greys; remove `_wireframe`). Tests: `test_death_scene.gd` "face groups", "wireframe schedule". Check: the body turns to outlines group by group over 0x69–0x8C and stays in outlines until it vanishes; lines on the far side are hidden.
-2. **The body's shards** (Flash: logic; Opus or a reviewer for the view). Files: `dooa_shards.gd`, `death_shards.tscn/.gd`, `DooaScene` (spawn, F17, F18), `DeathHost` (remove `partner_dissolve.gdshader` and `_start_dissolve`, `_draw_dissolve`, `_end_dissolve`). Tests: "shards". Check: textured pieces fall off at each step and lie on the floor; from 0x135 they flicker in colours.
-3. **The squash** (Flash). Files: `DooaScene` (`scale`, C), `DeathHost` (apply the scale). Tests: "squash". Check: the outline body squashes, shoots up thin, then sinks.
-4. **The camera** (Flash: `CutsceneCamera`; Opus: `FieldMap` hook). Files: `cutscene_camera.gd`, `field_map.gd` (new functions only), `DooaScene` (D8–D13, B4), `DeathHost`. Tests: "camera", `death_scan` "centred". Check: the camera swings in to the partner, which stands centred in the room; at the end it swings back to the room's view.
-5. **The flashes** (Flash). Files: `battle_fx.gd`, `battle_fx_view.gd` (the two overrides only), `DooaScene` (E1, E2, E4), `DeathHost`. Tests: "flashes"; the battle suites unchanged. Check: a flash rises from the floor and wobbles after the body vanishes; a big flash shrinks at the rebirth.
-6. **The egg, its pieces, the streaks** (Opus: egg meshes; Flash: pieces and streaks logic). Files: `rebirth_egg.tscn/.gd`, `egg_piece_shards.gd`, `spark_streaks.gd/.tscn`, `DooaScene` (G2, G8, I1), `DeathHost` (remove `_spawn_egg`). Tests: "egg", "pieces", "streaks", `death_scan` "no egg before the rebirth". Check: no egg during the dialogue; the egg appears in pieces after the shards gather; sparks; the egg breaks into falling translucent pieces after the baby appears.
-7. **The palette fades** (Flash). Files: `palette_fade.gd`, `DooaScene` (`jijimon_fade`, J4–J7), `DeathHost`. Tests: "fades". Check: Jijimon fades in from black; at the rebirth the tamer and the room fade in, the baby is bright.
-8. **MURD / iris** (Opus: the layering). Files: `death_iris.tscn`, `scripts/ui/death_iris.gd`, `MurdScene` (K7), `DooaScene` (B8), `DeathHost` (the partner layer). Tests: "iris". Check: the iris closes with a soft edge; the partner shows on the black only once it fills the window; on the black screen it is lit from the front-left.
+| Step | Complexity · model |
+|---|---|
+| 1. Face groups, wireframe body | **Hard** · Claude Opus 5.5 (Medium): meshes from the sidecar on animated bones, the line shader's culling |
+| 2. Body shards | logic (`DooaShards`) **Low** · Gemini 3.8 Flash (High); view (`DeathShards`, posed vertices from the bones) **Hard** · Claude Opus 5.5 (Medium) |
+| 3. Squash | **Low** · Gemini 3.8 Flash (High) |
+| 4. Camera | logic (`CutsceneCamera`) **Low** · Gemini 3.8 Flash (High); `FieldMap` hook **Hard** · Claude Opus 5.5 (Medium): the camera basis and frustum, checked on screen |
+| 5. Flashes | **Medium** · Claude Sonnet 5.5 (Medium): the battle's `BattleFx` / `BattleFxView` changed without changing the battle |
+| 6. Egg, pieces, streaks | logic (`EggPieceShards`, `SparkStreaks`, G2 / G8 / I1) **Low** · Gemini 3.8 Flash (High); views (`RebirthEgg` meshes, streak triangles) **Hard** · Claude Opus 5.5 (Medium) |
+| 7. Palette fades | **Low** · Gemini 3.8 Flash (High) for `PaletteFade.factor` and the levels; applying the tint to the materials is **Medium** · Claude Sonnet 5.5 (Medium) |
+| 8. MURD / iris | **Hard** · Claude Opus 5.5 (Medium): the subtractive iris and the partner drawn over it |
+| 9. Clean up | **Low** · Gemini 3.8 Flash (High) |
+
+The spec, the tests and the review of every step: Claude Opus 5.5 (the main session).
+
+1. **Face groups and the wireframe body.** Files: `tmd_face_groups.gd`, `partner_wireframe.tscn/.gd`, `shaders/wireframe_line.gdshader`, `DooaScene` (`wireframe_total`, B2, B3, A6), `DeathHost` (attach / share / greys; remove `_wireframe`). Tests: `test_death_scene.gd` "face groups", "wireframe schedule". Check: the body turns to outlines group by group over 0x69–0x8C and stays in outlines until it vanishes; lines on the far side are hidden.
+2. **The body's shards.** Files: `dooa_shards.gd`, `death_shards.tscn/.gd`, `DooaScene` (spawn, F17, F18), `DeathHost` (remove `partner_dissolve.gdshader` and `_start_dissolve`, `_draw_dissolve`, `_end_dissolve`). Tests: "shards". Check: textured pieces fall off at each step and lie on the floor; from 0x135 they flicker in colours.
+3. **The squash.** Files: `DooaScene` (`scale`, C), `DeathHost` (apply the scale). Tests: "squash". Check: the outline body squashes, shoots up thin, then sinks.
+4. **The camera.** Files: `cutscene_camera.gd`, `field_map.gd` (new functions only), `DooaScene` (D8–D13, B4), `DeathHost`. Tests: "camera", `death_scan` "centred". Check: the camera swings in to the partner, which stands centred in the room; at the end it swings back to the room's view.
+5. **The flashes.** Files: `battle_fx.gd`, `battle_fx_view.gd` (the two overrides only), `DooaScene` (E1, E2, E4), `DeathHost`. Tests: "flashes"; the battle suites unchanged. Check: a flash rises from the floor and wobbles after the body vanishes; a big flash shrinks at the rebirth.
+6. **The egg, its pieces, the streaks.** Files: `rebirth_egg.tscn/.gd`, `egg_piece_shards.gd`, `spark_streaks.gd/.tscn`, `DooaScene` (G2, G8, I1), `DeathHost` (remove `_spawn_egg`). Tests: "egg", "pieces", "streaks", `death_scan` "no egg before the rebirth". Check: no egg during the dialogue; the egg appears in pieces after the shards gather; sparks; the egg breaks into falling translucent pieces after the baby appears.
+7. **The palette fades.** Files: `palette_fade.gd`, `DooaScene` (`jijimon_fade`, J4–J7), `DeathHost`. Tests: "fades". Check: Jijimon fades in from black; at the rebirth the tamer and the room fade in, the baby is bright.
+8. **MURD / iris.** Files: `death_iris.tscn`, `scripts/ui/death_iris.gd`, `MurdScene` (K7), `DooaScene` (B8), `DeathHost` (the partner layer). Tests: "iris". Check: the iris closes with a soft edge; the partner shows on the black only once it fills the window; on the black screen it is lit from the front-left.
 9. **Clean up.** Files: `specs/death_reincarnation.md` §9, `VERIFY.md` (the checks above), `ISSUES.md` I-38, `PLANS.md`. `tests/test_rules.gd` "6-2 stand-ins gone" passes.
 
 ## 7. Tests

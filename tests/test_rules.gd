@@ -54,8 +54,7 @@ func _initialize() -> void:
 	quit(1 if _failed else 0)
 
 
-## Step 6-2's stand-ins gone (specs/death_scene.md §2, §7): with DW_STEP_6_2=1 a finding fails,
-## else it is printed as PENDING (step 9 makes it a plain rule).
+## Step 6-2's stand-ins stay gone (specs/death_scene.md §2, §7).
 const STAND_INS_6_2 := ["partner_dissolve.gdshader", "_spawn_egg", "_start_dissolve", "_draw_dissolve", "_end_dissolve"]
 
 
@@ -68,10 +67,7 @@ func _stand_ins_6_2() -> void:
 				found.append("%s in %s" % [name, path.get_file()])
 	if found.is_empty():
 		return
-	if OS.get_environment("DW_STEP_6_2") == "1":
-		_fail("6-2 stand-ins still there: " + ", ".join(found))
-	else:
-		print("PENDING (step 6-2): stand-ins still there: " + ", ".join(found))
+	_fail("6-2 stand-ins back: " + ", ".join(found))
 
 
 func _check(path: String) -> void:

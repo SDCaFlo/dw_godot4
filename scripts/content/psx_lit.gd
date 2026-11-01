@@ -71,6 +71,34 @@ static func use_own_light(model: Node, dir: Vector3, color: Vector3) -> void:
 			mesh_instance.set_surface_override_material(i, copy)
 
 
+## A pass that blends every texel with the PSX's `abr` (a primitive drawn SetSemiTrans 1 with no
+## STP mask: the death scene's streaks; specs/death_scene.md I6).
+static func blended(texture: Texture2D, abr: int, double_sided := true, lit := false) -> ShaderMaterial:
+	var m := _pass(true, double_sided, texture, 0.5, lit)
+	m.set_shader_parameter("abr", abr & 3)
+	return m
+
+
+## A copy of a model's material drawn single-sided, every pass (renderWireframed and
+## DOO2_renderWireframeModel cull each face with RotNclip, double-sided ones too: specs/death_scene.md
+## A10). Another material: a copy with back faces culled.
+static func single_sided(source: Material) -> Material:
+	if source == null:
+		return null
+	var copy := source.duplicate(true) as Material
+	var pass_material: Material = copy
+	while pass_material != null:
+		if pass_material is ShaderMaterial:
+			var sm := pass_material as ShaderMaterial
+			for blended: bool in _SHADERS:
+				if sm.shader == _SHADERS[blended][true]:
+					sm.shader = _SHADERS[blended][false]
+		elif pass_material is BaseMaterial3D:
+			(pass_material as BaseMaterial3D).cull_mode = BaseMaterial3D.CULL_BACK
+		pass_material = pass_material.next_pass
+	return copy
+
+
 ## One pass: opaque, or blended (the STP texels, with the PSX's blend in gamma values).
 static func _pass(blended: bool, double_sided: bool, texture: Texture2D, alpha_cutoff: float, lit: bool) -> ShaderMaterial:
 	var m := ShaderMaterial.new()

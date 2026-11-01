@@ -574,22 +574,24 @@ There is no save menu yet, so these checks are about the save file itself.
 
 Code: `scripts/field/death/` (`MurdScene`, `DooaScene`), the tamer's states 17 / 19 and the partner's 8 / 14, `scripts/field/hosts/death_host.gd` (scene `scenes/field/hosts/death_host.tscn`), `Evolution.reincarnate`, `scripts/script/death_routines.gd` (builtins 29, 47).
 
-Automated: `test_death_reincarnation.gd` prints `OK: death & reincarnation checks (95 run)`; `tests/death_scan.tscn` (`godot --headless --fixed-fps 60 --path . res://tests/death_scan.tscn`) plays the three cases in the real field and prints three `ok` lines; `tests/exit_scan.tscn` reaches them through Toy Town's traps (OMOC07).
+Automated: `test_death_reincarnation.gd` prints `OK: death & reincarnation checks (95 run)`, `test_death_scene.gd` `OK: death scene checks (90 run)`; `tests/death_scan.tscn` (`godot --headless --fixed-fps 60 --path . res://tests/death_scan.tscn`) plays the three cases in the real field and prints three `ok` lines (with the look's checks: `specs/death_scene.md` §7); `tests/exit_scan.tscn` reaches them through Toy Town's traps (OMOC07).
 
-Stand-ins (not the original's look yet): DOOA's shards and flashes (a sinking texture with a wireframe instead), the cutscene camera, the lights MURD sets, the squash curve. Timings, sounds, map changes, states and texts follow the C.
+The look follows the C since step 6-2 (`specs/death_scene.md`); what to watch is below.
 
 How to get there fast: lose a battle (a strong wild Digimon, or Toy Town's trap doors on OMOC07 with a weak partner). For the last life, lose battles until the lives box shows one heart.
 
 1. **A life lost, lives left** (battle loss or 12 hours sick):
-   - A black circle closes on the partner over about 2 s; everyone else disappears, the partner stays in front.
+   - A black circle with a soft edge closes on the partner over about 2 s. The partner is drawn over the black only once it is bigger than the window; before that the circle cuts it like everything else. On the black screen it is lit from the front-left (MURD's three lights).
    - The lives box grows out of the partner: the backdrop and 3 heart slots, the lost heart blinks, then stays empty.
    - The screen darkens to black (it darkens, it doesn't flash white), and you are in Jijimon's house (ROOM08), or ROOM10 once the clinic is open or prosperity is 50+. The screen lightens again.
    - Only then does the dialogue start (Jijimon or Centarumon). There is a 10 % chance of a death evolution (a Rookie into Bakemon, …); it plays the evolution scene, and its 550-frame wait stays as long as the original.
 2. **The last life lost**:
-   - The same iris and lives box; then the box shrinks back to the partner, and you are in Jijimon's house in the dark. Only the partner shows; it sinks away while its wireframe stays, then disappears.
-   - The egg fades in in the middle of the room, then Jijimon (and only then) talks. Techniques may be forgotten ("… has been forgotten!", one per ✕).
-   - The egg hatches into a random baby: sparkle sounds, the room lights up, the baby stands in the middle of the room (it doesn't walk to you), poses, then you are asked about its name.
+   - The same iris and lives box; then the box shrinks back to the partner, and you are in Jijimon's house in the dark. Only the partner shows, where it stood on the old map; the camera swings in to it, then it jumps to the middle of the room, **centred on screen**, facing you.
+   - Its body turns into flickering grey outlines group by group over about 2 s; at each step some textured pieces break off and fall to the floor, where they stay. Outlines on the far side of the body are hidden.
+   - The outline body squashes, shoots up thin, then sinks into the floor and is gone. A flash rises from below the floor to the ground, wobbling sideways. Then the pieces on the floor flicker in random colours, and the camera swings back to the room's view.
+   - Jijimon fades in from black (**no egg**), then talks. Techniques may be forgotten ("… has been forgotten!", one per ✕).
+   - The rebirth: the floor pieces lift, spin out and rise, then one by one spiral into the middle and vanish while the egg appears there piece group by piece group (textured faces only, no outlines). A big flash shrinks, sparks shoot out; the room, you and the others fade in from black (the baby comes in bright). The baby stands in the middle; its egg breaks into falling see-through pieces with a sparkle sound each (6), it poses, then you are asked about its name.
 3. **The natural death** (lifetime 0):
-   - The partner walks up to you before anything happens; then the iris closes, the map changes, it dissolves as in 2.
+   - The partner walks up to you before anything happens; then the iris closes (the partner over the black once it fills the window), the map changes, it dissolves as in 2.
    - Jijimon's egg panel: 4 eggs, ← → moves (cursor sound), ✕ closes the box. That egg hatches. The new partner keeps (tamer level) % of the old one's stats.
 4. **After any rebirth**: 3 hearts, lifetime 360 h, the baby's first technique equipped. A later natural death or last life lost works again (the care checks resume once the script is over).

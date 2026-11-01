@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3 uid="uid://c51de8thh0st0"]
+[gd_scene load_steps=5 format=3 uid="uid://c51de8thh0st0"]
 
 [ext_resource type="Script" path="res://scripts/field/hosts/death_host.gd" id="1_death_host"]
 [ext_resource type="Script" path="res://scripts/field/death/murd_scene.gd" id="2_murd"]
 [ext_resource type="Script" path="res://scripts/field/death/dooa_scene.gd" id="3_dooa"]
+[ext_resource type="PackedScene" path="res://scenes/field/partner_wireframe.tscn" id="4_wire"]
 
 [node name="DeathHost" type="Node"]
 script = ExtResource("1_death_host")
@@ -12,3 +13,5 @@ script = ExtResource("2_murd")
 
 [node name="DooaScene" type="Node" parent="."]
 script = ExtResource("3_dooa")
+
+[node name="PartnerWireframe" parent="." instance=ExtResource("4_wire")]

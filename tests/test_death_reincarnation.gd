@@ -538,8 +538,8 @@ func _test_natural_death() -> void:
 			DooaScene.PHASE_WAIT, DooaScene.PHASE_EGG, DooaScene.PHASE_END], "DOOA_tickDissolve's phases in order")
 	_eq(map_changes, [[DooaScene.DEATH_MAP_LATE, 1]], "the map changed at 0x23")
 	_eq(sound.played, [[8, 0], [8, 1], [8, 2], [8, 3]], "its sounds: playSound2(8, 0) at 0x69, (8, 1) at 0xBF, (8, 2) at 0xD1, (8, 3) at 0x135")
-	_check(not partner.visible and dooa.darkness == 0xFF and dooa.egg_fade == 0xFF,
-			"lives left or not, the partner is gone; the background stays black, the egg shown")
+	_check(not partner.visible and dooa.darkness == 0xFF and dooa.jijimon_fade == 0,
+			"lives left or not, the partner is gone; the background stays black, Jijimon faded in")
 	_frame()
 	_eq([ctx.sync_bit, gs.state["partner"]["care"]["remaining_lifetime"], gs.state["partner"]["lives"]], [1, 360, 2],
 			"the end: lifetime 360, the sync bit set, the lives untouched")

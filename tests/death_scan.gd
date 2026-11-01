@@ -5,8 +5,9 @@ extends Node
 ## Each case starts free on MAYO01, sets up the partner, starts section 0x4DE as its trigger does
 ## (START_BATTLE's loss, tickSicknessMechanics, tickDeathCondition), presses ✕ for the text boxes and
 ## waits until the script is over and the tamer free. Prints what happened; exits 1 if a case fails.
-## The step 6-2 checks (specs/death_scene.md §7: the look of DOOA, in the two cases that run it) are
-## the reviewer's acceptance checks: with DW_STEP_6_2=1 they fail a case, else they print PENDING.
+## The step 6-2 checks (specs/death_scene.md §7: the look of DOOA, in the two cases that run it):
+## the partner centred, the outlines, the shards on the floor, no egg in the dialogue, the baby at
+## the origin, nothing left after.
 
 const START_MAP := "MAYO01"
 const TIMEOUT := 4000
@@ -35,7 +36,6 @@ var _early_text := false
 ## Step 6-2: the checks done this case (name -> true) and the failed ones.
 var _seen_62 := {}
 var _failed_62: Array[String] = []
-var _enforce_62 := OS.get_environment("DW_STEP_6_2") == "1"
 
 
 func _ready() -> void:
@@ -159,8 +159,8 @@ func _check_end(case: Array, frames: int) -> void:
 			if not _seen_62.has(name):
 				_failed_62.append(name + " (never reached)")
 		if not _failed_62.is_empty():
-			line += ", 6-2 %s: %s" % ["FAILED" if _enforce_62 else "PENDING", ", ".join(_failed_62)]
-			ok = ok and not _enforce_62
+			line += ", 6-2 FAILED: %s" % ", ".join(_failed_62)
+			ok = false
 	match case[3]:
 		"battle":
 			ok = ok and int(p["lives"]) == 2

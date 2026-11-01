@@ -1,32 +1,68 @@
 class_name DeathIris
-extends ColorRect
-## The death scenes' iris and the map background's darkening (scenes/field/death/death_iris.tscn,
-## its shader death_iris.gdshader): MURD_renderIris / DOOA_renderIrisWindow close a window on the
-## partner, fadeoutCLUT1 darkens the background. A view: DeathHost sets it every frame from the
-## MURD and DOOA objects. It sits in the background canvas layer (field.tscn's Background), whose
-## scale follows the render scale, so it keeps the PSX size of 320 x 240.
+extends Control
+## The death scenes' iris (MURD_renderIris, murd.c:578–688; DOOA_renderIrisWindow, dooa.c:863;
+## specs/death_scene.md K4, K5), drawn over the 3D world: SPOT256's round window (its u 0 quarter
+## mirrored four ways: white outside, black inside) subtracted at the partner's middle, and four
+## white rectangles subtracted around it (black), overlapping the window's edge by
+## lerp(4, 1, 0x1860, 0, radius) pixels. Colour 0x80 (1.0). A view: DeathHost calls show_iris every
+## frame from MURD's or DOOA's state. Scene: scenes/field/death/death_iris.tscn; PSX screen pixels
+## (320 x 240; its canvas layer follows the render scale).
 
-## The window's radius at its widest: 2 * lerp(200, 0, ...) pixels (the C's right = scale * 256 / 4096
-## with scale = lerp(...) << 12 / 128).
-const MAX_RADIUS := 400.0
+const SPOT := "etctim/07_spot256"
+## renderParticleFlash's quarter: 64 x 64 at image (0, 0) (u 0, v 0x80 less the page's 0x80 rows).
+const QUARTER := Rect2(0, 0, 64, 64)
+const FLASH_SIZE := 0x40
+
+var _window: Texture2D
+var _centre := Vector2.ZERO
+var _radius := 0
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	position = Vector2.ZERO
 	size = Vector2(FieldMap.SCREEN)
+	var sub := CanvasItemMaterial.new()
+	sub.blend_mode = CanvasItemMaterial.BLEND_MODE_SUB
+	material = sub
+	var spot := PsxTexture.load_palette(SPOT, 0)
+	if spot != null:
+		_window = ParticleFX.mirrored(spot.base, QUARTER)
 	visible = false
 
 
-## The window around `center` (PSX screen pixels) with `radius`, the background `darkness` (0-255).
-func show_iris(center: Vector2, radius: float, darkness: int) -> void:
-	var mat := material as ShaderMaterial
-	if mat != null:
-		mat.set_shader_parameter("center", center)
-		mat.set_shader_parameter("radius", radius)
-		mat.set_shader_parameter("darkness", darkness / 255.0)
+## The window at `centre` (PSX screen pixels) with the C's radius (K1: 4096 = the scale unit).
+func show_iris(centre: Vector2, radius: int) -> void:
+	_centre = centre
+	_radius = radius
 	visible = true
+	queue_redraw()
 
 
 func hide_iris() -> void:
 	visible = false
+
+
+func _draw() -> void:
+	# renderParticleFlash's half size: (scale · 63 >> 10) + 1; the rectangles' half: scale · 256 / 4096.
+	var half := ((_radius * (FLASH_SIZE - 1)) >> 10) + 1
+	var box := (_radius << 8) / 4096
+	var t := PsxMath.lerp_int(4, 1, 0x1860, 0, _radius)
+	var c := _centre.round()
+	if _window != null:
+		draw_texture_rect(_window, Rect2(c - Vector2(half, half), Vector2(half, half) * 2), false)
+	var w := FieldMap.SCREEN
+	var left := c.x - box
+	var right := c.x + box
+	var top := c.y - box
+	var bottom := c.y + box
+	_black(Rect2(0, 0, left + t, w.y))
+	_black(Rect2(right - t, 0, w.x - (right - t), w.y))
+	_black(Rect2(left, 0, right - left, top + t))
+	_black(Rect2(left, bottom - t, right - left, w.y - (bottom - t)))
+
+
+## A white rectangle subtracted: black.
+func _black(r: Rect2) -> void:
+	if r.size.x > 0 and r.size.y > 0:
+		draw_rect(r, Color.WHITE)

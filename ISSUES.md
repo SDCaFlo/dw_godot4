@@ -35,7 +35,7 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
   - No egg in the dialogue: at 0x185–0x1B7 it is Jijimon (entity 2) whose model CLUT fades in (`DOO2_fadeClut` to the CLUT at (32, 488)).
   - The rebirth: the floor shards spin up and outwards (state 1, frames 10–100), converge to the middle (state 3, 100–132) while the egg appears as a wireframe filling in (`DOOA_renderRebirth`, threshold 1 → 16), with spark streaks; the room's CLUT fades back 152–202; at 202 the baby shows and the egg's 6 pieces break off one by one with a sound (the sparkles).
 - **Cause:** none of that is ported yet (`specs/death_reincarnation.md` §9, `PLANS.md` 6-2). The port draws stand-ins: a shader sinking the skinned mesh's vertices (garbage on skinned models), a separate line mesh, no camera (the partner is moved to the origin with the field camera unchanged), and the egg model shown from 0x185.
-- **Status:** open — step 6-2, spec `specs/death_scene.md` (the wireframe renderer shared with 5f-2). Measured by `tests/death_scan.gd`'s 6-2 checks (2026-10-31): at DOOA frame 0x63 the partner is drawn at screen (127, 44) instead of the C's (160, 123), and the stand-in egg shows during the dialogue.
+- **Status:** fixed (2026-10-31, step 6-2, branch `feat/6-2-death-scene`; the user's in-game check pending: `VERIFY.md` "Death, lives and reincarnation" 2–3). Measured before by `tests/death_scan.gd`'s 6-2 checks: at DOOA frame 0x63 the partner was drawn at screen (127, 44) instead of the C's (160, 123), and the stand-in egg showed during the dialogue.
 
 ## Fixed
 

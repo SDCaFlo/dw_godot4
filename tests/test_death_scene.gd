@@ -3,9 +3,7 @@ extends SceneTree
 ## by the reviewer (the expected values are §3's, not the port's). Don't change them to make the
 ## code pass; when one looks wrong, report it with the C line (spec §0).
 ##   godot --headless --path . -s res://tests/test_death_scene.gd
-## Until step 6-2 is done the classes it checks don't exist: it reports them as failures. With
-## DW_STEP_6_2=1 a failure exits 1; without it the suite prints PENDING and exits 0, so the other
-## work's runs stay green (spec §7; step 9 removes the gate).
+## Exits 1 if a check fails.
 
 class FakeMusic extends RefCounted:
 	func stop_bgm() -> void:
@@ -91,12 +89,11 @@ func _process(_delta: float) -> bool:
 	_test_dissolve_timeline()
 	_test_rebirth_timeline()
 
-	var enforced := OS.get_environment("DW_STEP_6_2") == "1"
-	var state := "OK" if _failed == 0 else ("FAILED %d" % _failed if enforced else "PENDING (step 6-2): %d failing" % _failed)
+	var state := "OK" if _failed == 0 else "FAILED %d" % _failed
 	if not _missing.is_empty():
 		state += "; missing: " + ", ".join(_missing)
 	print("%s: death scene checks (%d run)" % [state, _checks])
-	quit(1 if _failed and enforced else 0)
+	quit(1 if _failed else 0)
 	return false
 
 
@@ -198,22 +195,17 @@ func _test_face_groups() -> void:
 		var quad: bool = (int(faces[i][0]) & 0xFC) == MODE_QUAD
 		want_faces[i & 15] = int(want_faces.get(i & 15, 0)) + (6 if quad else 3)
 		want_lines[i & 15] = int(want_lines.get(i & 15, 0)) + (8 if quad else 6)
-	_eq(_vertex_counts(built.get("faces"), built.get("groups")), want_faces, "textured faces split by i & 15")
-	_eq(_vertex_counts(built.get("lines"), built.get("line_groups")), want_lines, "outlines split by i & 15, line pairs")
+	_eq(_vertex_counts(built.get("surfaces", [])), want_faces, "textured faces split by i & 15")
+	_eq(_vertex_counts(built.get("line_surfaces", [])), want_lines, "outlines split by i & 15, line pairs")
 	# Each surface keeps its faces' material: group 1 holds faces 1 and 17, both odd (mat_b).
-	var faces_mesh: ArrayMesh = built.get("faces")
-	var group_list: PackedInt32Array = built.get("groups", PackedInt32Array())
-	for s in group_list.size():
-		if group_list[s] == 1 and faces_mesh != null:
-			_check(faces_mesh.surface_get_material(s) == mat_b, "group 1's faces keep their material (spec §5)")
+	var group_one: Array = built.get("surfaces", []).filter(func(x): return x["group"] == 1)
+	_check(not group_one.is_empty() and group_one.all(func(x): return x["material"] == mat_b), "group 1's faces keep their material (spec §5)")
 	# A9: the quad (face 18, vertices 18 19 20 21) is outlined v0 v1, v1 v3, v3 v2, v2 v0.
-	var lines: ArrayMesh = built.get("lines")
-	var lg: PackedInt32Array = built.get("line_groups", PackedInt32Array())
 	var want_quad := [18, 19, 19, 21, 21, 20, 20, 18].map(func(v): return Content.psx_to_godot(verts[v]))
 	var found := false
-	for s in lg.size():
-		if lg[s] == 2 and lines != null:
-			var pts: PackedVector3Array = lines.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]
+	for surface: Dictionary in built.get("line_surfaces", []):
+		if surface["group"] == 2:
+			var pts: PackedVector3Array = surface["arrays"][Mesh.ARRAY_VERTEX]
 			for k in range(0, pts.size() - 7, 2):
 				if Array(pts.slice(k, k + 8)) == want_quad:
 					found = true
@@ -222,18 +214,17 @@ func _test_face_groups() -> void:
 	faces[5] = [0x2C, [5, 6, 7, 8]]
 	var cut: Dictionary = groups.build(_object(verts, faces), mats, true)
 	_eq(cut.get("end"), 5, "A7: the loop stops at the first other kind (face 5)")
-	var counts := _vertex_counts(cut.get("faces"), cut.get("groups"))
+	var counts := _vertex_counts(cut.get("surfaces", []))
 	_eq(counts.values().reduce(func(a, b): return a + b, 0), 15, "A7: only faces 0-4 drawn (5 triangles)")
 	_test_agumon_materials()
 
 
-func _vertex_counts(mesh: Variant, group_list: Variant) -> Dictionary:
+## Vertices per group over build()'s surfaces (its arrays: a headless renderer keeps no mesh data).
+func _vertex_counts(surfaces: Array) -> Dictionary:
 	var out := {}
-	if mesh == null or group_list == null:
-		return out
-	for s in (group_list as PackedInt32Array).size():
-		var n: int = (mesh as ArrayMesh).surface_get_arrays(s)[Mesh.ARRAY_VERTEX].size()
-		out[group_list[s]] = int(out.get(group_list[s], 0)) + n
+	for surface: Dictionary in surfaces:
+		var n: int = (surface["arrays"][Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+		out[surface["group"]] = int(out.get(surface["group"], 0)) + n
 	return out
 
 
@@ -249,9 +240,11 @@ func _test_agumon_materials() -> void:
 	var objects: Array = sidecar["tmd"]["objects"]
 	var missing := 0
 	var total := 0
-	for skel in sidecar["skeleton"]:
-		var o := int(skel.get("objIndex", -1))
-		if o < 0:
+	# The bone objects: the glTF's bone nodes name their TMD object (extras.object).
+	for node: Dictionary in gltf["nodes"]:
+		var raw: Variant = node.get("extras", {}).get("object")
+		var o := int(raw) if raw is int or raw is float else -1
+		if o < 0 or not node.has("mesh"):
 			continue
 		var mats: Array = per_object[o] if o < per_object.size() else []
 		for i in objects[o]["primitives"].size():
@@ -448,8 +441,8 @@ func _test_streaks() -> void:
 	Rng.set_seed(5)
 	var streaks: Array = script.roll(3, Vector3i(0, -100, 0))
 	_eq(streaks.size(), 3, "I1: as many streaks as fadeLevel")
-	_eq(_rand_draws(5, Rng.rand()), 9, "I3: three rand() per streak (rot x, rot y, the grey)")
 	var c1 := Rng._custom1
+	_eq(_rand_draws(5, Rng.rand()), 9, "I3: three rand() per streak (rot x, rot y, the grey)")
 	Rng.set_seed(5)
 	for i in 15:
 		Rng.custom_random(0, 10)

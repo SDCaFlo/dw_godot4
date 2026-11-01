@@ -9,13 +9,18 @@ extends Node
 ## - the flashes (BattleFxView with the sequence's BattleFx);
 ## - the map background's darkening (BackgroundDark at map_fade / 255) and the tamer's and the NPCs'
 ##   palette banks (PaletteFade, B4);
-## - `wireframe` (PartnerWireframe): its use, with the shards, sparks, rings and the brighten, comes
-##   with the later steps of the spec.
+## - the bodies (J): `wireframe` (PartnerWireframe) on the old model, each broken bone in outlines
+##   (PARTNER_WIREFRAME_SUB), then on the new model filling in (PARTNER_WIREFRAME_TOTAL); the
+##   partner's root scale while it grows.
+## The shards, sparks, rings and the brighten come with the later steps of the spec.
 
 const BACKGROUND_DARK_SCENE := preload("res://scenes/field/death/background_dark.tscn")
 const FX_VIEW_SCENE := preload("res://scenes/battle/effects/battle_fx_view.tscn")
 ## Entities 2, 3, 4 are the second palette bank's (evl.c:391-395, EVL_fadeClutBank1: (32, 488) 48 x 24).
 const BANK1_ENTITIES := [2, 3, 4]
+## WIREFRAME_COLOR_MIN / MAX (model.c:89, :91): the evolution never changes them (J2).
+const WIRE_GREY_MIN := 0x37
+const WIRE_GREY_MAX := 0xFF
 
 var camera: Camera3D
 var field_map: FieldMap
@@ -77,7 +82,9 @@ func _on_sequence_started(sequence: EvlSequence) -> void:
 	sequence.bone_position = _bone_position
 	sequence.hand_over.connect(_on_hand_over)
 	sequence.ended.connect(_on_ended)
+	sequence.applied.connect(_on_applied)
 	fx_view.fx = sequence.fx
+	_attach_wireframe()
 	_active = true
 
 
@@ -92,6 +99,8 @@ func tick_objects() -> void:
 	_draw_frame(sequence)
 	if sequence.timer == -1:
 		_active = false
+		wireframe.detach()
+		partner.scale = Vector3.ONE
 
 
 func _draw_frame(sequence: EvlSequence) -> void:
@@ -105,6 +114,12 @@ func _draw_frame(sequence: EvlSequence) -> void:
 	for i in BANK1_ENTITIES:
 		_fade(entities.entity(i) if entities != null else null, sequence.bank1_factor)
 	fx_view.draw_frame()
+	# The bodies (J1, J5, J7): renderDigimon's TOTAL / SUB, the greys of the objects in outlines (J2).
+	if wireframe.is_attached():
+		wireframe.set_share(sequence.wireframe_total, sequence.wireframe_sub)
+		wireframe.roll_greys(WIRE_GREY_MIN, WIRE_GREY_MAX)
+	# The growth (J3, J6): the partner's root scale, 4096 = 1.
+	partner.scale = Vector3(sequence.scale) / float(EvlSequence.SCALE_ONE)
 
 
 ## A palette factor on an entity's materials; 1 gives its own back.
@@ -158,12 +173,38 @@ func _bone_position(bone: int) -> Vector3i:
 	return Vector3i(roundi(world_point.x), roundi(-world_point.y), roundi(-world_point.z))
 
 
-## The Skeleton3D of the partner's current model.
-func _partner_skeleton() -> Skeleton3D:
+## EVL_applyEvolution's new model (J5): the wireframe moves onto it.
+func _on_applied() -> void:
+	_attach_wireframe()
+
+
+## The wireframe on the partner's current model (its sidecar and glTF), as DeathHost's.
+func _attach_wireframe() -> void:
+	var model := _partner_model()
+	if model == null or data == null:
+		return
+	var mmd: String = data.digimon_file(partner.digimon).get("mmd", "")
+	if mmd == "":
+		return
+	var rel := "mmd_files/%s/%s.gltf" % [mmd.get_slice("/", 1), mmd.get_file().get_basename()]
+	var sidecar: Variant = Content.load_json(rel.get_basename() + ".json")
+	var gltf: Variant = Content.load_json(rel)
+	if sidecar is Dictionary and gltf is Dictionary:
+		wireframe.attach(model, sidecar, gltf)
+
+
+func _partner_model() -> Node3D:
 	var slot := partner.get_node_or_null("Model")
 	if slot == null or slot.get_child_count() == 0:
 		return null
-	var model := slot.get_child(slot.get_child_count() - 1) as Node3D
+	return slot.get_child(slot.get_child_count() - 1) as Node3D
+
+
+## The Skeleton3D of the partner's current model.
+func _partner_skeleton() -> Skeleton3D:
+	var model := _partner_model()
+	if model == null:
+		return null
 	if model != _skeleton_of or not is_instance_valid(_skeleton):
 		_skeleton_of = model
 		var found := model.find_children("*", "Skeleton3D", true, false) if model != null else []

@@ -333,3 +333,10 @@ Written 2026-11-01 by the reviewer. The expected values are the C's (§3), worke
 - `EvolutionHost` owns `EvolutionScene` (so `CareHost.evolution_scene` is gone) and sets `partner.evolution_scene`. `bone_position` reads the skeleton for every bone including 0 (a bone >= count reads bone 0); the PartnerWireframe child is unused until step 2. Hiding uses `visible` (B10). `MapLayer.set_enabled` keeps each node's visibility in a node meta (a static helper has no other place); `DeathHost._set_map_layer` calls it.
 - Added values: none beyond §3 (the break-table length 44 and the state-0 roll counts are from `evl.c:253`, `:595`). Port-only: the unset-callable behaviour; the meta in `MapLayer`.
 - Test conflicts (not edited): without `DW_STEP_5F_2`, `test_evolution.gd`'s old 5f-1 checks (state 13 end, the scene's loading end applying the evolution) cannot pass together with the new ones (A1: the partner no longer ticks the scene). With the variable, `_remodel` (test_evolution.gd:719-723) only calls `partner.tick_evolving()` and never the scene's tick, so with A1 (`partner.c:774` reads the timer only) the StubScene never evolves: it should call `_frame_13(partner, scene)`.
+
+## As built (step 2, 2026-11-01)
+
+- Done in the main session. `EvolutionHost` attaches `PartnerWireframe` to the old model when the sequence starts (all objects at share 16: the normal model) and again to the new model on `applied`. Every frame it sets `set_share(wireframe_total, wireframe_sub)`, rolls the greys of the objects in outlines (0x37–0xFF, J2) and sets the partner's root scale from `scale`. At the end it detaches the wireframe and sets the scale to 1.
+- `DeathHost` sets the partner's scale every frame (its squash, 1 outside DOOA); `EvolutionHost` ticks after it, so its scale wins while the sequence runs.
+- Tests: `evolution_scan` with `DW_STEP_5F_2=2` (outlines at 0xA3, the new body at 0x11C, share 16 at 0x14F, scale 1 at the end); every other suite and scan unchanged.
+

@@ -52,6 +52,9 @@ var _changed := {}
 var _text_ids := {}
 ## "table|block" -> {index: entry}
 var _blocks := {}
+## tournament id -> record from scripts/tournament_cups.json, loaded on first use.
+var _tournament_cups := {}
+var _tournament_cups_loaded := false
 
 
 func _init() -> void:
@@ -144,6 +147,8 @@ func reload() -> void:
 	_changed.clear()
 	_text_ids.clear()
 	_blocks.clear()
+	_tournament_cups.clear()
+	_tournament_cups_loaded = false
 
 
 func _index(table_name: String) -> void:
@@ -345,8 +350,8 @@ func _components_map(id: int, main: Dictionary) -> Dictionary:
 			"training_spots": training_spots(id)}
 
 
-func _components_tournament(_id: int, _main: Dictionary) -> Dictionary:
-	return {}
+func _components_tournament(id: int, _main: Dictionary) -> Dictionary:
+	return {"cup": tournament_cup(id)}
 
 
 func _components_card(_id: int, _main: Dictionary) -> Dictionary:
@@ -609,6 +614,24 @@ func enemy_music(digimon_ref: Variant) -> int:
 
 func tournament(ref: Variant) -> Dictionary:
 	return record("systems/tournaments", ref)
+
+
+## Tournament cup data (specs/tournament_entry.md §5.1c): requirement, eligible and over-levelled
+## Digimon lists, opponent pool and info textbox from scripts/tournament_cups.json.
+## ref may be a numeric tournament id or a content key ("dw1:grade_d"); {} when missing.
+func tournament_cup(ref: Variant) -> Dictionary:
+	var id := id_of("systems/tournaments", ref) if ref is String else int(ref)
+	if id < 0:
+		return {}
+	if not _tournament_cups_loaded:
+		_tournament_cups.clear()
+		var json: Variant = Content.load_json("scripts/tournament_cups.json")
+		if json is Dictionary and json.get("records") is Array:
+			for record in json["records"]:
+				if record is Dictionary and record.has("id"):
+					_tournament_cups[int(record["id"])] = record
+		_tournament_cups_loaded = true
+	return _tournament_cups.get(id, {})
 
 
 ## Tournament ids of a day (DAY % 30), before isTournamentEnabled filters them.

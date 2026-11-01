@@ -139,6 +139,13 @@ Last updated: 2026-11-01
    - [ ] Mod loader UI: list packs, enable / disable, load order, conflicts.
    - [ ] Open questions: numeric ids for new content used by original scripts; a key lock file so `dw1` keys never change; conflicts between mods patching the same field.
 
+## Later: setting up the port on another machine (raised 2026-11-01, to check)
+
+The goal (the user): on another machine, building the port should need only the user's own game files, not the decomp. To check:
+- [ ] **The asset porter's decomp reads.** `scripts.py` (4e-3 step 2) reads `dget.c` / `trigger.h` from `PROJECT_ROOT/external-resources/dw_decomp` for its "Grade A won" check; without the decomp that check fails and `convert scripts` exits non-zero. List every place the asset porter reads the decomp at run time (its `dwporter/data/*.py` tables are committed code, so they're fine), and make such checks skip cleanly when the decomp is missing, or move them to the data porter.
+- [ ] **The data porter itself** reads only the decomp (C tables, constants, `text/*.yaml`): today, another machine needs the decomp to build `data_porter/output/`. Options to weigh: read the same values from the game's executable and overlays (the asset porter already reads `SLUS_010.32` for maps / toilets, and `test_cross_asset_porter.py` shows the bytes agree), ship the converter's knowledge (offsets and layouts) as committed code that reads the user's own disc files, or keep the decomp as a documented requirement. Nothing decided.
+- [ ] A setup guide (`docs/setup.md`): what to dump, which porters to run, in what order, what each needs.
+
 ## Ideas (not planned yet)
 
 - Sound: mirror the sound samples and rendered songs into `res://content/dw1/` with QOA compression (the songs are ~0.9 GB of WAV); the CONFIG menu's music / effects volumes (buses `Music`, `Sfx`).

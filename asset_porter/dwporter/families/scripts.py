@@ -5,10 +5,12 @@ SET_SCRIPT instruction that starts each MAPHEAD section).
 """
 
 import re
+import struct
 
 from ..assets import AssetWriter, _dump
 from ..data.digimon import DIGIMON_TYPES
 from ..formats import scn
+from ..paths import PROJECT_ROOT
 from ..source import SourceFile
 from . import maps, mmd_files
 
@@ -24,6 +26,9 @@ CODE_REFS = [
     "dw_decomp/src/main/script_textbox.c:1017 scriptShowSelection, :1054 showTextbox (text codes), :644 drawString2",
     "dw_decomp/src/main/script_interp.c:2235 runMapHeadScript (MAPHEAD section = map id); tamer.c:688 trigger cells -> sections",
     "dw_decomp/src/main/file_table_us.c:754 DG.SCN 0xC4800, :755 MAPHEAD.SCN 0x606E",
+    "dw_decomp/src/main/tournament.c:146 getCupDataJumpTable, :157 getCupDataJumpTableEntry",
+    "dw_decomp/src/dget/dget.c:331 tournamentCheckFair, :350 isTournamentEnabled, :429 tournamentCheckEligible",
+    "dw_decomp/include/dw/trigger.h:805 TRIGGER_D_RANK_CUP_WON..TRIGGER_ANIMAL_CUP_WON",
 ]
 
 MAPHEAD = "SCN/MAPHEAD.SCN"
@@ -32,6 +37,65 @@ MAPHEAD_SIZE = 0x606E
 DG_SIZE = 0xC4800
 MAPHEAD_BUFFER = 0x61A8
 MAP_SCRIPT_BUFFER = 0x4000
+
+ARENA_SCRIPT = 168
+CUP_COPIES = (213, 102, 209)
+CUPS = 23
+
+
+def _u16(b: bytes, offset: int) -> int:
+    return b[offset] | (b[offset + 1] << 8)
+
+
+def _script_section(b: bytes, section_id: int):
+    p = 2
+    while p + 4 <= len(b):
+        sid = _u16(b, p)
+        if sid == 0xFFFF:
+            return None
+        if sid == section_id:
+            return _u16(b, p + 2)
+        p += 4
+    return None
+
+
+def _read_data_list(b: bytes, entry_off: int) -> list:
+    out = []
+    p = entry_off + 2
+    while p < len(b) and b[p] < 0xFE:
+        out.append(b[p])
+        p += 1
+    return out
+
+
+def _read_cups_from_script(b: bytes, dis: dict) -> tuple:
+    s_a = _script_section(b, 0x0A)
+    s_b = _script_section(b, 0x0B)
+    b_list = _read_data_list(b, s_b) if s_b is not None else []
+    by_offset = {i["offset"]: i for i in dis["instructions"]}
+
+    cups = []
+    for cup_id in range(CUPS):
+        tbl = _u16(b, s_a + cup_id * 4 + 2)
+        entries = [_u16(b, tbl + k * 4 + 2) for k in range(5)]
+        c_values = list(b[entries[1] + 2:entries[1] + 5])
+        overleveled = _read_data_list(b, entries[2])
+        eligible = _read_data_list(b, entries[3])
+        opponents = None if b[entries[4] + 2] >= 0xFE else _read_data_list(b, entries[4])
+        info_insn = by_offset[entries[0]]
+        cups.append({
+            "id": cup_id,
+            "table": tbl,
+            "entries": entries,
+            "c_values": c_values,
+            "overleveled": overleveled,
+            "eligible": eligible,
+            "opponents": opponents,
+            "info_raw": info_insn["raw"],
+            "info_text": info_insn["args"]["text"],
+            "info_offset": entries[0],
+        })
+    return cups, b_list
 
 
 def _speaker(value: int) -> str:
@@ -226,5 +290,105 @@ def convert(input_root, output_root) -> AssetWriter:
         "maps": map_links,
         "scripts": sorted(summary, key=lambda s: (s["file"] != "MAPHEAD", s["script"])),
     })
+
+    # Tournament cup table (specs/tournament_entry.md §5.1b) from script 168 sections 0x0A / 0x0B.
+    arena_src, arena_off, arena_size, arena_data, arena_dis = decoded[ARENA_SCRIPT]
+    base_cups, b_list = _read_cups_from_script(arena_data, arena_dis)
+
+    records = []
+    for c in base_cups:
+        c_values = c["c_values"]
+        min_roster = c_values[0]
+        min_wins = c_values[1]
+        req_type = c_values[2]
+        if req_type == 0:
+            also = {"type": "none"}
+        elif req_type == 1:
+            also = {"type": "won", "tournament": 3}
+        elif req_type == 2:
+            also = {"type": "count", "list": b_list, "min": min_wins}
+        else:
+            also = {"type": "count_until", "until": req_type, "min": min_wins}
+
+        records.append({
+            "id": c["id"],
+            "requirement": {
+                "c_values": c_values,
+                "min_roster": min_roster,
+                "also": also,
+            },
+            "overleveled": c["overleveled"],
+            "eligible": c["eligible"],
+            "opponents": c["opponents"],
+            "info": {
+                "raw": c["info_raw"],
+                "text": c["info_text"],
+                "offset": c["info_offset"],
+            },
+            "source": {
+                "script": ARENA_SCRIPT,
+                "cup_table": c["table"],
+                "entries": c["entries"],
+            },
+        })
+
+    out.check("23 tournament cups", len(records) == CUPS, f"{len(records)} records")
+
+    copies_match = True
+    for sid in CUP_COPIES:
+        if sid not in decoded:
+            copies_match = False
+            break
+        copy_cups, copy_b_list = _read_cups_from_script(decoded[sid][3], decoded[sid][4])
+        if copy_b_list != b_list:
+            copies_match = False
+            break
+        for base_c, copy_c in zip(base_cups, copy_cups):
+            if (base_c["c_values"] != copy_c["c_values"] or
+                    base_c["overleveled"] != copy_c["overleveled"] or
+                    base_c["eligible"] != copy_c["eligible"] or
+                    base_c["opponents"] != copy_c["opponents"] or
+                    base_c["info_raw"] != copy_c["info_raw"]):
+                copies_match = False
+                break
+        if not copies_match:
+            break
+    out.check("cup copies agree across scripts 213, 102, 209", copies_match,
+              f"scripts {CUP_COPIES} match script {ARENA_SCRIPT}")
+
+    all_ids = []
+    for r in records:
+        all_ids.extend(r["overleveled"])
+        all_ids.extend(r["eligible"])
+        if r["opponents"] is not None:
+            all_ids.extend(r["opponents"])
+    all_ids.extend(b_list)
+    all_in_roster = all(0 <= x < 0x70 for x in all_ids)
+    out.check("every tournament list id is in roster range (< 0x70)", all_in_roster,
+              f"{len(all_ids)} ids checked (max {max(all_ids) if all_ids else 'none'})")
+
+    dget_c = PROJECT_ROOT / "external-resources" / "dw_decomp" / "src" / "dget" / "dget.c"
+    trigger_h = PROJECT_ROOT / "external-resources" / "dw_decomp" / "include" / "dw" / "trigger.h"
+    dget_text = dget_c.read_text(encoding="utf-8") if dget_c.is_file() else ""
+    trigger_text = trigger_h.read_text(encoding="utf-8") if trigger_h.is_file() else ""
+    case_1_match = re.search(r"case\s+1:\s+return\s+isTriggerSet\((TRIGGER_[A-Z0-9_]+)\);", dget_text)
+    trig_name = case_1_match.group(1) if case_1_match else ""
+    trig_match = re.search(rf"#define\s+{re.escape(trig_name)}\s+TRIGGER_(\d+)", trigger_text) if trig_name else None
+    trig_num = int(trig_match.group(1)) if trig_match else -1
+    won_tournament_id = trig_num - 15
+    out.check("won requirement: case 1 in dget.c matches TRIGGER_GRADE_A_CUP_WON in trigger.h (18 - 15 = 3)",
+              case_1_match is not None and trig_name == "TRIGGER_GRADE_A_CUP_WON" and trig_num == 18 and won_tournament_id == 3,
+              f"{trig_name} = TRIGGER_{trig_num} -> tournament {won_tournament_id}")
+
+    arena_span = arena_src.span(arena_off, arena_size)
+    _dump(out.dir / "tournament_cups.json", {
+        "asset_id": f"{arena_span.asset_id}#tournament_cups",
+        "family": NAME,
+        "format": "tournament_cups",
+        "source": arena_span.identity(),
+        "copies_checked": list(CUP_COPIES),
+        "records": records,
+    })
+
     out.finish([mh, dg, exe])
     return out

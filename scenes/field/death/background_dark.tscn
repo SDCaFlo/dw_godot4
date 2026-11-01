@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[node name="BackgroundDark" type="ColorRect"]
+offset_right = 320.0
+offset_bottom = 240.0
+mouse_filter = 2
+color = Color(0, 0, 0, 0)

@@ -27,6 +27,7 @@ Written on 2026-10-30, after the review of step 6 (death and reincarnation; the 
 - The spec is written from the decomp and approved by the user before code starts (`docs/agent_workflow.md` "The flow").
 - **The model that implements a step doesn't write its spec or review its own result.** A step done by a cheaper model has its spec and its review done by a stronger one.
 - An open question stays in the spec's "Open questions" until the C answers it. It is never filled in with a guess.
+- **Each step has a complexity and a model** (Low: Gemini 3.8 Flash (High); Medium: Claude Sonnet 5.5 (Medium); Hard: Claude Opus 5.5 (Medium)), by the criteria in `docs/agent_workflow.md` "Complexity and model". Any Hard criterion makes the step Hard. The spec, the tests and the review stay with the strongest model.
 
 ## 3. Port the routine, not the effect
 
@@ -73,6 +74,7 @@ It would have caught R4, R9, R10 and R11 in step 6. When it fails, fix the code.
 ## 8. Before you say "done"
 
 - [ ] The spec's value table has a source or a status for every row (§1).
+- [ ] Every step of the spec has its complexity and model (§2).
 - [ ] The spec's "As built" notes match the code, and the stand-ins are listed as stand-ins.
 - [ ] All suites and scans pass (§6), with the output in the report.
 - [ ] `VERIFY.md` has short in-game checks for the user. No movies.

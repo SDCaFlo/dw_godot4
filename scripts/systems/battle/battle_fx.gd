@@ -26,7 +26,7 @@ var entity_particles: Array[Dictionary] = []
 ## CLOUD_FX_DATA: {state (-1 free), x, z}.
 var clouds: Array[Dictionary] = []
 ## EFE_FLASH_DATA: {progress (-1 free), t_max, mode, fixed_depth, scale_min, scale_max,
-## color_min, color_max (Vector3i), position (PSX)}.
+## color_min, color_max (Vector3i), position (PSX), offset_x, offset_y}.
 var flashes: Array[Dictionary] = []
 
 
@@ -91,8 +91,17 @@ func create_flash(mode: int, position: Vector3i, fixed_depth: int, t_max: int, s
 	if i == FLASH_SLOTS or not absi(mode) in FLASH_MODES:
 		return -1
 	flashes[i] = {"progress": 0, "t_max": t_max, "mode": mode, "fixed_depth": fixed_depth, "scale_min": scale_min,
-			"scale_max": scale_max, "color_min": color_min, "color_max": color_max, "position": position}
+			"scale_max": scale_max, "color_min": color_min, "color_max": color_max, "position": position,
+			"offset_x": 0, "offset_y": 0}
 	return i
+
+
+## setEFEFlashOffset (efe.c:965): a screen offset renderEFEFlash adds (scaled by the depth for a
+## mode >= 0, efe.c:916). The death scene's rising flash wobbles with it (specs/death_scene.md E2).
+func set_flash_offset(id: int, x: int, y: int) -> void:
+	if id >= 0 and id < flashes.size():
+		flashes[id]["offset_x"] = x
+		flashes[id]["offset_y"] = y
 
 
 # --- the frame ----------------------------------------------------------------------------------

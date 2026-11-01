@@ -31,6 +31,11 @@ const ENTITY_SPRITES := [[0x78, 0x50, 0x80, 0x80, 0x0F, 0x0F], [0x78, 0x50, 0xC0
 const EMITTER_DOT_DEPTH := 0x3E8
 
 var host: EffectHost
+## Optional, for a scene outside the battle (the death scene, specs/death_scene.md §5): the BattleFx
+## drawn instead of the host's, and the projection (world_to_screen / viewport_distance, e.g. the
+## FieldMap) instead of the host context's. Unset: the battle's.
+var fx: BattleFx
+var projector: Object
 
 var _sprites: WorldSprites
 var _lines: MeshInstance3D
@@ -60,13 +65,15 @@ func _ready() -> void:
 func draw_frame() -> void:
 	_sprites.begin()
 	_line_mesh.clear_surfaces()
-	if host != null and host.ctx != null:
-		var fx := host.ctx.fx
-		if fx != null:
-			_draw_bursts(fx)
-			_draw_entity_particles(fx)
-			_draw_clouds(fx)
-			_draw_flashes(fx)
+	if fx != null:
+		_draw_flashes(fx)
+	elif host != null and host.ctx != null:
+		var shared := host.ctx.fx
+		if shared != null:
+			_draw_bursts(shared)
+			_draw_entity_particles(shared)
+			_draw_clouds(shared)
+			_draw_flashes(shared)
 		_draw_emitters()
 	_sprites.end()
 
@@ -79,11 +86,12 @@ func shown() -> int:
 
 ## worldPosToScreenPos's depth (SZ) of a PSX point; 0 behind the camera.
 func _depth(psx: Vector3i) -> int:
-	return maxi(int(host.ctx.world_to_screen(PsxMath.s16_vec(psx))["sz"]), 0)
+	var source: Object = projector if projector != null else host.ctx
+	return maxi(int(source.world_to_screen(PsxMath.s16_vec(psx))["sz"]), 0)
 
 
 func _h() -> int:
-	return host.ctx.viewport_distance()
+	return projector.viewport_distance() if projector != null else host.ctx.viewport_distance()
 
 
 static func _godot(psx: Vector3i) -> Vector3:
@@ -109,13 +117,29 @@ func _defeff_palette(palette: int) -> PsxTexture:
 
 ## renderParticleFlash: the flash's half size on screen is (scale · 63 >> 10) + 1 pixels; the whole
 ## mirrored flash is drawn twice that, centred on the point.
-func _flash(texture: PsxTexture, abr: int, at: Vector3i, depth: int, scale: int, color: Color) -> void:
+func _flash(texture: PsxTexture, abr: int, at: Vector3i, depth: int, scale: int, color: Color,
+		shift := Vector3.ZERO) -> void:
 	var half := (scale * (FLASH_SIZE - 1)) >> 10
 	if half <= 0:
 		return
 	half += 1
 	var world := 2.0 * half * depth / _h()
-	_sprites.sprite(texture, abr, _godot(at), Vector2(world, world), Rect2(0, 0, 2 * FLASH_SIZE, 2 * FLASH_SIZE), color)
+	_sprites.sprite(texture, abr, _godot(at) + shift, Vector2(world, world), Rect2(0, 0, 2 * FLASH_SIZE, 2 * FLASH_SIZE), color)
+
+
+## renderEFEFlash's offset (efe.c:916–923) as a Godot move: a mode >= 0 adds offset · H / depth
+## pixels, which is `offset` world units along the camera's right / down axes; a negative mode adds
+## the pixels themselves (offset · depth / H units).
+func _flash_shift(f: Dictionary, depth: int) -> Vector3:
+	var ox: int = f.get("offset_x", 0)
+	var oy: int = f.get("offset_y", 0)
+	if ox == 0 and oy == 0:
+		return Vector3.ZERO
+	var camera := get_viewport().get_camera_3d() if get_viewport() != null else null
+	if camera == null:
+		return Vector3.ZERO
+	var units := Vector2(ox, oy) if int(f["mode"]) >= 0 else Vector2(ox, oy) * depth / _h()
+	return camera.global_basis.x * units.x - camera.global_basis.y * units.y
 
 
 ## renderFXParticle / addFXPrim: a `size`-unit DEFEFF dot (palette 1), added; culled at the OT depth
@@ -183,8 +207,8 @@ func _draw_clouds(fx: BattleFx) -> void:
 				Rect2(CloudFX.U[state], 0, CloudFX.SIZE, CloudFX.SIZE), Color(shade, shade, shade))
 
 
-func _draw_flashes(fx: BattleFx) -> void:
-	for f in fx.flashes:
+func _draw_flashes(source: BattleFx) -> void:
+	for f in source.flashes:
 		var progress: int = f["progress"]
 		if progress < 0:
 			continue
@@ -208,7 +232,7 @@ func _draw_flashes(fx: BattleFx) -> void:
 		if ot <= 0x20 or ot >= 0x1000:
 			continue
 		_flash(_spot(0 if mode == 1 else 0x40), PsxLit.SUBTRACT if mode == 0x20 else PsxLit.ADD, at, depth, scale,
-				color)
+				color, _flash_shift(f, depth))
 
 
 ## BTL_renderParticleEmitters: each live particle between its two points along its direction.

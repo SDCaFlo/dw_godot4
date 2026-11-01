@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/field/death/spark_streaks.gd" id="1_streaks"]
+
+[node name="SparkStreaks" type="MeshInstance3D"]
+script = ExtResource("1_streaks")

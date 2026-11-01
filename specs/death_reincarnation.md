@@ -124,20 +124,23 @@ Then script 212 asks about the name (`SET_SELECTION`, builtin 0x20).
 scenes/field/hosts/death_host.tscn   DeathHost: wires the scenes, draws them
 ├─ MurdScene                          scripts/field/death/murd_scene.gd (logic: MURD_tickScene)
 └─ DooaScene                          scripts/field/death/dooa_scene.gd (logic: DOOA_tickDissolve, DOOA_tickRebirth)
-scenes/field/death/death_iris.tscn    DeathIris + death_iris.gdshader: the iris and the background's darkness (background layer)
+├─ PartnerWireframe                   scenes/field/partner_wireframe.tscn (the body in outlines; shared with 5f-2)
+scenes/field/death/                   the views (specs/death_scene.md §5): death_iris.tscn (the iris window, over the world),
+                                      background_dark.tscn (the background's darkness), death_shards.tscn, rebirth_egg.tscn,
+                                      spark_streaks.tscn; DOOA's flashes through battle_fx_view.tscn
 scenes/field/death/death_darken.tscn  MURD's full-screen darkening (subtractive, in the HUD after the UI boxes)
-scenes/field/death/partner_dissolve.gdshader  the stand-in dissolve
 scripts/ui/murd_box.gd, egg_select_box.gd     the UI boxes (box 3)
 scripts/script/death_routines.gd              builtins 29, 47 (scenes/script/death_routines.tscn under ScriptHost/Routines)
 ```
 
 - **Logic like the C:** routines 3 / 4 / 7 / 9 only set the tamer's and the partner's states; those states start MURD / DOOA and wait for them (`Tamer.tick_lost_life`, `Partner.tick_dying`, `Partner.tick_rebirth`), as `EvolutionScene` for state 13. `MurdScene` and `DooaScene` are objects ticked in the field's frame after the script's objects (`DeathHost.tick_objects`); they read and change the entities through references, the map through `change_map` / `map_layer` callables, and report DOOA's phases with `phase_changed`. They run headless with `.new()` (the tests).
-- **Presentation:** `DeathHost._process` draws from their state (MURD's and DOOA's render functions): the iris and the background's darkness (`DeathIris` in the background canvas layer, under the 3D world, so the partner stays in front: a stand-in for the C drawing it over the iris), the full-screen darkening, the stand-in dissolve and the egg model (`tmd_files/ETCDAT/TAMA.gltf` at the origin).
+- **Presentation** (`specs/death_scene.md`): `DeathHost` draws from their state once per game frame (`_draw_frame`: the wireframe share and greys, the shards, the egg, its pieces and the streaks, the flashes, the squash, the palette fades) and every frame (`_process`: the iris, the darkenings, the partner drawn over the iris through an overlay viewport). The camera moves through `FieldMap`'s view hook.
 - **Modding:** `death_host.tscn` and its children, the iris and darkening scenes and the shaders can be replaced; the routines node is replaceable as every builtin node.
-- **Stand-ins** (to port later, step 6-2, detailed in `specs/death_scene.md`): DOOA's shards, wireframes and flashes (`DOOA_spawnShardWave`, `DOOA_updateShards`, `EFECreateFlash`), the scale curve, the cutscene camera (`DOOA_updateCutsceneCamera`), the models' CLUT fades, MURD's lights; the C's iris layering (the partner over the iris only once it is larger than the window).
+- **No stand-ins left** since step 6-2 (2026-10-31): the look follows the C, value by value (`specs/death_scene.md` §3).
 
 ## 10. Tests
 
 - `tests/test_death_reincarnation.gd` (95 checks): the egg records; `reincarnate` (inheritance, the cleared flag, techniques, care values, raised count); builtin 47's steps and rounding; section 0x4DE's three branches; the death evolutions (routine 10's target and state 13, the Digimon untouched, `DELAY` kept); MurdBox; builtin 29 with DOOA's slot; MURD with lives left and with none (frames, map change, states, sounds, sync bit); the natural death (walk, phases in order, sounds, the partner gone); the rebirth (frame 152, 202, sparkles, the end values); Care reading `IS_SCRIPT_PAUSED`.
-- `tests/death_scan.tscn`: the three cases in the real field (battle loss, the last life to sickness, the natural death), checking the death map, the iris, no dialogue before the scene ends, the rebirth.
+- `tests/death_scan.tscn`: the three cases in the real field (battle loss, the last life to sickness, the natural death), checking the death map, the iris, no dialogue before the scene ends, the rebirth, and the 6-2 look (`specs/death_scene.md` §7).
+- `tests/test_death_scene.gd` (90 checks): the 6-2 parts, against the C's values (`specs/death_scene.md` §7).
 - `tests/exit_scan.tscn`: Toy Town's trap battles reach these scenes (its timeout covers them; script 212's choices take their second answer).

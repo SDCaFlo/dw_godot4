@@ -28,6 +28,13 @@ const BLACK := 0xFF
 ## The lives box: its start rect around the partner's screen point (MURD_LIVES_BOX_START_POS,
 ## MURD_LIVES_BOX_TARGET_POS).
 const BOX_AROUND := Rect2i(-8, -6, 16, 12)
+## The three flat lights from phase 1 (murd.c:208–228, specs/death_scene.md K7): direction, grey,
+## as a map's setup lights (FieldLighting). The map change brings the death map's own (K8).
+const LIGHTS := [
+	{"direction": [0x1E, 0x64, 0x1E], "color": [0x40, 0x40, 0x40]},
+	{"direction": [-0x1E, 0x64, 0], "color": [0x28, 0x28, 0x28]},
+	{"direction": [0, 0x64, -0x1E], "color": [0x26, 0x26, 0x26]},
+]
 
 var partner: Partner
 var tamer: Tamer
@@ -42,6 +49,10 @@ var change_map := Callable()
 var map_layer := Callable()
 ## func(world: Vector3) -> Vector2: worldPosToScreenPos (centred PSX pixels); null: the centre.
 var screen_point := Callable()
+## The partner's depth and the projection (FieldMap.world_to_screen, FieldMap.view), for K3.
+var project := Callable()
+var get_view := Callable()
+var data: Node
 
 ## MURD_SCENE: timer (OVER once removed; -1 before the first start), phase, the lives.
 var timer := -1
@@ -54,6 +65,8 @@ var darken := 0
 var darkness := 0
 var active := false
 var lives_box := MurdBox.new()
+## The partner drawn in front of the iris (MURD_isDigimonLargerThanIris: isOnMap 0, K3).
+var partner_front := false
 
 
 ## MURD_tick(partner, 0) (murd.c:760): the scene object; with lives left the death map is chosen
@@ -65,6 +78,7 @@ func start() -> void:
 	darken = 0
 	darkness = 0
 	active = true
+	partner_front = false
 	if lives != 0:
 		death_map = DooaScene.choose_death_map(game_state)
 
@@ -76,9 +90,11 @@ func tick() -> void:
 	timer += 1
 	match phase:
 		PHASE_IRIS:
+			_check_iris()
 			if timer < IRIS_END:
 				return
 			phase = PHASE_BOX
+			FieldLighting.apply(LIGHTS, FieldLighting.DAY)
 			darkness = BLACK
 			_hide_others()
 			_open_box()
@@ -88,6 +104,7 @@ func tick() -> void:
 				map_layer.call(false)
 		PHASE_BOX, PHASE_WAIT:
 			partner.visible = true
+			partner_front = false
 			if timer < 0x5F:
 				return
 			if lives == 0:
@@ -136,6 +153,19 @@ func tick() -> void:
 			if dooa != null:
 				dooa.start_dissolve()
 			partner.visible = false
+
+
+## MURD_isDigimonLargerThanIris(entity, 0, 0x23, timer) (murd.c:359): the partner moves in front.
+func _check_iris() -> void:
+	if not project.is_valid() or not get_view.is_valid() or data == null:
+		return
+	var record: Dictionary = data.digimon(game_state.state["partner"]["digimon"])
+	var p := partner.position
+	var at := Vector3i(roundi(p.x), roundi(-p.y) - int(record.get("height", 0)) / 2, roundi(-p.z))
+	var z := int(project.call(at).get("sz", 0))
+	var h := int(get_view.call().get("projection", 0))
+	if DeathIrisMath.in_front(DeathIrisMath.radius(0, IRIS_END, timer, false), DeathIrisMath.size(record), h, z):
+		partner_front = true
 
 
 func _end() -> void:

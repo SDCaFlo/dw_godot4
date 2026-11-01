@@ -201,6 +201,7 @@ func _start() -> void:
 	# The death and lives scenes (specs/death_reincarnation.md §8): MURD and DOOA, which the tamer's
 	# states 17 / 19 and the partner's 8 / 14 run.
 	death_host.camera = _camera
+	death_host.field_map = _field
 	death_host.tamer = _tamer
 	death_host.partner = partner
 	death_host.entities = entities.entities
@@ -215,7 +216,8 @@ func _start() -> void:
 	death_host.world = _world
 	death_host.fade = care_host.fade
 	death_host.start()
-	$World/SubViewport/Background.add_child(death_host.iris)
+	death_host.set_render_scale(render_scale)
+	$World/SubViewport/Background.add_child(death_host.background_dark)
 	# Builtin 29's egg panel writes the DOOA sequence's egg slot.
 	for child in scripts.get_node("Routines").get_children():
 		if child is DeathRoutines:
@@ -329,6 +331,8 @@ func set_render_scale(value: int) -> void:
 	# Downscaling a bigger picture to the window: filtered, so the extra detail isn't lost to aliasing.
 	container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST if render_scale == 1 else CanvasItem.TEXTURE_FILTER_LINEAR
 	($World/SubViewport/Background as CanvasLayer).scale = Vector2.ONE * render_scale
+	if death_host != null:
+		death_host.set_render_scale(render_scale)
 
 
 # --- Editor preview --------------------------------------------------------------------------

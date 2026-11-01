@@ -73,6 +73,7 @@ func load_map(name: String) -> bool:
 	_down = _vec(cam["down"])
 	_forward = _vec(cam["forward"])
 	_projection = cam["projection"]
+	_scene_view = false
 	_setup_camera()
 
 	_collision = PackedByteArray()
@@ -520,6 +521,8 @@ func projection() -> float:
 ## The drawing offset (DRAWING_OFFSET_X / Y): the projection centre's screen pixel. The battle
 ## effects' screen primitives are placed relative to it.
 func drawing_offset() -> Vector2:
+	if _scene_view:
+		return _scene_offset
 	return background_size / 2 - scroll
 
 
@@ -612,9 +615,85 @@ func _clamp_scroll() -> Array:
 func _apply_scroll() -> void:
 	background.position = -scroll
 	# Screen position of the projection centre, relative to the screen centre.
-	var centre := background_size / 2 - scroll - SCREEN / 2
+	var centre := drawing_offset() - SCREEN / 2
 	var scale := NEAR / _projection
 	camera.set_frustum(SCREEN.y * scale, Vector2(-centre.x, centre.y) * scale, NEAR, FAR)
+
+
+# --- A scene's own view (DOOA's cutscene camera, specs/death_scene.md §5) ------------------------
+
+## The view a scene set (set_view), or false: the map's own camera and scroll.
+var _scene_view := false
+var _scene_offset := Vector2.ZERO
+
+
+## The camera as the C's GS_VIEWPOINT, DRAWING_OFFSET and VIEWPORT_DISTANCE: {"eye", "ref":
+## Vector3i (PSX world units), "offset": Vector2i (screen pixels), "projection": int}.
+func view() -> Dictionary:
+	return {"eye": Vector3i(_eye.round()), "ref": Vector3i(_target.round()), "offset": Vector2i(drawing_offset().round()),
+			"projection": roundi(_projection)}
+
+
+## GsSetRefView2 (twist 0) + GsSetProjection + the drawing offset, as a scene sets them. The
+## background stays where it is (the scenes that move the camera have it dark).
+func set_view(v: Dictionary) -> void:
+	_eye = Vector3(v["eye"])
+	_target = Vector3(v["ref"])
+	_projection = float(v["projection"])
+	_basis_from_eye()
+	_scene_view = true
+	_scene_offset = Vector2(v["offset"])
+	var up := -Content.psx_to_godot([_down.x, _down.y, _down.z])
+	var back := -Content.psx_to_godot([_forward.x, _forward.y, _forward.z])
+	var right := Content.psx_to_godot([_right.x, _right.y, _right.z])
+	camera.transform = Transform3D(Basis(right, up, back), Content.psx_to_godot([_eye.x, _eye.y, _eye.z]))
+	_apply_scroll()
+
+
+## Back to the map's own camera (DOOA phase 4: the drawing offset, the camera target, the follow).
+func restore_map_view() -> void:
+	_scene_view = false
+	if data.is_empty():
+		return
+	var cam: Dictionary = data["camera"]
+	_eye = _vec(cam["eye"])
+	_target = _vec(cam["target"])
+	_right = _vec(cam["right"])
+	_down = _vec(cam["down"])
+	_forward = _vec(cam["forward"])
+	_projection = cam["projection"]
+	var up := -Content.psx_to_godot([_down.x, _down.y, _down.z])
+	var back := -Content.psx_to_godot([_forward.x, _forward.y, _forward.z])
+	var right := Content.psx_to_godot([_right.x, _right.y, _right.z])
+	camera.transform = Transform3D(Basis(right, up, back), Content.psx_to_godot([_eye.x, _eye.y, _eye.z]))
+	_apply_scroll()
+
+
+## GsSetRefView2's axes from the eye and the reference point, twist 0 (the porter's camera():
+## asset_porter/dwporter/formats/map.py:165).
+func _basis_from_eye() -> void:
+	var f := (_target - _eye)
+	f = f.normalized() if f != Vector3.ZERO else Vector3(0, 0, 1)
+	var r := Vector3(0, 1, 0).cross(f)
+	r = r.normalized() if r != Vector3.ZERO else Vector3(1, 0, 0)
+	_forward = f
+	_right = r
+	_down = f.cross(r)
+
+
+## worldPosToScreenPos (RotTransPers with GsWSMATRIX): {"screen": Vector2i (relative to the
+## projection centre), "sz": int (depth)}, as BattleEffectContext.world_to_screen.
+func world_to_screen(pos: Vector3i) -> Dictionary:
+	var m := world_screen_matrix()
+	var v := PsxMath.apply_matrix_lv(m, PsxMath.s16_vec(pos)) + PsxMath.translation(m)
+	var h := viewport_distance()
+	var z := maxi(v.z, 1)
+	return {"screen": Vector2i(PsxMath.div(v.x * h, z), PsxMath.div(v.y * h, z)), "sz": v.z}
+
+
+## VIEWPORT_DISTANCE.
+func viewport_distance() -> int:
+	return roundi(_projection)
 
 
 # --- Pans (createCameraMovement, checkCameraMovement, tickCameraMovement; specs/camera.md §2.3) ---

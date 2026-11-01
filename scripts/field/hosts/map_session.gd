@@ -114,8 +114,8 @@ func _load_map_at_exit(map_name: String, exit: int) -> bool:
 	return true
 
 
-## updateMapLightState (utils2.c:553) on the current map's light_objects, every frame. The
-## tournament registration that may return before it isn't ported (specs/map_objects.md §2.4).
+## updateMapLightState (utils2.c:553) on the current map's light_objects, every frame. Called by
+## TournamentHost when the tournament registration tick permits it (specs/tournament_entry.md §4.7).
 func update_map_light_state() -> void:
 	var screen = GameState.state["world"].get("screen")
 	if screen == null or field_map.data.is_empty():

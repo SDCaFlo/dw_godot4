@@ -66,6 +66,7 @@ var _maps: PackedStringArray
 @onready var battle_host: BattleHost = $Systems/BattleHost
 @onready var death_host: DeathHost = $Systems/DeathHost
 @onready var evolution_host: EvolutionHost = $Systems/EvolutionHost
+@onready var tournament_host: TournamentHost = $Systems/TournamentHost
 @onready var debug: DebugHost = $Debug
 
 
@@ -244,6 +245,14 @@ func _start() -> void:
 	map_session.scripts = scripts
 	map_session.clock = clock
 	map_session.care_host = care_host
+	tournament_host.tamer = _tamer
+	tournament_host.partner = partner
+	tournament_host.interpreter = scripts.interpreter
+	tournament_host.boxes = scripts.boxes
+	tournament_host.map_session = map_session
+	tournament_host.game_state = GameState
+	tournament_host.data = GameData
+	tournament_host.start()
 	# Map entry goes through MAPHEAD (specs/script.md §3): SET_SCRIPT loads the map, the end of
 	# the setup section sets it up, script warps run the map change.
 	if scripts.interpreter != null:
@@ -319,7 +328,7 @@ func _frame() -> void:
 	menu_host.tick()
 	clock_host.tick()
 	if scripts.interpreter != null:
-		map_session.update_map_light_state()
+		tournament_host.tick()
 		scripts.tick_script()
 		_field.tick_pan()
 		scripts.tick_objects()

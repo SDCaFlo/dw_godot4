@@ -1388,13 +1388,6 @@ func _call_routine(routine: int) -> int:
 				return STOP
 			field.overlays.reset_animation(ctx.read_pstat(0xF7), ctx.read_pstat(0xF8))
 			return STOP
-		0x21:
-			# The arena's daily setup (tournament day, partner).
-			for t in [0x25, 0x26, 0x27]:
-				game_state.set_trigger(t)
-			game_state.set_script_value(2, 0x16 if int(game_state.state["clock"]["day"]) == 0x16 else 0x95)
-			game_state.set_script_value(3, 0x16)
-			game_state.set_script_value(4, _partner_type())
 		_:
 			_report(ScriptContext.OP_CALL_ROUTINE, "CALL_ROUTINE 0x%02X" % routine)
 			# A waiting builtin ends the frame; with its system missing it doesn't wait.

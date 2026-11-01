@@ -67,6 +67,7 @@ var _maps: PackedStringArray
 @onready var death_host: DeathHost = $Systems/DeathHost
 @onready var evolution_host: EvolutionHost = $Systems/EvolutionHost
 @onready var tournament_host: TournamentHost = $Systems/TournamentHost
+@onready var arena: Node = $Systems/ArenaStandIn
 @onready var debug: DebugHost = $Debug
 
 
@@ -141,6 +142,7 @@ func _start() -> void:
 	scripts.clock = clock
 	scripts.map_items = map_session.map_items
 	scripts.map_chests = map_session.map_chests
+	scripts.arena = arena
 	scripts.start()
 	scripts.message.connect(debug.show_message)
 	entities.npc_autotalk.connect(scripts.npc_autotalk)
@@ -253,6 +255,7 @@ func _start() -> void:
 	tournament_host.game_state = GameState
 	tournament_host.data = GameData
 	tournament_host.start()
+	arena.game_data = GameData
 	# Map entry goes through MAPHEAD (specs/script.md §3): SET_SCRIPT loads the map, the end of
 	# the setup section sets it up, script warps run the map change.
 	if scripts.interpreter != null:
@@ -280,6 +283,7 @@ func _start_debug() -> void:
 	debug.render_scale = render_scale
 	debug.ui_filter = ui_filter
 	debug.show_window = debug_window
+	debug.arena = arena
 	debug.start()
 	debug.window.render_scale_changed.connect(set_render_scale)
 	debug.window.ui_filter_changed.connect(func(on: bool) -> void:

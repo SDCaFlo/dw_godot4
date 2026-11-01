@@ -32,6 +32,8 @@ var map_name: MapName
 var clouds: CloudFX
 ## The hit sparks of the training stations (ParticleFX); in the HUD too.
 var sparks: ParticleFX
+## The arena stand-in (ArenaStandIn).
+var arena: Node
 ## TALKED_TO_ENTITY: the entity (2-9) of the last NPC talk.
 var talked_to_entity := 0
 
@@ -112,6 +114,7 @@ func start() -> void:
 		routines.interpreter = interpreter
 		routines.clouds = clouds
 		routines.sparks = sparks
+		routines.arena = arena
 		interpreter.routines = routines
 		for child in routines.get_children():
 			if child is NamingRoutines:

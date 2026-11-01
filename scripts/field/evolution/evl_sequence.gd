@@ -157,9 +157,9 @@ var saved_view := {}
 var animation := -1
 ## The sequence's own flash slots (I5: initializeFlashData(EVL_D_800677B0)).
 var fx := BattleFx.new()
-## Owned by later steps (specs/evolution_scene.md §6): EvlShardSets (step 3), EvlSparks and
-## EvlParticles (step 4). Null until then; every use is guarded.
-var shards: RefCounted = null
+## The shard sets (EvlShardSets): the owner builds one on bone_broken (E). EvlSparks and
+## EvlParticles come with step 4 (specs/evolution_scene.md §6): null until then, every use guarded.
+var shards := EvlShardSets.new()
 var sparks: RefCounted = null
 var particles: RefCounted = null
 
@@ -241,7 +241,7 @@ func tick() -> void:
 ## sparks and particles.
 func _tick_effects() -> void:
 	fx.tick()
-	for effect: RefCounted in [shards, sparks, particles]:
+	for effect: RefCounted in [shards as RefCounted, sparks, particles]:
 		if effect != null:
 			effect.call("tick")
 

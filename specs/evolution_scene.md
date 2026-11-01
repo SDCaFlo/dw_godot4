@@ -340,3 +340,10 @@ Written 2026-11-01 by the reviewer. The expected values are the C's (§3), worke
 - `DeathHost` sets the partner's scale every frame (its squash, 1 outside DOOA); `EvolutionHost` ticks after it, so its scale wins while the sequence runs.
 - Tests: `evolution_scan` with `DW_STEP_5F_2=2` (outlines at 0xA3, the new body at 0x11C, share 16 at 0x14F, scale 1 at the end); every other suite and scan unchanged.
 
+## As built (step 3, 2026-11-01)
+
+- Done in the main session. `EvlShardSets` (logic: build, tick, faces, grey) is owned by `EvlSequence` (created with it; ticked before the state's work, A3). `EvolutionHost` answers `bone_broken` with `PartnerWireframe.posed_bone(bone)` (new: one bone's vertices and normals in this frame's pose; the C breaks bone 1 too, which `posed_bones` leaves out for DOOA) and draws the sets with `EvlShardsView` every frame.
+- The view: one `ArrayMesh` a frame, a surface per (texture, STP mask, grey), unlit and double-sided. Before the brighten's first non-start frame: `PsxLit.material(…, abr 0, the model's STP mask)` (only the model's STP texels blend). From 0x71 (`brighten_t > 0x70`): `PsxLit.blended(…, abr 0)` (every texel; the transparent ones cut by the alpha test). The grey / 128 is `tint`. Each face's texture and STP mask are cached per (bone, face).
+- Step 5 adds the brighten's colours to these materials.
+- Tests: `test_evolution_scene` with `DW_STEP_5F_2=3` (55 checks), `evolution_scan` at step 3; every other suite and scan unchanged.
+

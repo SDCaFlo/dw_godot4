@@ -149,6 +149,28 @@ func posed_bones() -> Array:
 	return out
 
 
+## One bone's object in this frame's pose (EVL_buildShardSet, evl.c:1047-1112; specs/evolution_scene.md
+## E2, E3): {"bone", "object", "vertices", "normals"}, each an Array of Vector3i in PSX world units:
+## the vertices through the bone's global transform, the normals through its basis only (the C's
+## ApplyMatrixSV with the bone matrix: rotation and scale, no translation). {} if the bone has no
+## object.
+func posed_bone(bone: int) -> Dictionary:
+	for e in _objects:
+		if int(e["bone"]) != bone or not is_instance_valid(e["source"]):
+			continue
+		var xf: Transform3D = (e["source"] as Node3D).global_transform
+		var verts := []
+		for v in e["object"].get("vertices", []):
+			var g: Vector3 = xf * Content.psx_to_godot(v)
+			verts.append(Vector3i(roundi(g.x), roundi(-g.y), roundi(-g.z)))
+		var normals := []
+		for n in e["object"].get("normals", []):
+			var g: Vector3 = xf.basis * Content.psx_to_godot(n)
+			normals.append(Vector3i(roundi(g.x), roundi(-g.y), roundi(-g.z)))
+		return {"bone": bone, "object": e["object"], "vertices": verts, "normals": normals}
+	return {}
+
+
 ## The material of each face of bone `bone`'s object (the shards' textures), or [].
 func bone_materials(bone: int) -> Array:
 	for e in _objects:

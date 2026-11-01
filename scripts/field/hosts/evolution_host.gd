@@ -12,10 +12,12 @@ extends Node
 ## - the bodies (J): `wireframe` (PartnerWireframe) on the old model, each broken bone in outlines
 ##   (PARTNER_WIREFRAME_SUB), then on the new model filling in (PARTNER_WIREFRAME_TOTAL); the
 ##   partner's root scale while it grows.
-## The shards, sparks, rings and the brighten come with the later steps of the spec.
+## - the shard sets (E): built from the broken bone's pose, drawn by EvlShardsView.
+## The sparks, rings and the brighten come with the later steps of the spec.
 
 const BACKGROUND_DARK_SCENE := preload("res://scenes/field/death/background_dark.tscn")
 const FX_VIEW_SCENE := preload("res://scenes/battle/effects/battle_fx_view.tscn")
+const SHARDS_SCENE := preload("res://scenes/field/evolution/evl_shards.tscn")
 ## Entities 2, 3, 4 are the second palette bank's (evl.c:391-395, EVL_fadeClutBank1: (32, 488) 48 x 24).
 const BANK1_ENTITIES := [2, 3, 4]
 ## WIREFRAME_COLOR_MIN / MAX (model.c:89, :91): the evolution never changes them (J2).
@@ -43,6 +45,7 @@ var world: Node
 ## into the world here.
 var background_dark: ColorRect
 var fx_view: BattleFxView
+var shards_view: EvlShardsView
 
 ## Each other entity's `visible` before the hand-over (EVL_D_80068938).
 var _shown := {}
@@ -59,8 +62,10 @@ func start() -> void:
 	background_dark = BACKGROUND_DARK_SCENE.instantiate()
 	fx_view = FX_VIEW_SCENE.instantiate()
 	fx_view.projector = field_map
+	shards_view = SHARDS_SCENE.instantiate()
 	if world != null:
 		world.add_child(fx_view)
+		world.add_child(shards_view)
 	if partner == null:
 		return
 	evolution_scene.partner = partner
@@ -83,6 +88,7 @@ func _on_sequence_started(sequence: EvlSequence) -> void:
 	sequence.hand_over.connect(_on_hand_over)
 	sequence.ended.connect(_on_ended)
 	sequence.applied.connect(_on_applied)
+	sequence.bone_broken.connect(_on_bone_broken.bind(sequence))
 	fx_view.fx = sequence.fx
 	_attach_wireframe()
 	_active = true
@@ -101,6 +107,7 @@ func tick_objects() -> void:
 		_active = false
 		wireframe.detach()
 		partner.scale = Vector3.ONE
+		shards_view.clear()
 
 
 func _draw_frame(sequence: EvlSequence) -> void:
@@ -118,6 +125,8 @@ func _draw_frame(sequence: EvlSequence) -> void:
 	if wireframe.is_attached():
 		wireframe.set_share(sequence.wireframe_total, sequence.wireframe_sub)
 		wireframe.roll_greys(WIRE_GREY_MIN, WIRE_GREY_MAX)
+	# The shard sets (E7, E8): every non-black texel blends from the brighten's first non-start frame.
+	shards_view.draw(sequence.shards, wireframe.bone_materials, sequence.brighten_t > EvlSequence.BRIGHTEN_FROM)
 	# The growth (J3, J6): the partner's root scale, 4096 = 1.
 	partner.scale = Vector3(sequence.scale) / float(EvlSequence.SCALE_ONE)
 
@@ -171,6 +180,13 @@ func _bone_position(bone: int) -> Vector3i:
 		index = skeleton.find_bone("bone_0")
 	var world_point := skeleton.global_transform * skeleton.get_bone_global_pose(maxi(index, 0)).origin
 	return Vector3i(roundi(world_point.x), roundi(-world_point.y), roundi(-world_point.z))
+
+
+## EVL_buildShardSet (evl.c:440): the broken bone's object in this frame's pose (E2, E3).
+func _on_bone_broken(bone: int, sequence: EvlSequence) -> void:
+	var posed := wireframe.posed_bone(bone)
+	if not posed.is_empty():
+		sequence.shards.build(bone, posed["object"], posed["vertices"], posed["normals"])
 
 
 ## EVL_applyEvolution's new model (J5): the wireframe moves onto it.

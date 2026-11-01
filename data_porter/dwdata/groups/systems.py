@@ -34,6 +34,7 @@ FISH_C, SHOP_MENU, DOOA_C = "src/fish/fish.c", "src/shop/script_menu.c", "src/do
 MAIN_C = "src/main/main.c"
 OVERWORLD_C = "src/main/overworld.c"
 SCRIPT_VALUE_C, SCRIPT_H = "src/main/script_value.c", "include/dw/script.h"
+SCRIPT_INTERP_C, TRIGGER_H = "src/main/script_interp.c", "include/dw/trigger.h"
 # New game (../specs/new_game.md): the intro (new_game.c), the boot's partner choice (main.c), the naming
 # screen's characters (script_menu.c) and the movies (mov.c).
 NEW_GAME_C, MOV_C, PARTNER_IMPL_C = "src/main/new_game.c", "src/mov/mov.c", "src/main/partner_impl.c"
@@ -477,8 +478,27 @@ def convert(input_root, output_root) -> GroupWriter:
         except CError:
             image_paths.append(None)
             bad["grade images"].append(sym)
+    utils2_c = " ".join((decomp.root / UTILS2_C).read_text(encoding="utf-8", errors="replace").split())
+    script_interp_c = " ".join((decomp.root / SCRIPT_INTERP_C).read_text(encoding="utf-8", errors="replace").split())
+    trigger_h = " ".join((decomp.root / TRIGGER_H).read_text(encoding="utf-8").split())
+
+    out.check("tournaments: won_trigger (id + 15) is in utils2.c and trigger.h",
+              "setTrigger(id + 15);" in utils2_c and "#define TRIGGER_D_RANK_CUP_WON TRIGGER_15" in trigger_h and "#define TRIGGER_15 15" in trigger_h,
+              "setTrigger(id + 15); TRIGGER_D_RANK_CUP_WON = 15")
+    out.check("tournaments: rounds_to_win (2 for id 5, else 3) is in utils2.c",
+              "if (id != 5) { expected = 3; } else { expected = 2; }" in utils2_c,
+              "if (id != 5) expected = 3; else expected = 2;")
+    out.check("tournaments: open_pool (id == 0x16) is in utils2.c",
+              "if (id != 0x16) {" in utils2_c,
+              "if (id != 0x16)")
+    out.check("tournaments: registered_by_builtin_0x21 (id == 0x16) is in script_interp.c",
+              "writePStat(3, 0x16);" in script_interp_c,
+              "writePStat(3, 0x16);")
+
     tournaments = [{"id": k, "name": sref(names_l[k]), "grade": sref(grades_l[k]), "grade_image": image_paths[k],
-                    "opponent_base_stat": base_stats[k] if k < len(base_stats) else None, "days": days_of.get(k, [])}
+                    "opponent_base_stat": base_stats[k] if k < len(base_stats) else None, "days": days_of.get(k, []),
+                    "won_trigger": k + 15, "rounds_to_win": 2 if k == 5 else 3,
+                    "open_pool": k == 0x16, "registered_by_builtin_0x21": k == 0x16}
                    for k in range(len(names_l))]
     tables.keys(out, tournaments, "tournament", tables.name_base("STR_TOURNAMENT_NAME_"))
     write("tournaments", ["TOURNAMENT_NAMES", "TOURNAMENT_GRADES", "STD_GRADES", "STD_OPPONENT_BASE_STATS"], {
@@ -492,6 +512,10 @@ def convert(input_root, output_root) -> GroupWriter:
                                           "10 b ± 30 %, x1 (Rookie), x2 (Champion), x2.5 (Ultimate), capped "
                                           "(STD_initializeOpponent, std_setup.c:292-345)"},
         "days": {"meaning": "days of the month (0-29) it is held (TOURNAMENT_SCHEDULE)"},
+        "won_trigger": {"meaning": "trigger set on winning the cup: id + 15 (TRIGGER_D_RANK_CUP_WON + id, utils2.c:674)"},
+        "rounds_to_win": {"meaning": "rounds needed to win the tournament: 2 for cup 5 (Grade R), else 3 (utils2.c:666-669)"},
+        "open_pool": {"meaning": "whether opponent draw takes the whole list without checking roster triggers: true only for Beetle Cup (0x16, utils2.c:603)"},
+        "registered_by_builtin_0x21": {"meaning": "registered directly by builtin 0x21 at Beetle Land: true only for Beetle Cup (0x16, script_interp.c:1810)"},
     }, tournaments,
         {"access": "GameData.tournament(id)"},
         extra={"unused": {"STD_OPPONENT_BASE_STATS": base_stats[len(names_l):]}})
@@ -512,16 +536,73 @@ def convert(input_root, output_root) -> GroupWriter:
         {"access": "GameData.tournament_win_chance(level_a, level_b)",
          "notes": "Row 3 (level 6) is all 0 and never used."})
 
+    tournament_c = " ".join((decomp.root / TOURNAMENT_C).read_text(encoding="utf-8", errors="replace").split())
+    medal_cups_c = (
+        "for (i = 0; i < 6; i++) { if (isTriggerSet(TRIGGER_D_RANK_CUP_WON + i) == 0)" in tournament_c and
+        "for (i = 0; i < 5; i++) { if (isTriggerSet(TRIGGER_VERSION_1_CUP_WON + i) == 0)" in tournament_c and
+        "for (i = 0; i < 7; i++) { if (isTriggerSet(TRIGGER_FIRE_CUP_WON + i) == 0)" in tournament_c and
+        "for (i = 0; i < 4; i++) { if (isTriggerSet(TRIGGER_DINO_CUP_WON + i) == 0)" in tournament_c and
+        "#define TRIGGER_D_RANK_CUP_WON TRIGGER_15" in trigger_h and
+        "#define TRIGGER_VERSION_1_CUP_WON TRIGGER_21" in trigger_h and
+        "#define TRIGGER_FIRE_CUP_WON TRIGGER_26" in trigger_h and
+        "#define TRIGGER_DINO_CUP_WON TRIGGER_33" in trigger_h
+    )
+    out.check("tournament_medals: cup condition groups are in tournament.c and trigger.h", medal_cups_c,
+              "triggers 15+0..5, 21+0..4, 26+0..6, 33+0..3")
+    out.check("tournament_medals: min_wins (100) is in tournament.c",
+              "if (TOURNAMENT_WINS >= 100)" in tournament_c, "if (TOURNAMENT_WINS >= 100)")
+    all_cards_c = (
+        "for (i = 0; i < 0x42; i++)" in tournament_c and
+        "if (isTriggerSet(TRIGGER_BEATEN_GAME_ONCE) == 0)" in tournament_c and
+        "#define TRIGGER_BEATEN_GAME_ONCE TRIGGER_50" in trigger_h and
+        "#define TRIGGER_50 50" in trigger_h
+    )
+    out.check("tournament_medals: all_cards (0x42) and trigger (50) are in tournament.c and trigger.h",
+              all_cards_c, "0x42 cards, TRIGGER_BEATEN_GAME_ONCE = 50")
+
+    card_count = len(index.table(SCRIPT_C, "CARD_DATA")[REFERENCE].value)
+    out.check("0x42 equals the number of CARD_DATA records (66)", card_count == 0x42, f"{card_count} cards")
+
+    def tref(t):
+        e = names_l[t] if 0 <= t < len(names_l) else None
+        name = (strings.get(e) or {}).get("text", {}).get("en_us") if e is not None else None
+        return {"id": t, "name": name}
+
     medal_ids, medal_names = us["TOURNAMENT_MEDAL_IDS"], us["MEDAL_NAMES"]
     conditions = ["the 6 Grade cups won", "the 5 Version cups won", "the 7 type cups (Fire ... Filth) won",
                   "the 4 special cups (Dino ...) won", "100 tournament wins", "all 66 cards and the game beaten once"]
+    cup_ranges = {
+        0: range(0, 6),
+        1: range(6, 11),
+        2: range(11, 18),
+        3: range(18, 22),
+    }
+    medal_records = []
+    for k, m in enumerate(medal_ids):
+        rec = {
+            "condition": k,
+            "meaning": conditions[k] if k < len(conditions) else None,
+            "medal": {"id": m, "name": sref(medal_names[m]) if m < len(medal_names) else None},
+        }
+        if k in cup_ranges:
+            rec["cups"] = [tref(t) for t in cup_ranges[k]]
+        elif k == 4:
+            rec["min_wins"] = 100
+        elif k == 5:
+            rec["all_cards"] = True
+            rec["trigger"] = 50
+        medal_records.append(rec)
+
     write("tournament_medals", ["TOURNAMENT_MEDAL_IDS", "MEDAL_NAMES"], {
         "condition": {"meaning": "result of checkTournamentMedalConditions (tournament.c:167-240): conditions are "
                                  "tested in order, the first fully met one is returned, -1 if its medal is owned"},
+        "meaning": {"meaning": "human description of the condition"},
         "medal": {"meaning": "medal id unlocked (TOURNAMENT_MEDAL_IDS[condition]) and its name (MEDAL_NAMES)"},
-    }, [{"condition": k, "meaning": conditions[k] if k < len(conditions) else None,
-         "medal": {"id": m, "name": sref(medal_names[m]) if m < len(medal_names) else None}}
-        for k, m in enumerate(medal_ids)],
+        "cups": {"ref": "systems/tournaments", "meaning": "cups whose won_trigger must all be set (conditions 0-3; tournament.c:173-209)"},
+        "min_wins": {"meaning": "minimum tournament wins needed: 100 on condition 4 (TOURNAMENT_WINS >= 100, tournament.c:213)"},
+        "all_cards": {"meaning": "whether all 66 trading cards must be owned: condition 5 (tournament.c:218-222)"},
+        "trigger": {"meaning": "story trigger that must be set: 50 on condition 5 (TRIGGER_BEATEN_GAME_ONCE, tournament.c:224)"},
+    }, medal_records,
         {"access": "GameData.system('tournament_medals')"},
         extra={"medal_names": [sref(s) for s in medal_names]})
 

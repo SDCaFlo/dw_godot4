@@ -8,6 +8,11 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Open
 
+### I-40. Punimon screams constantly while it evolves
+- **Seen:** evolving Punimon, its scream plays over and over from the start of the scene (reported 2026-11-01, after 5f-2). Agumon screams once, with the first bone break, as in the original.
+- **To check:** which animation and sound repeat. Candidates: the loading's animation 1 (it loops for about 6 s before the sequence) or animation 0xC carrying a slot-3 voice sound in Punimon's model, replayed at each loop; or Punimon having no animation 0xC (`EvolutionScene._start_animation` then ends it at once, so A5 starts animation 1 again). Compare with the C (`anim.c:336`: a sound plays at its frame of every loop) and with the original game.
+- **Status:** open (later, the user's call).
+
 ### I-39. Two drop shadows over each other: the second clears the first
 - **Seen:** standing next to the partner (MetalGreymon), the tamer's shadow shows as a clear ring over the partner's darker one (reported 2026-11-01, `issues/evidence/dw_issue_double_shadow_cancel.png`).
 - **Cause:** `shaders/drop_shadow.gdshader` did the PSX's subtraction itself from Godot's copy of the screen (taken before the transparent pass) and wrote the result with `blend_mix`: every shadow starts from the unshadowed ground, so the last one drawn replaces the others' darkening. The C draws each shadow as a subtractive polygon at OT 0xFFD (`drop_shadow.c`, `specs/drop_shadow.md`): an overlap subtracts twice.

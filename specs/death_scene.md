@@ -2,7 +2,7 @@
 
 Drawing the DOOA dissolution and rebirth, and the parts of MURD still drawn by stand-ins, the way the original does. The scenes' timelines are already ported (`specs/death_reincarnation.md`: `MurdScene`, `DooaScene`, the partner and tamer states). This step replaces the stand-in visuals in `DeathHost` (`scripts/field/hosts/death_host.gd`, `scenes/field/death/partner_dissolve.gdshader`) and fills the logic gaps of §4.11. Bug report: `ISSUES.md` I-38 (`issues/evidence/dw_very_bugy_death.mp4`).
 
-**Status (2026-10-31):** done (all nine steps, branch `feat/6-2-death-scene`); the acceptance tests pass (§7, the gate removed). As built: §9. The user's in-game checks: `VERIFY.md` "Death, lives and reincarnation".
+**Status (2026-10-31):** done (all nine steps, branch `feat/6-2-death-scene`); the acceptance tests pass (§7, the gate removed). As built: §9. The user's in-game checks: `VERIFY.md` "Death, lives and reincarnation" (confirmed by the user 2026-10-31).
 
 ## 0. How to work on this step
 

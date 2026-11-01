@@ -137,6 +137,9 @@ So these need no evolution code of their own: once routines 2 and 10 work (5f-1)
 
 ### 2.9 The sequence (5f-2, outline)
 
+**Detailed in `specs/evolution_scene.md`** (2026-11-01), which supersedes this outline where they differ. Corrections found there: the partner's palette isn't faded in state 0 (only the map, the tamer and the NPCs); the "green particles" are square rings growing on the floor, not rising; the first bone breaks at 0x6A, and from 0x9B one bone breaks every frame; the camera is still from 0x6B to 0xA4.
+
+
 `EVL_initEvoSequence`: the effects' buffers, the field's two CLUT banks and the partner's CLUT saved, a random order of the partner's bones. Then `EVL_tickEvoSequence`, one state a frame, its timer counting from 0:
 - **0 (frames 0–31):** the field's palettes and the partner's fade to black (`fadeoutCLUT1/2`, `EVL_fadeClutBank0/1`). At 32: the other entities and the map hidden, the camera saved, the new model loads; → 1.
 - **1:** the camera moves around the partner (`EVL_updateEvoCamera`) until frame 0x6A: sounds (8, 1) and (8, 0), animation 0xC (then 1 when it ends), → 2 with the first shard.

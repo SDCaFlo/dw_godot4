@@ -18,7 +18,8 @@ class StubData extends "res://scripts/data/game_data.gd":
 		return paths[id] if paths.has(id) else super.evolution_paths(ref)
 
 
-## A scene without models: it applies the evolution after `frames` ticks, then ends.
+## A scene without models: it applies the evolution after 3 ticks, then ends. Its timer is what
+## partner state 13 reads from step 5f-2 on (specs/evolution_scene.md A1); before, the partner ticks it.
 class StubScene extends EvolutionScene:
 	var started := -1
 	var left := 0
@@ -26,14 +27,30 @@ class StubScene extends EvolutionScene:
 	func start(evolution_target: int) -> void:
 		started = evolution_target
 		left = 3
+		timer = 3
 
 	func tick() -> int:
+		if timer < 0:
+			return -1
 		left -= 1
-		if left > 0:
-			return left
+		timer = left
 		if left == 0:
 			evolution.apply_evolution(started)
-		return -1
+			timer = -1
+		return timer
+
+
+## Step 5f-2 reached (specs/evolution_scene.md §7): the scene is an object of the frame (A1) and the
+## loading's end no longer applies the evolution (§2).
+static func _step_5f_2() -> bool:
+	return OS.get_environment("DW_STEP_5F_2").is_valid_int() and int(OS.get_environment("DW_STEP_5F_2")) >= 1
+
+
+## One frame of partner state 13: the partner, then (from 5f-2) the scene's object tick (A1).
+static func _frame_13(partner: Partner, scene: EvolutionScene) -> void:
+	partner.tick_evolving()
+	if _step_5f_2():
+		scene.tick()
 
 
 var _failed := 0
@@ -544,8 +561,8 @@ func _state_13() -> void:
 	tamer.position = Vector3(150, 0, 0)
 	partner.tick_evolving()
 	_eq([partner.sub_state, scene.started], [2, 2], "close: the scene starts with the target")
-	for i in 3:
-		partner.tick_evolving()
+	for i in (4 if _step_5f_2() else 3):
+		_frame_13(partner, scene)
 	_eq([gs.state["partner"]["digimon"], clock.running, care.evolution_target, partner.state, tamer.state, tamer.camera_follow],
 			["dw1:koromon", true, -1, Partner.STATE_NORMAL, Tamer.STATE_FREE, true], "the end: Koromon, time runs, the tamer free")
 
@@ -557,7 +574,7 @@ func _state_13() -> void:
 	care.evolution_target = 3
 	partner.set_state(Partner.STATE_EVOLVING)
 	for i in 6:
-		partner.tick_evolving()
+		_frame_13(partner, scene)
 	_eq([gs.state["partner"]["digimon"], ctx.sync_bit, tamer.state], ["dw1:agumon", 1, Tamer.STATE_SCRIPT], "a script's evolution sets the sync bit")
 	care.tamer = null
 	care.partner = null
@@ -597,9 +614,30 @@ func _scene_loading() -> void:
 		scene.tick()
 		frames += 1
 	_eq(frames, 57 + 56, "state 1: 56 more frames (from timer 1 past 55), then the evolution")
-	_eq([partner.digimon, gs.state["partner"]["digimon"]], ["dw1:greymon", "dw1:greymon"], "the new model and game state")
-	partner.animator.frame = partner.animator.frame_count
-	_eq(scene.tick(), -1, "the pose ends: timer -1")
+	if not _step_5f_2():
+		_eq([partner.digimon, gs.state["partner"]["digimon"]], ["dw1:greymon", "dw1:greymon"], "the new model and game state")
+		partner.animator.frame = partner.animator.frame_count
+		_eq(scene.tick(), -1, "the pose ends: timer -1")
+	else:
+		# specs/evolution_scene.md A2, J5, K3: the sequence starts at timer 0; its first tick is the
+		# next frame; frame 0x11C applies the evolution (0x11D ticks); the end when 0xB has played.
+		_eq([scene.timer, partner.digimon, scene.get("sequence") != null], [0, "dw1:agumon", true],
+				"5f-2: the loading ends with the sequence at timer 0, no evolution yet")
+		var ticks := 0
+		while partner.digimon != "dw1:greymon" and ticks < 0x200:
+			scene.tick()
+			ticks += 1
+		_eq([ticks, gs.state["partner"]["digimon"]], [0x11D, "dw1:greymon"], "5f-2: frame 0x11C applies the evolution")
+		var guard := 0
+		var value := 0
+		while value != -1 and guard < 0x200:
+			if partner.animator != null and partner.animator.anim_id == 0xB:
+				if partner.animator.loop_count == PsxAnimator.ENDLESS:
+					partner.animator.finish_loop()
+				partner.animator.frame = partner.animator.frame_count
+			value = scene.tick()
+			guard += 1
+		_eq(value, -1, "5f-2: the pose ends: timer -1")
 	partner.free()
 	tamer.free()
 	map.free()

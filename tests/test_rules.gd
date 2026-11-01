@@ -50,6 +50,7 @@ func _initialize() -> void:
 		_check(path)
 	_ok(_files > 0, "found scripts under %s" % ROOT)
 	_stand_ins_6_2()
+	_stand_ins_5f_2()
 	print("%s: rule checks (%d files)" % ["FAILED %d" % _failed if _failed else "OK", _files])
 	quit(1 if _failed else 0)
 
@@ -68,6 +69,19 @@ func _stand_ins_6_2() -> void:
 	if found.is_empty():
 		return
 	_fail("6-2 stand-ins back: " + ", ".join(found))
+
+
+## Step 5f-2's stand-in gone (specs/evolution_scene.md §2, §7).
+const EVOLUTION_SCENE := "res://scripts/field/evolution_scene.gd"
+## The stand-in's state and its wording (EVL_applyEvolution keeps its name: `_apply` is the real one now).
+const STAND_INS_5F_2 := ["stand-in", "STATE_POSE"]
+
+
+func _stand_ins_5f_2() -> void:
+	var text := FileAccess.get_file_as_string(EVOLUTION_SCENE)
+	var found := STAND_INS_5F_2.filter(func(n): return text.contains(n))
+	if not found.is_empty():
+		_fail("5f-2 stand-ins back in %s: %s" % [EVOLUTION_SCENE.get_file(), ", ".join(found)])
 
 
 func _check(path: String) -> void:

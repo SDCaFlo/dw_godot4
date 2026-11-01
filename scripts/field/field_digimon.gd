@@ -66,14 +66,16 @@ var _model: Node3D
 
 
 ## Loads the model of a Digimon (key or id) through its files component.
-func load_digimon(data: Node, ref: Variant) -> bool:
+## `preloaded`: {"model": Node3D, "gltf": Dictionary} made ahead by Content.load_model / load_json
+## (the evolution's loadMMDAsync, specs/evolution_scene.md A7); empty: loaded here.
+func load_digimon(data: Node, ref: Variant, preloaded := {}) -> bool:
 	var record: Dictionary = data.digimon(ref)
 	var mmd: String = data.digimon_file(ref).get("mmd", "")
 	if record.is_empty() or mmd == "":
 		push_error("%s: no model for %s" % [name, ref])
 		return false
 	var rel := "mmd_files/%s/%s.gltf" % [mmd.get_slice("/", 1), mmd.get_file().get_basename()]
-	var model := Content.load_model(rel)
+	var model: Node3D = preloaded["model"] if preloaded.get("model") != null else Content.load_model(rel)
 	if model == null:
 		return false
 	if _model != null:
@@ -86,7 +88,7 @@ func load_digimon(data: Node, ref: Variant) -> bool:
 	var player: AnimationPlayer = model.find_children("*", "AnimationPlayer", true, false)[0]
 	var anim_root := player.get_node(player.root_node)
 	player.root_motion_track = NodePath("%s:bone_0" % anim_root.get_path_to(_skeleton))
-	var gltf = Content.load_json(rel)
+	var gltf = preloaded["gltf"] if preloaded.get("gltf") != null else Content.load_json(rel)
 	animator = PsxAnimator.new(player, gltf)
 	sounds = _part("AnimationSounds", func(): return AnimationSoundsComponent.new())
 	sounds.set_model(gltf)

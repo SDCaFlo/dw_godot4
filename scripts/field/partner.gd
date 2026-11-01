@@ -98,8 +98,8 @@ func _ready() -> void:
 
 
 ## Loads the model of a Digimon (key or id) through its files component.
-func load_digimon(data: Node, ref: Variant) -> bool:
-	if not super.load_digimon(data, ref):
+func load_digimon(data: Node, ref: Variant, preloaded := {}) -> bool:
+	if not super.load_digimon(data, ref, preloaded):
 		return false
 	tamer_radius = int(data.digimon(0).get("radius", 0))
 	# stats.current.vabId = 4 (partner_impl.c:465): its sounds are in slot 4.
@@ -331,8 +331,10 @@ func tick_evolving() -> void:
 				sub_state = 2
 		2:
 			var value := -1
+			# The scene is an object of the frame (EvolutionHost.tick_objects); the partner only reads its
+			# timer (getEvoSequenceState(..., 1), main/evl.c:86; specs/evolution_scene.md A1).
 			if evolution_scene != null:
-				value = evolution_scene.tick()
+				value = evolution_scene.timer
 			elif care != null and care.evolution != null and care.evolution_target != -1:
 				load_digimon(data, care.evolution.apply_evolution(care.evolution_target))
 			if value == -1:

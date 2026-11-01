@@ -8,6 +8,16 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Open
 
+### I-40. Punimon screams constantly while it evolves
+- **Seen:** evolving Punimon, its scream plays over and over from the start of the scene (reported 2026-11-01, after 5f-2). Agumon screams once, with the first bone break, as in the original.
+- **To check:** which animation and sound repeat. Candidates: the loading's animation 1 (it loops for about 6 s before the sequence) or animation 0xC carrying a slot-3 voice sound in Punimon's model, replayed at each loop; or Punimon having no animation 0xC (`EvolutionScene._start_animation` then ends it at once, so A5 starts animation 1 again). Compare with the C (`anim.c:336`: a sound plays at its frame of every loop) and with the original game.
+- **Status:** open (later, the user's call).
+
+### I-39. Two drop shadows over each other: the second clears the first
+- **Seen:** standing next to the partner (MetalGreymon), the tamer's shadow shows as a clear ring over the partner's darker one (reported 2026-11-01, `issues/evidence/dw_issue_double_shadow_cancel.png`).
+- **Cause:** `shaders/drop_shadow.gdshader` did the PSX's subtraction itself from Godot's copy of the screen (taken before the transparent pass) and wrote the result with `blend_mix`: every shadow starts from the unshadowed ground, so the last one drawn replaces the others' darkening. The C draws each shadow as a subtractive polygon at OT 0xFFD (`drop_shadow.c`, `specs/drop_shadow.md`): an overlap subtracts twice.
+- **Status:** fixed (2026-11-01): the shader outputs what it takes away and draws with `blend_sub`, so overlaps add up; a lone shadow is unchanged. Port-only approximation: the two subtractions add in linear light, where the PSX's second one would start from the first one's result in its gamma values.
+
 ### I-24. A battle that never starts (Native Forest)
 - **Seen:** on MAYO04A, a sky-blue face (the "flees" bubble) over an Aruraumon, then the battle never started, for minutes (reported 2026-10-26 with step 5d-4). Expected: the Digimon you talk to always fights (red face); only the others may flee, so a battle always has an enemy, except key fights, which have their own list.
 - **What the original does:** `handleBattleStart` (`btl.c:209`) puts the talked-to Digimon first in the fight with the "joins" bubble before rolling the others; a key fight (script value 0xFA) takes its enemies from script values 0xFB-0xFD and gives every other Digimon on screen the "flees" bubble. The intro then waits until every runner has left the screen.
@@ -35,7 +45,7 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
   - No egg in the dialogue: at 0x185–0x1B7 it is Jijimon (entity 2) whose model CLUT fades in (`DOO2_fadeClut` to the CLUT at (32, 488)).
   - The rebirth: the floor shards spin up and outwards (state 1, frames 10–100), converge to the middle (state 3, 100–132) while the egg appears as a wireframe filling in (`DOOA_renderRebirth`, threshold 1 → 16), with spark streaks; the room's CLUT fades back 152–202; at 202 the baby shows and the egg's 6 pieces break off one by one with a sound (the sparkles).
 - **Cause:** none of that is ported yet (`specs/death_reincarnation.md` §9, `PLANS.md` 6-2). The port draws stand-ins: a shader sinking the skinned mesh's vertices (garbage on skinned models), a separate line mesh, no camera (the partner is moved to the origin with the field camera unchanged), and the egg model shown from 0x185.
-- **Status:** fixed (2026-10-31, step 6-2, branch `feat/6-2-death-scene`). The user's first check (`issues/evidence/dw_death_process.mp4`) found four slips, fixed the same day: the square iris, the dark shadow over the iris, the grey floor shards, the room jumping at the end of the dissolve (`specs/death_scene.md` "As built"); the second check pending. Measured before by `tests/death_scan.gd`'s 6-2 checks: at DOOA frame 0x63 the partner was drawn at screen (127, 44) instead of the C's (160, 123), and the stand-in egg showed during the dialogue.
+- **Status:** fixed (2026-10-31, step 6-2, branch `feat/6-2-death-scene`). The user's first check (`issues/evidence/dw_death_process.mp4`) found four slips, fixed the same day: the square iris, the dark shadow over the iris, the grey floor shards, the room jumping at the end of the dissolve (`specs/death_scene.md` "As built"); the second check passed (confirmed by the user 2026-10-31). Measured before by `tests/death_scan.gd`'s 6-2 checks: at DOOA frame 0x63 the partner was drawn at screen (127, 44) instead of the C's (160, 123), and the stand-in egg showed during the dialogue.
 
 ## Fixed
 

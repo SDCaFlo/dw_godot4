@@ -1,6 +1,6 @@
 # Evolution
 
-Status (2026-10-26): approved; **5f-1 (the rules) done** (see "As built" at the end); 5f-2 (the scene) to do (`PLANS.md` 5f).
+Status (2026-11-01): **5f-1 (the rules) done** (see "As built" at the end); **5f-2 (the scene) done** in `specs/evolution_scene.md`, its glow parked (`PLANS.md` 5f).
 
 When and into what the partner evolves, and what evolving does to it. The rules are in `main/evolution.c`, the triggers in `partner_impl.c`, `partner.c` and `item.c`, and applying the evolution and the scene are in the `evl` overlay. The data porter already has the tables and documents the selection in detail (`data_porter/specs/evolution.md` §2). This spec says how the port runs them.
 
@@ -128,7 +128,7 @@ So these need no evolution code of their own: once routines 2 and 10 work (5f-1)
 ### 2.8 The scene's start (`getEvoSequenceState(…, 0)`, `tickEvoSequenceLoading`)
 
 - the scene's data: timer 0, state 0, the target, `digimonId` = `stat_gains[target].targetDigimon`, the height factor;
-- the partner plays animation 0; sounds stop; the evolution sound set (map sounds 18) and the new Digimon's voice bank (`VLALL`) load; the `evl` overlay loads;
+- the partner plays animation 0; sounds stop; the evolution sound set (map sounds 18) loads, and the new Digimon's voices: its battle set (slot 4) now, its field set (`VLALL`, slot 3) read now but uploaded only after the apply (`specs/evolution_scene.md` A8); the `evl` overlay loads;
 - **the loading object**, each frame (its timer + 1, at most 30000):
   - state 0: once the timer is past 55 (the 57th frame): state 1, timer 0 (then + 1), the partner plays animation 1, condition bubble 7 over it;
   - state 1: once the timer is past 55 again (56 more frames; and the overlay loaded): the object ends, the music stops (`stopBGM`), the sequence starts (`EVL_initEvoSequence`, §2.9).
@@ -136,6 +136,9 @@ So these need no evolution code of their own: once routines 2 and 10 work (5f-1)
 `getEvoSequenceState(…, 1)` returns the timer, which the sequence sets to −1 when it ends.
 
 ### 2.9 The sequence (5f-2, outline)
+
+**Detailed in `specs/evolution_scene.md`** (2026-11-01), which supersedes this outline where they differ. Corrections found there: the partner's palette isn't faded in state 0 (only the map, the tamer and the NPCs); the "green particles" are square rings growing on the floor, not rising; the first bone breaks at 0x6A, and from 0x9B one bone breaks every frame; the camera is still from 0x6B to 0xA4.
+
 
 `EVL_initEvoSequence`: the effects' buffers, the field's two CLUT banks and the partner's CLUT saved, a random order of the partner's bones. Then `EVL_tickEvoSequence`, one state a frame, its timer counting from 0:
 - **0 (frames 0–31):** the field's palettes and the partner's fade to black (`fadeoutCLUT1/2`, `EVL_fadeClutBank0/1`). At 32: the other entities and the map hidden, the camera saved, the new model loads; → 1.

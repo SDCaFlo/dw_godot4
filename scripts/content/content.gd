@@ -120,14 +120,22 @@ static func load_audio(rel: String) -> AudioStreamWAV:
 ## animations are per-instance copies, so code may change them (e.g. loop modes) without touching
 ## imported resources.
 static func load_model(rel: String) -> Node3D:
-	var scene: Node3D
 	if imported(rel) != "":
-		scene = (load(imported(rel)) as PackedScene).instantiate()
-		_own_animations(scene)
-	else:
-		scene = _load_gltf(path(rel))
+		return instance_model(load(imported(rel)) as PackedScene, rel)
+	var scene := _load_gltf(path(rel))
 	if scene != null:
 		_psx_materials(scene, _material_extras(rel))
+	return scene
+
+
+## load_model's work on an imported scene already loaded (e.g. by ResourceLoader's threaded
+## loader): no load() here, so a worker thread may run it on a model not yet in the tree.
+static func instance_model(packed: PackedScene, rel: String) -> Node3D:
+	if packed == null:
+		return null
+	var scene := packed.instantiate() as Node3D
+	_own_animations(scene)
+	_psx_materials(scene, _material_extras(rel))
 	return scene
 
 

@@ -31,9 +31,8 @@ var bubbles: ConditionBubbles
 var poop: PoopPiles
 ## The healing particles an item starts (ItemUse.healing_effect; ISSUES.md I-21).
 var healing: HealingParticles
-## The evolution rules and their scene (specs/evolution.md §3).
+## The evolution rules (specs/evolution.md §3).
 var evolution: Evolution
-var evolution_scene: EvolutionScene
 
 
 ## The care rules and the fade they use (specs/care.md §3). A new game's partner gets
@@ -100,8 +99,8 @@ func _start_visuals() -> void:
 	world.add_child(healing)
 
 
-## The evolution's rules (Care's hourly check, the special evolutions, the items) and the scene
-## partner state 13 plays.
+## The evolution's rules (Care's hourly check, the special evolutions, the items). Its scene (partner
+## state 13's) is the EvolutionHost's.
 func _start_evolution() -> void:
 	evolution = Evolution.new()
 	evolution.game_state = GameState
@@ -111,16 +110,6 @@ func _start_evolution() -> void:
 	if interpreter != null:
 		evolution.script_ctx = interpreter.ctx
 	care.evolution = evolution
-	evolution_scene = EvolutionScene.new()
-	evolution_scene.name = "EvolutionScene"
-	evolution_scene.partner = partner
-	evolution_scene.evolution = evolution
-	evolution_scene.game_state = GameState
-	evolution_scene.data = GameData
-	evolution_scene.sound = Sound
-	evolution_scene.bubbles = bubbles
-	add_child(evolution_scene)
-	partner.evolution_scene = evolution_scene
 
 
 ## The bars' slide, then the bubbles; with the menu open (IS_IN_MENU, bubble.c:482, :619) the

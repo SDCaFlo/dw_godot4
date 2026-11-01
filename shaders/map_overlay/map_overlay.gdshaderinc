@@ -7,6 +7,8 @@ uniform bool use_stp = false;
 uniform bool blended_pass = false;
 uniform float alpha_scale = 1.0;
 uniform float color_scale = 1.0;
+// fadeoutCLUT1's palette scale (effect_common.c:364; MapOverlays.set_fade): 1 = the sprite's own colours.
+uniform float fade = 1.0;
 
 void fragment() {
 	vec4 c = texture(tex, UV);
@@ -14,6 +16,6 @@ void fragment() {
 	if (c.a < 0.5 || semi != blended_pass) {
 		discard;
 	}
-	ALBEDO = c.rgb * color_scale;
+	ALBEDO = c.rgb * color_scale * fade;
 	ALPHA = blended_pass ? alpha_scale : 1.0;
 }

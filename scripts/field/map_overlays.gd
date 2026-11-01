@@ -27,6 +27,9 @@ const ORDER_MIN := 0x23
 const ORDER_MAX := 0xFF6
 ## someY 10000: behind every model, just over the background (0xFFF).
 const ORDER_BACK := 0xFFE
+## fadeoutCLUT1's palette rows (effect_common.c:380-388: row 480, then 484-486).
+const FADED_ROW_FIRST := 480
+const FADED_ROWS := [484, 486]
 const BACK_Y := 10000
 const ORDER_SNOW := 0x1E
 ## buildMapOverlayPrim: transparency 4 is opaque; others blend with mode `transparency & 3`.
@@ -52,6 +55,8 @@ var _move_delta: Array = []
 var _frame_count := 0
 ## Shaders per blend mode, materials per (sprite, palette).
 var _materials := {}
+## fadeoutCLUT1's level now (set_fade), 0 = none.
+var _fade_level := 0
 
 
 func _init() -> void:
@@ -401,6 +406,30 @@ const _SHADERS := {
 }
 
 
+## fadeoutCLUT1 (effect_common.c:364-399): the map's palette rows 480 and 484-486 scaled by
+## (255 - level) / 255. The sprites drawn on those rows (clut -1: row 480; below 16: row 486; 16-18:
+## rows clut + 468) fade with the background; the others keep their colours.
+func set_fade(level: int) -> void:
+	if level == _fade_level:
+		return
+	_fade_level = level
+	for key: Vector2i in _materials:
+		_apply_fade(key.x, _materials[key])
+
+
+func _apply_fade(sprite: int, material: Material) -> void:
+	# The porter's `clut` is the palette's VRAM position {x, y}.
+	var clut: Variant = _sprites[sprite].get("clut") if sprite < _sprites.size() else null
+	var row := int(clut.get("y", -1)) if clut is Dictionary else -1
+	var faded := row == FADED_ROW_FIRST or (row >= FADED_ROWS[0] and row <= FADED_ROWS[1])
+	var f := (255 - clampi(_fade_level, 0, 255)) / 255.0 if faded else 1.0
+	var m := material
+	while m != null:
+		if m is ShaderMaterial:
+			(m as ShaderMaterial).set_shader_parameter("fade", f)
+		m = m.next_pass
+
+
 func _material(sprite: int) -> Material:
 	var key := Vector2i(sprite, palette)
 	if _materials.has(key):
@@ -428,6 +457,8 @@ func _material(sprite: int) -> Material:
 		semi.set_shader_parameter("color_scale", 0.25 if mode == 3 else 1.0)
 		opaque.next_pass = semi
 	_materials[key] = opaque
+	if _fade_level != 0:
+		_apply_fade(sprite, opaque)
 	return opaque
 
 

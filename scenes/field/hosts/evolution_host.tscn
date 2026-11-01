@@ -1,0 +1,13 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/field/hosts/evolution_host.gd" id="1_evolution_host"]
+[ext_resource type="Script" path="res://scripts/field/evolution_scene.gd" id="2_scene"]
+[ext_resource type="PackedScene" path="res://scenes/field/partner_wireframe.tscn" id="3_wire"]
+
+[node name="EvolutionHost" type="Node"]
+script = ExtResource("1_evolution_host")
+
+[node name="EvolutionScene" type="Node" parent="."]
+script = ExtResource("2_scene")
+
+[node name="PartnerWireframe" parent="." instance=ExtResource("3_wire")]

@@ -57,7 +57,6 @@ var shards_view: DeathShards
 var streaks: SparkStreaks
 var fx_view: BattleFxView
 
-var _hidden_layer := {}
 var _iris_layer: CanvasLayer
 var _front_layer: CanvasLayer
 var _overlay: SubViewport
@@ -322,19 +321,10 @@ func _change_to_death_map(map: int, exit: int) -> void:
 		fade.fade_from_black(0)
 
 
-## setMapLayerEnabled (as FieldBattleWorld's): the map's objects hidden, then back as they were.
+## setMapLayerEnabled (utils2.c:487): the map's objects hidden, then back as they were.
 func _set_map_layer(enabled: bool) -> void:
-	if not enabled:
-		var nodes: Array = map_layer_nodes.call() if map_layer_nodes.is_valid() else []
-		for n in nodes:
-			if n != null and is_instance_valid(n) and not _hidden_layer.has(n):
-				_hidden_layer[n] = n.visible
-				n.visible = false
-	else:
-		for n in _hidden_layer:
-			if is_instance_valid(n):
-				n.visible = _hidden_layer[n]
-		_hidden_layer.clear()
+	var nodes: Array = map_layer_nodes.call() if map_layer_nodes.is_valid() else []
+	MapLayer.set_enabled(nodes, enabled)
 
 
 ## The views that start and end with DOOA's phases.

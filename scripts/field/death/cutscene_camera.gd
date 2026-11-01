@@ -11,21 +11,22 @@ const CENTRE := Vector2i(160, 120)
 const PROJECTION_END := 1000
 
 
-## The orbit's reference point (the partner's middle) and eye (D2–D4).
-static func orbit(position: Vector3i, angle: int, height: int) -> Array:
+## The orbit's reference point (the partner's middle) and eye (D2–D4). `distance` -1: DOOA's
+## height * 5 + 1200; the evolution scene passes its own (evl.c:731, specs/evolution_scene.md C2).
+static func orbit(position: Vector3i, angle: int, height: int, distance := -1) -> Array:
 	var ref := Vector3i(position.x, position.y - height / 2, position.z)
 	var m := PsxMath.rot_matrix_zyx(Vector3i(0, angle + ORBIT_TURN, 0))
-	var eye := PsxMath.apply_matrix_lv(m, Vector3i(0, 0, height * 5 + 1200)) + ref
+	var eye := PsxMath.apply_matrix_lv(m, Vector3i(0, 0, distance if distance >= 0 else height * 5 + 1200)) + ref
 	eye.y += -400 - height * 2
 	return [ref, eye]
 
 
 ## The view at frame `f` of [s, e] from `start`, or {} outside it (D5–D7).
-static func view(start: Dictionary, position: Vector3i, angle: int, height: int, s: int, e: int, f: int) -> Dictionary:
+static func view(start: Dictionary, position: Vector3i, angle: int, height: int, s: int, e: int, f: int, distance := -1) -> Dictionary:
 	if f < s or f > e:
 		return {}
 	var mid := (s + e) / 2
-	var o := orbit(position, angle, height)
+	var o := orbit(position, angle, height, distance)
 	var ref: Vector3i = o[0]
 	var eye: Vector3i = o[1]
 	var start_eye: Vector3i = start["eye"]

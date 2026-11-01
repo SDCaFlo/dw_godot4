@@ -65,6 +65,7 @@ var _maps: PackedStringArray
 @onready var menu_host: MenuHost = $Systems/MenuHost
 @onready var battle_host: BattleHost = $Systems/BattleHost
 @onready var death_host: DeathHost = $Systems/DeathHost
+@onready var evolution_host: EvolutionHost = $Systems/EvolutionHost
 @onready var debug: DebugHost = $Debug
 
 
@@ -222,6 +223,21 @@ func _start() -> void:
 	for child in scripts.get_node("Routines").get_children():
 		if child is DeathRoutines:
 			child.dooa = death_host.dooa
+	# The evolution scene (specs/evolution_scene.md): partner state 13 starts it and reads its timer.
+	evolution_host.camera = _camera
+	evolution_host.field_map = _field
+	evolution_host.tamer = _tamer
+	evolution_host.partner = partner
+	evolution_host.entities = entities.entities
+	evolution_host.evolution = care_host.evolution
+	evolution_host.game_state = GameState
+	evolution_host.data = GameData
+	evolution_host.sound = Sound
+	evolution_host.bubbles = care_host.bubbles
+	evolution_host.map_layer_nodes = map_layer_nodes
+	evolution_host.world = _world
+	evolution_host.start()
+	$World/SubViewport/Background.add_child(evolution_host.background_dark)
 	map_session.partner = partner
 	map_session.entities = entities.entities
 	map_session.scripts = scripts
@@ -307,6 +323,7 @@ func _frame() -> void:
 		_field.tick_pan()
 		scripts.tick_objects()
 		death_host.tick_objects()
+		evolution_host.tick_objects()
 		_field.overlays.tick()
 	debug.tick_message()
 	debug.tick_gallery()

@@ -10,6 +10,9 @@ var materials_of := Callable()
 
 ## Per texture: the PsxLit material (unlit, double-sided, every texel opaque).
 var _by_texture := {}
+## Each shard's texture, looked up once (the wireframe that knows the faces' materials is gone
+## after 0xD1; the shards stay until the rebirth).
+var _texture_of := {}
 var _flat: ShaderMaterial
 
 
@@ -20,6 +23,7 @@ func _ready() -> void:
 
 func clear() -> void:
 	(mesh as ArrayMesh).clear_surfaces()
+	_texture_of.clear()
 
 
 func draw(shards: DooaShards) -> void:
@@ -57,6 +61,13 @@ func draw(shards: DooaShards) -> void:
 
 ## The face's texture (its material's), or null.
 func _texture(s: Dictionary) -> Texture2D:
+	var key := Vector2i(int(s["bone"]), int(s["face"]))
+	if not _texture_of.has(key):
+		_texture_of[key] = _lookup(s)
+	return _texture_of[key]
+
+
+func _lookup(s: Dictionary) -> Texture2D:
 	var mats: Array = materials_of.call(int(s["bone"])) if materials_of.is_valid() else []
 	var face := int(s["face"])
 	var m: Material = mats[face] if face < mats.size() else null

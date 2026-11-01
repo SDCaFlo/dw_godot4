@@ -25,9 +25,11 @@ func _ready() -> void:
 	var sub := CanvasItemMaterial.new()
 	sub.blend_mode = CanvasItemMaterial.BLEND_MODE_SUB
 	material = sub
+	# SPOT256's colours have the STP bit (0xFFFF: white): its texels are the semi-transparent ones,
+	# subtracted (abr 2); they live in PsxTexture's stp texture.
 	var spot := PsxTexture.load_palette(SPOT, 0)
 	if spot != null:
-		_window = ParticleFX.mirrored(spot.base, QUARTER)
+		_window = ParticleFX.mirrored(spot.stp, QUARTER)
 	visible = false
 
 

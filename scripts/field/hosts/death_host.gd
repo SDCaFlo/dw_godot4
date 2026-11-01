@@ -91,7 +91,7 @@ func start() -> void:
 			scene.set("project", field_map.world_to_screen)
 			scene.set("get_view", field_map.view)
 		dooa.set_view = field_map.set_view
-		dooa.restore_view = field_map.restore_map_view
+		dooa.restore_view = _restore_view
 	dooa.phase_changed.connect(_on_dooa_phase)
 	dooa.wave_spawned.connect(_on_wave)
 	tamer.murd = murd
@@ -258,8 +258,13 @@ func _set_front(on: bool) -> void:
 		return
 	if on:
 		if _front_layers.is_empty():
+			# The drop shadow stays behind: MURD and DOOA draw it with the partner, but it subtracts
+			# from the black, which leaves black (outside the window, the iris covers it the same).
+			var shadow := partner.get_node_or_null("DropShadow")
 			for node in partner.find_children("*", "VisualInstance3D", true, false):
 				var vi := node as VisualInstance3D
+				if shadow != null and (vi == shadow or shadow.is_ancestor_of(vi)):
+					continue
 				_front_layers[vi] = vi.layers
 				vi.layers = FRONT_LAYER
 		if camera != null:
@@ -280,6 +285,15 @@ func _set_front(on: bool) -> void:
 		_front_layers.clear()
 		_overlay.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		_overlay_rect.visible = false
+
+
+## DOOA phase 4 (dooa.c:565–575, D13): the map's camera and drawing offset back, then
+## tickCameraMovement(1) towards DOOA_CAMERA_TARGET_RESET (0, 0, 0): a one-frame pan centring the
+## room's origin, in the same frame.
+func _restore_view() -> void:
+	field_map.restore_map_view()
+	field_map.start_pan(Vector3.ZERO, 1)
+	field_map.tick_pan()
 
 
 ## The partner's middle: its location raised by half its height (MURD_renderIris).

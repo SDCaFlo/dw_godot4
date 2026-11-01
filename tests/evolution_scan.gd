@@ -1,9 +1,9 @@
 extends Node
 ## Plays an evolution in the real field scene (specs/evolution_scene.md §7): Agumon -> Greymon on
 ## MAYO01 through Evolution.start (partner state 13, the loading, the evl sequence), until the
-## partner is back in state 1. Checks the step 5f-2 acceptance points (DW_STEP_5F_2=<step>; the
-## checks of later steps print PENDING):
-##   DW_STEP_5F_2=<step> godot --headless --fixed-fps 60 --path . res://tests/evolution_scan.tscn
+## partner is back in state 1. Checks the step 5f-2 acceptance points (all of them since step 6;
+## DW_STEP_5F_2 is no longer needed):
+##   godot --headless --fixed-fps 60 --path . res://tests/evolution_scan.tscn
 ## Exits 1 if a check fails.
 
 const START_MAP := "MAYO01"
@@ -30,7 +30,8 @@ var _last_frame := -2
 
 
 func _ready() -> void:
-	_step = int(OS.get_environment("DW_STEP_5F_2")) if OS.get_environment("DW_STEP_5F_2").is_valid_int() else 0
+	# Every step's checks run (the gates were removed with step 6; the glow adds nothing here).
+	_step = 5
 	for gate in [[1, "hand-over, centred, end"], [2, "outlines, new body"], [3, "shards"], [4, "rings behind"], [5, "no tint left"]]:
 		if _step < gate[0]:
 			_pending.append("step %d: %s" % gate)

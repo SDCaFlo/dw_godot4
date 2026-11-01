@@ -1,6 +1,6 @@
 # Evolution
 
-Status (2026-10-26): approved; **5f-1 (the rules) done** (see "As built" at the end); 5f-2 (the scene) to do (`PLANS.md` 5f).
+Status (2026-11-01): **5f-1 (the rules) done** (see "As built" at the end); **5f-2 (the scene) done** in `specs/evolution_scene.md`, its glow parked (`PLANS.md` 5f).
 
 When and into what the partner evolves, and what evolving does to it. The rules are in `main/evolution.c`, the triggers in `partner_impl.c`, `partner.c` and `item.c`, and applying the evolution and the scene are in the `evl` overlay. The data porter already has the tables and documents the selection in detail (`data_porter/specs/evolution.md` §2). This spec says how the port runs them.
 

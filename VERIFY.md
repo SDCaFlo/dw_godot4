@@ -398,17 +398,30 @@ In the game (F5):
 
 ## Evolution (`scripts/systems/evolution.gd`, `scripts/field/evolution_scene.gd`, partner state 13 in `partner.gd`; `specs/evolution.md`)
 
-`test_evolution.gd` prints `OK: evolution checks`. The scene is a stand-in until 5f-2 (no shards, no camera orbit). In the game (F5), care panel `C`:
+`test_evolution.gd` prints `OK: evolution checks`. The scene itself (the dark, the camera, the bones breaking) has its own section below, "The evolution scene". In the game (F5), care panel `C`:
 1. **Numemon, the quickest:** with the new game's Agumon, press `evo+12` eight times (evo_timer 96; Agumon's stats are too low for any Champion). At once:
    - the clock stops, the tamer turns to Agumon, and Agumon walks up to him;
    - Agumon idles about 3 s, then plays his next animation with a bubble over him for about 3 s;
-   - the music stops; Numemon appears where Agumon stood and plays its pose; the music comes back, the clock runs, you can walk.
+   - the music stops and the evolution scene plays (next section); Numemon appears where Agumon stood and plays its pose; the music comes back, the clock runs, you can walk.
    - The panel's first line shows `dw1:numemon`, `evo 0`; the Digimon screen shows Numemon's stats (Agumon's × 0.8 here, Numemon's scale), its technique in slot 1 and its finisher.
    - Wrong if: the game freezes in state 13 (the panel's `state 13.x`), the model doesn't change, or the music never comes back.
 2. **The virus bar:** `virus+4` four times: the partner turns into Sukamon the same way.
 3. **An item:** the debugger's State tab, Items: give Grey Claws; with a Rookie (a new game's Agumon), △ → ITEM → Use: Agumon takes it, then evolves into Greymon. With a Champion the Grey Claws are refused (a shake).
 4. **The Factorial Town remodel** (optional, needs a Mamemon): set the field's `debug_partner` to `dw1:mamemon`, warp to FACT10 (Maps tab) and talk to the remodel shop's owner, Do it (2000 bits): about half the time the partner evolves into MetalMamemon (one in ten Giromon), and the shop's line follows.
 5. **Compare with the game:** where the tamer and the partner stand and face, how long the build-up lasts before the change.
+
+## The evolution scene (`scripts/field/evolution/`, `scripts/field/hosts/evolution_host.gd`; `specs/evolution_scene.md`)
+
+`test_evolution_scene.gd` prints `OK: evolution scene checks (74 run)` (the glow's checks PENDING: parked, PLANS.md 5f-2); `godot --headless --fixed-fps 60 --path . res://tests/evolution_scan.tscn` prints `OK: evolution scan`. In the game (F5): the debugger's **Partner** tab, **Digivolve to** Greymon with the new game's Agumon (or the care panel `C`, as above). Frames are the scene's, at 20 a second (0x20 is about 1.5 s in).
+1. **Into the dark (first 1.5 s):** the map, its sprites (bushes, trees drawn over the ground) and the tamer and NPCs darken together; then everyone but Agumon vanishes, with the map's doors, items and poop. Agumon keeps his colours.
+2. **The camera:** it turns to Agumon, slides him to the screen's centre and moves in close; it circles him, stops when the first bone breaks, then circles again, speeding up.
+3. **The scream:** with the first break Agumon falls back and screams in his own voice, with the evolution's sounds.
+4. **The bones:** one by one in a random order (a few at first, then one a frame), each with a sound: that part turns to flickering grey outlines, its faces fly off as see-through shards (the first two bones' shards solid) and fade, a grey flash pops at it, and a streak shoots from Agumon's middle towards it. Green squares grow on the floor around his feet, always behind him.
+5. **Growing and the flashes:** the outline body stretches to Greymon's size; the sounds stop and flashes at its middle grow brighter and bigger until they hide the body.
+6. **The change:** no freeze; Greymon appears in outlines, fills in face by face, then stands solid while the camera circles for about a second.
+7. **The end:** in one cut, the map's view, its colours, the tamer and the NPCs come back; the music returns; Greymon plays his pose; the clock runs. Standing next to Greymon, both drop shadows overlap darker (ISSUES.md I-39).
+- Wrong if: a frozen frame at the change, a frame of the map's view still dark with the rings at the end, outlines visible through the last flashes, no scream, bushes staying bright while the map darkens.
+- Not ported yet (PLANS.md 5f-2, parked): the glow (the original flickers Agumon's colours towards white from the first breaks, the shards too); the bubble, poop and items fading in the first 1.5 s (they vanish at the hand-over either way).
 
 ## Battles (`scripts/systems/battle/`, `scripts/ui/battle/`, `scripts/field/field_battle_world.gd`, `hosts/battle_host.gd`; `specs/battle.md`)
 

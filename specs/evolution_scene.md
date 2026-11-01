@@ -2,7 +2,7 @@
 
 The `evl` overlay's sequence, drawn the way the original draws it: the field going dark, the camera swinging in and orbiting, the old body breaking bone by bone into outlines and flying shards, the sparks, the green rings on the floor, the flashes, the growth to the new Digimon's size, and the new model building up face group by face group. 5f-1 (`specs/evolution.md`, "As built") ported the rules, partner state 13 and the loading part of the scene (`EvolutionScene`, 57 + 56 frames), then a **stand-in**: `EVL_applyEvolution` at once, then the new Digimon's pose. This step replaces the stand-in with `EVL_initEvoSequence` / `EVL_tickEvoSequence` and their effects.
 
-**Status (2026-11-01):** approved by the user; acceptance tests written (§7), ready for hand-off. Step 1 is next.
+**Status (2026-11-01):** done: steps 1–4 and 6, confirmed in game by the user. **Step 5 (the palettes) is parked** (the user, 2026-11-01): the map / overlay / tamer / NPC fades are in since step 1; left are the glow (G: `PaletteBrighten`, the `PsxLit` uniforms, the shards and outlines carrying it) and the CLUT2 nodes' fade (B3: bubbles, poop, items, chests' icons). `PLANS.md` 5f-2 says how to pick it up.
 
 ## 0. How to work on this step
 
@@ -361,4 +361,10 @@ Written 2026-11-01 by the reviewer. The expected values are the C's (§3), worke
   - The swap at 0x11C froze the scene for about half a second (measured: `Content.load_model` about 0.35 s and the glTF / sidecar JSON about 0.15 s, all in that frame). The C loads the model from 0x20 (A7). Ported: the threaded load from the hand-over (a plain `load()` on a worker thread deadlocked, found by `test_evolution`), `load_digimon(…, preloaded)`.
   - The one frame at 0x162 (the map's view, dark, with the rings): port-only change, C13 (the user's call).
   - No scream at 0x6A (the user's check): two causes, both fixed from the C (A8: the field voice set swapped too early; A9: `is_on_screen` ignored a scene's view, which also silenced the partner in the death scene's camera moves).
+
+## As built (step 6, 2026-11-01)
+
+- The step gates are gone: `tests/test_evolution_scene.gd` runs steps 1–4 always, the glow's checks (step 5) with `DW_STEP_5F_2=5` (PENDING otherwise); `tests/evolution_scan.tscn` runs every check; `tests/test_rules.gd` checks the stand-in is gone (`stand-in`, `STATE_POSE` in `evolution_scene.gd`; `_apply` is now the real `EVL_applyEvolution`).
+- `VERIFY.md` "The evolution scene"; `specs/evolution.md` §2.9 points here.
+- Parked (step 5): see the status line above and `PLANS.md`.
 

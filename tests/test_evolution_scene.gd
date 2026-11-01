@@ -2,8 +2,10 @@ extends SceneTree
 ## Step 5f-2, the evolution scene (specs/evolution_scene.md): the acceptance checks, written from the C
 ## by the reviewer (the expected values are §3's, not the port's). Don't change them to make the
 ## code pass; when one looks wrong, report it with the C line (spec §0).
-##   DW_STEP_5F_2=<step> godot --headless --path . -s res://tests/test_evolution_scene.gd
-## A check runs once its step (spec §6) is reached; the others print PENDING. Exits 1 if a check fails.
+##   godot --headless --path . -s res://tests/test_evolution_scene.gd
+## Steps 1-4 always run (the step gates were removed with step 6). The glow's checks (step 5's
+## brighten, parked: PLANS.md 5f-2) run with DW_STEP_5F_2=5; without it they print PENDING.
+## Exits 1 if a check fails.
 
 const SEQUENCE := "res://scripts/field/evolution/evl_sequence.gd"
 const SHARD_SETS := "res://scripts/field/evolution/evl_shard_sets.gd"
@@ -48,7 +50,8 @@ var events: Array = []
 
 
 func _initialize() -> void:
-	_step = int(OS.get_environment("DW_STEP_5F_2")) if OS.get_environment("DW_STEP_5F_2").is_valid_int() else 0
+	# Steps 1-4 are built (spec §6); the glow (step 5) is parked until DW_STEP_5F_2=5.
+	_step = maxi(4, int(OS.get_environment("DW_STEP_5F_2"))) if OS.get_environment("DW_STEP_5F_2").is_valid_int() else 4
 	var data: Node = load("res://scripts/data/game_data.gd").new()
 	if not data.available():
 		print("SKIP: data porter output missing")
@@ -68,7 +71,7 @@ func _initialize() -> void:
 	if _gate(4, "the sparks and the particles"):
 		_test_sparks()
 		_test_particles()
-	if _gate(5, "the brighten"):
+	if _gate(5, "the brighten (parked: PLANS.md 5f-2 glow)"):
 		_test_brighten()
 
 	var state := "OK" if _failed == 0 else "FAILED %d" % _failed

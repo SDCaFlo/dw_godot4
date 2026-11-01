@@ -390,7 +390,8 @@ func _check_camera(rec: Dictionary) -> void:
 	_check(stray.is_empty(), "C5 / C9 / C13: no other view set (0x6B-0xA4 keep 0x6A's): %s" % ", ".join(stray))
 	for f in [0x6A, 0xB3, 0xC2, 0xC3, 0x162]:
 		_eq(rec[f]["angle"], angles[f], "C12: the angle after 0x%X" % f)
-	_check(restores.has(0x162) and restores.all(func(f): return f == 0x162 or f == 0x163), "C13: the saved view back at 0x162 (and 0x163): %s" % [restores])
+	# C13: the C also restores at 0x162; port-only (the user, 2026-11-01): only with the rest, at 0x163.
+	_eq(restores, [0x163], "C13: the saved view back at 0x163, with the colours (port-only: not at 0x162)")
 
 
 ## D1-D5, F1: the breaks.

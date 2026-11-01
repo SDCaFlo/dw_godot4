@@ -3,9 +3,11 @@
 // to 0 that even the spot's faint edge would wipe it to black. So the shader does the subtraction
 // itself: the screen behind it (the copy Godot makes before the transparent pass: the background
 // and the opaque models) to gamma, minus the raw texel values (no source_color: the PSX's own)
-// times the colour, back to linear.
+// times the colour, back to linear. It outputs what that takes away and draws with blend_sub, so
+// shadows over each other subtract twice as the PSX's do (drop_shadow.c: each a subtractive polygon
+// at OT 0xFFD; ISSUES.md I-39: with blend_mix the second shadow replaced the first one's darkening).
 shader_type spatial;
-render_mode unshaded, cull_disabled, depth_draw_never, blend_mix;
+render_mode unshaded, cull_disabled, depth_draw_never, blend_sub;
 #include "res://shaders/common/psx_color.gdshaderinc"
 
 uniform sampler2D tex : filter_nearest;
@@ -18,7 +20,8 @@ void fragment() {
 	if (c.a < 0.5) {
 		discard;
 	}
-	vec3 behind = linear_to_srgb(clamp(texture(screen, SCREEN_UV).rgb, 0.0, 1.0));
-	ALBEDO = srgb_to_linear(max(behind - c.rgb * color_scale, vec3(0.0)));
+	vec3 behind = clamp(texture(screen, SCREEN_UV).rgb, 0.0, 1.0);
+	vec3 shadowed = srgb_to_linear(max(linear_to_srgb(behind) - c.rgb * color_scale, vec3(0.0)));
+	ALBEDO = behind - shadowed;
 	ALPHA = 1.0;
 }

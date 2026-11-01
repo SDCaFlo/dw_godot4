@@ -128,7 +128,7 @@ So these need no evolution code of their own: once routines 2 and 10 work (5f-1)
 ### 2.8 The scene's start (`getEvoSequenceState(…, 0)`, `tickEvoSequenceLoading`)
 
 - the scene's data: timer 0, state 0, the target, `digimonId` = `stat_gains[target].targetDigimon`, the height factor;
-- the partner plays animation 0; sounds stop; the evolution sound set (map sounds 18) and the new Digimon's voice bank (`VLALL`) load; the `evl` overlay loads;
+- the partner plays animation 0; sounds stop; the evolution sound set (map sounds 18) loads, and the new Digimon's voices: its battle set (slot 4) now, its field set (`VLALL`, slot 3) read now but uploaded only after the apply (`specs/evolution_scene.md` A8); the `evl` overlay loads;
 - **the loading object**, each frame (its timer + 1, at most 30000):
   - state 0: once the timer is past 55 (the 57th frame): state 1, timer 0 (then + 1), the partner plays animation 1, condition bubble 7 over it;
   - state 1: once the timer is past 55 again (56 more frames; and the overlay loaded): the object ends, the music stops (`stopBGM`), the sequence starts (`EVL_initEvoSequence`, §2.9).

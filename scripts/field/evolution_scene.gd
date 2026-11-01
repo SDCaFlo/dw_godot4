@@ -36,6 +36,17 @@ var bubbles: ConditionBubbles
 ## The sequence (EvlSequence); null until the loading ends.
 var sequence: EvlSequence
 
+## The new Digimon's model, loaded in the background from the hand-over (loadMMDAsync, evl.c:408):
+## {"rel", "gltf", "sidecar", "scene" (the cached PackedScene), "model": Node3D} once applied.
+var preloaded := {}
+var _load_task := -1
+## The threaded loader's path (ResourceLoader.load_threaded_request), "" none.
+var _threaded := ""
+## The workers' results, read after their tasks are waited on: the parsed JSON, the built model.
+var _files := {}
+var _build := -1
+var _built: Node3D
+
 ## EVO_SEQUENCE_DATA: timer, state, the evolution target and its stat_gains Digimon.
 var timer := -1
 var state := STATE_DONE
@@ -44,7 +55,10 @@ var digimon_id := -1
 
 
 ## getEvoSequenceState(..., 0): the scene's data, the partner's idle, the sounds stopped, the
-## evolution's sound set and the new Digimon's voice loaded.
+## evolution's sound set and the new Digimon's battle voices (slot 4, readVBALLSection). Its field
+## voice set (VLALL, slot 3) is only read into a buffer here (loadVLALL, sound_async.c:269) and
+## reaches slot 3 after the apply (waitForSoundBufferLoading(3), evl.c:539): until then the old
+## Digimon screams with its own voice (animation 0xC's slot-3 sound).
 func start(evolution_target: int) -> void:
 	timer = 0
 	state = STATE_LOADING
@@ -55,7 +69,9 @@ func start(evolution_target: int) -> void:
 	if sound != null:
 		sound.stop_sound()
 		sound.load_map_sounds(SOUND_SET)
-		sound.load_partner_sounds(data.digimon_sounds(digimon_id))
+		var voices: Dictionary = data.digimon_sounds(digimon_id)
+		if voices.get("vball") != null:
+			sound.load_bank(4, "sound/VBALL/set_%02d" % int(voices["vball"]))
 
 
 ## One game frame, as an object of the frame: the loading object (tickEvoSequenceLoading), then the
@@ -78,6 +94,7 @@ func tick() -> int:
 				_start_sequence()
 				return timer
 		STATE_SEQUENCE:
+			_poll_load()
 			sequence.tick()
 			timer = sequence.timer
 			if timer == -1:
@@ -105,6 +122,7 @@ func _start_sequence() -> void:
 	sequence.play_sound = _play_sound
 	sequence.stop_sound = _stop_sound
 	sequence.ended.connect(_on_ended)
+	sequence.hand_over.connect(_load_new_model)
 	sequence.init(count, _bone_objects(count), location, partner.direction,
 			Vector2i(int(old.get("radius", 0)), int(old.get("height", 0))),
 			Vector2i(int(new.get("radius", 0)), int(new.get("height", 0))))
@@ -133,10 +151,76 @@ func _bone_objects(count: int) -> PackedInt32Array:
 	return out
 
 
-## EVL_applyEvolution (evl.c:540): the evolution's changes, the new model at the same place.
+## loadMMDAsync(digimonId, ..) at state 0's end (evl.c:408, specs/evolution_scene.md A7): the new
+## model loaded in the background while the scene plays. The imported scene goes through Godot's
+## threaded loader (a plain load() on a worker thread deadlocks while the main thread waits on
+## it); its glTF and sidecar JSON are parsed on a worker thread; once the scene is loaded, a worker
+## thread builds the model from it (Content.instance_model: no load(), not in the tree).
+func _load_new_model() -> void:
+	preloaded = {}
+	_threaded = ""
+	var mmd: String = data.digimon_file(digimon_id).get("mmd", "")
+	if mmd == "":
+		return
+	var rel := "mmd_files/%s/%s.gltf" % [mmd.get_slice("/", 1), mmd.get_file().get_basename()]
+	preloaded = {"rel": rel}
+	var res := Content.imported(rel)
+	if res != "" and ResourceLoader.load_threaded_request(res) == OK:
+		_threaded = res
+	_load_task = WorkerThreadPool.add_task(_load_json_task.bind(rel), false, "evolution model files")
+
+
+func _load_json_task(rel: String) -> void:
+	_files = {"gltf": Content.load_json(rel), "sidecar": Content.load_json(rel.get_basename() + ".json")}
+
+
+func _build_task(packed: PackedScene, rel: String) -> void:
+	_built = Content.instance_model(packed, rel)
+
+
+## Each frame of the sequence: once the threaded load has the scene, the model is built on a worker.
+func _poll_load() -> void:
+	if _threaded == "" or ResourceLoader.load_threaded_get_status(_threaded) != ResourceLoader.THREAD_LOAD_LOADED:
+		return
+	_start_build(ResourceLoader.load_threaded_get(_threaded))
+
+
+func _start_build(packed: Resource) -> void:
+	_threaded = ""
+	preloaded["scene"] = packed
+	_build = WorkerThreadPool.add_task(_build_task.bind(packed as PackedScene, str(preloaded["rel"])), false, "evolution model")
+
+
+## EVL_applyEvolution (evl.c:530-543): the wait for the load (`while hasFinishedLoading`), the
+## evolution's changes, the new model at the same place.
 func _apply() -> void:
+	if _threaded != "":
+		_start_build(ResourceLoader.load_threaded_get(_threaded))
+	for task in [_load_task, _build]:
+		if task >= 0:
+			WorkerThreadPool.wait_for_task_completion(task)
+	if _load_task >= 0:
+		preloaded.merge(_files)
+	if _build >= 0:
+		preloaded["model"] = _built
+	_load_task = -1
+	_build = -1
+	_built = null
 	var key := evolution.apply_evolution(target)
-	partner.load_digimon(data, key)
+	# waitForSoundBufferLoading(3) (evl.c:539): the new Digimon's voice set into slot 3.
+	if sound != null:
+		sound.load_partner_sounds(data.digimon_sounds(key))
+	var mmd: String = data.digimon_file(key).get("mmd", "")
+	var rel := str(preloaded.get("rel", ""))
+	if mmd != "" and rel.get_file().get_basename() == mmd.get_file().get_basename() and preloaded.has("gltf"):
+		if preloaded.get("model") == null:
+			preloaded["model"] = Content.load_model(rel)
+		partner.load_digimon(data, key, preloaded)
+	else:
+		if preloaded.get("model") is Node:
+			(preloaded["model"] as Node).free()
+		preloaded = {}
+		partner.load_digimon(data, key)
 
 
 ## startAnimation on the partner: an animation the model lacks plays to its end at once (as 5f-1's

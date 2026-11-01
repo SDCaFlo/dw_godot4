@@ -98,8 +98,8 @@ func _ready() -> void:
 
 
 ## Loads the model of a Digimon (key or id) through its files component.
-func load_digimon(data: Node, ref: Variant) -> bool:
-	if not super.load_digimon(data, ref):
+func load_digimon(data: Node, ref: Variant, preloaded := {}) -> bool:
+	if not super.load_digimon(data, ref, preloaded):
 		return false
 	tamer_radius = int(data.digimon(0).get("radius", 0))
 	# stats.current.vabId = 4 (partner_impl.c:465): its sounds are in slot 4.

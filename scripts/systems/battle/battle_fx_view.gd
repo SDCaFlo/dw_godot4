@@ -231,8 +231,25 @@ func _draw_flashes(source: BattleFx) -> void:
 		var ot: int = depth >> 4 if f["fixed_depth"] <= 0 else f["fixed_depth"]
 		if ot <= 0x20 or ot >= 0x1000:
 			continue
-		_flash(_spot(0 if mode == 1 else 0x40), PsxLit.SUBTRACT if mode == 0x20 else PsxLit.ADD, at, depth, scale,
-				color, _flash_shift(f, depth))
+		var shift := _flash_shift(f, depth)
+		var drawn_depth := depth
+		if f["fixed_depth"] > 0:
+			# renderEFEFlash (efe.c:944-948): a fixed depth sorts the flash at that OT entry, in front of
+			# or behind everything else, at the size it has at its own depth. In 3D: moved along its
+			# view ray to the depth of that entry (OT << 4), its world size scaled to match.
+			drawn_depth = ot << 4
+			shift += _along_ray(_godot(at) + shift, float(drawn_depth) / depth)
+		_flash(_spot(0 if mode == 1 else 0x40), PsxLit.SUBTRACT if mode == 0x20 else PsxLit.ADD, at, drawn_depth, scale,
+				color, shift)
+
+
+## The move that takes `point` along the camera's ray to `ratio` times its depth.
+func _along_ray(point: Vector3, ratio: float) -> Vector3:
+	var camera := get_viewport().get_camera_3d() if get_viewport() != null else null
+	if camera == null:
+		return Vector3.ZERO
+	var eye := camera.global_position
+	return (eye + (point - eye) * ratio) - point
 
 
 ## BTL_renderParticleEmitters: each live particle between its two points along its direction.

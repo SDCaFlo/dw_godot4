@@ -157,11 +157,10 @@ var saved_view := {}
 var animation := -1
 ## The sequence's own flash slots (I5: initializeFlashData(EVL_D_800677B0)).
 var fx := BattleFx.new()
-## The shard sets (EvlShardSets): the owner builds one on bone_broken (E). EvlSparks and
-## EvlParticles come with step 4 (specs/evolution_scene.md §6): null until then, every use guarded.
+## The shard sets (the owner builds one on bone_broken, E), the sparks (F) and the rings (H).
 var shards := EvlShardSets.new()
-var sparks: RefCounted = null
-var particles: RefCounted = null
+var sparks := EvlSparks.new()
+var particles := EvlParticles.new()
 
 var _bone_count := 0
 var _bone_objects := PackedInt32Array()
@@ -237,13 +236,13 @@ func tick() -> void:
 	timer += 1
 
 
-## What the sequence made in earlier ticks (A3): the flashes and, from the later steps, the sets,
-## sparks and particles.
+## What the sequence made in earlier ticks (A3): the flashes, the shard sets, the sparks and the
+## rings.
 func _tick_effects() -> void:
 	fx.tick()
-	for effect: RefCounted in [shards as RefCounted, sparks, particles]:
-		if effect != null:
-			effect.call("tick")
+	shards.tick()
+	sparks.tick()
+	particles.tick()
 
 
 ## State 0 (evl.c:383-409): the fades, then at 0x20 the hand-over.
@@ -290,9 +289,9 @@ func _state_1(frame: int) -> void:
 func _state_2(frame: int) -> void:
 	# evl.c:421-425 (H1): a ring particle where the table says.
 	var ring: int = PARTICLE_TABLE[frame % PARTICLE_TABLE.size()]
-	if ring != 0 and particles != null:
+	if ring != 0:
 		var green := PsxMath.lerp_int(PARTICLE_GREEN[0], PARTICLE_GREEN[1], 1, 5, ring)
-		particles.call("spawn", _location, Vector3i(PARTICLE_RED_BLUE, green, PARTICLE_RED_BLUE))
+		particles.spawn(_location, Vector3i(PARTICLE_RED_BLUE, green, PARTICLE_RED_BLUE))
 	# evl.c:426-428: the brighten's three rolls come before everything else (G1, G2).
 	if frame >= BRIGHTEN_FROM and frame <= BRIGHTEN_LAST:
 		brighten = Vector3i(Rng.rand() % BRIGHTEN_RANGE, Rng.rand() % BRIGHTEN_RANGE, Rng.rand() % BRIGHTEN_RANGE)
@@ -323,8 +322,7 @@ func _break_next_bone(frame: int) -> void:
 		# evl.c:441: PARTNER_WIREFRAME_SUB[bone] = 0.
 		wireframe_sub[bone] = 0
 		# evl.c:442: EVL_spawnSpark(bone, 0x11C - f).
-		if sparks != null:
-			sparks.call("spawn", bone, SPARK_END - frame)
+		sparks.spawn(bone, SPARK_END - frame)
 		# evl.c:443-454: the flash at the bone, its position copied (D6, D7).
 		fx.create_flash(1, _bone_pos(bone), -1, BREAK_FLASH_T_MAX, 0, BREAK_FLASH_SCALE, BREAK_FLASH_START, BREAK_FLASH_END)
 		return
@@ -393,11 +391,12 @@ func _finish_state_2(frame: int) -> void:
 		wireframe_total = PsxMath.lerp_int(0, WIREFRAME_FULL, BODY_FROM, BODY_FULL, frame)
 	if frame < HAND_BACK:
 		return
-	# evl.c:547-559 (K1): state 3, the saved view back.
+	# evl.c:547-559 (K1): state 3. The C also puts the saved view back here, one frame before the
+	# colours, the others and the map come back (state 3, evl.c:561-577): a frame of the map's view,
+	# still dark, with the rings. Port-only (the user, 2026-11-01): the view comes back with the
+	# rest, at 0x163 (C13).
 	state = 3
 	wireframe_total = WIREFRAME_FULL
-	if restore_view.is_valid():
-		restore_view.call()
 
 
 ## State 3 (evl.c:561-577, K2).
@@ -412,8 +411,7 @@ func _state_3() -> void:
 	ended.emit()
 	_start_animation(ANIM_POSE)
 	# evl.c:575 (H8): the particles released.
-	if particles != null:
-		particles.call("release_all")
+	particles.release_all()
 
 
 ## EVL_updateEvoCamera (evl.c:702-776), called in state 1 only (C5): from 0x20 to 0x60 the

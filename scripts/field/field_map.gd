@@ -460,7 +460,11 @@ func is_tile_off_screen(tile: Vector2i) -> bool:
 
 ## A Godot position is on the visible screen (the partner's isOnScreen).
 func is_on_screen(world: Vector3) -> bool:
-	var screen := background_pixel(world) - scroll
+	# entityIsOffScreen (map.c:3871) projects through the current view (GsWSMATRIX): around the
+	# drawing offset, which is background / 2 - scroll on the map's own camera and a scene's own
+	# offset while it sets the view (the evolution's cutscene: the partner's scream, specs/
+	# evolution_scene.md A5).
+	var screen := drawing_offset() + background_pixel(world) - background_size / 2
 	return screen.x >= 0 and screen.y >= 0 and screen.x < SCREEN.x and screen.y < SCREEN.y
 
 

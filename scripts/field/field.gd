@@ -238,6 +238,7 @@ func _start() -> void:
 	evolution_host.world = _world
 	evolution_host.start()
 	$World/SubViewport/Background.add_child(evolution_host.background_dark)
+	$World/SubViewport/Background.add_child(evolution_host.particles_view)
 	map_session.partner = partner
 	map_session.entities = entities.entities
 	map_session.scripts = scripts

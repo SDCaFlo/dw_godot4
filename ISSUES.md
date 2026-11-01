@@ -8,6 +8,11 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Open
 
+### I-39. Two drop shadows over each other: the second clears the first
+- **Seen:** standing next to the partner (MetalGreymon), the tamer's shadow shows as a clear ring over the partner's darker one (reported 2026-11-01, `issues/evidence/dw_issue_double_shadow_cancel.png`).
+- **Cause:** `shaders/drop_shadow.gdshader` did the PSX's subtraction itself from Godot's copy of the screen (taken before the transparent pass) and wrote the result with `blend_mix`: every shadow starts from the unshadowed ground, so the last one drawn replaces the others' darkening. The C draws each shadow as a subtractive polygon at OT 0xFFD (`drop_shadow.c`, `specs/drop_shadow.md`): an overlap subtracts twice.
+- **Status:** fixed (2026-11-01): the shader outputs what it takes away and draws with `blend_sub`, so overlaps add up; a lone shadow is unchanged. Port-only approximation: the two subtractions add in linear light, where the PSX's second one would start from the first one's result in its gamma values.
+
 ### I-24. A battle that never starts (Native Forest)
 - **Seen:** on MAYO04A, a sky-blue face (the "flees" bubble) over an Aruraumon, then the battle never started, for minutes (reported 2026-10-26 with step 5d-4). Expected: the Digimon you talk to always fights (red face); only the others may flee, so a battle always has an enemy, except key fights, which have their own list.
 - **What the original does:** `handleBattleStart` (`btl.c:209`) puts the talked-to Digimon first in the fight with the "joins" bubble before rolling the others; a key fight (script value 0xFA) takes its enemies from script values 0xFB-0xFD and gives every other Digimon on screen the "flees" bubble. The intro then waits until every runner has left the screen.

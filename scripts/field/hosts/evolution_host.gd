@@ -12,12 +12,16 @@ extends Node
 ## - the bodies (J): `wireframe` (PartnerWireframe) on the old model, each broken bone in outlines
 ##   (PARTNER_WIREFRAME_SUB), then on the new model filling in (PARTNER_WIREFRAME_TOTAL); the
 ##   partner's root scale while it grows.
-## - the shard sets (E): built from the broken bone's pose, drawn by EvlShardsView.
-## The sparks, rings and the brighten come with the later steps of the spec.
+## - the shard sets (E): built from the broken bone's pose, drawn by EvlShardsView;
+## - the sparks (F, SparkStreaks) and the rings (H, EvlParticlesView on the background layer).
+## The brighten comes with step 5 of the spec.
 
 const BACKGROUND_DARK_SCENE := preload("res://scenes/field/death/background_dark.tscn")
 const FX_VIEW_SCENE := preload("res://scenes/battle/effects/battle_fx_view.tscn")
 const SHARDS_SCENE := preload("res://scenes/field/evolution/evl_shards.tscn")
+## DOO2's streak primitive, the same as EVL's (specs/evolution_scene.md F8).
+const STREAKS_SCENE := preload("res://scenes/field/death/spark_streaks.tscn")
+const PARTICLES_SCENE := preload("res://scenes/field/evolution/evl_particles.tscn")
 ## Entities 2, 3, 4 are the second palette bank's (evl.c:391-395, EVL_fadeClutBank1: (32, 488) 48 x 24).
 const BANK1_ENTITIES := [2, 3, 4]
 ## WIREFRAME_COLOR_MIN / MAX (model.c:89, :91): the evolution never changes them (J2).
@@ -46,6 +50,9 @@ var world: Node
 var background_dark: ColorRect
 var fx_view: BattleFxView
 var shards_view: EvlShardsView
+var streaks: SparkStreaks
+## On the field's background layer (H7): the field adds it after the darkening.
+var particles_view: EvlParticlesView
 
 ## Each other entity's `visible` before the hand-over (EVL_D_80068938).
 var _shown := {}
@@ -63,9 +70,12 @@ func start() -> void:
 	fx_view = FX_VIEW_SCENE.instantiate()
 	fx_view.projector = field_map
 	shards_view = SHARDS_SCENE.instantiate()
+	streaks = STREAKS_SCENE.instantiate()
+	particles_view = PARTICLES_SCENE.instantiate()
 	if world != null:
 		world.add_child(fx_view)
 		world.add_child(shards_view)
+		world.add_child(streaks)
 	if partner == null:
 		return
 	evolution_scene.partner = partner
@@ -108,6 +118,8 @@ func tick_objects() -> void:
 		wireframe.detach()
 		partner.scale = Vector3.ONE
 		shards_view.clear()
+		streaks.draw_streaks([])
+		particles_view.clear()
 
 
 func _draw_frame(sequence: EvlSequence) -> void:
@@ -125,6 +137,14 @@ func _draw_frame(sequence: EvlSequence) -> void:
 	if wireframe.is_attached():
 		wireframe.set_share(sequence.wireframe_total, sequence.wireframe_sub)
 		wireframe.roll_greys(WIRE_GREY_MIN, WIRE_GREY_MAX)
+	# The sparks (F3-F8), rolled after the wireframe's greys (port-only order, §5), bone 1 the origin.
+	var list := []
+	for spark: Dictionary in sequence.sparks.drawn():
+		list.append(EvlSparks.streak(_bone_position(int(spark["bone"])), _bone_position(1)))
+	streaks.draw_streaks(list)
+	# The rings (H5-H7), in screen pixels with the drawing offset.
+	if field_map != null:
+		particles_view.draw_particles(sequence.particles, field_map.world_to_screen, Vector2(field_map.view()["offset"]))
 	# The shard sets (E7, E8): every non-black texel blends from the brighten's first non-start frame.
 	shards_view.draw(sequence.shards, wireframe.bone_materials, sequence.brighten_t > EvlSequence.BRIGHTEN_FROM)
 	# The growth (J3, J6): the partner's root scale, 4096 = 1.
@@ -203,8 +223,10 @@ func _attach_wireframe() -> void:
 	if mmd == "":
 		return
 	var rel := "mmd_files/%s/%s.gltf" % [mmd.get_slice("/", 1), mmd.get_file().get_basename()]
-	var sidecar: Variant = Content.load_json(rel.get_basename() + ".json")
-	var gltf: Variant = Content.load_json(rel)
+	# The new model's files come with its preload (A7): no JSON parsed in the swap's frame.
+	var pre: Dictionary = evolution_scene.preloaded if evolution_scene.preloaded.get("rel") == rel else {}
+	var sidecar: Variant = pre["sidecar"] if pre.has("sidecar") else Content.load_json(rel.get_basename() + ".json")
+	var gltf: Variant = pre["gltf"] if pre.has("gltf") else Content.load_json(rel)
 	if sidecar is Dictionary and gltf is Dictionary:
 		wireframe.attach(model, sidecar, gltf)
 

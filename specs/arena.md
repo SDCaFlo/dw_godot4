@@ -347,7 +347,7 @@ Each step owns its files; all suites and scans pass after every step; a step is 
 | 5 | The HUD pieces of §4.6 | `scenes/arena/hud/`, `scripts/ui/arena/` | **Hard** (re-rated 2026-11-02: the arena's VRAM pages and pixel layouts, which tests can't judge) · main session |
 | 6 | The bracket view and the four scenes (versus, win, lose, champion + podium) | `scenes/arena/scenes/`, `scripts/arena/scenes/` | **Hard** · main session: TMD scenes, VRAM column scroll |
 | 7 | The effects in the arena (§4.8): the CLUT fade, the read-back at the effects' load, the fixed view's projection | `scripts/systems/battle/battle_effect_context.gd`, `efe_vm.gd`, `effect_host.gd` (hooks), `scripts/arena/arena_world.gd`, `arena.gd`, `scripts/systems/arena/arena_camera.gd` (`set_projection`) | **Medium** · Claude Sonnet 5.5 (Medium), or Gemini 3.8 Flash (High) via agy |
-| 8 | VERIFY "The arena", PLANS, "As built", gates removed | `VERIFY.md`, `PLANS.md`, this spec, the tests | main session |
+| 8 | VERIFY "The arena", PLANS, "As built", gates removed (done 2026-11-02) | `VERIFY.md`, `PLANS.md`, this spec, the tests | main session |
 
 The game is playable end to end after step 4. Steps 5–7 can then run in any order.
 
@@ -430,3 +430,7 @@ Implemented by Gemini 3.8 Flash (agy), reviewed in the main session. The hooks a
 - The scan's `_check_effect_world` now sets up `PsxMath` first.
 
 Results: test_arena gate 7, 391 checks; the 39 suites OK; arena_scan ROOM13 (won 3) and ARENA_WEAK (lost, 0) clean. BETL02 won 3 and printed OK, with only the scan-side PsxMath errors, before that fix.
+
+## As built (step 8, 2026-11-02)
+
+Every step is built, so `test_arena.gd` runs steps 2-7 by default (399 checks; `DW_STEP_4E_4` still limits them). VERIFY "The arena" covers the effects (DG Dimension darkens the arena only) and the WIN letters (hidden until they fly in, I-41). Checked in the game by the user: DG Dimension, the WIN letters. Left for the user: the finisher charge-up gauge's place against the original (VERIFY "The arena" 8). Merged into `main`.

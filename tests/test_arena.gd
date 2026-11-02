@@ -5,9 +5,8 @@ extends SceneTree
 ## the port (reviewer's scratch, 2026-11-01) and were checked by hand on the cases marked so.
 ## Don't change them to make the code pass; when one looks wrong, report it with the C line.
 ##   godot --headless --path . -s res://tests/test_arena.gd
-## Gate: DW_STEP_4E_4=<n> runs steps 2..n (unset: steps 2-6, which are built; step 7 needs DW_STEP_4E_4=7). Step 1's checks are
-## data_porter/tests/test_arena_fields.py and asset_porter/tests/test_arena_assets.py; steps 3-7 get
-## their checks here before each is built. Exits 1 if a check fails.
+## Steps 2-7 are built, so every check runs (DW_STEP_4E_4=<n> still limits them to steps 2..n). Step 1's checks are
+## data_porter/tests/test_arena_fields.py and asset_porter/tests/test_arena_assets.py. Exits 1 if a check fails.
 ##
 ## Classes are loaded by path, so this file parses before they exist.
 
@@ -76,8 +75,8 @@ var data: Node
 
 
 func _initialize() -> void:
-	# Steps 2-6 are built (spec §6): their checks run by default; DW_STEP_4E_4 can still limit or extend them.
-	_step = int(OS.get_environment("DW_STEP_4E_4")) if OS.get_environment("DW_STEP_4E_4").is_valid_int() else 6
+	# Steps 2-7 are built (spec §6): every check runs; DW_STEP_4E_4 can still limit them.
+	_step = int(OS.get_environment("DW_STEP_4E_4")) if OS.get_environment("DW_STEP_4E_4").is_valid_int() else 7
 	data = load("res://scripts/data/game_data.gd").new()
 	if not data.available():
 		print("SKIP: porter output missing")

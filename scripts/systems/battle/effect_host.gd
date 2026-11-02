@@ -105,9 +105,12 @@ static func efe_folder(technique: int) -> String:
 
 # --- loading ---------------------------------------------------------------------------------------
 
-## BTL_loadMoveEFE: one effect per entry {technique, caster} (a fighter's technique slot). Returns
-## the slot per entry (effectSlot), or -1 when it failed to load.
+## BTL_loadMoveEFE / STD_loadMoveEFE (std_effect.c:2263-2277): one effect per entry {technique,
+## caster} (a fighter's technique slot). Returns the slot per entry (effectSlot), or -1 when it
+## failed to load.
 func load_moves(entries: Array) -> Array[int]:
+	if ctx != null:
+		ctx.on_load_moves()
 	var out: Array[int] = []
 	for e in entries:
 		out.append(_load(int(e["technique"]), int(e.get("caster", -1))))

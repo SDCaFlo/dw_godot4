@@ -183,6 +183,19 @@ func set_fixed_camera(_fixed: bool) -> void:
 	pass
 
 
+## Builtin 92's fade at `level` (0-255). false: BTL_renderScreenFade's subtractive quad is drawn
+## (battle_effect.c:2239); a world that does the fade itself (the arena: STD_renderScreenFade ->
+## modifySomeImage, std_effect.c:2400, specs/arena.md §4.8) returns true.
+func screen_fade(_level: int) -> bool:
+	return false
+
+
+## Called by EffectHost.load_moves before it loads anything: nothing in btl (BTL_loadMoveEFE); the
+## arena's downloadSomeImage (STD_loadMoveEFE, std_effect.c:2270).
+func on_load_moves() -> void:
+	pass
+
+
 # --- services -------------------------------------------------------------------------------------
 
 ## playSound(bank, id).

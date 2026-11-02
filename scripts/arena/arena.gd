@@ -75,6 +75,7 @@ var _hidden := {}
 ## The field entities paused while the arena runs, with their process mode before.
 var _paused := {}
 var _pad_previous := 0
+var _last_palette_factor := 1.0
 
 
 func _data() -> Node:
@@ -130,6 +131,7 @@ func _build(arena_id: int) -> void:
 	_arena_id = arena_id
 	last_arena = arena_id
 	_podium = null
+	_last_palette_factor = 1.0
 	var model := Content.load_model(ARENA_MODELS[arena_id])
 	_model = model
 	if model != null:
@@ -316,7 +318,8 @@ func _update_view() -> void:
 	_view.set_frustum(FieldMap.SCREEN.y * FieldMap.NEAR / h, Vector2.ZERO, FieldMap.NEAR, FieldMap.FAR)
 
 
-## The arena's objects that come and go: arena 1's object 3 (after the bracket), the podium.
+## The arena's objects that come and go: arena 1's object 3 (after the bracket), the podium;
+## the palette factor on the arena model and podium (specs/arena.md §4.8).
 func _update_world() -> void:
 	var after: int = AFTER_BRACKET[_arena_id]
 	if after >= 0 and _model != null:
@@ -325,15 +328,28 @@ func _update_world() -> void:
 			obj.visible = session.bracket != null and session.bracket.finished
 	var sc: ArenaScenes = session.scenes
 	var up := sc != null and sc.podium
+	var podium_loaded_now := false
 	if up and _podium == null:
 		_podium = Content.load_model(PODIUMS[_arena_id])
 		if _podium != null:
 			_podium.name = "Podium"
 			_root.add_child(_podium)
+			podium_loaded_now = true
 	if _podium != null:
 		_podium.visible = up
 		if up:
 			_podium.position = Content.psx_to_godot([0, sc.podium_y, 0])
+	var f := arena_world.palette_factor if arena_world != null else 1.0
+	if f != _last_palette_factor:
+		_last_palette_factor = f
+		if is_equal_approx(f, 1.0):
+			PaletteFade.clear(_model)
+			PaletteFade.clear(_podium)
+		else:
+			PaletteFade.apply(_model, f)
+			PaletteFade.apply(_podium, f)
+	elif podium_loaded_now and not is_equal_approx(f, 1.0):
+		PaletteFade.apply(_podium, f)
 
 
 func _on_visual(kind: String, args: Array) -> void:

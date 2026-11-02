@@ -157,6 +157,8 @@ The goal (the user): on another machine, building the port should need only the 
 - A CONFIG menu for players: the 3D render scale and the text and windows' filter (ISSUES.md D-2, D-3), later other options.
 - Try other upscaling filters for the text and windows (today Scale4x, ISSUES.md D-3): e.g. xBR / ScaleFX-style edge filters, HQx, a CRT look; compare them with the game in an emulator, and offer the good ones in the CONFIG menu.
 
+- libgs's polygon drop (ISSUES.md I-41): `GsSortObject*` skips a polygon when a vertex sets the GTE's FLAG bit 31 (too close, SZ3 · 2 ≤ h; off the ±1024 screen range). Only the arena's scenes reproduce it (`PsxMath.gs_polygon_dropped`, `ArenaSceneView`); the fighters, partner and map objects use Godot's near plane. Check whether a close camera (battles, the arena's intro cameras) shows a difference before porting it more widely.
+
 - Import original memory-card saves (`.mcr` / `.mcd`): `specs/game_state.md` maps the whole `SavegamePayload` layout.
 - Godot `.tres` resources generated from the pack data for editor use (gitignored for `dw1`).
 

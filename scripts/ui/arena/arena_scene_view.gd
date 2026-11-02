@@ -22,6 +22,7 @@ const COLUMN_V := 0x30
 ## STD_MODEL_SCENE_MATRIX (std_hud.c:390): x and z scaled 0x1004 / 0x1000, translation z 1000.
 const SCENE_SCALE := Vector3(0x1004 / 4096.0, 1.0, 0x1004 / 4096.0)
 const SCENE_Z := 1000
+const SCENE_MATRIX := [0x1004, 0, 0, 0, 0x1000, 0, 0, 0, 0x1004, 0, 0, SCENE_Z]
 ## STD_renderLoseScene: the columns 10 wide from (-0xA0, -0x78).
 const WIPE_X := -0xA0
 const WIPE_Y := -0x78
@@ -38,6 +39,12 @@ var _models := {}
 var _nodes := {}
 var _champion_texture: ImageTexture
 var _columns: Array = []
+## Per kind, per TMD object: its primitives' vertices (the sidecar's), for libgs's drop rule.
+var _tmd := {}
+## Per MeshInstance3D: its surfaces' arrays, each triangle's TMD primitive, the dropped set drawn.
+var _cut := {}
+## Per "kind:i": the indexes of the TMD primitives dropped at the last tick.
+var _dropped := {}
 
 
 func _ready() -> void:
@@ -141,6 +148,93 @@ func _place(kind: String, sc: ArenaScenes) -> void:
 			for c in 3:
 				m[r * 3 + c] = m[r * 3 + c] * scl[c] / 4096
 		node.transform = Transform3D(_godot_basis(m), Content.psx_to_godot([loc.x, loc.y, loc.z]))
+		if shown:
+			var lw := PsxMath.trans_matrix(PsxMath.scale_matrix(PsxMath.rot_matrix(o["rotation"]), sv), loc)
+			_drop_polygons(kind, i, node, PsxMath.gs_mul_coord0(PackedInt32Array(SCENE_MATRIX), lw), sc.projection())
+
+
+## The TMD primitives of object i of a kind that the last tick dropped (GsSortObject4J's rule).
+func dropped_polygons(kind: String, i: int) -> Array:
+	return _dropped.get("%s:%d" % [kind, i], [])
+
+
+## GsSortObject4J skips each polygon a vertex of which sets the GTE's FLAG bit 31
+## (PsxMath.gs_polygon_dropped): e.g. the WIN letters' front faces, held at SZ 175 with h 0x15E until
+## they fly back (specs/arena.md §4.7). Dropped triangles become degenerate; rebuilt when the set changes.
+func _drop_polygons(kind: String, i: int, node: Node3D, ls: PackedInt32Array, h: int) -> void:
+	var objs: Array = _tmd.get(kind, [])
+	if i >= objs.size():
+		return
+	var prims: Array = objs[i]
+	var dropped := PackedByteArray()
+	dropped.resize(prims.size())
+	for p in prims.size():
+		dropped[p] = 1 if PsxMath.gs_polygon_dropped(ls, prims[p], h) else 0
+	var list := []
+	for p in dropped.size():
+		if dropped[p] == 1:
+			list.append(p)
+	_dropped["%s:%d" % [kind, i]] = list
+	for mi in [node] + node.find_children("*", "MeshInstance3D", true, false):
+		if mi is MeshInstance3D and mi.mesh != null:
+			_cut_mesh(mi, prims, dropped)
+
+
+func _cut_mesh(mi: MeshInstance3D, prims: Array, dropped: PackedByteArray) -> void:
+	var id := mi.get_instance_id()
+	if not _cut.has(id):
+		_cut[id] = _triangle_prims(mi.mesh, prims)
+	var c: Dictionary = _cut[id]
+	if c["drawn"] == dropped:
+		return
+	c["drawn"] = dropped
+	var mats := []
+	for s in mi.mesh.get_surface_count():
+		mats.append(mi.get_surface_override_material(s))
+	var mesh := ArrayMesh.new()
+	for s in c["arrays"].size():
+		var arrays: Array = c["arrays"][s].duplicate()
+		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX].duplicate()
+		var tri: PackedInt32Array = c["tri"][s]
+		for t in tri.size():
+			if tri[t] >= 0 and dropped[tri[t]] == 1:
+				idx[t * 3 + 1] = idx[t * 3]
+				idx[t * 3 + 2] = idx[t * 3]
+		arrays[Mesh.ARRAY_INDEX] = idx
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		mesh.surface_set_material(s, c["mesh"].surface_get_material(s))
+	mi.mesh = mesh
+	for s in mats.size():
+		mi.set_surface_override_material(s, mats[s])
+
+
+## Each triangle of the mesh's surfaces: the TMD primitive holding its three vertices (-1: none).
+func _triangle_prims(src: Mesh, prims: Array) -> Dictionary:
+	var out := {"mesh": src, "arrays": [], "tri": [], "drawn": PackedByteArray()}
+	for s in src.get_surface_count():
+		var arrays := src.surface_get_arrays(s)
+		var pos: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		if idx.is_empty():
+			idx = PackedInt32Array(range(pos.size()))
+			arrays[Mesh.ARRAY_INDEX] = idx
+		var tri := PackedInt32Array()
+		for t in idx.size() / 3:
+			var found := -1
+			for p in prims.size():
+				var ok := true
+				for k in 3:
+					var v := pos[idx[t * 3 + k]]
+					if not prims[p].has(Vector3i(roundi(v.x), roundi(-v.y), roundi(-v.z))):
+						ok = false
+						break
+				if ok:
+					found = p
+					break
+			tri.append(found)
+		out["arrays"].append(arrays)
+		out["tri"].append(tri)
+	return out
 
 
 ## A PSX matrix (4096 = 1) as a Godot basis through the porter's flip (x, -y, -z), as EfeView's.
@@ -166,8 +260,28 @@ func _load(kind: String) -> void:
 	for i in OBJECT_COUNTS[kind]:
 		nodes.append(model.find_child("object_%d" % i, true, false))
 	_nodes[kind] = nodes
+	_tmd[kind] = _tmd_primitives(MODELS[kind].get_basename() + ".json")
 	if kind == "champion":
 		_prepare_champion(nodes)
+
+
+## The sidecar's TMD objects: per object, per primitive, its vertices (TMD units, PSX axes).
+static func _tmd_primitives(rel: String) -> Array:
+	var out := []
+	var side: Variant = Content.load_json(rel)
+	if not (side is Dictionary) or not side.has("tmd"):
+		return out
+	for obj in side["tmd"]["objects"]:
+		var verts: Array = obj["vertices"]
+		var prims := []
+		for p in obj["primitives"]:
+			var vs := []
+			for vi in p["vertices"]:
+				var v: Array = verts[int(vi)]
+				vs.append(Vector3i(int(v[0]), int(v[1]), int(v[2])))
+			prims.append(vs)
+		out.append(prims)
+	return out
 
 
 ## CHAMP.TMD: each letter's UVs shifted (STD_offsetTMDObjectUVs) and its texture the page copy.

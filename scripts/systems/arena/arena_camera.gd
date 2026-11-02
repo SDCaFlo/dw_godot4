@@ -230,6 +230,11 @@ func projection() -> int:
 	return _projection
 
 
+## GsSetProjection.
+func set_projection(distance: int) -> void:
+	_projection = distance
+
+
 # --- the states (std_main.c:2173-2440) ------------------------------------------------------------
 
 ## STD_applyManualCamera (2173): pad 2 moves it; the port has no pad 2 (`port-only`), so it holds.

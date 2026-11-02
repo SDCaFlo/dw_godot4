@@ -5,7 +5,7 @@ extends SceneTree
 ## the port (reviewer's scratch, 2026-11-01) and were checked by hand on the cases marked so.
 ## Don't change them to make the code pass; when one looks wrong, report it with the C line.
 ##   godot --headless --path . -s res://tests/test_arena.gd
-## Gate: DW_STEP_4E_4=<n> runs steps 2..n (unset: steps 2-6, which are built). Step 1's checks are
+## Gate: DW_STEP_4E_4=<n> runs steps 2..n (unset: steps 2-6, which are built; step 7 needs DW_STEP_4E_4=7). Step 1's checks are
 ## data_porter/tests/test_arena_fields.py and asset_porter/tests/test_arena_assets.py; steps 3-7 get
 ## their checks here before each is built. Exits 1 if a check fails.
 ##
@@ -34,6 +34,21 @@ const SEVEN := [0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25]
 
 
 ## A scripted randomLimit: returns the next value, records the limit it was asked for.
+## DG Dimension's run (spec §4.8): test_efe's stub fighters, and a log of the screen_fade hook.
+const EFE_TEST := preload("res://tests/test_efe.gd")
+class FadeLog extends EFE_TEST.StubContext:
+	var handled := false
+	var fades: Array = []
+	var loads := 0
+
+	func on_load_moves() -> void:
+		loads += 1
+
+	func screen_fade(level: int) -> bool:
+		fades.append(level)
+		return handled
+
+
 class Rolls:
 	var values: Array
 	var limits: Array = []
@@ -99,6 +114,8 @@ func _initialize() -> void:
 		_test_scenes_session()
 		_test_bracket_view()
 		_test_scene_view()
+	if _gate(7, "the effects in the arena"):
+		_test_arena_effects()
 
 	data.free()
 	var state := "OK" if _failed == 0 else "FAILED %d" % _failed
@@ -1405,6 +1422,42 @@ func _test_scene_view() -> void:
 		_check(node != null and node.visible and node.position == Content.psx_to_godot([sc.objects[i]["location"].x,
 				sc.objects[i]["location"].y, sc.objects[i]["location"].z]), "versus: DRAW object %d placed" % i)
 	sc.remove_versus()
+	# GsSortObject4J's drop rule (libgte.s GsTMDfastTF3L: cfc2 $31, bltz). FLAG bit 17 when
+	# SZ3 * 2 <= h; SX2 out of -0x400..0x3FF; SZ3 < 0.
+	var ls := PsxMath.identity()
+	ls[11] = 175
+	_check(PsxMath.rtp_flag_error(ls, Vector3i.ZERO, 0x15E), "GTE: SZ 175, h 0x15E overflows")
+	ls[11] = 176
+	_check(not PsxMath.rtp_flag_error(ls, Vector3i.ZERO, 0x15E), "GTE: SZ 176, h 0x15E projects")
+	ls[11] = 0x15E
+	_check(PsxMath.rtp_flag_error(ls, Vector3i(0x400, 0, 0), 0x15E) and not PsxMath.rtp_flag_error(ls, Vector3i(0x3FF, 0, 0), 0x15E)
+			and not PsxMath.rtp_flag_error(ls, Vector3i(-0x400, 0, 0), 0x15E), "GTE: SX2 limited to -0x400..0x3FF")
+	ls[11] = -10
+	_check(PsxMath.rtp_flag_error(ls, Vector3i.ZERO, 0x15E), "GTE: SZ below 0")
+	var lw := PsxMath.trans_matrix(PsxMath.identity(), Vector3i(-0xFA, 0, -0x30C))
+	_eq(PsxMath.translation(PsxMath.gs_mul_coord0(PackedInt32Array(view.SCENE_MATRIX), lw)), Vector3i(-0xFB, 0, 219),
+			"WIN W: GsGetLws translation (0x1004 * -0x30C >> 12) + 1000 = 219")
+	# STD_addWinScene: the letters at z -0x30C (SZ 175 at the front faces, z -45 / -43) until timer 0x3C.
+	# Counted from WIN_LOSE.TMD's sidecar with the GTE's integer maths.
+	sc.add_win()
+	sc.tick()
+	hud.tick(0)
+	var held := []
+	for i in 4:
+		held.append(view.dropped_polygons("result", i).size())
+	_eq(held, [19, 5, 14, 5], "win, timer 1: the polygons libgs drops (W I N !)")
+	for k in 0x3C:
+		sc.tick()
+	hud.tick(0)
+	_eq(view.dropped_polygons("result", 1).size(), 5, "win, timer 0x3D: I still held")
+	for k in 0xA0 - 0x3D:
+		sc.tick()
+	hud.tick(0)
+	held = []
+	for i in 4:
+		held.append(view.dropped_polygons("result", i).size())
+	_eq(held, [0, 0, 0, 0], "win, timer 0xA0: the letters at z 0xDC, all drawn")
+	sc.remove_result()
 	var rolls := Rolls.new(range(32))
 	sc.roll = rolls.roll
 	sc.add_lose()
@@ -1440,3 +1493,78 @@ func _test_scene_view() -> void:
 	_eq(view.projection(), 0x200, "champion: projection 0x200")
 	_check(view.object_node("champion", 0).visible and view.object_node("champion", 8).visible, "champion: letters 0 and 8 shown by timer 61")
 	hud.free()
+
+
+# --- step 7: the effects in the arena (spec §4.8) ---------------------------------------------------
+
+## DG Dimension (technique 29, the only effect calling builtin 92) run as test_efe runs it, user
+## MetalGreymon, target Agumon. Returns the renderScreenFade draw calls' values, in order.
+func _run_dg_dimension(ctx: Object) -> Array:
+	const DG_DIMENSION := 29
+	var move: Dictionary = data.move(DG_DIMENSION)
+	ctx.data = data
+	var radii := int(data.digimon(METALGREYMON)["radius"]) + int(data.digimon(AGUMON)["radius"])
+	var reach := int(sqrt(float(int(move.get("distance_squared", 0)) + radii * radii)))
+	ctx.entities = {
+		1: {"type": METALGREYMON, "location": Vector3i.ZERO, "yaw": PsxMath.atan(-reach, 0), "hp": 100,
+				"hit": false, "on_map": true, "on_screen": true},
+		2: {"type": AGUMON, "location": Vector3i(0, 0, -reach), "yaw": PsxMath.atan(reach, 0), "hp": 100,
+				"hit": false, "on_map": true, "on_screen": true}}
+	var host := EffectHost.new(ctx)
+	Rng.set_seed(DG_DIMENSION)
+	var slots := host.load_moves([{"technique": DG_DIMENSION, "caster": 0}])
+	if slots[0] < 0:
+		_check(false, "DG Dimension's effect loads")
+		return []
+	var fx: EfeEffect = host.slots[slots[0]]
+	fx.record_draws = true
+	host.start(slots[0], 1, 2)
+	var drawn := []
+	for frame in 600:
+		host.tick()
+		host.draw()
+		for victim in [1, 2]:
+			while not host.pop_attack_object(victim).is_empty():
+				pass
+			ctx.set_hit(victim, false)
+		for c in fx.draw_calls:
+			if c[0] == "renderScreenFade":
+				drawn.append(int(c[1]))
+		if not fx.is_running():
+			break
+	host.unload_all()
+	return drawn
+
+
+## ArenaWorld's side (palette_factor, the fixed view) needs the autoloads: tests/arena_scan.gd checks it.
+func _test_arena_effects() -> void:
+	PsxMath.setup(data)
+	# The hooks' defaults are btl's (BTL_renderScreenFade draws its quad; BTL_loadMoveEFE reads nothing).
+	var base := BattleEffectContext.new()
+	_check(base.has_method("screen_fade") and base.has_method("on_load_moves"),
+			"BattleEffectContext has the screen_fade and on_load_moves hooks")
+	if not base.has_method("screen_fade"):
+		return
+	_eq(base.call("screen_fade", 0x80), false, "btl: the fade is the quad (screen_fade false)")
+
+	# E2's place: EffectHost.load_moves calls on_load_moves first, once, also for an empty list.
+	var log := FadeLog.new()
+	log.data = data
+	var host := EffectHost.new(log)
+	host.load_moves([])
+	_eq(log.loads, 1, "EffectHost.load_moves calls on_load_moves (STD_loadMoveEFE: downloadSomeImage), also for no moves")
+
+	# Builtin 92 goes through the hook: drawn when it returns false, not drawn when true.
+	var btl := FadeLog.new()
+	var btl_drawn := _run_dg_dimension(btl)
+	_eq(btl.loads, 1, "one on_load_moves per load_moves")
+	# 57 calls in its draw script (16, 40 ... 232, 108, then 255), and one more with 0 in its tick script
+	# on the frame it ends (corrected 2026-11-02: the first scan saw only the draw pass).
+	_eq(btl.fades.size(), 58, "DG Dimension calls builtin 92 58 times")
+	_eq(btl.fades.back() if not btl.fades.is_empty() else -1, 0, "its last call is 0, from the tick script as it ends")
+	_eq(btl_drawn, btl.fades.slice(0, 57), "btl: the draw pass's calls are renderScreenFade draws, with their values")
+	var arena := FadeLog.new()
+	arena.handled = true
+	var arena_drawn := _run_dg_dimension(arena)
+	_eq(arena.fades, btl.fades, "the arena's hook gets the same values")
+	_eq(arena_drawn, [], "and no renderScreenFade quad is drawn when the hook handles it")

@@ -13,6 +13,30 @@ const CENTRE := Vector2i(0xA0, 0x78)
 var arena_camera: ArenaCamera
 ## The Godot camera the arena draws with (screen_to_world).
 var view_camera: Camera3D
+## The arena rows' colour factor (stand-in: float multiply, specs/arena.md §4.8).
+var palette_factor := 1.0
+## SOME_IMAGE_DATA (efe.c:975-1015): snapshot of the arena's palette factor when moves are loaded.
+var _palette_copy := 1.0
+
+
+## modifySomeImage (efe.c:986-1015, builtin 92): dims the arena's palettes from _palette_copy.
+func screen_fade(level: int) -> bool:
+	var c := clampi(level, 0, 255)
+	palette_factor = _palette_copy * (255 - c) / 255.0
+	return true
+
+
+## downloadSomeImage (efe.c:975-984, STD_loadMoveEFE): snapshot the arena's palettes.
+func on_load_moves() -> void:
+	_palette_copy = palette_factor
+
+
+## STD_setupFixedCamera / STD_restoreCameraView (std_effect.c:3346-3399): no GsSetProjection(0x200)
+## in US; restore does GsSetProjection(VIEWPORT_DISTANCE).
+func set_fixed_camera(fixed: bool) -> void:
+	super(fixed)
+	if not fixed and arena_camera != null:
+		arena_camera.set_projection(arena_camera.viewport_distance)
 
 
 func world_screen_matrix() -> PackedInt32Array:
@@ -22,8 +46,6 @@ func world_screen_matrix() -> PackedInt32Array:
 
 
 func viewport_distance() -> int:
-	if _fixed:
-		return FIXED_PROJECTION
 	return arena_camera.projection() if arena_camera != null else 500
 
 

@@ -172,7 +172,7 @@ Phases: `FADE_OUT` (6 frames) → `BRACKET_INTRO` (0x79 frames) → per match: `
 - Type 0x71's scale isn't restored after the flatten (`STD_applyMoveResult` vs `BTL_tickStatusEffects`).
 - No combat-area edge (`entityCheckCombatArea` returns 0 in `GAME_STATE` 4, `map.c:3053`). The arena's walls come from `B_TOGI.ATR` (tiles, as the field's collision: `asset_porter/specs/atr.md`).
 - The finisher charge-up gauge sits at (−0x8C, −0x4A) (`STD_initializeFinisherChargeup`).
-- Effects: the screen fade dims the arena's CLUT row (`modifySomeImage`, `main/efe.c:986`: VRAM (512, 248) 256×7, each colour × (255 − c)/255) instead of a full-screen quad. The fixed view saves and restores `GsWSMATRIX` (same result as btl's copy).
+- Effects: the screen fade dims the arena's CLUT rows (`modifySomeImage`, `main/efe.c:986`) instead of drawing a full-screen quad, and the fixed view keeps the arena's projection (§4.8).
 
 ### 4.6 The HUD
 
@@ -225,6 +225,46 @@ The VRAM columns are on page (832, 0) (STDTIM `02_time_up`, the bracket TIM unde
 **The arena model's order in Godot** (§3.1 "Arena drawing"): the sub-OT objects get PsxLit backdrop shaders (no depth write) and `render_priority` −2 (0xFFF) / −1 (object 0). They are drawn first in the opaque pass (Godot sorts it by priority first), so everything drawn after covers them, as the C's back-to-front order does, and object 0 covers the 0xFFF ones. Their semi-transparent texels' pass is the blended one, which already doesn't write depth. Arena 1's object 3 is hidden while the bracket isn't finished.
 
 **`ArenaScenes`** (`scripts/systems/arena/arena_scenes.gd`, logic): `_init(game_data)`, `var roll: Callable` (= `Rng.random_limit`); `add_versus()` / `remove_versus()` / `versus_finished()`, `add_win()`, `add_lose()`, `remove_result()`, `load_champion()`, `init_champion()`, `champion_letters(timer)` (state 0's part), `champion_rise()` (state 1's part), `remove_champion()`, `tick()` (the versus / win / lose ticks); state: `active` ("", "versus", "win", "lose", "champion"), `timer`, `objects` (per scene: `{location: Vector3i, rotation: Vector3i, scale: Vector3i, visible}`), `wipe_heights` / `wipe_order`, `steps`, `columns` (the champion's source page u per column), `podium` (bool), `podium_y`. `static champion_uv(u, v, letter) -> Vector2i`. The session owns it (`session.scenes`) and gives it to each match (`match.scenes`); ticked in both `_objects()`. The camera's `scene_requested` is connected per match and disconnected when the match is done (each match used to add a connection to the shared camera, so the "scene" event fired once per match played so far).
+
+### 4.8 The effects in the arena (step 7)
+
+The arena runs the same `EffectHost` / `EfeVm` / `EfeView` as the field's battles since step 4 (`EffectHost.new(arena_world)`, `Arena._build`). `std_effect.c`'s US functions were compared with their `BTL_` twins (2026-11-02, every function, the prefix swapped). Only three of the differences change what happens.
+
+| # | C (US branch) | btl | arena | Port |
+|---|---|---|---|---|
+| E1 | `STD_renderScreenFade` (`std_effect.c:2400–2429`, builtin 0x5C = 92) | `BTL_renderScreenFade` (`battle_effect.c:2239`): a subtractive full-screen `POLY_FT4` at OT 0xFFE, colour `c` | `modifySomeImage(c)` (`main/efe.c:986–1015`): VRAM (512, 248) 256×7, rebuilt **from the copy** `SOME_IMAGE_DATA`, each 5-bit channel `ch * (255 − c) / 255` (integer), the STP bit kept. No quad | new hook, E1 below |
+| E2 | `STD_loadMoveEFE` (`std_effect.c:2263–2277`) | `BTL_loadMoveEFE` | first `downloadSomeImage()` (`efe.c:975–984`): `StoreImage` of the same rect into `SOME_IMAGE_DATA`, **as VRAM is now** | new hook, E2 below |
+| E3 | `STD_setupFixedCamera` (`std_effect.c:3371–3399`) / `STD_restoreCameraView` (3346–3369) | `GsSetProjection(0x200)`; the restore reads back the saved view, the saved projection and the saved drawing offset | **no `GsSetProjection(0x200)`**: the fixed view keeps the arena camera's projection. It saves `GsWSMATRIX` and the drawing offset. The restore does `GsSetProjection(VIEWPORT_DISTANCE)` and puts the saved `GsWSMATRIX` and offset back | `ArenaWorld` E3 below |
+
+Compared and found to change nothing (no port work):
+- `STD_renderRingTube` drops btl's `>= 0x1000` depth tests (2629). The stored depths are already in [0x21, 0x1000) or −1 (the first loop), so those tests are never true.
+- `STD_renderWireframeBox`, `STD_renderScreenSprite`, `STD_renderParallelLines` read `DRAWING_OFFSET_X/Y` instead of `getDrawingOffsetCopy`. In the arena both are (0xA0, 0x78): `std_setup.c:247–248`, and the fixed view sets the same. `ArenaWorld.drawing_offset()` already returns `CENTRE`.
+- The rest are names (`STD_D_8007AF88` for `BTL_D_8007376C`, the jump tables) and local variable order.
+
+**Which CLUTs E1 dims.** The rect (512..767, 248..254) holds the arena model's palettes and nothing else that is drawn in a match. These were checked in the asset porter's TIM output (2026-11-02):
+- `T_TOGI.TIM` 0–3: rows 248–253 (4-bit) and 254 (8-bit);
+- `B_TOGI.TIM`: rows 248–252;
+- the podiums `T_DAI` / `B_DAI`: rows 248–249.
+
+The fighters, the effects (rows 488+) and the HUD are elsewhere. So **the fade darkens the arena (and the podium) only**. The fighters and the effect's own primitives stay lit. That is the visible difference from a field battle, where the quad darkens everything behind OT 0xFFE.
+
+**Which effects use it.** Of the 120 technique effects, only **DG Dimension (technique 29)** calls builtin 92. That was a scan of every effect on test_efe's stub fighters, 2026-11-02. Its draw script calls 92 on frames 21–77 of its run: 16, 40, … 232 (+24 a frame), one 108, then 255. On the frame it ends (78), its **tick** script calls 92 once more, with **0**. In a field battle that last call is a quad that subtracts nothing. In the arena it is `modifySomeImage(0)`, so the arena's colours come back as the effect ends. (Corrected in review, 2026-11-02: the first scan read only the draw pass's calls and concluded the arena stays black.) The C calls `modifySomeImage` from whatever script runs builtin 92. The port's hook is called the same way, with no draw-pass test. DG Dimension is learned by MetalGreymon, Andromon, Giromon, Megadramon, Gigadramon and Vademon, so an opponent of the higher cups can use it. The read-back (E2) still matters only if a match starts while the arena is dim, which these scripts don't do.
+
+**Design.**
+- E1, E2 are **hooks on `BattleEffectContext`** (`scripts/systems/battle/battle_effect_context.gd`), whose defaults are btl's, so field battles and the effect gallery don't change:
+  - `func screen_fade(level: int) -> bool`: returns `false` (btl: the effect draws its quad). `EfeVm`'s builtin 92 pops `c` as now, then calls `_ectx().screen_fade(c)`, and only when that returns `false` makes the `renderScreenFade` draw call (`_draw`). A mod's `BattleEffect` may call it the same way.
+  - `func on_load_moves() -> void`: does nothing (btl). `EffectHost.load_moves(entries)` calls `ctx.on_load_moves()` first, before any `_load`, also when `entries` is empty (the C calls `downloadSomeImage` before it looks at the list).
+- **`ArenaWorld`** (`scripts/arena/arena_world.gd`) overrides both:
+  - `var palette_factor := 1.0`: the arena rows' colour now, as a factor of the TIM's colour (1 = as loaded, 0 = black). `var _palette_copy := 1.0` is `SOME_IMAGE_DATA`. A new `ArenaWorld` per tournament = `STD_loadArenaAssets`' fresh TIM (both 1.0).
+  - `screen_fade(c)`: `palette_factor = _palette_copy * (255 − c) / 255.0`, with `c` clamped to 0..255. Returns `true`.
+  - `on_load_moves()`: `_palette_copy = palette_factor`.
+  - **`stand-in`:** the factor is a float multiply, not the C's integer per 5-bit channel. This is the rule `PaletteFade` already uses for the death scene's CLUT fades (`specs/death_scene.md` §4.9). It is at most one 5-bit step brighter. At 255 the C's colours become 0x0000, which the GPU skips unless STP. The port draws them black, and the screen behind is cleared to black (`GsSortClear(0, 0, 0)`, `std_main.c:6209`), so the picture is the same.
+- **E3 in `ArenaWorld`:**
+  - While fixed, `viewport_distance()` (and `projection_distance()`) return the arena camera's `projection()`, not `FIXED_PROJECTION`. `world_screen_matrix()` stays the fixed view's (`EFE_FIXED_VIEW`: eye (0, 0, −0x7D0), no rotation). `drawing_offset()` stays `CENTRE`.
+  - `set_fixed_camera(false)` also does the restore's `GsSetProjection(VIEWPORT_DISTANCE)`: `arena_camera.set_projection(arena_camera.viewport_distance)`. That is a new `ArenaCamera.set_projection(distance)` = `GsSetProjection`, which sets what `projection()` returns.
+  - The saved `GsWSMATRIX` needs nothing: the port computes the matrix from the camera when not fixed, which is the saved one.
+- **The view** (`scripts/arena/arena.gd`, `_update_world`, each frame after the session's frame): when `arena_world.palette_factor` changed since the last frame, `PaletteFade.apply(_model, f)`, or `PaletteFade.clear(_model)` at 1.0. The podium gets the same (when it is loaded, and when it is loaded later). `PaletteFade` sets PsxLit's `tint` on every pass; the backdrop shaders include it. Content's models carry surface override materials, which `PaletteFade` reads. On the PSX the CLUT is rewritten while the frame's OT is built, before the GPU draws it, so the dim shows the same frame.
+- Owned files: `battle_effect_context.gd`, `efe_vm.gd` (builtin 92 only), `effect_host.gd` (`load_moves` only), `arena_world.gd`, `arena_camera.gd` (`set_projection` only), `arena.gd` (`_update_world` and what it needs).
 
 ## 5. Godot design
 
@@ -306,7 +346,7 @@ Each step owns its files; all suites and scans pass after every step; a step is 
 | 4 | The `Arena` scene, `ArenaWorld`, the arena model and its OT layers, the fighters, the camera view, the field hook-up (replaces `ArenaStandIn`), a plain HUD so it can be played | `scenes/arena/arena.tscn`, `scripts/arena/arena.gd`, `arena_world.gd`, `arena_view.gd`; `scenes/field/field.tscn`, `scripts/field/field.gd`; `ArenaStandIn` removed | **Hard** · main session: rendering, the field wiring |
 | 5 | The HUD pieces of §4.6 | `scenes/arena/hud/`, `scripts/ui/arena/` | **Hard** (re-rated 2026-11-02: the arena's VRAM pages and pixel layouts, which tests can't judge) · main session |
 | 6 | The bracket view and the four scenes (versus, win, lose, champion + podium) | `scenes/arena/scenes/`, `scripts/arena/scenes/` | **Hard** · main session: TMD scenes, VRAM column scroll |
-| 7 | The effects in the arena: `EffectHost` on `ArenaWorld`, the CLUT fade | `scripts/systems/battle/effect_host.gd` (a hook), `scripts/arena/arena_view.gd` | **Medium** · Claude Sonnet 5.5 (Medium), or Gemini 3.8 Flash (High) via agy |
+| 7 | The effects in the arena (§4.8): the CLUT fade, the read-back at the effects' load, the fixed view's projection | `scripts/systems/battle/battle_effect_context.gd`, `efe_vm.gd`, `effect_host.gd` (hooks), `scripts/arena/arena_world.gd`, `arena.gd`, `scripts/systems/arena/arena_camera.gd` (`set_projection`) | **Medium** · Claude Sonnet 5.5 (Medium), or Gemini 3.8 Flash (High) via agy |
 | 8 | VERIFY "The arena", PLANS, "As built", gates removed | `VERIFY.md`, `PLANS.md`, this spec, the tests | main session |
 
 The game is playable end to end after step 4. Steps 5–7 can then run in any order.
@@ -326,6 +366,7 @@ Steps 1 and 2's checks are written (2026-11-01). Steps 3–7's are written into 
   - the timer (−1 per 20 frames, held while one faints); after a match: the stats reset and the +1/5 heal;
   - the camera: the orbit's position and angles for two fighter positions; the preset and viewpoint picks;
   - a whole tournament on a stub world to `DONE`, won and lost.
+- Step 7 (§4.8), gate 7 in `tests/test_arena.gd`: the hooks' btl defaults, `EffectHost.load_moves` calling `on_load_moves`, and DG Dimension run with the hook unhandled (58 calls: the draw pass's 57 drawn, the tick script's last 0 not) and handled (the same values, no quad drawn). `ArenaWorld` needs the autoloads, so its checks are in `tests/arena_scan.gd` (`_check_effect_world`, `_watch_palette`): the dim from the copy, the read-back, the fixed view's projection and its restore, and the tint on every arena model surface the frame after a dim.
 - `tests/arena_scan.tscn`: the real field on ROOM13, builtin 0x06 → the arena → the warp back, with a strong partner (wins) and a weak one (loses), checking no error, the result in script value 0xFF, the field reloaded.
 
 ## 8. Open questions
@@ -335,6 +376,7 @@ Steps 1 and 2's checks are written (2026-11-01). Steps 3–7's are written into 
 3. ~~Own fighter instances~~ **Decided 2026-11-01 (the user):** the arena is its own scene with its own fighter instances (§5.1, `port-only`). The C moves the field's partner and removes the map's NPCs, but the script warps right after, so none of it is visible.
 4. **Cup 5 (Grade R)** expects 2 wins (`utils2.c:666`), but the loop always runs up to 3 matches. So winning all three counts as a loss, and losing the third counts as a win. Grade R is never on the schedule (`days` empty, `opponent_base_stat` 0), so it's likely unused. The port keeps the C.
 5. ~~Match 3's projectile speed~~ Settled while writing the checks: match 7's unset `d` is never read (§3.2).
+6. ~~DG Dimension leaves the arena black~~ Settled in review (2026-11-02): its tick script calls the fade with 0 as it ends, which restores the arena (§4.8).
 
 ## As built (step 3, 2026-11-02)
 
@@ -377,5 +419,14 @@ Steps 1 and 2's checks are written (2026-11-01). Steps 3–7's are written into 
 - **Data:** `digimon_data.bracket_sprite` `{page, u, v}` (data porter).
 - **Fixed on the way:** each `ArenaMatch` connected to the tournament's camera's `scene_requested` and never disconnected, so from the second match on the "scene" event (now: adding the win / lose scene, which rolls) ran once per match played so far. The match disconnects when it's done.
 - **Corrected in this spec:** the bracket intro shows no sprites (§2); `attribute 0x200` is `GsDIV1`, not "no light" (§3.1).
-- **To check in the game** (VERIFY "The arena"): the WIN letters start at z −0x30C, 220 units in front of the scene camera (very large, partly off screen) until they fly back from frame 0x3D. That is the C's placement; libgs may drop polygons that close (near clip), which the port doesn't reproduce.
+- **The polygons libgs drops** (ISSUES I-41, 2026-11-02): the WIN letters start at z −0x30C, their front faces at SZ3 175 with h 0x15E. `GsSortObject4J`'s TMD functions (`GsTMDfastTF3L`…, `libgte.s` 0x8009CC50: `cfc2 $31; bltz`) skip a polygon when a vertex sets the GTE's FLAG bit 31: SZ3 · 2 ≤ h (divide overflow), SZ3 outside 0..0xFFFF, SX2 / SY2 outside −0x400..0x3FF, IR saturated. So W, I and N aren't drawn until they fly back (from timer 0x3D + 6i). `ArenaSceneView` computes the scene's `GsGetLws` (`PsxMath.gs_mul_coord0(STD_MODEL_SCENE_MATRIX, setupModelMatrix)`) and the flags per TMD primitive (the sidecar's) each frame, and makes the dropped triangles degenerate (rebuilt when the set changes), for all three scenes. `stand-in`: the quotient is the exact division, not the GTE's UNR table (at most one off at the screen edge).
 - **Tests:** `test_arena.gd` gate 6: the drawn lists frame by frame, each scene's timeline, the champion's UV shift, a whole tournament's scenes (one win scene per match, the podium's rise), the bracket view's prims (intro, sprites against the C's cell formula, projectiles, flashes), the scene view (projection, placement, the lose columns, the column blits). `arena_scan` checks the backdrop priorities, the intro and the bracket drawn, the podium and letters in the champion scene, and arena 1's object 3.
+
+## As built (step 7, 2026-11-02)
+
+Implemented by Gemini 3.8 Flash (agy), reviewed in the main session. The hooks are `BattleEffectContext.screen_fade` / `on_load_moves` (btl defaults), routed from `EfeVm` builtin 92 and `EffectHost.load_moves`. `ArenaWorld` has `palette_factor` / `_palette_copy` and the fixed view on the camera's projection. `ArenaCamera.set_projection`. `Arena._update_world` puts `PaletteFade` on the model and the podium when the factor changes. Review fixes:
+- agy had made builtin 92 call the hook only in the draw script (`_pc >= draw entry`), which isn't in the C. Removing that test showed DG Dimension's last call (0, from its tick script as it ends). That corrected §4.8 and open question 6: the arena comes back after DG Dimension.
+- Mixed CRLF line endings in `arena.gd`.
+- The scan's `_check_effect_world` now sets up `PsxMath` first.
+
+Results: test_arena gate 7, 391 checks; the 39 suites OK; arena_scan ROOM13 (won 3) and ARENA_WEAK (lost, 0) clean. BETL02 won 3 and printed OK, with only the scan-side PsxMath errors, before that fix.

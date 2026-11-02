@@ -95,14 +95,44 @@ Dialogue owner (`SET_DIALOG_OWNER`, speaker ids): `0xFD` tamer, `0xFC` partner, 
 | `MAPHEAD/script.json`, `DG/script_<id>.json` | one script: identity (source span), header, sections, instructions (`offset`, `op`, `name`, named `args`, `raw` hex; texts as tokens + display string), padding (raw hex), map links |
 | `MAPHEAD/script.txt`, `DG/script_<id>.txt` | readable listing (human check) |
 | `index.json` | DG offset table (raw), map id → MAPHEAD section → DG script, per-script summary (sections, instruction and text counts) |
+| `tournament_cups.json` | 23 arena cups: requirement (`min_roster`, `also`), over-levelled and eligible lists, opponent pool, info textbox |
 | `manifest.json` | checks, code refs |
 
 A Godot script interpreter can run the JSON directly: jumps are script offsets (build an offset → instruction index map); `raw` keeps the exact bytes.
+
+### Tournament cups table (`tournament_cups.json`)
+
+The arena cup data from script 168 sections 0x0A / 0x0B (`specs/tournament_entry.md` §5.1b, step 4e-3), consumed by `GameData.tournament_cup` and `TournamentCups`.
+
+- **On disc / original reading:**
+  - `getCupDataJumpTable(0x0A, id)` (`main/tournament.c:146`): section 0x0A of the active script contains 23 `JUMP_TO`s (table offset = `u16(section + id * 4 + 2)`).
+  - `getCupDataJumpTableEntry(table, k)` (`:157`): each cup table has 5 entries (entry offset = `u16(table + k * 4 + 2)`):
+    - `k = 0`: points to a `SHOW_TEXTBOX` (0x1A) instruction with the 7-line info text.
+    - `k = 1`: points to a `DATA` (0x6B) block: `[min_roster, min_wins, req_type]`.
+    - `k = 2`: points to a `DATA` block: list of over-levelled Digimon IDs, up to the first byte >= 0xFE (`tournamentCheckFair`, `dget.c:331`).
+    - `k = 3`: points to a `DATA` block: list of eligible Digimon IDs, up to the first byte >= 0xFE (`tournamentCheckEligible`, `dget.c:429`).
+    - `k = 4`: points to a `DATA` block: opponent pool Digimon IDs, up to the first byte >= 0xFE (`isTournamentEnabled`, `dget.c:350`; `startTournament`, `utils2.c:592`). A first byte >= 0xFE means the entire roster (`opponents = null`).
+  - Section 0x0B (+2) holds one more list of Digimon IDs, checked when `req_type == 2` (`dget.c:401`).
+  - Duplication: scripts 213 (arena receptionist), 102 (Beetle Land) and 209 (debug) contain identical cup data.
+
+- **Record shape:**
+  - `id`: cup index (0..22).
+  - `requirement`: `c_values` (`[min_roster, min_wins, req_type]`), `min_roster`, `also`:
+    - `req_type == 0` → `{"type": "none"}`
+    - `req_type == 1` → `{"type": "won", "tournament": 3}` (Grade A Cup won; `dget.c:398` and `trigger.h:808`)
+    - `req_type == 2` → `{"type": "count", "list": <section 0x0B ids>, "min": min_wins}`
+    - `req_type >= 3` → `{"type": "count_until", "until": req_type, "min": min_wins}`
+  - `overleveled`: Digimon IDs in list 2.
+  - `eligible`: Digimon IDs in list 3.
+  - `opponents`: Digimon IDs in list 4, or `null` if entry 4's first byte >= 0xFE.
+  - `info`: `raw` (hex bytes of the SHOW_TEXTBOX instruction), `text` (display text), `offset` (entry 0 offset).
+  - `source`: `script` (168), `cup_table` (offset), `entries` (the 5 entry offsets).
 
 ## Metadata
 
 - Per script JSON: `asset_id` (`SCN/DG.SCN@0x<offset>` or `SCN/MAPHEAD.SCN@0x0`), `source` (span = the script's bytes including its sector padding, sha1 of span and file), `script_id`, `maps` (MAPHEAD sections that select this script), `header` (`code_start`, `table_end`, sections), `instructions` (each with `offset`, `size`, `raw` hex; `nonzero_pads` only when an alignment byte is not zero), `padding` (offset, size, raw hex). Header bytes + instruction `raw` + padding rebuild the span exactly.
 - `index.json`: the used DG table entries, the rest of the table sector as raw hex (`padding_hex`, with the leftover `\SCN\MAPnnn.SCN` names it contains), map links, per-script summary.
+- `tournament_cups.json`: `asset_id` (`SCN/DG.SCN@0x...#tournament_cups`), `family`, `format`, `source` (script 168 span identity), `copies_checked` ([213, 102, 209]), `records` (23 cup records).
 
 ## Verification
 
@@ -111,9 +141,10 @@ A Godot script interpreter can run the JSON directly: jumps are script offsets (
 - Every script: `code_start` = end of the section table; disassembles to `END_SCRIPT` with no unknown opcode; header + instruction bytes + padding = the script bytes (lossless round trip).
 - Every section, jump, selection, switch and IF target lands on an instruction start of the same script; every `JUMP_TO_FILE*` target (script, section) and `SET_SCRIPT` script exists.
 - Padding bytes (`_`) inside instructions are zero (count reported); every text decodes as Shift-JIS.
+- Tournament cups: 23 records; scripts 213, 102 and 209 match script 168 (requirement, lists, section 0x0B, `info.raw`); every list ID is in roster range (< 0x70); case 1 matches `TRIGGER_GRADE_A_CUP_WON` (18 − 15 = 3) verified from C source (`dget.c` and `trigger.h`).
 
 ## Open questions
 
 - Control code `03` (3 data bytes) and `02` are skipped by `drawString2`; their meaning in the text-reveal code is not checked.
-- What reads `DATA` (0x6B) blocks is not traced yet (they look like id lists).
+- What reads `DATA` (0x6B) blocks: arena cup data uses them for tournament requirements and Digimon lists (sections 0x0A / 0x0B, step 4e-3); any remaining usages outside tournaments are not traced yet.
 - `SET_SELECTION`'s runtime `+2` skip points `DIALOGUE_SELECTION.endPointer` two bytes into the next instruction; only used when a selection is cancelled.

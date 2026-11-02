@@ -2,7 +2,7 @@
 
 Update this file whenever a format or family changes status. Status values: `todo`, `investigating` (reading the decomp / scanning), `spec` (spec written), `done` (converter + checks + tests), `blocked`.
 
-Last updated: 2026-10-26
+Last updated: 2026-11-01
 
 ## Formats (parsers / exporters)
 
@@ -39,7 +39,7 @@ Last updated: 2026-10-26
 | `efe` | `ETCHI/EFEDAT.EFE` | done | 331 | 1029/1029 | `specs/efe.md` | 120 technique effects (slot = technique id, named; raw slot `effect.bin` for the effect VM), 89 textured models, 121 textures, scripts as JSON + listings; slot 110 stale copy of 344, slot 121 fill |
 | `btl_rel` | `BTL_REL.BIN` | done | 5 | 14/14 | `specs/btl_rel.md` | The battle overlay's TIM and its 4 models (finisher aura, confusion, stun, buff), textured from ETCTIM.BIN + the TIM |
 | `atr_files` | `STDDAT/B_TOGI.ATR`, `E_TOGI.ATR` | done | 2 | 7/7 | `specs/atr.md` | Arena collision; walkable disc (B) / diamond (E) checked against the arena models; T_TOGI arena reuses B_TOGI.ATR |
-| `scripts` | `SCN/MAPHEAD.SCN`, `SCN/DG.SCN` | done | 223 | 1571/1571 | `specs/scn.md` | 222 DG scripts + MAPHEAD (map setup); 39,797 instructions, 4,844 texts; map → script links; JSON + readable listings |
+| `scripts` | `SCN/MAPHEAD.SCN`, `SCN/DG.SCN` | done | 223 | 1575/1575 | `specs/scn.md` | 222 DG scripts + MAPHEAD (map setup); tournament_cups.json (23 cups); 39,797 instructions, 4,844 texts; map → script links; JSON + readable listings |
 | `sound` | 7 `SOUND/VHB/*.VHB` | done | 145 | 1396/1396 | `specs/sound.md` | 145 VABs (SS, SL, SB, 22 ESALL map sets, 16 VLALL partner sets, 71 VBALL Digimon sets, 33 FAALL music fonts), 834 samples, 74 music tracks (.seq + .mid), usage per bank |
 | `music` | `SOUND/VHB/FAALL.VHB` + `SLUS_010.32` tables | done | 74 | see manifest | `specs/sound.md` | The 74 songs rendered like the game plays them (WAV 44.1 kHz stereo, intro + loop in `smpl`; fonts 0x1D–0x20 once); `index.json` per track |
 | `mmm_dat` | `MMM.DAT` | done | 0 | 2/2 | `specs/sound.md` | All zeros, never opened by the code: disc filler, nothing to convert |
@@ -89,3 +89,4 @@ Last updated: 2026-10-26
 - 2026-10-26 — `maps`: training slot machine textures for the maps that load the TRN overlay (0x70 TRAI00, 0x4E GIAS09, 0x77 MIST05; `loadTrainingLibrary`). The 4bpp page (704, 0) composed in load order, rows v 0xD8–0xF7 exported as `training/slots_p3.png` (symbols, CLUT (48, 486)) and `slots_p4.png` (reel window, CLUT (64, 486)) + `.stp.png` + `slots.json` (`Vram.page_indices`). All three maps give byte-identical strips (informational check); 244 assets, 1256/1256 checks; p3 has no STP colours, p4 all STP.
 - 2026-10-26 — Battle step 5d-1 (`../specs/battle.md` §6): new family `btl_rel` (the battle overlay's TIM and finisher aura / confusion / stun / buff models, 14/14 checks, `specs/btl_rel.md`); `efe` also writes each raw slot (`effect.bin`) for the port's effect VM; `maps` adds `targets_partner` (`unk1 == 1`) to each map Digimon, keeping `unk1`.
 - 2026-10-26 — `efe` listings: `BRANCH_IF` now reads "if (… op register) goto": the VM jumps when the comparison is true (`BTL_EFE_COMPARISONS` return 0 when true); the old text said "if not". Found while porting the VM (5d-2).
+- 2026-11-01 — `scripts`: tournament cups table `output/scripts/tournament_cups.json` (specs/tournament_entry.md §5.1b, step 4e-3). 23 cups extracted from script 168 sections 0x0A/0x0B; verified identical across scripts 213, 102, 209; case 1 verified against `dget.c` and `trigger.h` (`TRIGGER_GRADE_A_CUP_WON` = 18); 1575/1575 checks.

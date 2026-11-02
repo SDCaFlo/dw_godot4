@@ -29,6 +29,8 @@ var ui_filter := true
 var gallery: EffectGallery
 ## The partner's care, for the Partner tab's evolution (null without a field).
 var care: Care
+## The arena stand-in (null without a field).
+var arena: Node
 
 var _status: Label
 var _filter: LineEdit
@@ -63,6 +65,7 @@ func _ready() -> void:
 	tabs.add_child(effects)
 	var partner := DebugPartnerTab.new()
 	partner.care = care
+	partner.arena = arena
 	tabs.add_child(partner)
 	_fill_list("")
 

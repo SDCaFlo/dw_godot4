@@ -85,6 +85,10 @@ Per tournament id:
 - `grade_image` (`\STDDAT\GRADE\*.TIM`)
 - `opponent_base_stat`
 - `days` held (from the schedule)
+- `won_trigger`: trigger set on winning the cup (`id + 15`, `TRIGGER_D_RANK_CUP_WON + id`, `utils2.c:674`, checked)
+- `rounds_to_win`: rounds needed to win the tournament: 2 for cup 5 (Grade R), else 3 (`utils2.c:666–669`, checked)
+- `open_pool`: whether opponent draw takes the whole list without roster trigger checks; true only for Beetle Cup (`0x16`, `utils2.c:603`, checked)
+- `registered_by_builtin_0x21`: registered directly by builtin 0x21 at Beetle Land; true only for Beetle Cup (`0x16`, `script_interp.c:1810`, checked)
 
 Opponents (`STD_initializeOpponent`, `std_setup.c:279–345`), for base `b`:
 - each stat is `b ± 30 %` (Off, Def, Speed, Brain) or `10 b ± 30 %` (HP, MP)
@@ -113,12 +117,12 @@ Row 4 (level 6) is all 0.
 
 `checkTournamentMedalConditions` (`tournament.c:167–240`) returns a condition, and the matching medal is unlocked:
 
-- 0: the 6 Grade cups won (`TRIGGER_D_RANK_CUP_WON + 0..5`)
-- 1: the 5 Version cups (`TRIGGER_VERSION_1_CUP_WON + 0..4`)
-- 2: the 7 type cups (`TRIGGER_FIRE_CUP_WON + 0..6`)
-- 3: the 4 special cups (`TRIGGER_DINO_CUP_WON + 0..3`)
-- 4: 100 tournament wins
-- 5: all 66 cards and the game beaten once
+- 0: the 6 Grade cups won (`cups`: tournament ids 0..5, `TRIGGER_D_RANK_CUP_WON + 0..5`)
+- 1: the 5 Version cups (`cups`: tournament ids 6..10, `TRIGGER_VERSION_1_CUP_WON + 0..4`)
+- 2: the 7 type cups (`cups`: tournament ids 11..17, `TRIGGER_FIRE_CUP_WON + 0..6`)
+- 3: the 4 special cups (`cups`: tournament ids 18..21, `TRIGGER_DINO_CUP_WON + 0..3`)
+- 4: 100 tournament wins (`min_wins`: 100, `tournament.c:213`, checked)
+- 5: all 66 cards and the game beaten once (`all_cards`: true, `trigger`: 50, `tournament.c:218–225`, checked; card count verified against `items/card_data`)
 
 **Quirk to keep:** the conditions are tested in that order and the first one that is fully met is returned. If you already own its medal, the function returns -1 without testing the later conditions. So a later medal is only given if every earlier condition is unmet, or its medal isn't owned yet.
 
@@ -253,7 +257,8 @@ The converter checks:
 - maps: the toilet and name indexes are in range;
 - babies are Fresh / In-Training, and the reincarnation eggs give Fresh Digimon;
 - the `FLEE_CHANCES` padding is 0;
-- the script stats are ids 0 … n − 1, one more than `STATS_LIMIT_ARRAY` has, and `MULTIPLE_OF_10` follows the array directly.
+- the script stats are ids 0 … n − 1, one more than `STATS_LIMIT_ARRAY` has, and `MULTIPLE_OF_10` follows the array directly;
+- tournament won triggers, rounds to win, open pool, builtin 0x21, medal cup condition groups, min wins, card count (0x42 == 66) and trigger 50 are checked against the C code text.
 
 Tests: `tests/test_systems.py` (real data), `tests/test_cross_asset_porter.py` (maps and toilets equal the US executable bytes).
 
@@ -262,5 +267,5 @@ Tests: `tests/test_systems.py` (real data), `tests/test_cross_asset_porter.py` (
 - **Training gains** per gym are constants in `trn_reward.c` / `trn2_reward.c` functions (`x = 80; y = 2; …`), scaled by `RAISE_DATA.trainingType`, level, items and boosts (`specs/digimon.md`, `specs/items.md`). They are code, not tables. Extract them when training is ported (`switch_cases` doesn't apply; they are plain assignments).
 - **Grade R and Beetle Cup** are on no schedule day; how they open (scripts, triggers) isn't traced.
 - **`BIRDRA_TRANSPORT_TARGETS.unk_0x1`** (9 / 0) is passed to the script as `PSTAT_248`; read section 0x4e3 of the script to name it.
-- **`isTournamentEnabled`** (`dget.c`) decides which scheduled tournaments are really open (Digimon level, progress); not traced.
+- **`isTournamentEnabled`** (`dget.c`) decides which scheduled tournaments are really open: traced and documented in `specs/tournament_entry.md` §4.2.
 - **Map bit 0x20** is set on no map.

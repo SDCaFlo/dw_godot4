@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://scripts/field/hosts/menu_host.gd" id="10_menu_host"]
 [ext_resource type="PackedScene" path="res://scenes/field/hosts/death_host.tscn" id="14_death_host"]
 [ext_resource type="PackedScene" path="res://scenes/field/hosts/evolution_host.tscn" id="15_evolution_host"]
+[ext_resource type="Script" path="res://scripts/field/hosts/tournament_host.gd" id="16_tournament_host"]
 [ext_resource type="Script" path="res://scripts/field/hosts/battle_host.gd" id="13_battle_host"]
 [ext_resource type="Script" path="res://scripts/script/script_routines.gd" id="11_routines"]
 [ext_resource type="PackedScene" path="res://scenes/script/shop_routines.tscn" id="12_shop_routines"]
@@ -25,6 +26,8 @@
 [ext_resource type="PackedScene" path="res://scenes/script/naming_routines.tscn" id="12_naming_routines"]
 [ext_resource type="PackedScene" path="res://scenes/script/save_routines.tscn" id="12_save_routines"]
 [ext_resource type="PackedScene" path="res://scenes/script/death_routines.tscn" id="12_death_routines"]
+[ext_resource type="PackedScene" path="res://scenes/script/tournament_routines.tscn" id="12_tournament_routines"]
+[ext_resource type="PackedScene" path="res://scenes/field/arena_stand_in.tscn" id="17_arena_stand_in"]
 
 [sub_resource type="Environment" id="Environment_bg"]
 background_mode = 3
@@ -112,6 +115,8 @@ script = ExtResource("11_routines")
 
 [node name="DeathRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_death_routines")]
 
+[node name="TournamentRoutines" parent="Systems/ScriptHost/Routines" instance=ExtResource("12_tournament_routines")]
+
 [node name="CareHost" type="Node" parent="Systems"]
 script = ExtResource("7_care_host")
 
@@ -127,6 +132,11 @@ script = ExtResource("13_battle_host")
 [node name="DeathHost" parent="Systems" instance=ExtResource("14_death_host")]
 
 [node name="EvolutionHost" parent="Systems" instance=ExtResource("15_evolution_host")]
+
+[node name="TournamentHost" type="Node" parent="Systems"]
+script = ExtResource("16_tournament_host")
+
+[node name="ArenaStandIn" parent="Systems" instance=ExtResource("17_arena_stand_in")]
 
 [node name="Debug" type="Node" parent="."]
 script = ExtResource("9_debug")

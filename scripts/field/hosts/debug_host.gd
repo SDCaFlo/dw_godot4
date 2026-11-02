@@ -20,6 +20,8 @@ var scripts: ScriptHost
 var care_host: CareHost
 var menu_host: MenuHost
 var clock: Clock
+## The arena stand-in (ArenaStandIn).
+var arena: Node
 ## The technique gallery's world: the 3D world, the camera, the nodes it hides (set by the field).
 var world: Node
 var camera: Camera3D
@@ -72,6 +74,7 @@ func start() -> void:
 	window = DebugWindow.new()
 	window.gallery = gallery
 	window.care = care_host.care if care_host != null else null
+	window.arena = arena
 	window.maps = maps
 	window.map_label = func(map_name: String) -> String: return _map_list_label(map_name)
 	window.teleport = func(map_name: String, exit: int) -> void: map_session.debug_change_map(map_name, exit)

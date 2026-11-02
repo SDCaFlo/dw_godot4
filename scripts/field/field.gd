@@ -142,6 +142,7 @@ func _start() -> void:
 	scripts.clock = clock
 	scripts.map_items = map_session.map_items
 	scripts.map_chests = map_session.map_chests
+	scripts.map_props = map_session.map_props
 	scripts.arena = arena
 	scripts.start()
 	scripts.message.connect(debug.show_message)
@@ -243,6 +244,8 @@ func _start() -> void:
 	$World/SubViewport/Background.add_child(evolution_host.background_dark)
 	$World/SubViewport/Background.add_child(evolution_host.particles_view)
 	map_session.partner = partner
+	if map_session.map_props_view != null:
+		map_session.map_props_view.partner = partner
 	map_session.entities = entities.entities
 	map_session.scripts = scripts
 	map_session.clock = clock
@@ -314,7 +317,7 @@ func _start_debug() -> void:
 ## ground, the chests, the poop), which a technique may hide for a frame.
 func map_layer_nodes() -> Array:
 	return [_field.get_node_or_null("Doors"), _field.overlays, map_session.map_items, map_session.map_chests,
-			care_host.poop]
+			map_session.map_props_view, care_host.poop]
 
 
 ## One game frame, in the original's object order (specs/scenes.md §3): the tamer and the partner
@@ -361,6 +364,8 @@ func _frame() -> void:
 		death_host.tick_objects()
 		evolution_host.tick_objects()
 		_field.overlays.tick()
+		if map_session.map_props_view != null:
+			map_session.map_props_view.render()
 	debug.tick_message()
 	debug.tick_gallery()
 	care_host.tick_visuals(in_menu)

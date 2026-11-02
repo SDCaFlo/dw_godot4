@@ -20,6 +20,8 @@ func _process(_delta: float) -> bool:
 	_step = int(OS.get_environment("DW_STEP_4F")) if OS.get_environment("DW_STEP_4F").is_valid_int() else 0
 	if _gate(1, "step 1: MapProps logic"):
 		_props()
+	if _gate(3, "step 3: screen-effect logic"):
+		_screen_effects()
 	var state := "FAILED %d" % _failed if _failed else "OK"
 	if _pending:
 		state += "; PENDING (DW_STEP_4F=%d): %s" % [_step, ", ".join(_pending)]
@@ -282,3 +284,195 @@ func _unload(cls: GDScript) -> void:
 			&"pedestal"]:
 		_eq(p.drawn(k), false, "P20: %s not drawn" % k)
 	_eq(p.cart_model, 0, "P20: the state stays (only the objects go)")
+
+
+# --- Step 3: the screen effects' logic (§3.2, §4.2.1) -------------------------------------------
+
+func _screen_effects() -> void:
+	for path in ["res://scripts/field/meramon_shake.gd", "res://scripts/field/ninjamon_effect.gd",
+			"res://scripts/field/mood_bubble.gd"]:
+		if not ResourceLoader.exists(path):
+			_check(false, "step 3: %s exists" % path)
+			return
+	_white_fade()
+	_meramon(load("res://scripts/field/meramon_shake.gd"))
+	_ninjamon(load("res://scripts/field/ninjamon_effect.gd"))
+	_mood(load("res://scripts/field/mood_bubble.gd"))
+
+
+func _white_fade() -> void:
+	var fade := Fade.new()
+	var clock := Clock.new()
+	fade.clock = clock
+	_eq(fade.get("mode"), 2, "S1: FADE_MODE starts at 2 (initializeFadeData)")
+	fade.fade_to_white(20)
+	_eq(fade.mode, 1, "S1: white mode")
+	_eq(fade.out_current, 1, "S1: FADE_OUT_CURRENT 1")
+	_eq(clock.running, true, "S1: no stopGameTime")
+	_eq(fade.protection, false, "S1: no FADE_PROTECTION")
+	var levels := []
+	for i in 24:
+		fade.tick()
+		levels.append(fade.progress)
+	_eq(levels[0], 7, "S1: first step 160 / (20 + 1)")
+	_eq(levels[21], 154, "S1: 7 a frame")
+	_eq(levels[22], 160, "S1: capped at 160 on frame 23")
+	_eq(levels[23], 160, "S1: stays full")
+	fade.fade_from_white(40)
+	_eq(fade.mode, 1, "S2: white mode")
+	_eq(fade.out_current, 0, "S2: fade out stopped")
+	_eq(fade.in_current, 1, "S2: FADE_IN_CURRENT 1")
+	var n := 0
+	while fade.in_current > 0 and n < 100:
+		fade.tick()
+		n += 1
+	_eq(n, 41, "S2: 40 steps, then the end frame")
+	_eq(fade.progress, 0, "S2: clear at the end")
+	_eq(clock.running, true, "S2: the clock still runs")
+	fade.fade_to_black(10)
+	_eq(fade.mode, 2, "fadeToBlack sets mode 2")
+	_eq(clock.running, false, "fadeToBlack stops the clock")
+	_eq(fade.protection, true, "fadeToBlack sets the protection")
+	fade.fade_from_white(5)
+	_eq(fade.mode, 1, "S2: white after black")
+	for i in 10:
+		fade.tick()
+	_eq(fade.protection, false, "S2: renderFadeIn's end clears the protection (fade.c:125)")
+	fade.fade_from_black(5)
+	_eq(fade.mode, 2, "fadeFromBlack sets mode 2")
+	fade.free()
+	clock.free()
+
+
+func _shake_amp(f: int) -> int:
+	if f < 0x1F:
+		return 1
+	if f < 0x3D:
+		return 2
+	if f < 0x79:
+		return 3
+	if f < 0xB5:
+		return 2
+	return 1
+
+
+func _meramon(cls: GDScript) -> void:
+	var m = cls.new()
+	m.start(Vector2i(160, 120))
+	_eq(m.saved_offset, Vector2i(160, 120), "S6: offsets saved")
+	_eq(m.done, false, "S5: running")
+	var sum := 0
+	var steps := 0
+	var ok := true
+	while not m.done and steps < 400:
+		var want := _shake_amp(steps) * (-1 if steps % 2 == 0 else 1)
+		var got: int = m.tick()
+		if got != want:
+			ok = false
+			_check(false, "S5: frame %d step %d, want %d" % [steps, got, want])
+			break
+		sum += got
+		steps += 1
+	_check(ok, "S5: every step's amplitude and sign")
+	_eq(steps, 0xD2, "S6: 210 frames")
+	_eq(sum, 0, "S5: the steps sum to 0")
+	_eq(m.done, true, "S6: done")
+	_eq(m.tick(), 0, "S6: no step once done")
+	m.start(Vector2i(1, 2))
+	_eq(m.frame, 0, "S5: a new start restarts")
+	_eq(m.tick(), -1, "S5: frame 0 is -1")
+	_eq(m.tick(), 1, "S5: frame 1 is +1")
+
+
+func _ninjamon(cls: GDScript) -> void:
+	_eq(cls.COUNT, 0x29, "S8: 0x29 sprites")
+	_eq(cls.ORDER, 10, "S8: order value 10")
+	var saved := []
+	for i in 0x29:
+		saved.append(Vector2i(i * 4 - 80, 100 - i))
+	saved[5] = Vector2i(0x9F, 0)  # wraps on its first frame
+	# The rolls the effect must make, in order: start (dx, dy per sprite), then each wrap.
+	Rng.set_seed(1234)
+	var dx := []
+	var dy := []
+	for i in 0x29:
+		dx.append(Rng.random_limit(10) + 12)
+		dy.append(Rng.random_limit(10) + 3)
+	var exp_pos := saved.duplicate()
+	var frames := []
+	for f in 3:
+		for i in 0x29:
+			exp_pos[i] = Vector2i(exp_pos[i].x + dx[i], exp_pos[i].y + dy[i])
+			if exp_pos[i].x > 0xA0:
+				exp_pos[i] = saved[i]
+				dx[i] = Rng.random_limit(10) + 12
+				dy[i] = Rng.random_limit(10) + 3
+		frames.append(exp_pos.duplicate())
+	Rng.set_seed(1234)
+	var e = cls.new()
+	e.start(saved)
+	_eq(_list(e.positions), _list(saved), "S8: start positions are the saved ones")
+	_eq(e.done, false, "S8: running")
+	_eq(saved[5], Vector2i(0x9F, 0), "S8: start doesn't change the saved array")
+	for f in 3:
+		_eq(e.tick(), false, "S8: frame %d not done" % f)
+		_eq(_list(e.positions), _list(frames[f]), "S8: positions after frame %d" % (f + 1))
+	_eq(frames[0][5], saved[5], "S8: a sprite past 0xA0 goes back to its saved place")
+	var n := 3
+	var done := false
+	while not done and n < 100:
+		done = e.tick()
+		n += 1
+	_eq(n, 0x3C, "S8: done after 0x3C frames")
+	_eq(e.done, true, "S8: done flag")
+
+
+func _mood(cls: GDScript) -> void:
+	_eq(cls.SIZE, 32, "S10: 32x32")
+	_eq(cls.PIVOT, Vector2i(16, 16), "S10: pivot")
+	_eq(cls.TPAGE, Vector2i(640, 0), "S10: tpage")
+	_eq(cls.CLUT, Vector2i(0, 486), "S10: CLUT")
+	_eq(cls.COLOR, 0x80, "S10: colour")
+	var b = cls.new()
+	_eq(b.instances, 0, "S9: none at first")
+	_eq(b.render(true).size(), 0, "S9: nothing to draw")
+	b.create(false, 3)
+	_eq(b.instances, 0, "S9: entity off the map: nothing")
+	b.create(true, 3)
+	_eq(b.instances, 1, "S9: one bubble")
+	_eq(b.timer, 0x1E, "S9: timer 0x1E")
+	_eq(b.u, 96, "S9: u = mood * 32")
+	var r: Array = b.render(true)
+	_eq(r, [{"offset": 1, "scale": 0x100}], "S11: first frame offset 1, scale 1/16")
+	_eq(b.timer, 0x1D, "S11: timer -1")
+	_eq(b.render(false).size(), 0, "S11: entity off the map: nothing drawn")
+	_eq(b.timer, 0x1D, "S11: and the timer doesn't move")
+	for i in 0x1D:
+		b.render(true)
+	_eq(b.timer, 0, "S11: timer down to 0")
+	_eq(b.render(true), [{"offset": 16, "scale": 0x1000}], "S11: full size")
+	_eq(b.timer, 0, "S11: stays at 0")
+	b.create(true, 0)
+	_eq(b.instances, 2, "S9: a second create runs a second render object")
+	_eq(b.u, 0, "S9: u of the last mood")
+	r = b.render(true)
+	_eq(r.size(), 2, "S11: drawn twice")
+	_eq(r[0], {"offset": 1, "scale": 0x100}, "S11: first instance at 0x1E")
+	_eq(r[1], {"offset": 16 - (0x1D >> 1), "scale": PsxMath.s16((16 - (0x1D >> 1)) << 8)}, "S11: second after one decrement")
+	_eq(b.timer, 0x1C, "S11: two decrements a frame")
+	b.create(true, 5)
+	_eq(b.instances, 1, "S9: mood 5 removes one")
+	b.create(true, 0x105)
+	_eq(b.instances, 0, "S9: mood & 0xFF (0x105 -> 5) removes")
+	b.create(true, 7)
+	_eq(b.instances, 0, "S9: not below 0")
+	b.create(true, 0x101)
+	_eq(b.instances, 1, "S9: 0x101 & 0xFF is mood 1")
+	_eq(b.u, 32, "S9: u 32")
+	b.clear()
+	_eq(b.instances, 0, "clear")
+
+
+## An array as text, so typed and untyped arrays compare by their contents.
+func _list(a) -> String:
+	return str(Array(a))

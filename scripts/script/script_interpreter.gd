@@ -159,6 +159,9 @@ var sound: Node
 ## them those opcodes are skipped and reported.
 var map_items: MapItems
 var map_chests: MapChests
+## The map props (specs/map_events.md §4.1.2): dirt cart, dirt pile, boulder, boxes, gearbox, pedestal.
+## Without them the routines and opcodes stay unported.
+var map_props: MapProps
 ## The field's battles (BattleHost, specs/battle.md §5.3): start_battle(talked_entity),
 ## battle_done() and battle_outcome(). Without it START_BATTLE is skipped and reported.
 var battles: Object
@@ -307,6 +310,10 @@ func _tick_waiting_instruction() -> void:
 			# The ported builtins tick until they end (ACTIVE_INSTRUCTION = 0); the others end at once.
 			if routines != null and routines.handles(ctx.script_param_1):
 				routines.tick(ctx.script_param_1)
+			elif ctx.script_param_1 == 0x32 and map_props != null:
+				# case 50 (script_interp.c:506-509)
+				if map_props.move_pedestal():
+					ctx.active_instruction = 0
 			else:
 				ctx.active_instruction = 0
 		OP_WAIT_FOR_ENTITY:
@@ -1193,6 +1200,21 @@ func _op_64_7e(op: int) -> int:
 			var z := _s16(_u16())
 			var rotation := _s16(_u16())
 			map_chests.spawn(item, Vector3i(x, y, z), rotation, _u16())
+		0x76 when map_props != null:
+			# SPAWN_BOULDER (script_interp.c:2129)
+			ctx.next_byte()
+			map_props.spawn_boulder()
+		0x77 when map_props != null:
+			# MOVE_BOULDER (script_interp.c:2133): byte, two signed shorts, ends the frame (longjmp 2)
+			ctx.next_byte()
+			var x := _s16(_u16())
+			var z := _s16(_u16())
+			map_props.move_boulder(x, z)
+			return STOP
+		0x78 when map_props != null:
+			# DESPAWN_BOULDER (script_interp.c:2138)
+			ctx.next_byte()
+			map_props.despawn_boulder()
 		_:
 			return _unported_op(op)
 	return NEXT
@@ -1364,12 +1386,48 @@ func _call_routine(routine: int) -> int:
 		0x10:
 			textboxes.trigger_box_close_flag(2)
 			return STOP
+		0x13 when map_props != null:
+			# setDirtCartModel (script_interp.c:1753-1756)
+			map_props.set_dirt_cart_model(ctx.read_pstat(0xFE))
+			return STOP
+		0x14 when map_props != null:
+			# decreaseDirtPileSize (script_interp.c:1757-1759)
+			map_props.decrease_dirt_pile()
+			return STOP
 		0x19:
 			ctx.saved_pstat0 = ctx.read_pstat(0xFE)
+		0x1A when map_props != null:
+			# loadDirtCartModel (script_interp.c:1777-1779)
+			map_props.load_dirt_cart()
+		0x1B when map_props != null:
+			# loadDirtPileModel (script_interp.c:1780-1782)
+			map_props.load_dirt_pile()
 		0x1E:
 			ctx.shop_variable = 0
 		0x1F:
 			ctx.shop_variable += ctx.read_pstat(0xF4) + (ctx.read_pstat(0xF3) << 8)
+		0x29 when map_props != null:
+			# spawnGearbox (script_interp.c:1870-1872)
+			map_props.spawn_gearbox()
+		0x2A when map_props != null:
+			# somethingToyTown (script_interp.c:1873-1875)
+			var reload := map_props.set_box(_s8(ctx.read_pstat(0xFE)), game_state.is_trigger_set(350))
+			if reload:
+				_report(ScriptContext.OP_CALL_ROUTINE, "readMapTFS (step 7)")
+		0x2B when map_props != null:
+			# spawnToyTownBoxes (script_interp.c:1876-1878)
+			map_props.spawn_toy_town_boxes()
+		0x2C when map_props != null:
+			# openToyTownBox (script_interp.c:1879-1881)
+			map_props.open_box(_s8(ctx.read_pstat(0xFE)))
+		0x31 when map_props != null:
+			# spawnAngemonPedestal (script_interp.c:1888-1890)
+			map_props.spawn_pedestal()
+		0x32 when map_props != null:
+			# moveAngemonPedestal setup (script_interp.c:1770-1774)
+			ctx.active_instruction = ScriptContext.OP_CALL_ROUTINE
+			ctx.textbox_mode = 0
+			return STOP
 		0x38:
 			game_state.set_script_value(0xF3, (ctx.shop_variable / 256) & 0xFF)
 			game_state.set_script_value(0xF4, ctx.shop_variable & 0xFF)

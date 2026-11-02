@@ -187,9 +187,28 @@ Routine 0x24 (`readMapTFS(CURRENT_SCREEN_ID)`) is called by no script.
 
 **Shared buffers (`port-only`).** The C draws the pile, boulder, gearbox and pedestal through one object (`GENERAL_OBJECT3`), and the cart and the small box through `GENERAL_COORDS[0..1]`. The port keeps each prop's state apart: no script loads two of them on one map (§1: each is on its own map), and every map change unloads them.
 
-- **The view** (`scenes/field/map_props.tscn`, `scripts/field/map_props_view.gd`): one `Content.load_model` per prop, placed from `transform()`, hidden while the map layer is off (`map_layer_nodes`). The cart follows the partner each frame (P3).
+- **The view** (`scripts/field/map_props_view.gd`, built in code like `MapChests`): one `Content.load_model` per prop, placed from `transform()`, hidden while the map layer is off (`map_layer_nodes`). The cart follows the partner each frame (P3).
 - **The interpreter:** routines 0x13, 0x14, 0x1A, 0x1B, 0x29, 0x2A, 0x2B, 0x2C, 0x31, 0x32 (tick: `move_pedestal`) and opcodes 0x76–0x78 call `MapProps` through a `props` field. 0x13, 0x14 and 0x77 end the frame (`longjmp 2`). They leave `ROUTINE_WAITS` / `UNPORTED` when the field is there.
 - **The map change** calls `unload()` (P20). P21 is kept: `Clock`'s time-of-day update calls `props.on_time_of_day()`, which drops the pedestal while it is loaded.
+
+#### 4.1.2 The view and the wiring (step 2)
+
+- **`Content.psx_transform(m: PackedInt32Array) -> Transform3D`** (`scripts/content/content.gd`): a PSX 3×4 matrix to Godot. The basis is `ArenaSceneView._godot_basis`'s (column j = (m[j], −m[3+j], −m[6+j]) · f[j] / 4096 with f = (1, −1, −1)); the origin is `psx_to_godot([m[9], m[10], m[11]])`. `ArenaSceneView` keeps its own copy (not touched in this step).
+- **`MapPropsView`** (`scripts/field/map_props_view.gd`, `class_name MapPropsView extends Node3D`). Fields: `props: MapProps`, `partner: Node3D` (a `FieldDigimon`: `position`, `direction`, `radius`). `render()` once per game frame (the props' `render*` functions):
+  1. `props.tick_render(visible)`: the map layer (P13, P19) is the view's `visible`, which `Field.map_layer_nodes()` turns off.
+  2. Per group: a model is loaded the first time its group is loaded (`MapProps.MODELS`), and freed when the group is unloaded. The cart group has two models (`cart`, `cart_box`); the boxes group two (`big_box`, `small_box`), each with its lid as the model's `object_1` node.
+  3. Each model's `visible` = `props.drawn(prop)`; for the cart group, `cart` shows only at `cart_model == 0` and `cart_box` only at 1.
+  4. Placement: `transform = Content.psx_transform(props.transform(prop))`; a lid's `object_1.transform = Content.psx_transform(props.transform(&"big_lid"))` (relative to its box). The cart: `props.cart_transform(Vector3i(psx location), Vector3i(0, partner.direction, 0), partner.radius)`, the location being `(x, −y, −z)` of `partner.position` rounded.
+  `node(prop: StringName) -> Node3D`: the model of `cart`, `cart_box`, `pile`, `boulder`, `big_box`, `small_box`, `gearbox` or `pedestal`; null when not loaded.
+- **`GameState.session := {}`** (`scripts/state/game_state.gd`): values the C keeps in static data, never saved, kept across new games and loads (`port-only` place, C behaviour).
+- **`MapSession`** (`scripts/field/hosts/map_session.gd`): `start_map_items()` also makes `map_props = MapProps.new(GameState.session)` and `map_props_view` (name `"MapProps"`, `props`, `partner`), added to `world`. `_load_map_at_exit` calls `map_props.unload()` with the items' and chests' clear (P20). The partner is set later than `start_map_items` (`field.gd:245`): the view reads `map_session.partner` through a `partner` set in `Field` after it (one line next to `map_session.partner = partner`).
+- **`Field`** (`scripts/field/field.gd`): `scripts.map_props = map_session.map_props` next to `scripts.map_chests`; `map_layer_nodes()` adds `map_session.map_props_view`; `_frame()` calls `map_session.map_props_view.render()` right after `_field.overlays.tick()`.
+- **`ScriptHost`** (`scripts/field/hosts/script_host.gd`): `var map_props: MapProps`, passed to `interpreter.map_props` next to `map_chests`.
+- **`ScriptInterpreter`**: `var map_props: MapProps` (null: the routines and opcodes stay unported, as now). With it:
+  - routine 0x13: `set_dirt_cart_model(read_pstat(0xFE))`, then STOP (`script_interp.c:1753–1756`); 0x14: `decrease_dirt_pile()`, STOP (1757); 0x1A `load_dirt_cart()` (1777); 0x1B `load_dirt_pile()` (1780); 0x29 `spawn_gearbox()` (1870); 0x2A `set_box(s8(read_pstat(0xFE)), game_state.is_trigger_set(350))` (1873), and when it returns true the TFS reload is reported once as unported (`"readMapTFS (step 7)"`); 0x2B `spawn_toy_town_boxes()` (1876); 0x2C `open_box(s8(read_pstat(0xFE)))` (1879); 0x31 `spawn_pedestal()` (1888);
+  - routine 0x32: `active_instruction = OP_CALL_ROUTINE`, `textbox_mode = 0`, STOP (1770–1775); its wait (`_tick_waiting_instruction`) calls `map_props.move_pedestal()` each frame and ends when it returns true (case 50, 506–510);
+  - opcode 0x76 (SPAWN_BOULDER): 1 byte, `spawn_boulder()`; 0x77 (MOVE_BOULDER): 1 byte, two `int16_t` x / z, `move_boulder(x, z)`, STOP; 0x78 (DESPAWN_BOULDER): 1 byte, `despawn_boulder()` (2129–2142).
+- **P21:** `FieldMap` gets `signal daytime_transition_removed(palette: int)`, emitted in `set_time_of_day` when a daytime fade is running (`_transition_frame >= 0`), with the fade's target palette, before `_end_transition()`. That covers both C removals: the fade's end at frame 25 (`map.c:4577`) and `updateTimeOfDay` during a fade (4307). `MapSession` connects it to `map_props.on_daytime_removal(Clock.PALETTE.find_key(palette))` (palette → time of day).
 
 ### 4.2 The screen effects
 
@@ -197,6 +216,28 @@ Routine 0x24 (`readMapTFS(CURRENT_SCREEN_ID)`) is called by no script.
 - **`MeramonShake`** (logic, `scripts/field/meramon_shake.gd`): `tick() -> int` returns the frame's x step (S5) and ends at 0xD2. `FieldMap` gets `offset_shake: Vector2` (`port-only` name), added in `drawing_offset()` and to the camera's projection centre, and reset at the end (S6). No quad (S7).
 - **`NinjamonEffect`** (`scripts/field/ninjamon_effect.gd`): drives `MapOverlays` sprites 0..0x28 as in S8, through `store_positions` / `move` / `set_flag`, rolling `Rng.random_limit`.
 - **`MoodBubble`** (`scripts/field/mood_bubble.gd`, a canvas piece like `ConditionBubbles`): S9–S11, at the entity's condition-FX point (`BattleEffectContext.condition_fx_position`'s field twin, or the bone offset `GameData.condition_fx_offset`), sorted by depth.
+
+#### 4.2.1 The logic's API (step 3)
+
+No drawing and no wiring (step 4). `int16_t` values wrap as in the C (`PsxMath.s16`).
+
+- **`Fade`** (`scripts/field/fade.gd`) gains `var mode := 2` (`FADE_MODE`; `initializeFadeData`, `fade.c:69`, sets 2) and:
+  - `fade_to_black` / `fade_from_black` also set `mode = 2` (`fade.c:81`, 97);
+  - `fade_to_white(frames)` (S1): as `fade_to_black` (`_out_frames = frames + 1`, `out_current = 1`, `in_current = 0` as the port's black fade does for the removed render object), `mode = 1`; the clock and `protection` are untouched;
+  - `fade_from_white(frames)` (S2): as `fade_from_black`, `mode = 1`;
+  - `tick()` is unchanged: both modes share renderFadeOut / renderFadeIn (`fade.c:101–142`), so the end of a fade from white also clears `protection` (`fade.c:125`).
+- **`MeramonShake`** (`scripts/field/meramon_shake.gd`, `class_name MeramonShake extends RefCounted`):
+  - `start(offset: Vector2i)` (`createMeramonShake`, `map.c:5472`): `frame = 0`, `saved_offset = offset`, `done = false`;
+  - `tick() -> int` (`tickMeramonShake`, 5482): the frame's x step (S5: amplitude by `frame`, negated when `frame` is even), then `frame += 1`; at `frame >= 0xD2`, `done = true` (S6: the caller then puts `saved_offset` back). Ticking when done returns 0. No quad (S7).
+- **`NinjamonEffect`** (`scripts/field/ninjamon_effect.gd`, `class_name NinjamonEffect extends RefCounted`), S8:
+  - `const COUNT := 0x29`;
+  - `start(saved: Array)` (`createNinjamonEffect`, `overworld.c:777`): `saved` is `MapOverlays.store_positions(0, COUNT)` (Vector2i); `positions` = a copy; `frame = 0`, `done = false`; per sprite, in order, `dx[i] = Rng.random_limit(10) + 12`, then `dy[i] = Rng.random_limit(10) + 3`;
+  - `tick() -> bool` (`renderNinjamonEffect`, 801): per sprite `positions[i] += (dx[i], dy[i])` (`int16_t`); when x > 0xA0, back to `saved[i]` and new `dx[i]`, `dy[i]` (rolled in that order). Then `frame += 1`; at `frame >= 0x3C`, `done = true`. Returns `done`. The caller writes the positions and order value 10 (`const ORDER := 10`) to the overlays, and on done sets flag 1 on the 0x29 sprites.
+- **`MoodBubble`** (`scripts/field/mood_bubble.gd`, `class_name MoodBubble extends RefCounted`; the drawing is step 4's `MoodBubbleView`), S9–S11:
+  - consts from `MONOCHROMON_BUBBLE_SPRITE` (`script_common.c:271–290`): `SIZE := 32`, `PIVOT := Vector2i(16, 16)`, `TPAGE := Vector2i(640, 0)` (4-bit), `CLUT := Vector2i(0, 486)`, `COLOR := 0x80`;
+  - `create(entity_on_map: bool, mood: int)` (`createMonochromonMoodBubble`, 3038): mood is `& 0xFF`. Mood < 5: when the entity is on the map, `timer = 0x1E`, `u = mood * 32`, `instances += 1`. Mood ≥ 5: `instances -= 1` (not below 0). `addObject` doesn't check for a running bubble, so two calls without a removal run two render objects on the one sprite: the port keeps that count;
+  - `render(entity_on_map: bool) -> Array` (`renderMonochromonMoodBubble`, 1220): empty when the entity is off the map (the C returns before the timer). Else once per instance: `offset = 0x10 − (timer >> 1)`, `scale = s16(offset << 8)`; append `{"offset": offset, "scale": scale}`; then `timer −= 1` unless 0. The caller draws each at the entity's condition-FX point, y − offset;
+  - `clear()`: `instances = 0` (the map change, step 4).
 
 ### 4.3 Machinedramon
 
@@ -224,9 +265,9 @@ Digimon routine 6 and routine 0x35 set tamer state 16. Routine 0x35's wait (case
 
 | Part | Files |
 |---|---|
-| Props | `scripts/field/map_props.gd`, `scripts/field/map_props_view.gd`, `scenes/field/map_props.tscn`; `scripts/field/field.gd` (wiring); `scripts/state/game_state.gd` (`session`) |
+| Props | `scripts/field/map_props.gd`, `scripts/field/map_props_view.gd`; `scripts/content/content.gd` (`psx_transform`); `scripts/field/field.gd`, `scripts/field/hosts/map_session.gd`, `script_host.gd` (wiring); `scripts/field/field_map.gd` (P21's signal); `scripts/state/game_state.gd` (`session`) |
 | Interpreter | `scripts/script/script_interpreter.gd` (the routines and opcodes) |
-| Screen effects | `scripts/field/fade.gd`, `scripts/field/meramon_shake.gd`, `scripts/field/ninjamon_effect.gd`, `scripts/field/mood_bubble.gd`, `scripts/field/field_map.gd` (`offset_shake`) |
+| Screen effects | `scripts/field/fade.gd`, `scripts/field/meramon_shake.gd`, `scripts/field/ninjamon_effect.gd`, `scripts/field/mood_bubble.gd` (logic), `mood_bubble_view.gd`, `scripts/field/field_map.gd` (`offset_shake`) |
 | Machinedramon | `scripts/field/eab/eab_scene.gd`, `eab_view.gd`, `scripts/field/tamer.gd` (state 18), `scripts/field/hosts/` (wiring) |
 | Ending | `scripts/field/ending/ending_scene.gd`, `ending_view.gd`, `scripts/field/tamer.gd` (states 15 / 16), `scripts/game/game.gd` (end → movie 3 → title) |
 
@@ -249,7 +290,7 @@ Steps 1–4 can run before 5–6, and 1 and 3 in parallel (they own different fi
 
 ## 7. Tests (acceptance checks, written before each step; gate `DW_STEP_4F=<step>`)
 
-`tests/test_map_events.gd` (`-s`, with `GameData`; the field-bound checks go in a scan scene like `arena_scan`):
+`tests/test_map_events.gd` (`-s`, with `GameData`): steps 1, 3 and later logic. `tests/test_map_events_field.gd` (`-s`, a `FieldMap` and an interpreter like `test_map_objects.gd`): step 2 and 4's wiring.
 - **Step 1:**
   - every P row (positions, scale per counter, the counter's floor of 6, `move_boulder`'s y quirk, the lid's 11 frames to −0x400, the pedestal's 50 frames and its ±5);
   - `unload` clears all;

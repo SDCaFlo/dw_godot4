@@ -26,6 +26,8 @@ var in_current := 0
 var progress := 0
 ## FADE_PROTECTION: set by fade_to_black until a fade from black ends (stops the care tick, warps).
 var protection := false
+## FADE_MODE (fade.c:69, initializeFadeData): 1 additive (white), 2 subtractive (black).
+var mode := 2
 
 var _out_frames := 0
 var _in_target := 0
@@ -47,6 +49,7 @@ func fade_to_black(frames: int) -> void:
 	_out_frames = frames + 1
 	out_current = 1
 	in_current = 0
+	mode = 2
 	if clock != null:
 		clock.running = false
 	protection = true
@@ -57,6 +60,23 @@ func fade_from_black(frames: int) -> void:
 	out_current = 0
 	_in_target = frames + 1
 	in_current = 1
+	mode = 2
+
+
+## fadeToWhite (fade.c:170). Mode 1: additive, no clock stop, no protection.
+func fade_to_white(frames: int) -> void:
+	_out_frames = frames + 1
+	out_current = 1
+	in_current = 0
+	mode = 1
+
+
+## fadeFromWhite (fade.c:193).
+func fade_from_white(frames: int) -> void:
+	out_current = 0
+	_in_target = frames + 1
+	in_current = 1
+	mode = 1
 
 
 ## Keeps the screen fully black for `frames` game frames: a fade from black started meanwhile

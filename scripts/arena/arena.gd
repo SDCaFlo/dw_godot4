@@ -11,6 +11,7 @@ extends Node
 const NPC_SCENE := preload("res://scenes/field/npc.tscn")
 const FX_VIEW_SCENE := preload("res://scenes/battle/effects/battle_fx_view.tscn")
 const VISUALS_VIEW_SCENE := preload("res://scenes/battle/fx/battle_visuals_view.tscn")
+const HUD_SCENE := preload("res://scenes/arena/arena_hud.tscn")
 ## STD_ARENA_MODELS (std_main.c:1326) by the map's arena_model; STD_ARENA_COLLISIONS: B_TOGI.ATR for both.
 const ARENA_MODELS := ["tmd_files/STDDAT/T_TOGI.gltf", "tmd_files/STDDAT/B_TOGI.gltf"]
 const ARENA_COLLISION := "atr_files/STDDAT/B_TOGI/B_TOGI.json"
@@ -39,6 +40,12 @@ var field_camera: Camera3D
 var field_nodes := Callable()
 var fade: Node
 var hud: CanvasLayer
+## The field's HUD slot behind the UI boxes (the battle HUD's: BattleHost.hud_slot), the shared text
+## area and the UI boxes (the time-out window is box 0).
+var hud_slot: Control
+var text_area: TextArea
+var boxes: UIBoxes
+var arena_hud: ArenaHud
 
 var session: ArenaSession
 var arena_world: ArenaWorld
@@ -142,6 +149,13 @@ func _build(arena_id: int) -> void:
 	visuals_view.visuals = effects.ctx.visuals
 	effects.ctx.visuals.view = visuals_view
 	world.add_child(visuals_view)
+	arena_hud = HUD_SCENE.instantiate()
+	arena_hud.world = arena_world
+	arena_hud.text_area = text_area
+	arena_hud.boxes = boxes
+	arena_hud.data = data
+	if hud_slot != null:
+		hud_slot.add_child(arena_hud)
 	_label = Label.new()
 	_label.name = "ArenaHud"
 	_label.position = Vector2(8, 196)
@@ -251,6 +265,10 @@ func frame() -> void:
 	var pressed := polled & ~_pad_previous
 	_pad_previous = polled
 	session.frame(pressed)
+	if arena_hud != null:
+		if arena_hud.session != session.current_match and session.current_match != null:
+			arena_hud.set_match(session.current_match)
+		arena_hud.tick(pressed)
 	_update_view()
 	if fx_view != null:
 		fx_view.draw_frame()
@@ -281,48 +299,26 @@ func _update_view() -> void:
 	_view.set_frustum(FieldMap.SCREEN.y * FieldMap.NEAR / h, Vector2.ZERO, FieldMap.NEAR, FieldMap.FAR)
 
 
-## The plain HUD (step 5 brings the original's pieces; step 6 the bracket and the scenes): what
-## the tournament is doing, the intro's counting stats, the fight's numbers.
+## A line naming the parts whose pictures come in step 6 (the bracket, the champion's scene).
 const PHASE_TEXT := {
-	ArenaSession.Phase.FADE_OUT: "",
 	ArenaSession.Phase.BRACKET_INTRO: "bracket intro (picture: step 6)",
 	ArenaSession.Phase.BRACKET: "bracket, before match %d (picture: step 6)",
-	ArenaSession.Phase.MATCH: "match %d",
 	ArenaSession.Phase.CHAMPION_BRACKET: "champion's bracket (picture: step 6)",
-	ArenaSession.Phase.CHAMPION_FADE: "",
 	ArenaSession.Phase.CHAMPION_IN: "champion (picture: step 6)",
 	ArenaSession.Phase.CHAMPION: "champion (picture: step 6)",
-	ArenaSession.Phase.END: "",
 }
-const STAT_NAMES := ["HP", "MP", "Off", "Def", "Spd", "Brn"]
 
 
 func _update_hud() -> void:
 	if _label == null:
 		return
 	var text: String = PHASE_TEXT.get(session.phase, "")
-	var lines := [text % (session.played + 1) if "%d" in text else text]
-	var m := session.current_match
-	if m != null:
-		if m.intro_stats_active:
-			var parts := []
-			for i in 6:
-				parts.append("%s %d" % [STAT_NAMES[i], m.intro_stats[i]])
-			lines.append("  ".join(parts))
-		elif m.phase == ArenaMatch.Phase.INTRO_PARTNER or m.phase == ArenaMatch.Phase.INTRO_OPPONENT:
-			lines.append("intro (X skips)")
-		if m.battle.fighters.size() >= 2 and m.phase >= ArenaMatch.Phase.FIGHT:
-			var p := m.battle.fighters[0]
-			var o := m.battle.fighters[1]
-			lines.append("HP %d/%d  vs  %d/%d   time %d" % [p.hp(), p.max_hp(), o.hp(), o.max_hp(), m.timer])
-			var cmds := m.battle.available_commands
-			if m.battle.hovered_command < cmds.size():
-				lines.append("command %d  (now %d)" % [cmds[m.battle.hovered_command], m.battle.current_command])
-	_label.text = "\n".join(lines)
+	_label.text = text % (session.played + 1) if "%d" in text else text
 
 
-func _on_visual(_kind: String, _args: Array) -> void:
-	pass
+func _on_visual(kind: String, args: Array) -> void:
+	if arena_hud != null:
+		arena_hud.on_visual(kind, args)
 
 
 func _finish() -> void:
@@ -340,6 +336,9 @@ func _finish() -> void:
 	if _label != null:
 		_label.queue_free()
 		_label = null
+	if arena_hud != null:
+		arena_hud.queue_free()
+		arena_hud = null
 	if _root != null:
 		_root.queue_free()
 		_root = null

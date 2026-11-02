@@ -68,6 +68,10 @@ func _process(_delta: float) -> void:
 		GameLoop.press("pad_cross")
 	if arena.active and _field.entities.partner.process_mode != Node.PROCESS_MODE_DISABLED:
 		_check(false, "the field partner is paused while the arena runs (no step sounds)")
+	if arena.active and arena.session != null and arena.session.phase == ArenaSession.Phase.MATCH and arena.arena_hud == null:
+		_check(false, "the arena HUD is up during a match")
+	if arena.active and arena.arena_hud != null and arena.arena_hud.get_parent() != _field.battle_host.hud_slot:
+		_check(false, "the arena HUD is in the field's HUD slot")
 	if arena.session != null and arena.session.phase != _phase:
 		_phase = arena.session.phase
 		if OS.get_environment("ARENA_DEBUG") != "":
@@ -80,6 +84,7 @@ func _process(_delta: float) -> void:
 		else:
 			_check(arena.result == 0, "a weak partner loses the first match")
 		_check(not arena.active, "the arena stopped")
+		_check(arena.arena_hud == null, "the arena HUD is gone")
 		_check(_field.map_session.field_map.visible, "the field map is shown again")
 		_check(_field.entities.partner.visible, "the field partner is shown again")
 		_check(_field.entities.partner.process_mode != Node.PROCESS_MODE_DISABLED, "the field partner runs again")

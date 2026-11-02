@@ -260,6 +260,9 @@ func _start() -> void:
 	arena.field_camera = _camera
 	arena.fade = care_host.fade
 	arena.hud = _hud
+	arena.hud_slot = battle_host.hud_slot
+	arena.text_area = scripts.text_area
+	arena.boxes = scripts.boxes
 	# STD_initializeTournament: removeMapEntities, the tamer off screen, STD_removeOverworldObjects
 	# (the clock, the map, the poop); the arena draws over the hidden field.
 	arena.field_nodes = func() -> Array:

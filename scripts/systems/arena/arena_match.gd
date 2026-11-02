@@ -125,6 +125,43 @@ func is_done() -> bool:
 	return phase == Phase.DONE
 
 
+## The start text's state for the HUD's StartText piece: 1 assembling (STD_combatSetup's first
+## loop), 2 bursting (its second), else 0.
+func start_text_state() -> int:
+	if phase == Phase.SETUP_TEXT:
+		return 1
+	if phase == Phase.SETUP_BURST:
+		return 2
+	return 0
+
+
+## STD_initializeFinisherChargeup (std_hud.c:449-450): the arena's charge-up gauge sits here.
+func chargeup_position() -> Vector2i:
+	return Vector2i(-0x8C, -0x4A)
+
+
+## PARTNER_ENTITY.name (the time-out window): the partner's name in the save, else its Digimon's.
+func partner_name() -> String:
+	var gs = world.get("game_state")
+	if gs != null and gs.state.has("partner"):
+		var n := str(gs.state["partner"].get("name", ""))
+		if n != "":
+			return n
+	return _digimon_name(partner)
+
+
+## DIGIMON_NAME(type).
+func _digimon_name(e: int) -> String:
+	if data == null:
+		return ""
+	var d: Dictionary = data.digimon(world.digimon_type(e))
+	return str(data.localize(d.get("name"))) if not d.is_empty() else ""
+
+
+func opponent_name() -> String:
+	return _digimon_name(opponent)
+
+
 func _arena_table() -> Dictionary:
 	var recs: Array = data.system("arena") if data != null else []
 	return recs[0] if not recs.is_empty() else {}

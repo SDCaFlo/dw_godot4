@@ -1,0 +1,53 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/arena/arena_hud.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/battle/hud/entity_numbers.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/arena/hud/arena_player_marker.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/arena/hud/arena_status_bars.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/arena/hud/arena_finisher_gauge.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/battle/hud/finisher_chargeup.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://scenes/arena/hud/arena_command_menu.tscn" id="7"]
+[ext_resource type="PackedScene" path="res://scenes/battle/hud/start_text.tscn" id="8"]
+[ext_resource type="PackedScene" path="res://scenes/arena/hud/arena_timeout.tscn" id="9"]
+[ext_resource type="PackedScene" path="res://scenes/arena/hud/arena_timer.tscn" id="10"]
+[ext_resource type="PackedScene" path="res://scenes/arena/hud/arena_intro_stats.tscn" id="11"]
+
+[node name="ArenaHud" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1")
+
+[node name="EntityNumbers" parent="." instance=ExtResource("2")]
+layout_mode = 1
+
+[node name="PlayerMarker" parent="." instance=ExtResource("3")]
+layout_mode = 1
+
+[node name="StatusBars" parent="." instance=ExtResource("4")]
+layout_mode = 1
+
+[node name="FinisherGauge" parent="." instance=ExtResource("5")]
+layout_mode = 1
+
+[node name="FinisherChargeup" parent="." instance=ExtResource("6")]
+layout_mode = 1
+
+[node name="CommandMenu" parent="." instance=ExtResource("7")]
+layout_mode = 1
+
+[node name="StartText" parent="." instance=ExtResource("8")]
+layout_mode = 1
+
+[node name="Timeout" parent="." instance=ExtResource("9")]
+layout_mode = 1
+
+[node name="Timer" parent="." instance=ExtResource("10")]
+layout_mode = 1
+
+[node name="IntroStats" parent="." instance=ExtResource("11")]
+layout_mode = 1

@@ -5,7 +5,7 @@ extends SceneTree
 ## the port (reviewer's scratch, 2026-11-01) and were checked by hand on the cases marked so.
 ## Don't change them to make the code pass; when one looks wrong, report it with the C line.
 ##   godot --headless --path . -s res://tests/test_arena.gd
-## Gate: DW_STEP_4E_4=<n> runs steps 2..n (unset: steps 2-4, which are built). Step 1's checks are
+## Gate: DW_STEP_4E_4=<n> runs steps 2..n (unset: steps 2-5, which are built). Step 1's checks are
 ## data_porter/tests/test_arena_fields.py and asset_porter/tests/test_arena_assets.py; steps 3-7 get
 ## their checks here before each is built. Exits 1 if a check fails.
 ##
@@ -61,8 +61,8 @@ var data: Node
 
 
 func _initialize() -> void:
-	# Steps 2-4 are built (spec §6): their checks run by default; DW_STEP_4E_4 can still limit or extend them.
-	_step = int(OS.get_environment("DW_STEP_4E_4")) if OS.get_environment("DW_STEP_4E_4").is_valid_int() else 4
+	# Steps 2-5 are built (spec §6): their checks run by default; DW_STEP_4E_4 can still limit or extend them.
+	_step = int(OS.get_environment("DW_STEP_4E_4")) if OS.get_environment("DW_STEP_4E_4").is_valid_int() else 5
 	data = load("res://scripts/data/game_data.gd").new()
 	if not data.available():
 		print("SKIP: porter output missing")
@@ -91,6 +91,8 @@ func _initialize() -> void:
 		_test_whole_match()
 	if _gate(4, "ArenaSession, the arena scene"):
 		_test_session()
+	if _gate(5, "the arena HUD"):
+		_test_hud_pieces()
 
 	data.free()
 	var state := "OK" if _failed == 0 else "FAILED %d" % _failed
@@ -821,3 +823,173 @@ func _test_session() -> void:
 	played = _run_session(session, w, 60000)
 	_check(session.is_done(), "tournament lost: ends (%d frames)" % played)
 	_eq([session.result, stub.spawned.size(), session.champion_done], [0, 1, false], "tournament lost: result 0, one match")
+
+
+# --- step 5: the arena's HUD (specs/arena.md §4.6) ---------------------------------------------
+# Each arena piece lists what it draws this frame in `prims`, in drawing order (the ordering table's
+# layers back to front, a layer's primitives in reverse of the C's AddPrim): {"image", "palette",
+# "uv": Rect2i, "pts": [4 points, C order: top-left, top-right, bottom-left, bottom-right]} for a
+# POLY_FT4, {"fill": Color, "rect": Rect2i} for a POLY_F4 / GsBOXF.
+
+const HUD_SCENE := "res://scenes/arena/arena_hud.tscn"
+
+
+## A POLY_FT4's corners as a rect (axis-aligned ones only).
+func _prim_rect(p: Dictionary) -> Rect2i:
+	if p.has("rect"):
+		return p["rect"]
+	var pts: Array = p["pts"]
+	return Rect2i(Vector2i(pts[0]), Vector2i(pts[3]) - Vector2i(pts[0]))
+
+
+func _hud(w: Object) -> Array:
+	if not ResourceLoader.exists(HUD_SCENE):
+		_check(false, "missing " + HUD_SCENE)
+		return []
+	var m := _match(w)
+	var text_area := TextArea.new(data)
+	var hud: Node = load(HUD_SCENE).instantiate()
+	hud.text_area = text_area
+	hud.data = data
+	hud.world = w
+	root.add_child(hud)
+	hud.set_match(m)
+	# The arena passes the match's events to its HUD.
+	m.visual.connect(hud.on_visual)
+	m.begin_fight(1, 2)
+	return [hud, m]
+
+
+func _test_hud_pieces() -> void:
+	var w := _arena_world()
+	var hm := _hud(w)
+	if hm.is_empty():
+		return
+	var hud: Node = hm[0]
+	var m: Object = hm[1]
+	for name in ["StatusBars", "FinisherGauge", "CommandMenu", "Timer", "IntroStats", "PlayerMarker", "Timeout",
+			"StartText", "EntityNumbers", "FinisherChargeup"]:
+		_check(hud.get_node_or_null(name) != null, "the arena HUD has %s" % name)
+	_check(hud.get_node("EntityNumbers").follows, "the arena's numbers follow their fighter (GAME_STATE 4)")
+
+	# STD_renderCounterDigits(-0xD, -0x61, 2, 42, 3) (std_main.c:2867): added the two side pieces, the
+	# digits (buf[1] then buf[0], least significant right, 14 apart), then the frame; drawn reversed.
+	hud.on_visual("timer", [true])
+	m.timer = 42
+	hud.tick(0)
+	var t: Array = hud.get_node("Timer").prims
+	var want := [
+		[Rect2i(0, 0x78, 0x42, 0x1D), Rect2i(-0x21, -0x68, 0x42, 0x1D)],
+		[Rect2i(2 * 12, 0x30, 12, 15), Rect2i(-0xD + 14, -0x61, 12, 15)],
+		[Rect2i(4 * 12, 0x30, 12, 15), Rect2i(-0xD, -0x61, 12, 15)],
+		[Rect2i(0x88, 0x30, 8, 0x12), Rect2i(0x14, -0x63, 8, 0x12)],
+		[Rect2i(0x78, 0x30, 8, 0x12), Rect2i(-0x1C, -0x63, 8, 0x12)],
+	]
+	var got := []
+	for p in t:
+		got.append([p["uv"], _prim_rect(p)])
+	_eq(got, want, "timer 42: frame, units, tens, the two side pieces")
+	_eq(t[0]["image"], "tim_files/STDDAT/TIME", "the timer's frame: TIME.TIM (GetTPage(1, 0, 0x2C0, 0))")
+	_eq(t[1]["image"], "stdtim/02_time_up", "the timer's digits: STDTIM page (832, 0)")
+	m.timer = 7
+	hud.tick(0)
+	_eq(hud.get_node("Timer").prims.size(), 4, "timer 7: one digit")
+
+	# STD_renderCommandMenu(0) (std_main.c:1750), 5 commands, hovered 4, fighting (GAME_STATE 4).
+	var b: Object = m.battle
+	b.available_commands.assign([11, 5, 4, 2, 3])
+	b.hovered_command = 4
+	b.game_state = 4
+	m.menu_blink = 0
+	hud.tick(0)
+	var cm: Array = hud.get_node("CommandMenu").prims
+	var labels := cm.filter(func(p: Dictionary) -> bool: return p.get("kind", "") == "label")
+	var icons := cm.filter(func(p: Dictionary) -> bool: return p.get("kind", "") == "icon")
+	var cursor := cm.filter(func(p: Dictionary) -> bool: return p.get("kind", "") == "cursor")
+	_eq(labels.size(), 5, "command menu: 5 labels")
+	_eq(icons.size(), 4, "command menu: 4 icons (commands 1-4)")
+	_eq(cursor.size(), 1, "command menu: the cursor while fighting")
+	if cursor.size() == 1:
+		_eq([cursor[0]["uv"], _prim_rect(cursor[0])], [Rect2i(0x3D, 0xE0, 0x16, 0x16), Rect2i(-143, 0x44, 0x16, 0x16)],
+				"cursor: hovered 4 of an even count, at TOP")
+	# Layout 3 = [0, 1, 2, 1, 3]: label u / w from STD_COMMAND_LABEL_U / W; x from -0x8F, 0xB / 0xE wide.
+	var lwant := {0: [Rect2i(0, 0xE0, 11, 31), Rect2i(-143, 0x44, 11, 0x20)],
+			1: [Rect2i(11, 0xE0, 14, 31), Rect2i(-132, 0x44, 14, 0x20)],
+			4: [Rect2i(39, 0xE0, 11, 31), Rect2i(-90, 0x44, 11, 0x20)]}
+	for i in lwant:
+		var p: Dictionary = labels.filter(func(q: Dictionary) -> bool: return q["index"] == i)[0]
+		_eq([p["uv"], _prim_rect(p)], lwant[i], "command label %d" % i)
+	# Icons: x = base - i * 0xE (base -84); even count: odd i from TOP + 0xD to BOTTOM - 3.
+	var i1: Dictionary = icons.filter(func(q: Dictionary) -> bool: return q["index"] == 1)[0]
+	_eq([i1["uv"], _prim_rect(i1)], [Rect2i(0x80, 0xC0, 0x10, 0xF), Rect2i(-98, 0x51, 0x10, 0x10)],
+			"command icon 1 (Distance)")
+	var i2: Dictionary = icons.filter(func(q: Dictionary) -> bool: return q["index"] == 2)[0]
+	_eq(_prim_rect(i2), Rect2i(-112, 0x47, 0x10, 0x10), "command icon 2: even i from TOP + 3")
+	m.menu_blink = 1
+	b.hovered_command = 2
+	hud.tick(0)
+	i2 = hud.get_node("CommandMenu").prims.filter(func(q: Dictionary) -> bool: return q.get("kind", "") == "icon" and q["index"] == 2)[0]
+	_eq(i2["uv"].position.x, 0x60 + 0x10, "the hovered icon blinks (u + 0x10)")
+
+	# STD_renderFighterStatusBars(1) (std_hud.c:1016): x0 0x24, the HP number at x0 + 0x49, y0 - 3.
+	hud.on_visual("status_bars", [true])
+	hud.tick(0)
+	var bars: Array = hud.get_node("StatusBars").prims
+	var hp_frame := bars.filter(func(p: Dictionary) -> bool: return p.get("fighter", -1) == 1 and p.get("kind", "") == "frame" and p["bar"] == 0)
+	_check(hp_frame.size() == 1 and _prim_rect(hp_frame[0]).position == Vector2i(0x24, -0x64), "the opponent's HP frame at (0x24, -0x64)")
+	var fills := bars.filter(func(p: Dictionary) -> bool: return p.get("kind", "") == "fill" and p["fighter"] == 0 and p["bar"] == 0)
+	_check(fills.size() == 1 and _prim_rect(fills[0]).size.x == 50, "the partner's HP fill: 50 at full HP")
+
+	# STD_renderFighterHPBar(0) only (std_hud.c:1092-1093): the full gauge and the ready icon after 5 frames.
+	b.fighters[0].finisher_progress = b.fighters[0].finisher_goal
+	b.fighters[1].finisher_progress = b.fighters[1].finisher_goal
+	for k in 6:
+		hud.tick(0)
+	var g: Array = hud.get_node("FinisherGauge").prims
+	var icon := g.filter(func(p: Dictionary) -> bool: return p.get("kind", "") == "ready")
+	var box := g.filter(func(p: Dictionary) -> bool: return p.has("fill"))
+	_check(icon.size() == 1 and _prim_rect(icon[0]) == Rect2i(-0x56, -0x4B, 0x25, 9), "the ready icon at (-0x56, -0x4B)")
+	_check(box.size() == 1 and _prim_rect(box[0]) == Rect2i(-0x58, -0x4C, 0x29, 0xB), "the ready box at (-0x58, -0x4C)")
+	var segs := g.filter(func(p: Dictionary) -> bool: return p.get("kind", "") == "segment")
+	_eq(segs.size(), 8, "full gauge: 8 segments")
+	if segs.size() == 8:
+		var s0: Dictionary = segs.filter(func(p: Dictionary) -> bool: return p["index"] == 0)[0]
+		_eq(_prim_rect(s0).position, Vector2i(0 - 0x8D, -0x4F), "segment 0 at SEGMENT_X[0] - 0x8D")
+	_check(g.all(func(p: Dictionary) -> bool: return p.get("fighter", 0) == 0), "only the partner's gauge is drawn")
+
+	# STD_renderIntroStats (2009) / STD_renderIntroStatBar (1731) / STD_renderIntroStatNumber (2034).
+	m.intro_stats_active = true
+	m.intro_stats_entity = 1
+	m.intro_stats.assign([500, 300, 100, 90, 80, 70])
+	var s1: Dictionary = w.stats(1)
+	s1["current"]["hp"] = 500
+	s1["current"]["mp"] = 300
+	s1["base"].merge({"offense": 100, "defense": 90, "speed": 80, "brains": 70}, true)
+	hud.on_visual("intro_stats", [1, true])
+	hud.tick(0)
+	var st: Array = hud.get_node("IntroStats").prims
+	var widths := [0, 0, 0, 0, 0, 0]
+	for p in st.filter(func(q: Dictionary) -> bool: return q.get("kind", "") == "bar"):
+		widths[int(p["stat"])] = _prim_rect(p).size.x
+	_eq(widths, [5, 3, 10, 9, 8, 7], "intro stat bars: value * 100 / limit")
+	var d0 := st.filter(func(q: Dictionary) -> bool: return q.get("kind", "") == "digit" and q["stat"] == 0)
+	var d0r := []
+	for p in d0:
+		d0r.append(_prim_rect(p))
+	d0r.sort_custom(func(a: Rect2i, c: Rect2i) -> bool: return a.position.x < c.position.x)
+	_eq(d0r, [Rect2i(64, -28, 12, 12), Rect2i(76, -28, 12, 12), Rect2i(88, -28, 12, 12)], "the HP number 500 at 52 + (3 - i) * 12")
+	m.intro_stats[0] = 400
+	hud.tick(0)
+	_check(hud.get_node("IntroStats").prims.filter(func(q: Dictionary) -> bool: return q.get("kind", "") == "digit").is_empty(),
+			"no numbers while a stat still counts")
+
+	# STD_renderTimeoutText (5617): "TIME UP" from the STDTIM page.
+	hud.on_visual("timeout_text", [true])
+	hud.tick(0)
+	var tt: Array = hud.get_node("Timeout").prims
+	_check(tt.size() >= 1 and tt[0]["uv"] == Rect2i(0, 8, 0x90, 0x18) and _prim_rect(tt[0]) == Rect2i(-0x48, -0xC, 0x90, 0x18),
+			"TIME UP at (-0x48, -0xC)")
+
+	# The 1P / 2P markers only for the same Digimon (STD_initializeCombat 4140).
+	_check(hud.get_node("PlayerMarker").prims.is_empty(), "no player markers for two different Digimon")
+	hud.free()

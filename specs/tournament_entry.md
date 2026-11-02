@@ -1,6 +1,6 @@
 # Tournament entry (step 4e-3)
 
-Status (2026-11-01): **spec approved** (the cup data as data, decided by the user); acceptance tests written (§7). No code yet. `PLANS.md` 5e-4 "4e-3".
+Status (2026-11-01): **coded**, steps 1-6 on branch `feat/4e-3-tournament-entry` ("As built" at the end). Acceptance tests: §7, gates removed. `PLANS.md` 5e-4 "4e-3".
 
 What this step covers, all in the field: you register at the arena's desk, the game reminds you or tells you that you missed it, it draws your opponents, and it records the result. The arena battles themselves are 4e-4 (`STD_REL`). Until 4e-4 is done, an arena **stand-in** returns a result (§5.4).
 
@@ -111,7 +111,7 @@ Status per `docs/porting_checklist.md` §1.
 | Box 1 US title | `dget.c:458–459` | `drawString("Tournament", 0, row 8 × 12)`; `renderString(0, x + 6, y + 3, 0x54, 0xC, 0, uvY, 5, 1)` | ported |
 | Day header | `dget.c:176–197` (US) | row 9: `01 01`, then 5 × `intToStringSJIS(day % 30 + 1, 2, 0)`; a full-width space (`81 40`) after the first if it is < 10 | ported |
 | Box 2 | `dget.c:221–225` | flags 0xE1, rect (−0x82, −0x3E, 0x104, 0x7C), `registerTextbox(2, 10, 6, 0, 1)`; cursor (0, 0) | ported |
-| Grid cells | `dget.c:229–268` (US) | per column: `01 c`, c = 3 (no bits) / 7 (0x40) / 1 (only 0x80), then the grade. US grades are 1-byte ASCII ("D", `script_common.yaml:340`), copied as they are; only a 2-byte grade (JP) gets `0F 00` after it. An empty cell is `01 01 81 40`. A row ends with `terminateString`: `01 01 0D 00`, the last row (15) with `01 01 00 00` (`script_common.c:2905`) | ported |
+| Grid cells | `dget.c:229–268` (US) | per column: `01 c`, c = 3 (no bits) / 7 (0x40) / 1 (only 0x80), then the grade. US grades are 1-byte ASCII ("D", `script_common.yaml:340`), copied as they are. A 2-byte grade gets `0F 00` before and after it (JP), or only after it (EU). An empty cell is `01 01 81 40`. A row ends with `terminateString`: `01 01 0D 00`, the last row (15) with `01 01 00 00` (`script_common.c:2905`) | ported |
 | Grid lines | `dget.c:568–572` | vertical at x = 0x34 + 0x33 i (i < 5): (2, 0x13) and (0x16, 0x64); horizontal (3, 0x14, 0xFE); all box 2 | ported |
 | Cursor | `dget.c:574–576` | (box x + 4 + col × 51 + 3, box y + 3 + row × 16 + 0x16), 0x2A × 0xD, layer 4 | ported |
 | Header text | `dget.c:597–603` (US) | `renderString(0, x + 0xC + 0x33 i, y + 2, 0x10, 0xC, 0x10 i, 0x6C, 4, 1)` | ported |
@@ -514,3 +514,15 @@ Not in the suite (VERIFY, in game): the board's look (lines, cursor, colours, ti
 2. **Box 1's line cut** (`TEXTBOX_LINES_PTR[0x210] = 0x0D`, row 8 byte 16) and the US `drawString("Tournament")` both write row 8. The visible result should be "Tournament"; to compare with the real game.
 3. **Music after the stand-in** (§5.4): to recheck with 4e-4's real flow.
 4. **Winning the Beetle Cup re-registers** (§4.9): does the real game show "Darn! I forgot…" a day after winning the Beetle Cup at Beetle Land?
+
+## As built (2026-11-01)
+
+- **Who did what:** spec, acceptance tests and reviews in the main session (Claude Opus 5.5). Steps 1-5 by Gemini 3.8 Flash (High) through the `agy` CLI (steps 4-5 rated Medium, run on Flash by the user's choice), each reviewed and fixed before its commit. Step 6 (Hard) in the main session.
+- **Step 1** (`f6fbd0c`): the data porter fields, each checked against the C text (systems 116/116 checks).
+- **Step 2** (`5eb2367`): `scripts/tournament_cups.json` from script 168, the copies in 213 / 102 / 209 checked equal; `GameData.tournament_cup` and the `cup` component. The converter reads `dget.c` / `trigger.h` for its "Grade A won" check, so it needs the decomp: `PLANS.md` "Later: setting up the port on another machine".
+- **Step 3** (`eb8678e`): `TournamentCups`. A missing `won_trigger` sets nothing (no `id + 15` fallback).
+- **Step 4** (`234d823`): `TournamentRegistration`, `TournamentHost` (an inline node under `Systems`, like `CareHost`); `Field._frame` calls it where it called the light update.
+- **Step 5** (`9d1405e`): builtins 0x06 / 0x16 / 0x21 in `TournamentRoutines`, `ArenaStandIn`, the Partner tab rows. The arena reaches the routines through `ScriptHost.arena` only.
+- **Step 6:** `TournamentBoard` (boxes 1-3) and 0x12's states in `TournamentRoutines`. 0x12's `start` returns false while trigger 37 is set (the C's state 0 ends at once). The board's texts follow the C per language (US, EU, JP branches of `dget.c`); only US is checked. The info box reads the cup's `info.raw` with the script context's code pointed at it (the C's `SCRIPT_POINTER` swap).
+- **To check in the game** (VERIFY "Tournament entry"): the board's look against the original; §8.2 (the title row), §8.4 (the Beetle Cup's re-registration).
+

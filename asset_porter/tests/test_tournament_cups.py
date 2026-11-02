@@ -4,8 +4,8 @@ data (sections 0x0A / 0x0B of script 168) as a table. Acceptance checks written 
 dget.c:350) by the reviewer; don't change them to make the code pass.
 
 The expected values come from an independent reading of DG.SCN's bytes here (the DG table, then
-the jump tables as the C reads them) and a few values checked by hand on 2026-11-01. Runs with
-DW_STEP_4E_3 >= 2, else every test is skipped as PENDING."""
+the jump tables as the C reads them) and a few values checked by hand on 2026-11-01. Step 2 is
+built: the tests always run (DW_STEP_4E_3=0 skips them)."""
 
 import json
 import os
@@ -17,7 +17,7 @@ from dwporter.families import scripts
 from dwporter.formats import scn
 from dwporter.paths import DEFAULT_INPUT
 
-STEP = int(os.environ.get("DW_STEP_4E_3", "0") or 0)
+STEP = int(os.environ.get("DW_STEP_4E_3", "6") or 6)
 DG = DEFAULT_INPUT / "SCN" / "DG.SCN"
 CUPS = 23
 ARENA_SCRIPT = 168

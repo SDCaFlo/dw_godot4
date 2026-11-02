@@ -1,6 +1,6 @@
 """Step 4e-3, step 1 (specs/tournament_entry.md §5.1a): the tournament fields of systems/tournaments
 and systems/tournament_medals. Acceptance checks written from the C by the reviewer; don't change
-them to make the code pass. Runs with DW_STEP_4E_3 >= 1, else every test is skipped as PENDING."""
+them to make the code pass. Step 1 is built: the tests always run (DW_STEP_4E_3=0 skips them)."""
 
 import json
 import os
@@ -11,7 +11,7 @@ from pathlib import Path
 from dwdata.groups import systems
 from dwdata.paths import DEFAULT_INPUT
 
-STEP = int(os.environ.get("DW_STEP_4E_3", "0") or 0)
+STEP = int(os.environ.get("DW_STEP_4E_3", "6") or 6)
 
 
 def _ids(values):

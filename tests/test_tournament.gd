@@ -2,8 +2,8 @@ extends SceneTree
 ## Step 4e-3, tournament entry (specs/tournament_entry.md): the acceptance checks of steps 2-6,
 ## written from the C by the reviewer (the expected values are the spec's §3-4, not the port's).
 ## Don't change them to make the code pass; when one looks wrong, report it with the C line.
-##   DW_STEP_4E_3=<n> godot --headless --path . -s res://tests/test_tournament.gd
-## Runs the checks of steps 2..n; the later ones print PENDING. Steps 1 and 2's porter checks are
+##   godot --headless --path . -s res://tests/test_tournament.gd
+## Steps 2-6 are built, so every check runs (DW_STEP_4E_3=<n> still limits them to steps 2..n). Steps 1 and 2's porter checks are
 ## data_porter/tests/test_tournament_fields.py and asset_porter/tests/test_tournament_cups.py.
 ## Exits 1 if a check fails.
 ##
@@ -70,7 +70,8 @@ var sounds: Array = []
 
 
 func _initialize() -> void:
-	_step = int(OS.get_environment("DW_STEP_4E_3")) if OS.get_environment("DW_STEP_4E_3").is_valid_int() else 0
+	# Steps 1-6 are built (spec §6): every check runs; DW_STEP_4E_3 can still limit them.
+	_step = int(OS.get_environment("DW_STEP_4E_3")) if OS.get_environment("DW_STEP_4E_3").is_valid_int() else 6
 	data = load("res://scripts/data/game_data.gd").new()
 	if not data.available() or not Content.exists("scripts/MAPHEAD/script.json"):
 		print("SKIP: porter output missing")

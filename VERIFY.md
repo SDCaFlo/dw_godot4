@@ -184,6 +184,23 @@ Sections are added as systems are ported (`PLANS.md`).
    - Cancel or △: "I think that going yourself may be the best way."
 4. **Compare with the game:** the boxes' places, the labels' positions, the sounds.
 
+## Tournament entry (`scripts/script/tournament_routines.gd`, `scripts/ui/tournament_board.gd`, `scripts/systems/tournament_cups.gd`, `tournament_registration.gd`, `scripts/field/hosts/tournament_host.gd`, `scripts/field/arena_stand_in.gd`; `specs/tournament_entry.md`)
+
+`test_tournament.gd` prints `OK: tournament checks`. In the game (F5), File City's Arena Lobby (ROOM13, or ROOM19 once the game is beaten; the debugger's map list jumps there). The arena itself is a stand-in until 4e-4: the debugger's **Partner** tab sets its result (0–3 rounds won) and shows the registration (cup, day, triggers 37–40).
+1. **The board:** talk to the receptionist; "Yes" opens it.
+   - Look: a title box "Tournament", a grid of 5 day columns (today first, the day numbers at the top) and 6 rows, with lines between the columns and under the header. Grade letters are white when you can enter, red-ish (colour 3) when you can't, and in colour 7 when the partner is too strong for the cup. The cursor is a grey highlight on one cell.
+   - ←→↑↓ move the cursor and wrap on all sides (sound each step); holding a direction repeats.
+   - Only today's column (until 10:00) and tomorrow's can be entered; ✕ on another cell gives the refusal sound.
+   - START on a cup opens its info (7 lines) growing from the cell; START, ✕ or △ closes it. START on an empty cell gives the refusal sound.
+   - △ leaves the board; nothing is registered.
+2. **Registering:** ✕ on an enterable cup → the board closes, the cup's info stays up, "Do you want to enter? - Grade D - ?" (with a too-strong partner: "<partner> is going to enter …? Are you sure?") → ✕ → "Enter / Don't enter".
+   - Enter: the Partner tab shows the registration (the day; "tomorrow" when you picked the second column). Don't enter (or △): nothing.
+   - Talking again: the receptionist knows you're registered ("So you've entered today's competition …").
+3. **Reminders** (in the field, not in a menu or a scene; the care panel's speed buttons (C) make time pass faster): registered for today, from 12:00 the partner says "You're entered in today's - X - Tournament, right?" once, again once from 20:00. If the day passes, or it's 23:01, "Darn! I forgot that we entered today's …" and the registration is gone. Changing the partner's Digimon (Partner tab, Digivolve) cancels it silently.
+4. **The tournament:** on the registration day after 10:00, go down the lobby's stairs. With a too-strong partner the Tamer level may drop. The stand-in "arena" ends at once (the Godot output shows `arena not ported (4e-4): cup …, opponents …` with the 7 drawn); 6 hours pass and you're back in the lobby. With the Partner tab's result at 3 (2 for Grade R) the cup counts as won: the receptionist's "Record" shows one more championship, and the wins add the rounds.
+5. **Medals:** the Gear Savanna card guy (after a pack) checks the tournament medals (builtin 0x16): with every Grade cup won (set triggers 15–20 in the State tab), a pack gives the "Grade" medal line once.
+6. **Compare with the game:** the board's layout (box places, the title, the day numbers, the cell positions, the lines), the colours, the sounds; whether winning the Beetle Cup at Beetle Land brings "Darn! I forgot…" the next day (`specs/tournament_entry.md` §8.4).
+
 ## Card shops, merit shop, Mojyamon (`scripts/script/card_shop_routines.gd`, `merit_shop_routines.gd`, `mojyamon_routines.gd`, `scripts/ui/trade_menu.gd`; `specs/card_shops.md`)
 
 `test_card_shops.gd` prints `OK: card shop checks`. In the game (F5):

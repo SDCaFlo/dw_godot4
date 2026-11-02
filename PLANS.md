@@ -2,7 +2,7 @@
 
 Working list of what comes next and ideas not started yet. Bugs found while playing are in `ISSUES.md` (with their evidence). Keep it current: when something is done, move it to "Done" with the commit and drop the details that now live in the code / docs. Per-tool progress stays in `asset_porter/PROGRESS.md` and `data_porter/PROGRESS.md`; the high-level roadmap is in `README.md`.
 
-Last updated: 2026-11-01
+Last updated: 2026-11-02
 
 ## Rules for everything below
 
@@ -95,7 +95,15 @@ Last updated: 2026-11-01
                 - [x] 4e-3 (coded 2026-11-01, branch `feat/4e-3-tournament-entry`; `specs/tournament_entry.md` "As built", VERIFY "Tournament entry"; confirmed in game by the user 2026-11-01). Tournament entry: the board (0x12) with the cup info, registration and its reminders (`updateTournamentRegistration`, MAPHEAD 0x4D9 / 0x4DA), the Beetle Cup registration (0x21), the start (0x06: the draw, the bookkeeping), the medal check (0x16). The cup data is data (the asset porter's `scripts/tournament_cups`); the arena is `ArenaStandIn` until 4e-4 (its result in the debugger's Partner tab). Steps 1-5 by Gemini 3.8 Flash through `agy`, step 6 in the main session. Tests: `tests/test_tournament.gd` (283 checks), `data_porter/tests/test_tournament_fields.py`, `asset_porter/tests/test_tournament_cups.py`. To check in the game: spec §8.2 (the title row), §8.4 (the Beetle Cup re-registers).
                 - [x] 4e-4. The arena battles (`STD_REL`: `std_main` / `std_setup` / `std_hud` / `std_effect`, ~15k lines): reuse `Battle` where the C is `btl`'s copy, the arena's own parts (bracket, intro, versus, champion, cameras) as scenes. Its own spec, split like 5d.
                   - Spec `specs/arena.md` (approved 2026-11-01), branch `feat/4e-4-arena`. Done: step 1 data and assets (`60467d4`, Gemini via agy), step 2 `ArenaTournament` / `ArenaBracket` (`f1d944c`, agy), step 3 `ArenaBattle` / `ArenaCamera` / `ArenaMatch` (`f0add8a`), step 4 `ArenaSession`, `ArenaWorld`, the `Arena` scene in the field (replaces `ArenaStandIn`), `tests/arena_scan.tscn` (`dfedbd8`), step 5 the HUD (`ArenaHud`, `c50da6f`), step 6 the bracket view, the model scenes (`ArenaScenes`: versus / draw, win, lose, champion, the podium) and the arena model's drawing order (`fb0703b`), step 7 the effects in the arena (the CLUT fade of DG Dimension, the fixed view's projection; Gemini via agy) with ISSUES I-41, libgs's polygon drop for the WIN letters (`f4c3e47`), step 8 docs; merged into `main` 2026-11-02. Played through in the game by the user (DG Dimension, the WIN letters). Still to compare with the original: the finisher charge-up gauge's place (VERIFY "The arena" 8). Tests: `tests/test_arena.gd` (399 checks), `tests/arena_scan.tscn`.
-         - Fishing (the menu's 7th icon) comes with fishing.
+            - [ ] 4f. Map events (gap analysis 2026-11-02: the builtins and opcodes still run as no-ops, so the scripts go on but the scene or effect is missing). Order: these first, so the game plays from start to credits:
+                - [ ] Drimogemon's digging, Drill Tunnel: the dirt cart and piles (routines 0x13, 0x14, 0x1A, 0x1B).
+                - [ ] Toy Town's boxes (0x2A-0x2C); Factorial Town's gearbox (0x29).
+                - [ ] One-off effects: Monochromon's mood bubble (0x1C), Meramon's shake (0x22), Ninjamon's effect (0x26), Angemon's pedestal (0x31), the white fades (0x2D / 0x2E), routine 0x35 (tamer state 0x10).
+                - [ ] Opcodes: the boulders (0x76-0x78), rotating 3D map objects (0x70).
+                - [ ] The final boss's build-up scene (`EAB` overlay, routines 0x28, 0x33).
+                - [ ] The ending (`ENDI` overlay, routine 0x34): without it the game can't be finished.
+            - [ ] 4g. Minigames and side modes (whole overlays, each about the arena's size), after 4f: TRN2 (4d-4), fishing (`FISH`, ~18k lines of C; the △ menu's 7th icon), curling (`KAR`, ~17k), the 2-player VS mode from the title menu (`VS`, ~25k; optional for a single-player playthrough, last).
+         - Fishing (the menu's 7th icon) comes with fishing (4g).
          - [x] The healing particles of the recovery items (done 2026-10-27 with 5d-5c, ISSUES.md I-21): `addHealingParticleEffect` (`main/particle.c:209`) from the item handlers, with its variants; a field effect, independent of the battles.
        - [ ] To check in the game: the additive sprites' brightness (Godot blends in linear colour), Grey Lord's Mansion doors (YAKA11, models 9 / 10) snapping shut at the end of their swing (`specs/map_objects.md` §6);
      - [ ] 5f. Evolution (decided 2026-10-26, before 4d-4 and the battles; `specs/evolution.md`): the rules of `main/evolution.c` (when and into what the partner evolves: stats, care, weight, battles, the evolution items), then the evolution scene (`evl` overlay). Battles won read the counter, 0 until 5d. Unblocks the evolution items (5e-2) and I-16.
@@ -133,6 +141,7 @@ Last updated: 2026-11-01
 5. **Next milestones, in order:** text and scripts (above: NPC dialogue, Jijimon intro, new game) → menus (inventory, feeding, items, Digimon status) → battle → evolution and training → tournaments and minigames.
 6. **Field (as needed by the milestones):** NPC Digimon, map object sprites (water, fire), lighting, depth against the background, events.
    - [ ] Field pause (`handlePause()`, `utils2.c:402`: static UI box 5, pause frame loop, PadRead 0x800).
+   - [ ] The butterfly (`butterfly.c`) and the condition bubble's bone offset (see 3. above).
    - [ ] Misty Trees mist overlay (`renderMist()`, `overworld.c:550–660`: multi-layered scrolling semi-transparent poly effect for maps `MIST01`–`MIST07`, fade via `tickRemoveMist()`).
 7. **Text, later parts:** the battle / menu control codes (`#C1 #R #W` / `{C1}` / bare `C R W`, data_porter/specs/text.md §2) with their renderers; the `ja` font comes from the JP glyph table (`specs/text.md` §2.1).
 8. **All system ports** (battle, care, evolution, menus): GDScript ports of the C logic, reading `GameData` properties (never id ranges); each function names the C function and the original condition it reproduces.

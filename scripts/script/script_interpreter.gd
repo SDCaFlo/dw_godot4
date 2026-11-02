@@ -162,6 +162,10 @@ var map_chests: MapChests
 ## The map props (specs/map_events.md §4.1.2): dirt cart, dirt pile, boulder, boxes, gearbox, pedestal.
 ## Without them the routines and opcodes stay unported.
 var map_props: MapProps
+## The screen fade (specs/map_events.md §4.2.2): fadeToWhite, fadeFromWhite.
+var fade: Fade
+## The screen effects (specs/map_events.md §4.2.2): shake, ninjamon, mood bubble.
+var map_effects: MapEffects
 ## The field's battles (BattleHost, specs/battle.md §5.3): start_battle(talked_entity),
 ## battle_done() and battle_outcome(). Without it START_BATTLE is skipped and reported.
 var battles: Object
@@ -615,6 +619,11 @@ func _actor(slot: int) -> Node3D:
 	if entities != null and slot < 10:
 		return entities.entity(slot)
 	return null
+
+
+## getEntityFromScriptId (script_interp.c:644, scriptIdToEntityId); null when there is none.
+func entity_for_script_id(script_id: int) -> Node3D:
+	return _entity_for_script_id(script_id)
 
 
 ## getEntityFromScriptId; null when there is none.
@@ -1402,10 +1411,19 @@ func _call_routine(routine: int) -> int:
 		0x1B when map_props != null:
 			# loadDirtPileModel (script_interp.c:1780-1782)
 			map_props.load_dirt_pile()
+		0x1C when map_effects != null:
+			# createMonochromonMoodBubble (script_interp.c:1783-1785)
+			map_effects.create_mood_bubble()
 		0x1E:
 			ctx.shop_variable = 0
 		0x1F:
 			ctx.shop_variable += ctx.read_pstat(0xF4) + (ctx.read_pstat(0xF3) << 8)
+		0x22 when map_effects != null:
+			# createMeramonShake (script_interp.c:1814-1816)
+			map_effects.start_meramon_shake()
+		0x26 when map_effects != null:
+			# createNinjamonEffect (script_interp.c:1838-1840)
+			map_effects.start_ninjamon()
 		0x29 when map_props != null:
 			# spawnGearbox (script_interp.c:1870-1872)
 			map_props.spawn_gearbox()
@@ -1420,6 +1438,12 @@ func _call_routine(routine: int) -> int:
 		0x2C when map_props != null:
 			# openToyTownBox (script_interp.c:1879-1881)
 			map_props.open_box(_s8(ctx.read_pstat(0xFE)))
+		0x2D when fade != null:
+			# fadeToWhite (script_interp.c:1882-1884)
+			fade.fade_to_white(ctx.read_pstat(0xFE))
+		0x2E when fade != null:
+			# fadeFromWhite (script_interp.c:1885-1887)
+			fade.fade_from_white(ctx.read_pstat(0xFE))
 		0x31 when map_props != null:
 			# spawnAngemonPedestal (script_interp.c:1888-1890)
 			map_props.spawn_pedestal()

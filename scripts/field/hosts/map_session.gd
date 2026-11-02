@@ -26,6 +26,8 @@ var map_chests: MapChests
 ## The props logic and 3D view (specs/map_events.md §4.1.2).
 var map_props: MapProps
 var map_props_view: MapPropsView
+## The screen effects (specs/map_events.md §4.2.2).
+var map_effects: MapEffects
 ## scriptTickChangeMap's SCRIPT_MAP_CHANGE_STATE.
 var _script_change_state := 0
 
@@ -48,6 +50,11 @@ func start_map_items() -> void:
 	map_props_view.props = map_props
 	map_props_view.partner = partner
 	world.add_child(map_props_view)
+	map_effects = MapEffects.new()
+	map_effects.name = "MapEffects"
+	map_effects.field_map = field_map
+	map_effects.game_state = GameState
+	add_child(map_effects)
 	field_map.daytime_transition_removed.connect(_on_daytime_transition_removed)
 	tamer.map_items = map_items
 	tamer.map_chests = map_chests

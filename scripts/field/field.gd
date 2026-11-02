@@ -158,6 +158,11 @@ func _start() -> void:
 	care_host.debug_partner = debug_partner
 	care_host.start()
 	care_host.message.connect(debug.show_message)
+	if scripts.interpreter != null:
+		scripts.interpreter.fade = care_host.fade
+		if map_session.map_effects != null:
+			map_session.map_effects.interpreter = scripts.interpreter
+			scripts.interpreter.map_effects = map_session.map_effects
 	menu_host.tamer = _tamer
 	menu_host.partner = partner
 	menu_host.care = care_host.care
@@ -366,6 +371,8 @@ func _frame() -> void:
 		_field.overlays.tick()
 		if map_session.map_props_view != null:
 			map_session.map_props_view.render()
+		if map_session.map_effects != null:
+			map_session.map_effects.tick()
 	debug.tick_message()
 	debug.tick_gallery()
 	care_host.tick_visuals(in_menu)

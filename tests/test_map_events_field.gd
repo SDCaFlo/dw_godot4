@@ -33,6 +33,8 @@ func _process(_delta: float) -> bool:
 	_setup()
 	if _gate(2, "step 2: MapProps view and wiring"):
 		_step2()
+	if _gate(4, "step 4: screen-effect views and wiring"):
+		_step4()
 	_teardown()
 	var state := "FAILED %d" % _failed if _failed else "OK"
 	if _pending:
@@ -337,3 +339,160 @@ func _daytime_signal() -> void:
 	map.set_time_of_day(2)
 	_eq(got, [2], "P21: updateTimeOfDay during a fade removes it too")
 	_eq(Clock.PALETTE.find_key(1), Clock.TIME_EVENING, "P21: palette 1 is time of day 0 (evening)")
+
+
+# --- Step 4 ---------------------------------------------------------------------------------------
+
+func _step4() -> void:
+	if not ResourceLoader.exists("res://scripts/field/hosts/map_effects.gd"):
+		_check(false, "step 4: scripts/field/hosts/map_effects.gd exists")
+		return
+	_fade_blend()
+	var effects: Node = load("res://scripts/field/hosts/map_effects.gd").new()
+	effects.set("field_map", map)
+	effects.set("interpreter", interp)
+	effects.set("game_state", gs)
+	root.add_child(effects)
+	interp.set("map_effects", effects)
+	unported.clear()
+	interp._reported.clear()
+	_shake(effects)
+	_ninjamon(effects)
+	_mood(effects)
+	for name in ["CALL_ROUTINE 0x1C", "CALL_ROUTINE 0x22", "CALL_ROUTINE 0x26", "CALL_ROUTINE 0x2D",
+			"CALL_ROUTINE 0x2E"]:
+		_check(not name in unported, "%s is no longer unported" % name)
+	effects.free()
+
+
+func _fade_blend() -> void:
+	var fade := Fade.new()
+	root.add_child(fade)
+	interp.set("fade", fade)
+	unported.clear()
+	interp._reported.clear()
+	gs.set_script_value(0xFE, 20)
+	_run([0x64, 0x2D, 0xFE, 0])
+	_frame()
+	_eq(fade.get("mode"), 1, "0x2D: fadeToWhite")
+	_eq(fade.out_current, 1, "0x2D: FADE_OUT_CURRENT 1")
+	_eq(ctx.is_paused, true, "0x2D doesn't end the frame")
+	fade.tick()
+	var mat := fade.material as CanvasItemMaterial
+	_check(mat != null and mat.blend_mode == CanvasItemMaterial.BLEND_MODE_ADD, "S3: the white fade adds")
+	_check(fade.visible and fade.color.r > 0.0, "S3: drawn at its progress")
+	gs.set_script_value(0xFE, 40)
+	_run([0x64, 0x2E, 0xFE, 0])
+	_frame()
+	_eq([fade.mode, fade.in_current, fade.out_current], [1, 1, 0], "0x2E: fadeFromWhite")
+	fade.fade_to_black(10)
+	fade.tick()
+	_check(mat.blend_mode == CanvasItemMaterial.BLEND_MODE_SUB, "the black fade subtracts")
+	_check(not "CALL_ROUTINE 0x2D" in unported and not "CALL_ROUTINE 0x2E" in unported, "0x2D / 0x2E are ported")
+	fade.free()
+
+
+func _shake_amp(f: int) -> int:
+	if f < 0x1F:
+		return 1
+	if f < 0x3D:
+		return 2
+	if f < 0x79:
+		return 3
+	if f < 0xB5:
+		return 2
+	return 1
+
+
+func _shake(effects: Node) -> void:
+	if not "offset_shake" in map:
+		_check(false, "FieldMap.offset_shake exists")
+		return
+	var base := map.drawing_offset()
+	_eq(map.offset_shake, Vector2.ZERO, "no shake at first")
+	_run([0x64, 0x22, 0xFE, 0])
+	_frame()
+	_eq(effects.get("shake_running"), true, "0x22: createMeramonShake")
+	var sum := 0
+	var ok := true
+	for f in 0xD2:
+		effects.tick()
+		sum += _shake_amp(f) * (-1 if f % 2 == 0 else 1)
+		if f < 0xD1 and (map.offset_shake != Vector2(sum, 0) or map.drawing_offset() != base + Vector2(sum, 0)):
+			ok = false
+			_check(false, "S5: frame %d offset %s, want %d" % [f, map.offset_shake, sum])
+			break
+	_check(ok, "S5: DRAWING_OFFSET_X += each frame's step")
+	_eq(effects.shake_running, false, "S6: done after 0xD2 frames")
+	_eq(map.offset_shake, Vector2.ZERO, "S6: the offset restored")
+	_eq(map.drawing_offset(), base, "S6: the drawing offset back")
+	var bg := map.background.position
+	_run([0x64, 0x22, 0xFE, 0])
+	_frame()
+	effects.tick()
+	_eq(map.background.position, bg, "the background doesn't shake")
+	_check(map.drawing_offset() != base, "the 3D projection centre does")
+	for f in 0xD2:
+		effects.tick()
+
+
+func _ninjamon(effects: Node) -> void:
+	map.load_map("MAYO08B")
+	var o := map.overlays
+	if o.instance_count() < 0x29:
+		_check(false, "MAYO08B has 0x29 overlay instances")
+		return
+	var saved: Array = o.store_positions(0, 0x29)
+	Rng.set_seed(77)
+	_run([0x64, 0x26, 0xFE, 0])
+	_frame()
+	_eq(effects.get("ninjamon_running"), true, "0x26: createNinjamonEffect")
+	var ninja = effects.get("ninjamon")
+	effects.tick()
+	var ok := true
+	for i in 0x29:
+		var inst := o.instance(i)
+		if Vector2i(inst["x"], inst["y"]) != ninja.positions[i] or inst["order"] != 10:
+			ok = false
+	_check(ok, "S8: the overlays take the effect's positions, order value 10")
+	var shown := 0
+	for i in 0x29:
+		if o.instance(i)["flag"] != 1:
+			shown += 1
+	_check(shown > 0, "S8: not hidden while it runs")
+	for f in 0x3B:
+		effects.tick()
+	_eq(effects.ninjamon_running, false, "S8: done after 0x3C frames")
+	var hidden := true
+	for i in 0x29:
+		hidden = hidden and o.instance(i)["flag"] == 1
+	_check(hidden, "S8: then every one gets flag 1")
+	_check(o.instance(0x29).get("order", 0) != 10, "S8: instance 0x29 is not touched")
+	o.set_flag(0, 0, 0x29)
+	o.load_positions(saved, 0)
+	# Screen coordinates for order < 20 (buildMapOverlayPrim mode 1).
+	var k := 0
+	for i in o.instance_count():
+		if o.is_drawn(i):
+			k = i
+			break
+	o.set_positions([Vector2i(0, 0)], k, 10)
+	var node: MeshInstance3D = o.instance(k)["node"]
+	var size := Vector2(node.mesh.size) * map.projection() / (10 * MapOverlays.OT_UNIT)
+	var want := map.world_at_pixel(map.scroll + FieldMap.SCREEN / 2 + size / 2, 10 * MapOverlays.OT_UNIT)
+	_check(node.global_position.is_equal_approx(want), "order < 20: drawn at (x, y) from the screen centre")
+	map.load_map("MAYO01")
+
+
+func _mood(effects: Node) -> void:
+	# Script value 0xF7 = an id with no entity on the map: nothing (scriptIdToEntityId 0xFF).
+	gs.set_script_value(0xF7, 0x50)
+	gs.set_script_value(0xF8, 2)
+	_run([0x64, 0x1C, 0xFE, 0])
+	_frame()
+	var bubble = effects.get("bubble")
+	_eq(bubble.instances, 0, "S9: no bubble without the entity")
+	effects.tick()
+	_eq(effects.get("bubble_draws"), [], "S11: nothing drawn")
+	_eq(effects.get("bubble_entity"), null, "S11: no entity")
+	_eq(interp.call("entity_for_script_id", 0x50), null, "entity_for_script_id: none")

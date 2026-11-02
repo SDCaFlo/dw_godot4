@@ -112,3 +112,6 @@ func _draw_progress() -> void:
 	visible = progress > 0
 	var grey := minf(progress / TINT_ONE, 1.0)
 	color = Color(grey, grey, grey)
+	# renderFade (fade.c:144): GetTPage(0, FADE_MODE, ...), mode 1 adds (S3), mode 2 subtracts.
+	if material is CanvasItemMaterial:
+		material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD if mode == 1 else CanvasItemMaterial.BLEND_MODE_SUB

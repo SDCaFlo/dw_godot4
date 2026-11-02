@@ -536,12 +536,22 @@ func projection() -> float:
 	return _projection
 
 
+## What Meramon's shake adds to DRAWING_OFFSET_X (map.c:5482, port-only name).
+var offset_shake := Vector2.ZERO
+
+
+## Stores offset_shake and updates the frustum shift (map.c:5482, port-only).
+func set_offset_shake(v: Vector2) -> void:
+	offset_shake = v
+	_apply_scroll()
+
+
 ## The drawing offset (DRAWING_OFFSET_X / Y): the projection centre's screen pixel. The battle
 ## effects' screen primitives are placed relative to it.
 func drawing_offset() -> Vector2:
 	if _scene_view:
-		return _scene_offset
-	return background_size / 2 - scroll
+		return _scene_offset + offset_shake
+	return background_size / 2 - scroll + offset_shake
 
 
 ## The Godot point at view depth `depth` drawn at screen position `relative` (pixels from the

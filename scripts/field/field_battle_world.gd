@@ -530,6 +530,11 @@ func load_battle_sounds() -> void:
 		sound.load_battle_sounds()
 
 
+func load_map_sounds(set_id: int) -> void:
+	if sound != null:
+		sound.load_map_sounds(set_id)
+
+
 func load_digimon_sounds(bank: int, digimon: int) -> void:
 	if sound == null or digimon < 0:
 		return

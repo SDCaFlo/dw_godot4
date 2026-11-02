@@ -20,7 +20,7 @@ var scripts: ScriptHost
 var care_host: CareHost
 var menu_host: MenuHost
 var clock: Clock
-## The arena stand-in (ArenaStandIn).
+## The arena (its debug result: Partner tab).
 var arena: Node
 ## The technique gallery's world: the 3D world, the camera, the nodes it hides (set by the field).
 var world: Node

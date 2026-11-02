@@ -24,9 +24,9 @@ SOURCE_GLOB = "src/**/*.c (see specs/systems.md)"
 
 BTL_MAIN, BTL_SETUP, BTL_C, BATTLE_UI = ("src/btl/battle_main.c", "src/btl/battle_setup.c", "src/main/btl.c",
                                          "src/main/battle_ui.c")
-STD_MAIN, STD_SETUP, VS_MAIN, VS_SELECT, VS_DEMO, VS_INTRO = (
-    "src/std/std_main.c", "src/std/std_setup.c", "src/vs/vs_main.c", "src/vs/vs_select.c", "src/vs/vs_demo.c",
-    "src/vs/vs_intro.c")
+STD_MAIN, STD_SETUP, STD_HUD, VS_MAIN, VS_SELECT, VS_DEMO, VS_INTRO = (
+    "src/std/std_main.c", "src/std/std_setup.c", "src/std/std_hud.c", "src/vs/vs_main.c", "src/vs/vs_select.c",
+    "src/vs/vs_demo.c", "src/vs/vs_intro.c")
 SCRIPT_C, TOURNAMENT_C, GAME_MENU = "src/main/script_common.c", "src/main/tournament.c", "src/main/game_menu.c"
 MAP_C, TOILET_C, TRN_HUD, TRN2_HUD = "src/main/map.c", "src/main/toilet_data.c", "src/trn/trn_hud.c", "src/trn2/trn2_hud.c"
 TRN_SLOTS = "src/trn/trn_slots.c"
@@ -109,6 +109,35 @@ NO_DROPS_EVIDENCE = "if (CURRENT_SCREEN == 0x8f) { droppedItems[i] = 0xff; conti
 CONCAVE_EVIDENCE = "if (CURRENT_SCREEN == CONCAVE_SCREENS[i]) { return 1; }"
 MATH_EVIDENCE = ["return SIN_LOOKUP_TABLE[256 - input];", "tmpVal = 1023 - ATAN_LOOKUP_TABLE[offset];"]
 # The C text of those rules (whitespace collapsed).
+ARENA_ARRAY_TABLES = [
+    (STD_MAIN, "STD_BRACKET_PATHS"), (STD_MAIN, "STD_BRACKET_ROW_Y"),
+    (STD_MAIN, "STD_BRACKET_HOP_Y"), (STD_MAIN, "STD_BRACKET_PROJECTILE_CLUTS"),
+    (STD_MAIN, "STD_CAMERA_PRESETS"), (STD_MAIN, "STD_RANDOM_VIEWPOINTS"),
+    (STD_MAIN, "STD_D_8007A41C"), (STD_MAIN, "STD_INTRO_NAME_COLORS"),
+    (STD_MAIN, "STD_INTRO_NAME_CHAR_SIZES"), (STD_MAIN, "STD_INTRO_NAME_CHAR_OFFSETS"),
+    (STD_MAIN, "STD_COMMAND_LABEL_U"), (STD_MAIN, "STD_COMMAND_LABEL_W"),
+    (STD_MAIN, "STD_COMMAND_MENU_LAYOUTS"), (STD_MAIN, "STD_COMMAND_ICON_UVS"),
+    (STD_MAIN, "STD_SPECIAL_ICON_UVS"),
+    (STD_HUD, "STD_FINISHER_PULSE"), (STD_HUD, "STD_FINISHER_SEGMENT_U"),
+    (STD_HUD, "STD_FINISHER_SEGMENT_W"), (STD_HUD, "STD_FINISHER_SEGMENT_X"),
+    (STD_HUD, "STD_CHAMPION_CAMERA_Y"), (STD_HUD, "STD_LOSE_DROP_Y"),
+    (STD_HUD, "STD_LOSE_TILT"), (STD_HUD, "STD_WIN_X_CURVE"),
+    (STD_HUD, "STD_VERSUS_MODEL_TARGET_X"),
+]
+ARENA_SVECTORS = [
+    ("intro_stage1_pos", "STD_INTRO_CAMERA_STAGE1_POS"),
+    ("intro_stage1_rot", "STD_INTRO_CAMERA_STAGE1_ROT"),
+    ("chase_offset", "STD_CAMERA_CHASE_OFFSET"),
+    ("chase_rotation", "STD_CAMERA_CHASE_ROTATION"),
+    ("intro_offset", "STD_CAMERA_INTRO_OFFSET"),
+    ("intro_rotation", "STD_CAMERA_INTRO_ROTATION"),
+    ("intro_stage2_pos", "STD_INTRO_CAMERA_STAGE2_POS"),
+    ("intro_stage2_rot", "STD_INTRO_CAMERA_STAGE2_ROT"),
+]
+MUSIC_FONT_EVIDENCE = "if (arena == 0) { STD_MUSIC = 0x1e; } else { STD_MUSIC = 0x20; }"
+BRACKET_MUSIC_EVIDENCE_1 = "playMusic(0x1d, track);"
+BRACKET_MUSIC_EVIDENCE_2 = "playMusic(0x1d, 0);"
+ARENA_SCREEN_EVIDENCE = "if (CURRENT_SCREEN == 0x6a) { arena = 1; } else { arena = 0; }"
 CHANGE_MAP_EVIDENCE = [
     "if (CURRENT_SCREEN == 0xcf) { if (mapId == 0x26) { PREVIOUS_SCREEN = 0x58; } if (mapId == 0x46) { "
     "PREVIOUS_SCREEN = 0x45; } if (mapId == 0x4f) { PREVIOUS_SCREEN = 0x11; } if (mapId == 0x5d) { PREVIOUS_SCREEN = "
@@ -194,6 +223,7 @@ TABLE_PURPOSES = {
     "battle_hud": "Layout tables of the battle HUD (command menu, shout, status bars, start text, countdown, bubbles)",
     "item_throw": "Height of an item thrown to the partner in battle, per frame",
     "psx_math": "The game's sine and arctangent lookup tables (math.c _sin / _atan)",
+    "arena": "Arena tournament configuration, music, bracket, cameras, intro, command menu, finisher gauge, scenes",
     "tournaments": "Arena tournaments: name, grade, grade image, opponent base stat, days held",
     "tournament_schedule": "Which tournaments are held on each day of the 30-day month",
     "tournament_win_chances": "Chance one simulated participant beats another, by their levels",
@@ -223,7 +253,7 @@ def convert(input_root, output_root) -> GroupWriter:
         out.finish([])
         return out
     index = CIndex(decomp)
-    files = sorted({BTL_MAIN, BTL_SETUP, BTL_C, BATTLE_UI, STD_MAIN, STD_SETUP, VS_MAIN, VS_SELECT, VS_DEMO,
+    files = sorted({BTL_MAIN, BTL_SETUP, BTL_C, BATTLE_UI, STD_MAIN, STD_SETUP, STD_HUD, VS_MAIN, VS_SELECT, VS_DEMO,
                     VS_INTRO, SCRIPT_C, TOURNAMENT_C, GAME_MENU, MAP_C, TOILET_C, TRN_HUD, TRN2_HUD, TRN_SLOTS, FISH_C,
                     SHOP_MENU, DOOA_C, SCRIPT_VALUE_C, SCRIPT_H, OVERWORLD_C, UTILS2_C, BTL_MENU, BTL_EFFECT, MAIN_C,
                     SIN_H, ATAN_H, MATH_C, NEW_GAME_C, MOV_C, PARTNER_IMPL_C})
@@ -257,7 +287,7 @@ def convert(input_root, output_root) -> GroupWriter:
             (SCRIPT_VALUE_C, "STATS_LIMIT_ARRAY"), (SCRIPT_VALUE_C, "MULTIPLE_OF_10"),
             (BTL_C, "CONCAVE_SCREENS"), (MAIN_C, "ITEM_THROW_HEIGHT"), (SIN_H, "SIN_LOOKUP_TABLE"),
             (ATAN_H, "ATAN_LOOKUP_TABLE"), (SHOP_MENU, "NAMING_CHAR_PAGES"),
-            (MOV_C, "MOV_MOVIES")] + BATTLE_HUD_TABLES:
+            (MOV_C, "MOV_MOVIES")] + BATTLE_HUD_TABLES + ARENA_ARRAY_TABLES:
         load(c_file, name)
     digimon_l = tables.load(out, index, MAIN_C, "DIGIMON_DATA",
                             {"DIGIMON_PARA_NAME": lambda a, r, t: [] if r == "eu" else [Value(a[0], t.line)]})
@@ -271,6 +301,8 @@ def convert(input_root, output_root) -> GroupWriter:
         return out
     for l in L.values():
         tables.size_check(out, decomp, l)
+    for _, name in ARENA_ARRAY_TABLES:
+        tables.size_check(out, decomp, L[name], binary="std")
 
     copy_bad = []
     for f1, n1, f2, n2 in COPIES:
@@ -463,6 +495,89 @@ def convert(input_root, output_root) -> GroupWriter:
         {"access": "GameData.system('psx_math')", "notes": "Read by PsxMath (../specs/battle_effects.md §3.3)."})
 
     # -- arena --------------------------------------------------------------------------------
+    std_setup_c = " ".join((decomp.root / STD_SETUP).read_text(encoding="utf-8", errors="replace").split())
+    std_main_c = " ".join((decomp.root / STD_MAIN).read_text(encoding="utf-8", errors="replace").split())
+
+    out.check("arena: music fonts (std_setup.c:245-249) in STD_initializeTournament",
+              MUSIC_FONT_EVIDENCE in std_setup_c, MUSIC_FONT_EVIDENCE)
+    out.check("arena: bracket music 0x1d in STD_addBracket and STD_addBracketIntro",
+              BRACKET_MUSIC_EVIDENCE_1 in std_main_c and BRACKET_MUSIC_EVIDENCE_2 in std_main_c,
+              "playMusic(0x1d, ...)")
+    out.check("arena: arena 1 for map 0x6a (std_setup.c:544) in STD_tournamentMain",
+              ARENA_SCREEN_EVIDENCE in std_setup_c, ARENA_SCREEN_EVIDENCE)
+    out.check("arena: camera SVECTORs (std_main.c:720-729) are present",
+              all(index.table(STD_MAIN, sym).get("us") is not None for _, sym in ARENA_SVECTORS),
+              "8 camera vectors")
+
+    def svec(sym):
+        t = index.table(STD_MAIN, sym)["us"]
+        if t is None:
+            return [0, 0, 0]
+        v = t.value
+        return [v["vx"], v["vy"], v["vz"]]
+
+    arena_symbols = [name for _, name in ARENA_ARRAY_TABLES]
+    arena_record = {
+        "id": 0,
+        "key": "dw1:arena",
+        "music": {
+            "arena_fonts": [0x1E, 0x20],
+            "bracket_font": 0x1D,
+        },
+        "bracket": {
+            "paths": [{"x": p["unk0"], "facing": p["unk10"]} for p in us["STD_BRACKET_PATHS"]],
+            "row_y": us["STD_BRACKET_ROW_Y"],
+            "hop_y": us["STD_BRACKET_HOP_Y"],
+            "projectile_cluts": us["STD_BRACKET_PROJECTILE_CLUTS"],
+        },
+        "camera": {
+            "presets": [list(p.values())[:6] for p in us["STD_CAMERA_PRESETS"]],
+            "random_viewpoints": us["STD_RANDOM_VIEWPOINTS"],
+            "intro_keys": us["STD_D_8007A41C"],
+            "vectors": {name: svec(sym) for name, sym in ARENA_SVECTORS},
+        },
+        "intro": {
+            "name_colors": [[c["r"], c["g"], c["b"]] for c in us["STD_INTRO_NAME_COLORS"]],
+            "char_sizes": us["STD_INTRO_NAME_CHAR_SIZES"],
+            "char_offsets": us["STD_INTRO_NAME_CHAR_OFFSETS"],
+            "stat_bar_limits": us["STD_STAT_BAR_LIMITS"],
+        },
+        "command_menu": {
+            "label_u": us["STD_COMMAND_LABEL_U"],
+            "label_w": us["STD_COMMAND_LABEL_W"],
+            "layouts": us["STD_COMMAND_MENU_LAYOUTS"],
+            "icon_uvs": us["STD_COMMAND_ICON_UVS"],
+            "special_icon_uvs": us["STD_SPECIAL_ICON_UVS"],
+        },
+        "finisher_gauge": {
+            "pulse": us["STD_FINISHER_PULSE"],
+            "segment_u": us["STD_FINISHER_SEGMENT_U"],
+            "segment_w": us["STD_FINISHER_SEGMENT_W"],
+            "segment_x": us["STD_FINISHER_SEGMENT_X"],
+        },
+        "scenes": {
+            "champion_camera_y": us["STD_CHAMPION_CAMERA_Y"],
+            "lose_drop_y": us["STD_LOSE_DROP_Y"],
+            "lose_tilt": us["STD_LOSE_TILT"],
+            "win_x_curve": us["STD_WIN_X_CURVE"],
+            "versus_target_x": us["STD_VERSUS_MODEL_TARGET_X"],
+        },
+    }
+
+    write("arena", arena_symbols, {
+        "id": {"meaning": "always 0"},
+        "key": tables.KEY_SCHEMA,
+        "music": {"meaning": "arena_fonts: music font per arena (0x1E for arena 0, 0x20 for arena 1; std_setup.c:245-249); bracket_font: font 0x1D for bracket and bracket intro (std_main.c:3553, 3682)"},
+        "bracket": {"meaning": "paths (STD_BRACKET_PATHS): [{x: [8], facing: [8]} x 8]; row_y (STD_BRACKET_ROW_Y): [8]; hop_y (STD_BRACKET_HOP_Y): [24]; projectile_cluts (STD_BRACKET_PROJECTILE_CLUTS): [16]"},
+        "camera": {"meaning": "presets (STD_CAMERA_PRESETS): [[rx, ry, rz, tx, ty, tz] x 9]; random_viewpoints (STD_RANDOM_VIEWPOINTS): [[x, y, z] x 5]; intro_keys (STD_D_8007A41C): [22]; vectors: {intro_stage1_pos, intro_stage1_rot, chase_offset, chase_rotation, intro_offset, intro_rotation, intro_stage2_pos, intro_stage2_rot}"},
+        "intro": {"meaning": "name_colors (STD_INTRO_NAME_COLORS): [[r, g, b] x 10]; char_sizes (STD_INTRO_NAME_CHAR_SIZES): [4]; char_offsets (STD_INTRO_NAME_CHAR_OFFSETS): [4]; stat_bar_limits (STD_STAT_BAR_LIMITS): [6]"},
+        "command_menu": {"meaning": "label_u (STD_COMMAND_LABEL_U): [5]; label_w (STD_COMMAND_LABEL_W): [5]; layouts (STD_COMMAND_MENU_LAYOUTS): [[10] x 8]; icon_uvs (STD_COMMAND_ICON_UVS): [[u, v] x 8]; special_icon_uvs (STD_SPECIAL_ICON_UVS): [[u, v] x 8]"},
+        "finisher_gauge": {"meaning": "pulse (STD_FINISHER_PULSE): [12]; segment_u (STD_FINISHER_SEGMENT_U): [8]; segment_w (STD_FINISHER_SEGMENT_W): [8]; segment_x (STD_FINISHER_SEGMENT_X): [8]"},
+        "scenes": {"meaning": "champion_camera_y (STD_CHAMPION_CAMERA_Y): [8]; lose_drop_y (STD_LOSE_DROP_Y): [24]; lose_tilt (STD_LOSE_TILT): [14]; win_x_curve (STD_WIN_X_CURVE): [18]; versus_target_x (STD_VERSUS_MODEL_TARGET_X): [4]"},
+    }, [arena_record], {"access": "GameData.system('arena')[0]",
+                        "notes": "Tournament arena configuration, music, bracket, cameras, intro, command menu, finisher gauge, scenes."},
+          binary="std")
+
     names_l, grades_l, images_l = us["TOURNAMENT_NAMES"], us["TOURNAMENT_GRADES"], us["STD_GRADES"]
     base_stats, schedule = us["STD_OPPONENT_BASE_STATS"], us["TOURNAMENT_SCHEDULE"]
     days_of = defaultdict(list)
@@ -622,7 +737,7 @@ def convert(input_root, output_root) -> GroupWriter:
                      "flag_0x20": bool(flags & 0x20), "doors_id": m["doorsId"],
                      "toilet": m["toiletId"] - 1 if m["toiletId"] else None,
                      "name": sref(map_names[m["loadingName"]]) if 0 <= m["loadingName"] < len(map_names) else None,
-                     "arena": k in arena, "c": m})
+                     "arena": k in arena, "arena_model": 1 if k == 0x6A else 0, "c": m})
     for check in ("maps: toiletId is 0 or a TOILET_DATA index + 1", "maps: loadingName is a MAP_NAME_PTR index"):
         out.check(check, not bad[check], "; ".join(bad[check][:10]) or f"{len(maps)} maps")
     # changeMap's literal map ids (map.c:5326-5396) as a property of the map being left.
@@ -672,6 +787,7 @@ def convert(input_root, output_root) -> GroupWriter:
         "toilet": {"c_name": "toiletId - 1", "ref": "systems/toilets", "meaning": "null = no toilet"},
         "name": {"c_name": "MAP_NAME_PTR[loadingName]", "meaning": "area name shown on entry / save screens"},
         "arena": {"c_name": "ARENA_MAPS", "meaning": "entering loads the tournament (dget) overlay"},
+        "arena_model": {"meaning": "the arena a tournament started here uses: 1 = B_TOGI (map 0x6a, BETL02), else 0 = T_TOGI (STD_tournamentMain, std_setup.c:544)"},
         "change_map_previous": {"meaning": "changeMap (map.c:5326) leaving this map for `to`: PREVIOUS_SCREEN becomes "
                                            "`previous_screen` instead of this map, and PREVIOUS_EXIT `previous_exit` "
                                            "(null = unchanged). Fleeing a battle returns to the previous map. The "

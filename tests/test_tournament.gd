@@ -12,7 +12,8 @@ extends SceneTree
 const CUPS := "res://scripts/systems/tournament_cups.gd"
 const REGISTRATION := "res://scripts/systems/tournament_registration.gd"
 const ROUTINES_SCENE := "res://scenes/script/tournament_routines.tscn"
-const ARENA_SCENE := "res://scenes/field/arena_stand_in.tscn"
+## The arena in its debug skip mode (debug_result >= 0 finishes at once, as the 4e-3 stand-in did).
+const ARENA_SCENE := "res://scenes/arena/arena.tscn"
 
 ## Triggers (trigger.h:805-831) and script values (pstat.h:263-265).
 const REGISTERED := 37
@@ -336,9 +337,13 @@ func _test_draw() -> void:
 	_roster([20, 3, 9, 7, 30, 25, 11])
 	_eq(cups.draw_opponents(5, AGUMON), [3, 7, 9, 11, 20, 25, 30], "Grade R: the roster in id order")
 
-	# An empty pool (spec §8.1, port-only): 7 x 0xFF.
+	# An empty pool (spec §8.1, port-only, decided 2026-11-02): a list cup draws from its whole list;
+	# Grade R (the roster itself) has nothing to fall back on: 7 x 0xFF.
 	_roster([])
-	_eq(cups.draw_opponents(6, AGUMON), [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF], "an empty pool")
+	var list6 := _ints(_cup(6)["opponents"])
+	drawn = cups.draw_opponents(6, AGUMON)
+	_check(drawn.size() == 7 and drawn.all(func(id): return id in list6), "an empty pool: the cup's whole list")
+	_eq(cups.draw_opponents(5, AGUMON), [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF], "an empty roster for Grade R")
 
 
 func _test_finish() -> void:
@@ -714,7 +719,7 @@ func _test_builtin_0x06() -> void:
 	_roster(pool)
 	gs.set_trigger(REGISTERED)
 	gs.set_script_value(V_CUP, 0)
-	arena.set("stand_in_result", 3)
+	arena.set("debug_result", 3)
 	fake_sound.music.calls.clear()
 	var won: int = gs.state["counters"]["tournaments_won"]
 	_run(0x06)
@@ -730,7 +735,7 @@ func _test_builtin_0x06() -> void:
 
 	# A second run: `finished` is reset, the result read again.
 	gs.set_script_value(V_CUP, 0)
-	arena.set("stand_in_result", 1)
+	arena.set("debug_result", 1)
 	_run(0x06)
 	_until(_ended)
 	_eq(gs.script_value(V_RESULT), 1, "a second run: value 0xFF = 1")

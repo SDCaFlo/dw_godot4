@@ -60,7 +60,7 @@ output/
   items/item_data.json          ITEM_PARA + handler + icon palette (128); item_effects.json, healing_values.json,
                                 inventories.json, sort_orders.json, recyclable_items.json, card_data.json, shops.json
   evolution/requirements.json   EVOLUTION_REQS (63); paths.json, stat_gains.json, item_targets.json
-  systems/                      27 tables: battle_ai, battle_commands, battle_command_lists, battle_hud, item_throw,
+  systems/                      28 tables: arena, battle_ai, battle_commands, battle_command_lists, battle_hud, item_throw,
                                 psx_math, flee_chances, stat_gain_factors, enemy_music,
                                 tournaments, tournament_schedule, tournament_win_chances, tournament_medals, maps,
                                 toilets, birdramon_transport, training_spots, slot_machine, fishing, mojyamon_trades, babies,

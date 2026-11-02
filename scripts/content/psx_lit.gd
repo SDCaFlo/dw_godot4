@@ -79,6 +79,39 @@ static func blended(texture: Texture2D, abr: int, double_sided := true, lit := f
 	return m
 
 
+## The opaque shaders without depth writes: [double-sided].
+const _BACKDROP := {false: preload("res://shaders/psx_lit/opaque_backdrop.gdshader"),
+		true: preload("res://shaders/psx_lit/opaque_double_backdrop.gdshader")}
+
+
+## Makes a model a back object (a sub-OT drawn behind everything, the arena's STD_renderArena0 / 1:
+## specs/arena.md §4.7): copies of its materials that write no depth, with `priority` (lower = drawn
+## first in the opaque pass), every pass. What is drawn after it covers it, whatever the depths.
+static func as_backdrop(model: Node, priority: int) -> void:
+	var nodes: Array = [model] + model.find_children("*", "MeshInstance3D", true, false)
+	for node in nodes:
+		if not node is MeshInstance3D or node.mesh == null:
+			continue
+		var mi := node as MeshInstance3D
+		for i in mi.mesh.get_surface_count():
+			var source := mi.get_active_material(i)
+			if source == null:
+				continue
+			var copy := source.duplicate(true) as Material
+			var pass_material: Material = copy
+			while pass_material != null:
+				pass_material.render_priority = priority
+				if pass_material is ShaderMaterial:
+					var sm := pass_material as ShaderMaterial
+					for double: bool in [false, true]:
+						if sm.shader == _SHADERS[false][double]:
+							sm.shader = _BACKDROP[double]
+				elif pass_material is BaseMaterial3D:
+					(pass_material as BaseMaterial3D).depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+				pass_material = pass_material.next_pass
+			mi.set_surface_override_material(i, copy)
+
+
 ## A copy of a model's material drawn single-sided, every pass (renderWireframed and
 ## DOO2_renderWireframeModel cull each face with RotNclip, double-sided ones too: specs/death_scene.md
 ## A10). Another material: a copy with back faces culled.

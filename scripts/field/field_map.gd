@@ -95,6 +95,14 @@ func load_map(name: String) -> bool:
 	return true
 
 
+## The collision grid alone (100 x 100 raw values): the arena loads its ATR into MAP_COLLISION_DATA
+## (STD_loadArenaAssets, std_setup.c:655) for the field's collision code.
+func load_collision(values: Array) -> void:
+	_collision = PackedByteArray()
+	for v in values:
+		_collision.append(int(v))
+
+
 ## Drops the loaded map (doors, backgrounds, collision); the saved nodes are reset by the Field.
 func unload() -> void:
 	map_name = ""

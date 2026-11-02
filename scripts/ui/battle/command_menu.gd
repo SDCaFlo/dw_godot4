@@ -73,7 +73,7 @@ func _draw() -> void:
 	var n := battle.available_commands.size()
 	if n == 0:
 		return
-	var steps := session.command_menu_steps()
+	var steps: Vector2i = session.command_menu_steps()
 	var slide_x := BattleHudDraw.table(data, "BTL_COMMAND_MENU_SLIDE_X")
 	var slide_y := BattleHudDraw.table(data, "BTL_COMMAND_MENU_SLIDE_Y")
 	if slide_x.size() < 8 or slide_y.size() < 8:

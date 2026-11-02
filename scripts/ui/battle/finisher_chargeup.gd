@@ -19,6 +19,10 @@ func on_visual(kind: String, args: Array) -> void:
 	if bool(args[0]):
 		shown = true
 		_closing = false
+		# The arena's is fixed (STD_initializeFinisherChargeup, std_hud.c:449-450).
+		if session.has_method("chargeup_position"):
+			at = session.chargeup_position()
+			return
 		var f := battle.fighters[0]
 		var loc := world.location(f.entity)
 		var p := world.project(Vector3i(loc.x, -world.height(f.entity) - 0x64, loc.z))

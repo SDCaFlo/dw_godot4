@@ -2,8 +2,9 @@ extends BattleHudPiece
 ## The numbers over the fighters (entity_text.c: addEntityText, renderEntityText): damage (colour 0),
 ## poison (0xC), heals and buffs (0xB) with an icon. Each fighter slot shows up to 8, one after
 ## another: a number starts once the one before it has risen 11 frames, moves by
-## ENTITY_TEXT_Y_OFFSETS for 21 frames and goes after 31. Outside the arena (GAME_STATE 4) a
-## number stays where its fighter was when it appeared.
+## ENTITY_TEXT_Y_OFFSETS for 21 frames and goes after 31. Outside the arena a number stays where its
+## fighter was when it appeared; in the arena (GAME_STATE 4, `follows`) it keeps only its stacking
+## offset (addEntityText, entity_text.c:128-131) and follows its fighter (renderEntityText, :187-191).
 
 const SLOTS := 4
 const ENTRIES := 8
@@ -19,6 +20,8 @@ const NEXT_AFTER := 11
 var slots: Array = []
 ## What tick decided to draw this frame: [color, value, x, y, icon].
 var _shown: Array = []
+## GAME_STATE 4: the numbers follow their fighter (the arena sets it).
+var follows := false
 
 
 func _init() -> void:
@@ -57,6 +60,9 @@ func add(entity: int, slot: int, color: int, value: int, icon: int) -> void:
 	var at := world.screen_position(entity, 0) if world != null else Vector2i.ZERO
 	s["entries"][i] = {"value": value, "color": color, "icon": icon, "frame": 0,
 			"x": at.x + s["count"] * 4, "y": at.y - 8 + s["count"] * 4}
+	if follows:
+		s["entries"][i]["x"] = s["count"] * 4
+		s["entries"][i]["y"] = s["count"] * 4
 	s["order"].append(i)
 	s["count"] += 1
 
@@ -77,7 +83,11 @@ func tick(_pressed: int) -> void:
 				break
 			if e["frame"] < MOVE_FRAMES:
 				e["y"] += Y_OFFSETS[e["frame"]]
-			_shown.append([e["color"], e["value"], e["x"], e["y"], e["icon"]])
+			if follows:
+				var at := _fighter_screen(slots.find(s))
+				_shown.append([e["color"], e["value"], at.x + e["x"], at.y - 8 + e["y"], e["icon"]])
+			else:
+				_shown.append([e["color"], e["value"], e["x"], e["y"], e["icon"]])
 			e["frame"] += 1
 			if e["frame"] >= FRAMES:
 				e["frame"] = -1
@@ -94,6 +104,13 @@ func tick(_pressed: int) -> void:
 			for i in ENTRIES:
 				s["entries"][i] = {"frame": -1}
 	queue_redraw()
+
+
+## getEntityScreenPos(ENTITY_TABLE[entityIds[slot]], 0): the slot's fighter on the screen now.
+func _fighter_screen(slot: int) -> Vector2i:
+	if battle == null or slot < 0 or slot >= battle.fighters.size() or world == null:
+		return Vector2i.ZERO
+	return world.screen_position(battle.fighters[slot].entity, 0)
 
 
 func _draw() -> void:

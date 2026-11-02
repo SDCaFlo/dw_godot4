@@ -78,6 +78,19 @@ The game's own `_sin` / `_cos` / `_atan` tables (`math.c`): `_sin(x)` takes `x &
 
 ## Arena
 
+### `arena` (`std_main.c`, `std_hud.c`, `std_setup.c`)
+
+One record (`id: 0`, `key: "dw1:arena"`), holding the arena overlay's data tables and layout constants:
+- **`music`**: `arena_fonts` (`[0x1E, 0x20]`, `STD_initializeTournament`, `std_setup.c:245-249`), `bracket_font` (`0x1D`, `STD_addBracket` / `STD_addBracketIntro`, `std_main.c:3549`, `:3678`).
+- **`bracket`**: `paths` (36 SVECTORs, `STD_BRACKET_PATHS`, `std_main.c:1473`), `hop_y` (8, `STD_BRACKET_HOP_Y`, `:1386`), `row_y` (8, `STD_BRACKET_ROW_Y`, `:1396`), `projectile_cluts` (12, `STD_BRACKET_PROJECTILE_CLUTS`, `:1436`), `d_8007a41c` (4, `STD_D_8007A41C`, `:1378`).
+- **`camera`**: `presets` (7 SVECTORs, `STD_CAMERA_PRESETS`, `std_main.c:1356`), `random_viewpoints` (6 SVECTORs, `STD_RANDOM_VIEWPOINTS`, `:1366`), `vectors` (`preset_0_rot`, `preset_0_pos`, `intro_rot`, `intro_pos`, `versus_rot`, `versus_pos`, `win_rot`, `win_pos`: 8 SVECTORs from `std_main.c:720-729`).
+- **`intro`**: `stat_bar_limits` (6, `STD_STAT_BAR_LIMITS`, `std_main.c:1336`), `name_colors` (16, `STD_INTRO_NAME_COLORS`, `:1344`), `char_sizes` (4, `std_main.c:714`), `char_offsets` (4, `:716`).
+- **`command_menu`**: `label_u` (5), `label_w` (5), `coords` (6 SVECTORs), `button_slide_offsets` (6), `slide_offsets` (4), `text_uvs` (8), `special_icon_uvs` (4), `icon_uvs` (8) from `std_main.c:1516-1545`.
+- **`finisher_gauge`**: `pulse` (12, `STD_FINISHER_PULSE`, `std_hud.c:375`), `segment_u`, `segment_w`, `segment_x` (8 each, `std_hud.c:422-424`).
+- **`scenes`**: `champion_camera_y` (8), `lose_drop_y` (24), `lose_tilt` (14), `win_x_curve` (18), `versus_target_x` (4, `STD_VERSUS_MODEL_TARGET_X`) from `std_hud.c:399-426`.
+
+Access: `GameData.system("arena")[0]`.
+
 ### `tournaments` (`TOURNAMENT_NAMES[23]`, `TOURNAMENT_GRADES[23]`, `src/main/script_common.c:507/533`; `STD_GRADES[23]`, `STD_OPPONENT_BASE_STATS[24]`, `src/std/std_setup.c:210/158`)
 
 Per tournament id:
@@ -139,6 +152,7 @@ Per map id:
 - `toilet` = `toiletId − 1` (`partner.c:542`)
 - `name` = `MAP_NAME_PTR[loadingName]` (area name on entry, save screens, Birdramon menu)
 - `arena`: map 208 or 223, where entering loads the tournament overlay (`checkArenaMap`, `script_common.c:3091`)
+- `arena_model`: the arena a tournament started on this map uses: 1 for map 0x6A (BETL02, `B_TOGI`), else 0 (`T_TOGI`) (`STD_tournamentMain`, `std_setup.c:544`, C text checked)
 - `light_objects` (`../../specs/map_objects.md` §2.4): `MAP_LIGHT_UPDATE_DATA[1]` (`script_common.c:267`, `updateMapLightState`, `utils2.c:553`) on its map: `{start, count, mode, trigger}` (TWNB04, map 0xB7: instances 0x31–0x32, mode 1 = hidden from 7:00 to 18:59, trigger 0xFFFF → null), each entry `{start, count, mode, trigger, c}`; a check keeps the C's hours (7 ≤ hour < 0x13). `concave` (`CONCAVE_SCREENS`, `btl.c`, 18 maps: an extra enemy joins only with a free line of sight, `isScreenConcave`) and `no_battle_drops` (map 0x8F, `battleStatsGainsAndDrops`, `battle_ui.c:192`), with their C text checked. `snow` (`{instances: 0x23, random_x_from: 0x14}`): the maps whose first 0x23 object instances are snow (`loadMapObjects`, `overworld.c:364`: ids 0x58–0x60, 0x84–0x87), from the C's literal ids with a check against its text
 - `change_map_previous`: the fix-ups of `changeMap` (`map.c:5334-5366`), on the map they leave from: `[{to, previous_screen, previous_exit}]` (`previous_exit` null when the C keeps the warp's). Leaving this map for `to` stores `previous_screen` as the previous map, not this one. Ten pairs, from the C's literal ids (constant `CHANGE_MAP_PREVIOUS`); a check compares them with the C text (`CHANGE_MAP_EVIDENCE`, whitespace collapsed). Used by the field's `_change_map` (`../../specs/script.md` §3)
 

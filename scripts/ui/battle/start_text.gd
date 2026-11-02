@@ -19,11 +19,12 @@ func tick(_pressed: int) -> void:
 	if session == null:
 		queue_redraw()
 		return
-	var text := session.start_text
-	if session.phase == BattleSession.Phase.INTRO:
-		_assemble(text)
-	elif session.phase == BattleSession.Phase.INTRO_BURST:
-		_burst(text)
+	var text: BattleStartText = session.start_text
+	match session.start_text_state():
+		1:
+			_assemble(text)
+		2:
+			_burst(text)
 	queue_redraw()
 
 

@@ -117,6 +117,95 @@ func _init(battle_world: BattleWorld, effect_host: EffectHost, game_data: Node) 
 	data = game_data
 
 
+# --- hooks: the lines the arena (ArenaBattle, std_main.c) changes; each default is btl's ----------
+
+## The four select_target calls of BTL_tickPartnerAI (sites below).
+const RETARGET_TECHNIQUE := 0
+const RETARGET_FINISHER := 1
+const RETARGET_FLATTENED := 2
+const RETARGET_FREE := 3
+
+
+## After faint() in either AI (btl: nothing).
+func _on_fighter_fainted(_f: BattleFighter, _index: int) -> void:
+	pass
+
+
+## BTL_tickPartnerAI's idle branch runs when no enemy is left (btl: only then).
+func _partner_gives_up(_f: BattleFighter) -> bool:
+	return false
+
+
+## BTL_tickPartnerAI's target choice at `site`: the technique commands, the finisher command, a
+## flattened partner, and a partner not retargeted by a hit.
+func _partner_retarget(f: BattleFighter, site: int) -> void:
+	match site:
+		RETARGET_TECHNIQUE:
+			if f.target != BattleFighter.NO_TARGET and is_defeated(f.target):
+				select_target(f, f.target, false)
+		RETARGET_FINISHER:
+			if f.target != 0 and is_defeated(f.target):
+				select_target(f, f.target, false)
+		_:
+			select_target(f, f.target, false)
+
+
+## After the finisher command queued slot 3 (btl: nothing).
+func _after_finisher_command(_f: BattleFighter) -> void:
+	pass
+
+
+## At the top of each enemy's BTL_tickEnemyAI pass (btl: nothing).
+func _before_enemy_ai(_f: BattleFighter) -> void:
+	pass
+
+
+## BTL_tickEnemyAI's charge mode: bone 1 off a 200 x 160 screen box keeps away (2), else a random
+## 0 / 1.
+func _enemy_charge_mode(f: BattleFighter) -> int:
+	var screen := world.screen_position(f.entity, 1)
+	if absi(screen.x) > 100 or absi(screen.y) > 80:
+		return 2
+	return Rng.random_limit(2)
+
+
+## BTL_startQueuedMove: an area technique starts the shared cooldown (FLEE_DISABLED[1] = 0x6E).
+func _start_shared_cooldown(_f: BattleFighter) -> void:
+	shared_cooldown = 0x6E
+
+
+## BTL_setupMoveExecution: the partner's target when it has none (the last living enemy).
+func _default_target(f: BattleFighter) -> int:
+	var targeted := -1
+	for i in range(1, enemy_count + 1):
+		if not is_defeated(i):
+			f.target = i
+			targeted = fighters[i].entity
+	return targeted
+
+
+## At the end of BTL_setupMoveExecution (btl: nothing).
+func _after_move_execution(_f: BattleFighter, _technique: int) -> void:
+	pass
+
+
+## BTL_tickStatusEffects: the flatten's end puts a big Digimon's scale back (type 0x71's 0x1800).
+func _restore_scale_after_flatten(f: BattleFighter) -> void:
+	var s := int(digimon_of(f.entity).get("battle_scale", 0x1000))
+	if s != 0x1000:
+		world.set_scale(f.entity, Vector3i(s, s, s))
+
+
+## BTL_selectEnemyMove with nothing usable: keep away (charge mode 2).
+func _no_usable_enemy_move(f: BattleFighter) -> void:
+	f.set_charge_mode(2)
+
+
+## BTL_selectPartnerMove's MP weights: the slot keys[i] gets group i's weight.
+func _mp_weight_slot(keys: Array, i: int) -> int:
+	return keys[i]
+
+
 # --- data -----------------------------------------------------------------------------------------
 
 func move(technique: int) -> Dictionary:
@@ -436,9 +525,10 @@ func tick_partner_ai() -> void:
 		return
 	if f.hp() == 0:
 		faint(f, 0)
+		_on_fighter_fainted(f, 0)
 		return
 	var enemies := remaining_enemies(partner)
-	if enemies.is_empty():
+	if enemies.is_empty() or _partner_gives_up(f):
 		battle_idle(f)
 		f.move_range = -1
 		reset_flatten(0)
@@ -472,17 +562,16 @@ func tick_partner_ai() -> void:
 			8, 9, 10:
 				var slot := current_command - CMD_TECHNIQUE_0
 				if is_move_usable(f, slot):
-					if f.target != BattleFighter.NO_TARGET and is_defeated(f.target):
-						select_target(f, f.target, false)
+					_partner_retarget(f, RETARGET_TECHNIQUE)
 					if f.move_anim(slot) != f.queued_anim or f.move_range <= 0:
 						setup_queued_move(f, slot)
 					apply_charge_requirement(f, fighter_technique(f, f.queued_anim))
 					return
 			CMD_FINISHER:
-				if f.target != 0 and is_defeated(f.target):
-					select_target(f, f.target, false)
+				_partner_retarget(f, RETARGET_FINISHER)
 				if f.move_anim(3) != f.queued_anim or f.move_range <= 0:
 					setup_queued_move(f, 3)
+				_after_finisher_command(f)
 				return
 		if current_command != CMD_ATTACK and current_command != CMD_MODERATE:
 			f.set_charge_mode(saved_charge_mode)
@@ -495,7 +584,7 @@ func tick_partner_ai() -> void:
 		f.flags |= BattleFighter.BUSY
 	if f.has(BattleFighter.FLATTENED):
 		f.queued_anim = 0
-		select_target(f, f.target, false)
+		_partner_retarget(f, RETARGET_FLATTENED)
 		f.move_range = 2
 		world.set_flat_sprite(partner, 0)
 		f.flags |= BattleFighter.BUSY
@@ -508,7 +597,7 @@ func tick_partner_ai() -> void:
 	if f.flags & (BattleFighter.ON_CHARGEUP | BattleFighter.ON_COOLDOWN | BattleFighter.SENILE):
 		return
 	if not f.has(BattleFighter.RETARGETED):
-		select_target(f, f.target, false)
+		_partner_retarget(f, RETARGET_FREE)
 	var result := -1
 	match current_command:
 		CMD_ATTACK, CMD_MODERATE:
@@ -539,6 +628,7 @@ func tick_enemy_ai() -> void:
 	var partner := fighters[0]
 	for i in range(1, enemy_count + 1):
 		var f := fighters[i]
+		_before_enemy_ai(f)
 		if not no_ai:
 			if f.hp() > f.hp_damage and f.brains() < 301:
 				if frame_count % ((f.brains() / 2 + 1) * 20) == 0:
@@ -553,6 +643,7 @@ func tick_enemy_ai() -> void:
 			continue
 		if f.hp() == 0:
 			faint(f, i)
+			_on_fighter_fainted(f, i)
 			continue
 		if f.hp() <= f.hp_damage:
 			battle_idle(f)
@@ -598,12 +689,7 @@ func tick_enemy_ai() -> void:
 					continue
 		if not f.has(BattleFighter.RETARGETED):
 			f.target = 0
-		# Bone 1 off a 200 x 160 screen box: keep away (mode 2), else a random mode 0 / 1.
-		var screen := world.screen_position(f.entity, 1)
-		if absi(screen.x) > 100 or absi(screen.y) > 80:
-			f.set_charge_mode(2)
-		else:
-			f.set_charge_mode(Rng.random_limit(2))
+		f.set_charge_mode(_enemy_charge_mode(f))
 		select_enemy_move(f, i)
 
 
@@ -612,6 +698,13 @@ func tick_enemy_ai() -> void:
 func tick_fighter_states() -> void:
 	if shared_cooldown > 0:
 		shared_cooldown -= 1
+	_tick_fighters()
+	tick_attack_hits()
+	tick_status_effects()
+
+
+## BTL_tickFighterStates' loop over the fighters (the arena's STD_tickBattle shares it).
+func _tick_fighters() -> void:
 	for i in fighters.size():
 		var f := fighters[i]
 		add_finisher_progress(f, 1)
@@ -639,8 +732,6 @@ func tick_fighter_states() -> void:
 				tick_cooldown_state(f, target)
 			else:
 				tick_queued_move(f, target, i)
-	tick_attack_hits()
-	tick_status_effects()
 
 
 func _target_entity(target: int) -> int:
@@ -1258,7 +1349,7 @@ func start_queued_move(f: BattleFighter, target: int) -> void:
 		if te != e:
 			look_at(e, te)
 	if has_shared_cooldown(t):
-		shared_cooldown = 0x6E
+		_start_shared_cooldown(f)
 	world.start_animation(e, f.queued_anim)
 	f.flags |= BattleFighter.ATTACKING
 	if not f.has(BattleFighter.FLATTENED):
@@ -1283,10 +1374,7 @@ func setup_move_execution(f: BattleFighter, target: int) -> void:
 				targeted = fighters[0].entity
 				f.target = 0
 			else:
-				for i in range(1, enemy_count + 1):
-					if not is_defeated(i):
-						f.target = i
-						targeted = fighters[i].entity
+				targeted = _default_target(f)
 	else:
 		targeted = attacker
 	remove_move_effect(f)
@@ -1321,6 +1409,7 @@ func setup_move_execution(f: BattleFighter, target: int) -> void:
 	if move_range(t) == RANGE_SELF and f.buffs_remaining != 0:
 		f.buffs_remaining -= 1
 	f.speed_buffer = maxi(f.speed_buffer - power(t), -0x9B)
+	_after_move_execution(f, t)
 
 
 ## BTL_removeMoveEffect.
@@ -1603,7 +1692,7 @@ func select_partner_move(f: BattleFighter, index: int) -> void:
 				if f.move_anim(keys[i]) == BattleFighter.NO_MOVE:
 					weights[keys[i]] += 5
 				elif int(flags[keys[i]]) != 0:
-					weights[keys[i]] = _your_call(groups[i], "by_mp")
+					weights[_mp_weight_slot(keys, i)] = _your_call(groups[i], "by_mp")
 	var own_element: int = elements_of(f.entity)[0]
 	var i := 0
 	while i < 3:
@@ -1699,7 +1788,7 @@ func set_fighter_cooldown(f: BattleFighter) -> void:
 func select_enemy_move(f: BattleFighter, index: int) -> void:
 	var flags := usable_moves(index)
 	if not flags.has(1):
-		f.set_charge_mode(2)
+		_no_usable_enemy_move(f)
 		set_fighter_cooldown(f)
 		return
 	var weights := []
@@ -2256,9 +2345,7 @@ func tick_status_effects() -> void:
 						add_status_visual(f, 1)
 					f.move_range = 0
 					reset_fighter_action(f)
-					var s := int(digimon_of(e).get("battle_scale", 0x1000))
-					if s != 0x1000:
-						world.set_scale(e, Vector3i(s, s, s))
+					_restore_scale_after_flatten(f)
 		else:
 			match f.flat_timer:
 				0x40:

@@ -71,6 +71,11 @@ ORIGINAL_LIMIT = 0xB0
 ORIGINAL_EVIDENCE = "if ((type < 0) || (type > 0xb0)) { return -1; } originalType = ORIGINAL_DIGIMON_TYPES[type]; if (originalType < 0) { return type; } return originalType;"
 # entityGetTechFromAnim (utils2.c:333): type 0x3c's animation 0x3c is technique 0x70.
 ANIM_TECHNIQUE = {0x3C: {0x3C: 0x70}}
+STD_MAIN = "src/std/std_main.c"
+STD_SETUP = "src/std/std_setup.c"
+STAND_INS = {0x3F: 0x30, 0x40: 0x36, 0x41: 0x2A}
+STAND_IN_EVIDENCE = "if (arg[n] == 0x40) { arg[n] = 0x36; } if (arg[n] == 0x3f) { arg[n] = 0x30; } if (arg[n] == 0x41) { arg[n] = 0x2a; }"
+INTRO_LEN_EVIDENCE = "if (entity->type == 0x4e || entity->type == 0x3c) { len = 10; }"
 BATTLE_EVIDENCE = [
     (BTL_C, "if (ENTITY_TABLE[COMBAT_DATA_PTR->player.entityIds[1]]->type == 0x73) { playMusic(0x21, 3);"),
     (BTL_C, "if ((ENTITY_TABLE[entityId]->type >= 0x43) && (ENTITY_TABLE[entityId]->type < 0x70L)) { "
@@ -205,6 +210,28 @@ def _battle_music(digimon_id: int, mapping: list) -> int:
     return MUSIC_DEFAULT
 
 
+## STD_renderBracketDigimon (std_main.c:3363-3367): the C text `bracket_sprite` reproduces.
+BRACKET_SPRITE_EVIDENCE = (
+    "prim->tpage = GetTPage(0, 1, (tile / 64) * 64 + 0x380, 0);",
+    "u = ((tile - 1) % 32) * 32 + (STD_BRACKET_SLOTS[id].unk5 & 1) * 16;",
+    "v = ((tile - 1) / 8) * 32 + (STD_BRACKET_SLOTS[id].unk5 / 2) * 16;",
+)
+
+
+def _c_div(a: int, b: int) -> int:
+    """C integer division (truncates toward zero)."""
+    q = abs(a) // abs(b)
+    return q if (a >= 0) == (b > 0) else -q
+
+
+def bracket_sprite(type_id: int) -> dict:
+    """STD_renderBracketDigimon (std_main.c:3363-3367): the type's 16x16 sprite cell. tpage x =
+    (tile / 64) * 64 + 0x380; u = ((tile - 1) % 32) * 32 and v = ((tile - 1) / 8) * 32, both uint8_t."""
+    t = type_id - 1
+    rem = t - _c_div(t, 32) * 32
+    return {"page": (type_id // 64) * 64 + 0x380, "u": (rem * 32) & 0xFF, "v": (_c_div(t, 8) * 32) & 0xFF}
+
+
 def convert(input_root, output_root) -> GroupWriter:
     out = GroupWriter(output_root, NAME, SPEC, PURPOSE)
     out.reset()
@@ -237,12 +264,26 @@ def convert(input_root, output_root) -> GroupWriter:
     sources.append(SourceText(decomp.root, EFFECT_COMMON_C).identity())
     effect_c = " ".join((decomp.root / EFFECT_COMMON_C).read_text(encoding="utf-8", errors="replace").split())
     out.check("getOriginalType is still the table lookup", ORIGINAL_EVIDENCE in effect_c, ORIGINAL_EVIDENCE[:60])
-    sources += [SourceText(decomp.root, p).identity() for p in (BTL_C, BTL_MAIN_C, UTILS2_C)]
+    sources += [SourceText(decomp.root, p).identity() for p in (BTL_C, BTL_MAIN_C, UTILS2_C, STD_MAIN, STD_SETUP)]
     battle_text = {p: " ".join((decomp.root / p).read_text(encoding="utf-8", errors="replace").split())
                    for p in (BTL_C, BTL_MAIN_C, UTILS2_C)}
     missing = [f"{p}: {needle[:60]}" for p, needle in BATTLE_EVIDENCE if " ".join(needle.split()) not in battle_text[p]]
     out.check("the battle rules on Digimon ids are still in the code", not missing,
               "; ".join(missing) or f"{len(BATTLE_EVIDENCE)} rules")
+
+    std_setup_c = " ".join((decomp.root / STD_SETUP).read_text(encoding="utf-8", errors="replace").split())
+    std_main_c = " ".join((decomp.root / STD_MAIN).read_text(encoding="utf-8", errors="replace").split())
+    out.check("arena stand-in types (0x40 -> 0x36, 0x3f -> 0x30, 0x41 -> 0x2a) in STD_tournamentMain",
+              STAND_IN_EVIDENCE in std_setup_c, STAND_IN_EVIDENCE)
+    out.check("arena intro text length (10 for 0x4e and 0x3c) in STD_addIntroText",
+              INTRO_LEN_EVIDENCE in std_main_c, INTRO_LEN_EVIDENCE)
+    out.check("bracket sprite cell (page, u, v) in STD_renderBracketDigimon",
+              all(e in std_main_c for e in BRACKET_SPRITE_EVIDENCE), "; ".join(BRACKET_SPRITE_EVIDENCE))
+
+    sprite_clut = tables.load(out, index, STD_MAIN, "STD_DIGIMON_SPRITE_CLUT")
+    bracket_icons = tables.load(out, index, STD_MAIN, "STD_BRACKET_PROJECTILE_ICONS")
+    intro_names_t = index.table(STD_MAIN, "STD_INTRO_DIGIMON_NAMES")
+    out.check("STD_INTRO_DIGIMON_NAMES: parsed in US", intro_names_t.get("us") is not None, "US intro names")
 
     names_model = text_group.load_file(decomp, NAMES_FILE)
     items_model = text_group.load_file(decomp, ITEMS_FILE)
@@ -253,13 +294,15 @@ def convert(input_root, output_root) -> GroupWriter:
               all(b is not None for b in (names, move_names, item_names))
               and not names_model.issues and not items_model.issues,
               "; ".join((names_model.issues + items_model.issues)[:5]))
-    loaded_all = [data, raise_, sleep, take, files, vball, vlall, strikes]
-    if not music or not originals or not all(loaded_all) or not (names and move_names and item_names):
+    loaded_all = [data, raise_, sleep, take, files, vball, vlall, strikes, sprite_clut, bracket_icons]
+    if not music or not originals or not all(loaded_all) or not (names and move_names and item_names) or intro_names_t.get("us") is None:
         out.finish(sources)
         return out
-    for loaded in loaded_all[:-1]:
+    for loaded in loaded_all[:7]:
         tables.size_check(out, decomp, loaded)
     tables.size_check(out, decomp, strikes, binary="trn")
+    tables.size_check(out, decomp, sprite_clut, binary="std")
+    tables.size_check(out, decomp, bracket_icons, binary="std")
 
     counts = {"DIGIMON_DATA": len(data[REFERENCE].value), "DIGIMON_NAMES": len(names["items"]),
               "PTR_DIGIMON_FILE_NAMES": len(files[REFERENCE].value),
@@ -277,6 +320,10 @@ def convert(input_root, output_root) -> GroupWriter:
     def move_ref(move_id):
         e = move_names["items"][move_id] if move_id < len(move_names["items"]) else None
         return {"id": move_id, "name": (tables.text_ref(e) or {}).get("text", {}).get("en_us")}
+
+    def digimon_ref(digi_id):
+        e = names["items"][digi_id] if digi_id < len(names["items"]) else None
+        return {"id": digi_id, "name": (tables.text_ref(e) or {}).get("text", {}).get("en_us")}
 
     # -- digimon_data -------------------------------------------------------------------------
     bad = defaultdict(list)
@@ -315,6 +362,18 @@ def convert(input_root, output_root) -> GroupWriter:
                "original_type": _original_type(i, originals[REFERENCE].value)}
         if i in ANIM_TECHNIQUE:
             rec["anim_technique"] = {str(a): t for a, t in ANIM_TECHNIQUE[i].items()}
+        if i < 0x70:
+            us_name = (entry.get("text") or {}).get("en_us") or ""
+            intro_len = 10 if i in (0x4E, 0x3C) else len(us_name) // 2
+            rec["arena_name"] = {
+                "glyphs": intro_names_t["us"].value[i],
+                "length": intro_len,
+            }
+            rec["bracket_sprite_clut"] = sprite_clut[REFERENCE].value[i]
+            rec["bracket_icon"] = bracket_icons[REFERENCE].value[i]
+            rec["bracket_sprite"] = bracket_sprite(i)
+        if i in STAND_INS:
+            rec["arena_stand_in"] = digimon_ref(STAND_INS[i])
         rec["c"] = raw
         if all(m == 0 for m in raw["moves"]):
             # 16 x technique 0 (NPCs, unused ids): no technique list; real lists end with 0xff
@@ -374,6 +433,19 @@ def convert(input_root, output_root) -> GroupWriter:
             "anim_technique": {"derived": "entityGetTechFromAnim (utils2.c:333)",
                                "meaning": "{animation id (decimal string): technique id} overriding moves[anim - 0x2e]; "
                                           "absent = none"},
+            "arena_name": {"c_name": "STD_INTRO_DIGIMON_NAMES[id]",
+                           "meaning": "{glyphs: [14 uint8], length: len(US name) // 2 (10 for 0x4e and 0x3c)}; id < 0x70 only"},
+            "bracket_sprite_clut": {"c_name": "STD_DIGIMON_SPRITE_CLUT[id]", "c_type": "uint8_t",
+                                    "meaning": "CLUT index of the 16x16 bracket sprite; id < 0x70 only"},
+            "bracket_icon": {"c_name": "STD_BRACKET_PROJECTILE_ICONS[id]", "c_type": "uint8_t",
+                             "meaning": "projectile icon index on the bracket; id < 0x70 only"},
+            "bracket_sprite": {"derived": "STD_renderBracketDigimon (std_main.c:3363-3367)",
+                               "meaning": "{page: VRAM x of the 16x16 sprites' texture page, u, v: the cell before the "
+                                          "frame offset (+16 u for frame & 1, +16 v for frame / 2, wrapping at 256)}; "
+                                          "id < 0x70 only"},
+            "arena_stand_in": {"derived": "STD_tournamentMain (std_setup.c:530-540)",
+                               "meaning": "Digimon that fights instead in tournaments (0x3f -> 0x30, 0x40 -> 0x36, 0x41 -> 0x2a); absent = self",
+                               "ref": "digimon/digimon_data"},
             "no_technique_list": {"meaning": "all 16 slots are 0 (NPCs and unused ids): `moves` is empty"},
             "padding": {"c_name": "padding", "c_type": "uint8_t", "meaning": "0 everywhere"},
             "c": {"meaning": "the record as the C initializer gives it (name = the string id)"},

@@ -19,7 +19,7 @@ var sound: Node
 var interpreter: ScriptInterpreter
 var clouds: CloudFX
 var sparks: ParticleFX
-## The arena runner (ArenaStandIn until 4e-4; specs/tournament_entry.md §5.2). Set from outside like interpreter.
+## The arena (Arena, specs/arena.md; builtin 0x06 runs it). Set from outside like interpreter.
 var arena: Node
 ## The one script item menu (the C's item menu is global): every routine node uses it, so the bits
 ## box of builtin 0x0F sees what a later routine buys.

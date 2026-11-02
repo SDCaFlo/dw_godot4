@@ -4,6 +4,8 @@ Family: `dwporter/families/btl_rel.py` (`python -m dwporter convert btl_rel`).
 
 The battle overlay carries, before its code, one texture and four small models used by the battle's own visuals (not the technique effects, which are EFEDAT: `specs/efe.md`). The port draws them in step 5d-5 (`../../specs/battle_effects.md` §4).
 
+The arena overlay (`STD_REL.BIN`, step 4e-4) embeds the same texture and four models at the same offsets (0x0–0x4188, `dw_decomp/config/us/std.yaml`), byte-for-byte identical to `BTL_REL.BIN`, so the arena uses this family's output directly.
+
 ## On disc
 
 `BTL_REL.BIN`, `FILE_OFFSET_TABLE` (`file_table_us.c:807`) size `0x2349C`, loaded at `0x80052AE0`. Segments (`dw_decomp/config/us/btl.yaml`):
@@ -36,7 +38,7 @@ Sidecars as every TMD / TIM export; the model sidecar adds `model.symbol`, `mode
 
 ## Verification
 
-File size; a TIM at 0x0 ending before 0xD20; each TMD parses at its segment offset and ends before the next one; every textured polygon's page is covered by the VRAM built from `ETCTIM.BIN` + the overlay TIM. 14 checks.
+File size; a TIM at 0x0 ending before 0xD20; each TMD parses at its segment offset and ends before the next one; every textured polygon's page is covered by the VRAM built from `ETCTIM.BIN` + the overlay TIM; bytes 0–0x4188 match `STD_REL.BIN` byte-for-byte (`config/us/std.yaml`). 15 checks.
 
 ## Open questions
 

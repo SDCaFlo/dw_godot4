@@ -261,6 +261,37 @@ static func gs_mul_coord0(a: PackedInt32Array, b: PackedInt32Array) -> PackedInt
 	return out
 
 
+## RTPS / RTPT on one vertex through `ls` (GsSetLsMatrix: rotation and translation) with the
+## projection `h`: true when the GTE sets FLAG bit 31. The bits that can set it here: IR1-3
+## saturated (24-22), SZ3 out of 0..0xFFFF (18), the divide overflow when SZ3 * 2 <= h (17), SX2 /
+## SY2 out of -0x400..0x3FF (14, 13). The geometry offset is 0: GsInitGraph(…, 4 = GsOFSGPU, …)
+## (main.c:3563) leaves the offset to the GPU. stand-in: the quotient is the exact h * 0x10000 / SZ3,
+## not the GTE's UNR table (at most one off, so SX2 / SY2 can differ at the screen edge by one).
+static func rtp_flag_error(ls: PackedInt32Array, v: Vector3i, h: int) -> bool:
+	var mac := [((ls[9] << 12) + _row(ls, 0, v)) >> 12, ((ls[10] << 12) + _row(ls, 1, v)) >> 12,
+			((ls[11] << 12) + _row(ls, 2, v)) >> 12]
+	for c in 3:
+		if mac[c] < -0x8000 or mac[c] > 0x7FFF:
+			return true
+	var sz: int = mac[2]
+	if sz < 0 or sz > 0xFFFF or sz * 2 <= h:
+		return true
+	var q := mini(0x1FFFF, h * 0x10000 / sz)
+	var sx: int = (mac[0] * q) >> 16
+	var sy: int = (mac[1] * q) >> 16
+	return sx < -0x400 or sx > 0x3FF or sy < -0x400 or sy > 0x3FF
+
+
+## libgs's TMD sort functions (GsSortObject4J's GsTMDfast*, main/graphics.c:62): after RTPT (and
+## RTPS for a quad's fourth vertex) `cfc2 $31; bltz` skips the polygon (libgte.s, GsTMDfastTF3L
+## 0x8009CC50, GsTMDfastTF4L). So a polygon is not drawn when any vertex sets FLAG bit 31.
+static func gs_polygon_dropped(ls: PackedInt32Array, verts: Array, h: int) -> bool:
+	for v in verts:
+		if rtp_flag_error(ls, v, h):
+			return true
+	return false
+
+
 # --- vecmath.c ------------------------------------------------------------------------------------
 
 ## The 8-bit square roots of getDistance (vecmath.c DISTANCE_SQRT_LOOKUP).

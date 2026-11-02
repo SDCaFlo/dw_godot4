@@ -440,6 +440,15 @@ func command_menu_steps() -> Vector2i:
 
 
 ## BTL_COMMAND_MENU_ACTIVE == 1 (the partner's status bars slide with it).
+## The start text's state for its HUD piece: 0 none, 1 assembling (INTRO), 2 bursting (INTRO_BURST).
+func start_text_state() -> int:
+	if phase == Phase.INTRO:
+		return 1
+	if phase == Phase.INTRO_BURST:
+		return 2
+	return 0
+
+
 func command_menu_active() -> bool:
 	return _menu_active
 

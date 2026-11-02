@@ -12,6 +12,7 @@ SOURCE_PATH = "BTL_REL.BIN"
 SPEC = "specs/btl_rel.md"
 CODE_REFS = [
     "dw_decomp/config/us/btl.yaml segments texture 0x0, model_0 0xD20, model_1 0x1D58, model_2 0x2220, model_3 0x2848",
+    "dw_decomp/config/us/std.yaml segments 0x0-0x4188 equal BTL_REL (texture and 4 models)",
     "dw_decomp/src/main/btl.c:23-27 BTL_FINISHER_TIM / _MODEL, BTL_CONFUSION_MODEL, BTL_STUN_MODEL, BTL_BUFF_MODEL",
     "dw_decomp/src/main/btl.c:427-450 loadBattleData: the initializers",
     "dw_decomp/src/btl/battle_effect.c:5957 BTL_initializeFinisherAuraModel (LoadImage at the TIM's own VRAM place)",
@@ -48,6 +49,11 @@ def convert(input_root, output_root) -> AssetWriter:
     out.reset()
     src = SourceFile.open(input_root, SOURCE_PATH)
     out.check("size matches FILE_OFFSET_TABLE", src.size == FILE_SIZE, f"0x{src.size:X}")
+
+    std = SourceFile.open(input_root, "STD_REL.BIN")
+    out.check("STD_REL: bytes 0-0x4188 equal BTL_REL (texture and 4 models, config/us/std.yaml)",
+              src.data[:0x4188] == std.data[:0x4188],
+              f"0x{0x4188:X} bytes match")
 
     tim = timfmt.try_parse(src.data, TEXTURE_OFFSET)
     if not out.check("a TIM at 0x0 (segment `texture`)", tim is not None):

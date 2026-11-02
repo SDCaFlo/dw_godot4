@@ -130,6 +130,13 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
   - `original_type`: `getOriginalType` (`effect_common.c:320`): `ORIGINAL_DIGIMON_TYPES[id]`, or the id itself when that is negative, −1 above 0xB0; the battle effects find their per-Digimon bone offsets by it (`BTL_checkTechCompatibility`, `../../specs/battle_effects.md` §2.5). The lookup's C text is checked;
   - `anim_technique`: `{"60": 112}` on 0x3C (`entityGetTechFromAnim`, `utils2.c:333`: animation 0x3C is technique 0x70), absent elsewhere.
 
+- **Arena properties** (`../../specs/arena.md` §5.0), on records with id < 0x70 only (the 112 Digimon types handled by the arena):
+  - `arena_name` `{glyphs, length}`: `glyphs` is the 14 raw katakana glyph bytes from `STD_INTRO_DIGIMON_NAMES[id]` (`std_main.c:870`); `length` is `len(US name) // 2` (`strlen(DIGIMON_DATA[type].name) / 2`, `STD_addIntroText`, `std_main.c:1650`), forced to 10 for 0x4E (J-Mojyamon) and 0x3C (HerculesKabuterimon) (checked against the C text);
+  - `bracket_sprite_clut`: `STD_DIGIMON_SPRITE_CLUT[id]` (`std_main.c:1406`);
+  - `bracket_icon`: `STD_BRACKET_PROJECTILE_ICONS[id]` (`std_main.c:1422`);
+  - `bracket_sprite` `{page, u, v}`: the 16×16 bracket sprite's cell, `STD_renderBracketDigimon` (`std_main.c:3363–3367`): `page` = `(id / 64) * 64 + 0x380` (VRAM x), `u` = `((id − 1) % 32) * 32 & 0xFF`, `v` = `((id − 1) / 8) * 32 & 0xFF` (C truncation; the frame adds 16 to u for `frame & 1` and to v for `frame / 2`). Derived from the id so the arena reads a property (`../../specs/arena.md` §4.7); the C text is checked;
+  - `arena_stand_in`: `{id, name}` reference on 0x3F (Panjyamon -> 0x30 Leomon), 0x40 (Gigadramon -> 0x36 Megadramon), and 0x41 (MetalEtemon -> 0x2A Etemon) only (`STD_tournamentMain`, `std_setup.c:530–540`, checked against the C text).
+
 ## 4. Godot usage
 
 - `GameData.digimon(id)`, `GameData.raise_data(id)`, `GameData.sleep_pattern(id)`, `GameData.digimon_file(id)` (links to the asset porter's model names), `GameData.digimon_sounds(id)`, `GameData.training_animation(digimon)` (the Offense stations; a Digimon without a record uses 0x2e / 10), `GameData.condition_fx_offset(digimon)` and `GameData.aura_projectile_type(digimon)` (through the Digimon's `original_type`; the battle visuals, `../specs/battle_effects.md`).

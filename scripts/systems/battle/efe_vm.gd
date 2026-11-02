@@ -414,7 +414,11 @@ func _builtin(id: int) -> void:
 		89: _apply_line_attack_hit()
 		90: _apply_radius_attack_hit()
 		91: _apply_box_attack_hit()
-		92: _draw("renderScreenFade", _pops(1))
+		92:
+			# renderScreenFade: the world may do it itself (the arena's CLUT, specs/arena.md §4.8).
+			var c: int = pop()
+			if not _ectx().screen_fade(c):
+				_draw("renderScreenFade", [c])
 		93: _ectx().set_map_layer(false)
 		95: fx.host.mark_finished()
 		96:

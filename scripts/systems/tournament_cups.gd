@@ -181,6 +181,12 @@ func draw_opponents(id: int, digimon_type: int) -> Array:
 			if game_state.is_trigger_set(ROSTER_TRIGGER + i):
 				pool.append(i)
 
+	# port-only (specs/tournament_entry.md §8.1, decided 2026-11-02): no Digimon of the cup's list has
+	# joined (the C reads the pool's old memory, utils2.c:596): the whole list, as an open pool.
+	if pool.is_empty() and opponents != null:
+		push_warning("TournamentCups: no opponent of tournament %d has joined; drawing from its whole list" % id)
+		for opp in opponents:
+			pool.append(int(opp))
 	if pool.is_empty():
 		push_warning("TournamentCups: opponent pool is empty for tournament %d" % id)
 		return [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]

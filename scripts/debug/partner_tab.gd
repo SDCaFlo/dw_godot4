@@ -11,7 +11,7 @@ extends VBoxContainer
 var game_state: Node
 var data: Node
 var care: Care
-## The arena stand-in (null without a field).
+## The arena (null without a field): its debug result skips the tournament.
 var arena: Node:
 	set(value):
 		arena = value
@@ -104,16 +104,16 @@ func _build_tournament_ui() -> void:
 
 	var row := HBoxContainer.new()
 	var spin_label := Label.new()
-	spin_label.text = "Tournament result"
+	spin_label.text = "Tournament result (-1: play it)"
 	row.add_child(spin_label)
 	var spin := SpinBox.new()
-	spin.min_value = 0
+	spin.min_value = -1
 	spin.max_value = 3
 	spin.step = 1
-	spin.value = arena.get("stand_in_result") if arena != null else 0
+	spin.value = arena.get("debug_result") if arena != null else -1
 	spin.value_changed.connect(func(v: float) -> void:
 		if arena != null:
-			arena.set("stand_in_result", int(v))
+			arena.set("debug_result", int(v))
 	)
 	row.add_child(spin)
 	_tournament_box.add_child(row)

@@ -67,7 +67,7 @@ var _maps: PackedStringArray
 @onready var death_host: DeathHost = $Systems/DeathHost
 @onready var evolution_host: EvolutionHost = $Systems/EvolutionHost
 @onready var tournament_host: TournamentHost = $Systems/TournamentHost
-@onready var arena: Node = $Systems/ArenaStandIn
+@onready var arena: Arena = $Systems/Arena
 @onready var debug: DebugHost = $Debug
 
 
@@ -256,6 +256,17 @@ func _start() -> void:
 	tournament_host.data = GameData
 	tournament_host.start()
 	arena.game_data = GameData
+	arena.world = _world
+	arena.field_camera = _camera
+	arena.fade = care_host.fade
+	arena.hud = _hud
+	# STD_initializeTournament: removeMapEntities, the tamer off screen, STD_removeOverworldObjects
+	# (the clock, the map, the poop); the arena draws over the hidden field.
+	arena.field_nodes = func() -> Array:
+		var nodes := [_field, $World/SubViewport/Background, _tamer, entities.partner, clock_host.hud,
+				care_host.poop, care_host.bars, care_host.bubbles]
+		nodes.append_array(entities.entities.npcs)
+		return nodes
 	# Map entry goes through MAPHEAD (specs/script.md §3): SET_SCRIPT loads the map, the end of
 	# the setup section sets it up, script warps run the map change.
 	if scripts.interpreter != null:
@@ -310,6 +321,14 @@ func map_layer_nodes() -> Array:
 ## (specs/camera.md §6), the overlay sprites where the map renders; the HUD; the UI boxes after
 ## everything that opens and closes them; the fade last.
 func _frame() -> void:
+	# A tournament runs its own loops (STD_tournamentMain, specs/arena.md §5.1): only the arena's
+	# frame, then the boxes and the fade.
+	if arena.active:
+		arena.frame()
+		if arena.active:
+			scripts.step_boxes()
+			care_host.tick_fade()
+			return
 	# A battle runs its own loop in the original (BTL_battleMain): only the battle's frame, then the
 	# boxes and the fade (specs/battle.md §5.3).
 	if battle_host.active:

@@ -86,6 +86,11 @@ func set_rotation_y(_id: int, _vy: int) -> void:
 	pass
 
 
+## loadMapSounds(set): an ESALL sound set into slot 8 (the arena's own, STD_tournamentMain).
+func load_map_sounds(_set_id: int) -> void:
+	pass
+
+
 ## setEntityPosition / posData->location with the animation's root (anim.locX..Z) (the arena places
 ## its fighters: STD_placePlayer1 / 2, STD_setPostIntroPosition).
 func set_location(_id: int, _location: Vector3i) -> void:

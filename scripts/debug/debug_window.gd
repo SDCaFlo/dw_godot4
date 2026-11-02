@@ -29,7 +29,7 @@ var ui_filter := true
 var gallery: EffectGallery
 ## The partner's care, for the Partner tab's evolution (null without a field).
 var care: Care
-## The arena stand-in (null without a field).
+## The arena (null without a field).
 var arena: Node
 
 var _status: Label

@@ -394,7 +394,7 @@ func medal_of(condition: int) -> int                                # TOURNAMENT
 
 - `finish` caps the counters with `data.script_stat_limit(0x11 / 0x12 / 0x13)`.
 - `draw_opponents` uses `Rng.random_limit`.
-- **An empty pool** (decided 2026-11-01, port-only, §8.1): 7 × 0xFF and a `push_warning`.
+- **An empty pool** (port-only, §8.1): a list cup draws from its whole list (as an open pool), with a `push_warning`; Grade R (no list: the roster) gives 7 × 0xFF. Decided 2026-11-02 (was 7 × 0xFF, which gave the arena ghost opponents).
 
 **`scripts/systems/tournament_registration.gd`** (`class_name TournamentRegistration`, `RefCounted`): §4.7.
 
@@ -510,7 +510,7 @@ Not in the suite (VERIFY, in game): the board's look (lines, cursor, colours, ti
 
 ## 8. Open questions
 
-1. **An empty pool.** For a list-based cup with none of its roster triggers set, `count` is 0, and `pool[randomLimit(0)] = pool[0]` reads the array's old memory (`allocateArray` doesn't clear) 7 times. **Decided 2026-11-01 (port-only):** 7 × 0xFF, with a warning, until it is checked in the real game. Still open: which roster triggers are set at a new game?
+1. **An empty pool.** For a list-based cup with none of its roster triggers set, `count` is 0, and `pool[randomLimit(0)] = pool[0]` reads the array's old memory (`allocateArray` doesn't clear) 7 times. **Decided 2026-11-01 (port-only):** 7 × 0xFF, with a warning. **Changed 2026-11-02 (the user):** a list cup draws from its whole list instead (the arena got 0xFF opponents: a ghost with stats and no model, found in play from a debugger save with no roster); Grade R keeps 7 × 0xFF. Still open: which roster triggers are set at a new game?
 2. **Box 1's line cut** (`TEXTBOX_LINES_PTR[0x210] = 0x0D`, row 8 byte 16) and the US `drawString("Tournament")` both write row 8. The visible result should be "Tournament"; to compare with the real game.
 3. **Music after the stand-in** (§5.4): to recheck with 4e-4's real flow.
 4. **Winning the Beetle Cup re-registers** (§4.9): does the real game show "Darn! I forgot…" a day after winning the Beetle Cup at Beetle Land?

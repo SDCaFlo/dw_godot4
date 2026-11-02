@@ -1,6 +1,0 @@
-[gd_scene format=3]
-
-[ext_resource type="Script" path="res://scripts/field/arena_stand_in.gd" id="1_arena"]
-
-[node name="ArenaStandIn" type="Node"]
-script = ExtResource("1_arena")

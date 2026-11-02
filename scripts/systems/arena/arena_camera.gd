@@ -56,6 +56,10 @@ const ANIM_MOVE := 0x2E
 const INTRO_KEYS := 0x16
 
 var world: BattleWorld
+## func(entity: int, slot: int) -> int: the animation of the fighter's equipped move `slot` (0xFF
+## none). The partner's stats hold technique keys (specs/game_state.md), so the match gives
+## Battle.anim_of_move here; without it the stats' value is taken as the animation.
+var move_anim := Callable()
 var partner := 1
 var opponent := -1
 
@@ -479,15 +483,22 @@ func tick_camera_chase() -> void:
 	var t := fighter_distance(chase_last, chase_target, loc)
 	update_camera_lerp(t, chase_side)
 	if is_position_near(focused, chase_target):
-		var moves: Array = world.stats(focused)["base"]["moves"]
 		for i in 3:
-			if moves[i] != null and int(moves[i]) != 0xFF:
-				world.start_animation(focused, int(moves[i]))
+			var anim := _move_anim(focused, i)
+			if anim != 0xFF:
+				world.start_animation(focused, anim)
 				break
 		world.set_step_held(focused, true)
 		chase_timer = -1
 		return
 	chase_timer += 1
+
+
+func _move_anim(entity: int, slot: int) -> int:
+	if move_anim.is_valid():
+		return int(move_anim.call(entity, slot))
+	var m = world.stats(entity)["base"]["moves"][slot]
+	return 0xFF if m == null else int(m)
 
 
 ## STD_setPostIntroPosition's camera half (1682): the chase ends.

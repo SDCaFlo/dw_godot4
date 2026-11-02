@@ -32,7 +32,7 @@ var map_name: MapName
 var clouds: CloudFX
 ## The hit sparks of the training stations (ParticleFX); in the HUD too.
 var sparks: ParticleFX
-## The arena stand-in (ArenaStandIn).
+## The arena (Arena, builtin 0x06).
 var arena: Node
 ## TALKED_TO_ENTITY: the entity (2-9) of the last NPC talk.
 var talked_to_entity := 0

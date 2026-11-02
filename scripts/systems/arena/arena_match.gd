@@ -112,6 +112,9 @@ func _init(battle_world: BattleWorld, effect_host: EffectHost, game_data: Node, 
 	camera = arena_camera
 	battle = ArenaBattle.new(world, effects, data)
 	battle.camera = camera
+	if camera != null:
+		camera.move_anim = func(e: int, slot: int) -> int:
+			return battle.anim_of_move(world.stats(e)["base"]["moves"][slot], e)
 	battle.visual.connect(func(kind: String, args: Array) -> void: visual.emit(kind, args))
 	if camera != null:
 		camera.scene_requested.connect(func(kind: String) -> void: visual.emit("scene", [kind]))

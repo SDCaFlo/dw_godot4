@@ -5,7 +5,7 @@ extends SceneTree
 ## the port (reviewer's scratch, 2026-11-01) and were checked by hand on the cases marked so.
 ## Don't change them to make the code pass; when one looks wrong, report it with the C line.
 ##   godot --headless --path . -s res://tests/test_arena.gd
-## Gate: DW_STEP_4E_4=<n> runs steps 2..n (unset: steps 2-3, which are built). Step 1's checks are
+## Gate: DW_STEP_4E_4=<n> runs steps 2..n (unset: steps 2-4, which are built). Step 1's checks are
 ## data_porter/tests/test_arena_fields.py and asset_porter/tests/test_arena_assets.py; steps 3-7 get
 ## their checks here before each is built. Exits 1 if a check fails.
 ##
@@ -16,6 +16,7 @@ const BRACKET := "res://scripts/systems/arena/arena_bracket.gd"
 const ARENA_BATTLE := "res://scripts/systems/arena/arena_battle.gd"
 const MATCH := "res://scripts/systems/arena/arena_match.gd"
 const CAMERA := "res://scripts/systems/arena/arena_camera.gd"
+const SESSION := "res://scripts/systems/arena/arena_session.gd"
 ## The battle tests' stub world (entities that animate by frames and walk forward).
 const BATTLE_TEST := "res://tests/test_battle.gd"
 
@@ -60,8 +61,8 @@ var data: Node
 
 
 func _initialize() -> void:
-	# Steps 2-3 are built (spec §6): their checks run by default; DW_STEP_4E_4 can still limit or extend them.
-	_step = int(OS.get_environment("DW_STEP_4E_4")) if OS.get_environment("DW_STEP_4E_4").is_valid_int() else 3
+	# Steps 2-4 are built (spec §6): their checks run by default; DW_STEP_4E_4 can still limit or extend them.
+	_step = int(OS.get_environment("DW_STEP_4E_4")) if OS.get_environment("DW_STEP_4E_4").is_valid_int() else 4
 	data = load("res://scripts/data/game_data.gd").new()
 	if not data.available():
 		print("SKIP: porter output missing")
@@ -88,6 +89,8 @@ func _initialize() -> void:
 		_test_timer_and_heal()
 		_test_camera()
 		_test_whole_match()
+	if _gate(4, "ArenaSession, the arena scene"):
+		_test_session()
 
 	data.free()
 	var state := "OK" if _failed == 0 else "FAILED %d" % _failed
@@ -703,3 +706,118 @@ func _test_whole_match() -> void:
 		w.advance()
 		n += 1
 	_eq([m.is_done(), m.timer, m.is_draw, m.result], [true, 0, true, -1], "whole match: a time-out draw loses")
+	# No ✕ at all and the partner's moves as technique keys, as GameState holds them (specs/game_state.md):
+	# the intro walk ends on the first technique's pose (STD_tickCameraChase, 2695-2700), which the
+	# camera must find from the key; the match reaches the fight on its own.
+	Rng.set_seed(4)
+	var key: String = data.key_of("moves/move_data", 2)
+	w = _arena_world({"moves": [key, null, null, null]})
+	m = _match(w, true)
+	m.begin(1, 2, 0)
+	n = 0
+	while m.phase != m.Phase.FIGHT and n < 3000:
+		m.frame(0)
+		w.advance()
+		n += 1
+	_check(m.phase == m.Phase.FIGHT, "no presses, key moves: the intros end and the fight starts (%d frames)" % n)
+
+
+# --- step 4: ArenaSession (STD_tournamentMain) -------------------------------------------------
+
+## A stub tournament: the partner (entity 1) and the opponents spawned into slots 0-2 (entities
+## 2-4, STD_initializeOpponent's ENTITY_TABLE[slot + 2]) with the stats ArenaTournament made.
+class TournamentStub:
+	var w: Object
+	var spawned: Array = []
+	var removed := 0
+	var fades: Array = []
+
+	func spawn(slot: int, type: int, stats: Dictionary) -> int:
+		var e := slot + 2
+		w.add(e, type, Vector3i(0, 0, -900), stats["base"])
+		w.stats(e)["current"].merge(stats["current"], true)
+		spawned.append([slot, type])
+		return e
+
+	func remove() -> void:
+		removed += 1
+		for e in [2, 3, 4]:
+			w.entities.erase(e)
+
+	func fade(kind: String, frames: int) -> void:
+		fades.append([kind, frames])
+
+
+func _session(w: Object, stub: TournamentStub) -> Object:
+	var s := _script(SESSION)
+	if s == null or not s.can_instantiate():
+		_check(false, "ArenaSession doesn't load")
+		return null
+	var cam := _camera(w)
+	var session: Object = s.new(w, EffectHost.new(w), data, cam)
+	session.spawn_opponent = stub.spawn
+	session.remove_opponents = stub.remove
+	session.fader = stub.fade
+	return session
+
+
+func _run_session(session: Object, w: Object, limit: int) -> int:
+	var n := 0
+	while not session.is_done() and n < limit:
+		session.frame(Pad.CONFIRM if n % 10 == 0 else 0)
+		w.advance()
+		n += 1
+	return n
+
+
+func _test_session() -> void:
+	# The opening (std_setup.c:541-556): fadeToBlack(5), STD_tickFrames(5) (6 frames), then
+	# fadeFromBlack(5) and the bracket intro for STD_tickFrames(0x78) (0x79 frames).
+	Rng.set_seed(7)
+	var w := _stub()
+	w.add(0, -1, Vector3i(0, 0, 0))
+	w.add(1, AGUMON, Vector3i(0, 0, 0), {"max_hp": 9999, "max_mp": 400, "offense": 999, "defense": 999,
+			"speed": 999, "brains": 150, "moves": [0x2E, null, null, 0x35], "moves_prio": [0, 0, 0, 0]})
+	var stub := TournamentStub.new()
+	stub.w = w
+	var session := _session(w, stub)
+	if session == null:
+		return
+	# Grade D (cup 0); the seven drawn: Gigadramon (stand-in Megadramon) and six Rookies.
+	session.begin(0, [GIGADRAMON, 0x1F, 0x20, 0x03, 0x11, 0x1F, 0x20], 0)
+	var n := 0
+	while session.phase != session.Phase.BRACKET and n < 400:
+		session.frame(0)
+		w.advance()
+		n += 1
+	# The phase turns BRACKET in the call that runs the bracket's first frame: after 6 + 0x79 = 127.
+	_eq(n, 128, "tournament: the bracket's first frame is the 128th")
+	_eq(stub.fades.slice(0, 2), [["out", 5], ["in", 5]], "tournament: fade out 5, fade in 5")
+	_eq(int(session.bracket.player_slot), int(session.participants["player_slot"]), "tournament: the bracket's player slot")
+	_check(not w.is_on_map(1), "tournament: the partner hidden under the bracket (STD_addBracket)")
+	var played := _run_session(session, w, 60000)
+	_check(session.is_done(), "tournament: ends (%d frames)" % played)
+	_eq(session.result, 3, "tournament: a strong partner wins all three (result 3)")
+	_eq(stub.spawned.size(), 3, "tournament: three opponents")
+	var want: Array = []
+	for i in 3:
+		want.append([i, session.tournament.stand_in(int(session.participants["opponents"][i]))])
+	_eq(stub.spawned, want, "tournament: opponent i in slot i, as its stand-in")
+	_check(not GIGADRAMON in stub.spawned.map(func(x: Array) -> int: return x[1]), "tournament: Gigadramon never fights as itself")
+	_eq(stub.removed, 3, "tournament: removeMapEntities after each match")
+	_check(session.champion_done, "tournament: the champion scene ran")
+	_check(["out", 1] in stub.fades, "tournament: STD_deinitializeTournament's fadeToBlack(1)")
+
+	# A weak partner loses its first match: result 0, no champion.
+	Rng.set_seed(7)
+	w = _stub()
+	w.add(0, -1, Vector3i(0, 0, 0))
+	w.add(1, AGUMON, Vector3i(0, 0, 0), {"max_hp": 10, "max_mp": 0, "offense": 1, "defense": 1, "speed": 1,
+			"brains": 1, "moves": [0x2E, null, null, null], "moves_prio": [0, 0, 0, 0]})
+	stub = TournamentStub.new()
+	stub.w = w
+	session = _session(w, stub)
+	session.begin(4, [0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A], 0)
+	played = _run_session(session, w, 60000)
+	_check(session.is_done(), "tournament lost: ends (%d frames)" % played)
+	_eq([session.result, stub.spawned.size(), session.champion_done], [0, 1, false], "tournament lost: result 0, one match")

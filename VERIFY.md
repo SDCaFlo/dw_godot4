@@ -184,9 +184,9 @@ Sections are added as systems are ported (`PLANS.md`).
    - Cancel or △: "I think that going yourself may be the best way."
 4. **Compare with the game:** the boxes' places, the labels' positions, the sounds.
 
-## Tournament entry (`scripts/script/tournament_routines.gd`, `scripts/ui/tournament_board.gd`, `scripts/systems/tournament_cups.gd`, `tournament_registration.gd`, `scripts/field/hosts/tournament_host.gd`, `scripts/field/arena_stand_in.gd`; `specs/tournament_entry.md`)
+## Tournament entry (`scripts/script/tournament_routines.gd`, `scripts/ui/tournament_board.gd`, `scripts/systems/tournament_cups.gd`, `tournament_registration.gd`, `scripts/field/hosts/tournament_host.gd`, `scripts/arena/arena.gd`; `specs/tournament_entry.md`)
 
-`test_tournament.gd` prints `OK: tournament checks`. In the game (F5), File City's Arena Lobby (ROOM13, or ROOM19 once the game is beaten; the debugger's map list jumps there). The arena itself is a stand-in until 4e-4: the debugger's **Partner** tab sets its result (0–3 rounds won) and shows the registration (cup, day, triggers 37–40).
+`test_tournament.gd` prints `OK: tournament checks`. In the game (F5), File City's Arena Lobby (ROOM13, or ROOM19 once the game is beaten; the debugger's map list jumps there). The arena itself is the next section; the debugger's **Partner** tab can skip it with a fixed result (0–3 rounds won; -1 plays it) and shows the registration (cup, day, triggers 37–40).
 1. **The board:** talk to the receptionist; "Yes" opens it.
    - Look: a title box "Tournament", a grid of 5 day columns (today first, the day numbers at the top) and 6 rows, with lines between the columns and under the header. Grade letters are white when you can enter, red-ish (colour 3) when you can't, and in colour 7 when the partner is too strong for the cup. The cursor is a grey highlight on one cell.
    - ←→↑↓ move the cursor and wrap on all sides (sound each step); holding a direction repeats.
@@ -197,9 +197,20 @@ Sections are added as systems are ported (`PLANS.md`).
    - Enter: the Partner tab shows the registration (the day; "tomorrow" when you picked the second column). Don't enter (or △): nothing.
    - Talking again: the receptionist knows you're registered ("So you've entered today's competition …").
 3. **Reminders** (in the field, not in a menu or a scene; the care panel's speed buttons (C) make time pass faster): registered for today, from 12:00 the partner says "You're entered in today's - X - Tournament, right?" once, again once from 20:00. If the day passes, or it's 23:01, "Darn! I forgot that we entered today's …" and the registration is gone. Changing the partner's Digimon (Partner tab, Digivolve) cancels it silently.
-4. **The tournament:** on the registration day after 10:00, go down the lobby's stairs. With a too-strong partner the Tamer level may drop. The stand-in "arena" ends at once (the Godot output shows `arena not ported (4e-4): cup …, opponents …` with the 7 drawn); 6 hours pass and you're back in the lobby. With the Partner tab's result at 3 (2 for Grade R) the cup counts as won: the receptionist's "Record" shows one more championship, and the wins add the rounds.
+4. **The tournament:** on the registration day after 10:00, go down the lobby's stairs. With a too-strong partner the Tamer level may drop. The arena runs (next section), or with the Partner tab's result set (≥ 0) ends at once; 6 hours pass and you're back in the lobby. With a result of 3 (2 for Grade R) the cup counts as won: the receptionist's "Record" shows one more championship, and the wins add the rounds.
 5. **Medals:** the Gear Savanna card guy (after a pack) checks the tournament medals (builtin 0x16): with every Grade cup won (set triggers 15–20 in the State tab), a pack gives the "Grade" medal line once.
 6. **Compare with the game:** the board's layout (box places, the title, the day numbers, the cell positions, the lines), the colours, the sounds; whether winning the Beetle Cup at Beetle Land brings "Darn! I forgot…" the next day (`specs/tournament_entry.md` §8.4).
+
+## The arena (`scripts/arena/`, `scripts/systems/arena/`; `specs/arena.md`)
+
+`test_arena.gd` prints `OK: arena checks`; `arena_scan.tscn` (`godot --headless --fixed-fps 60 --path . res://tests/arena_scan.tscn`, also `ARENA_WEAK=1`, `ARENA_MAP=BETL02`) runs a whole tournament in the field and prints `arena_scan: OK`. In the game (F5): register for a cup and go down the lobby's stairs (Tournament entry, step 4), with the Partner tab's tournament result at -1. **The HUD is a plain text line until step 5** (phase, HP, timer, the hovered command), and the bracket, versus, win / lose and champion pictures come in step 6: the bracket phases show only the arena turning.
+1. **The opening:** the screen fades out and back in on the arena (File City: the T arena; Beetle Land: the B arena). The camera turns slowly round it (state 10). The bracket intro (6 s) and the first round of the bracket (about 15 s) pass with nothing of theirs drawn yet, then the first match starts.
+2. **The intro:** the camera follows the partner walking in from the side, then the opponent. ✕ skips each walk. The arena's music: the partner's intro tune, then the opponent's.
+3. **The fight:** "Fight!" text logic runs (not drawn yet), then the battle: the camera orbits beside the two fighters and cuts to closer views now and then. ← → move the command (the HUD line shows its number: 2 Attack, 3 Your Call, 4 Moderate, 5 Distance, 6 Defensive, 8-10 a technique, 11 the finisher), ✕ gives it; □ the finisher once the gauge is full. There is no Run and no item.
+4. **The end:** a faint (the winner's victory pose, then the end camera swinging round), or the timer at 0 (the one who took less damage wins; equal is a draw, which loses).
+5. **After 3 wins:** the champion's part: the partner rises on the podium (not drawn yet) with the camera circling it, then its victory pose. After a loss the tournament ends at once.
+6. **Back:** a fade, 6 hours later, in the lobby; the Record counts the cup.
+7. **Things to look at and report:** the arena model's look (textures, the stands; objects 0 and 2 are drawn depth-tested here, the C draws them behind everything: `specs/arena.md` "As built"), the fighters' places and the camera's framing (orbit distance, the walk-in shots), the lighting (the arena's own three lights), the music per phase.
 
 ## Card shops, merit shop, Mojyamon (`scripts/script/card_shop_routines.gd`, `merit_shop_routines.gd`, `mojyamon_routines.gd`, `scripts/ui/trade_menu.gd`; `specs/card_shops.md`)
 

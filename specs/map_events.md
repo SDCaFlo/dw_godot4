@@ -86,7 +86,7 @@ Routine 0x24 (`readMapTFS(CURRENT_SCREEN_ID)`) is called by no script.
 | P14 | `openToyTownBox` | 1148 | `TOY_TOWN_SELECTED_BOX` = script value 0xFE | |
 | P15 | `GEARBOX_TMD`, `GEARBOX_LOCATION` | 88, 87 | `ETCNA/GAND.TMD`, (−100, 0, 1700) | |
 | P16 | `UNUSED_GEARBOX_VALUE` | 760 | 0x294, never read | nothing to port |
-| P17 | `ANGEMON_PEDESTAL_TMD`, start | 90, 785–786 | `ETCNA/ABOX.TMD`; x 0, z 1500 | |
+| P17 | `ANGEMON_PEDESTAL_TMD`, start | 90, 784–785 | `ETCNA/ABOX.TMD`; x 0, z 1500 | |
 | P18 | `moveAngemonPedestal` | 1167–1183 | z += 10; x = 5 when z % 20 == 0, else −5; at z > 1999: z = 2000, done (the wait ends). The wait is CALL_ROUTINE 0x32's tick, case 50 (`script_interp.c:506`) | |
 | P19 | Draw | `drawObject` 1070 | `GsSortObject4J(…, 2)`, lit (the light matrix from the object's LW). Each `render*` draws only while `MAP_LAYER_ENABLED` | |
 | P20 | Removal | `unloadMapParts` 917–928 | on every map change: objects 0xFB3 (cart), 0xFB4 (pile), 0xFB6 (boulder), 0xFBD (boxes), 0xFBC (gearbox), 0xFBE (pedestal); opcode 0x78 removes 0xFB6 | |
@@ -178,7 +178,7 @@ Routine 0x24 (`readMapTFS(CURRENT_SCREEN_ID)`) is called by no script.
 - `drawn(prop) -> bool`: its group is loaded, and for `&"cart"` `cart_model != 2`, for `&"pile"` the counter ≥ 6 (P7). The map layer is the view's (P19).
 - `transform(prop) -> PackedInt32Array` (not the cart):
   - pile: `trans_matrix(scale_matrix(rot_matrix(0), s), (2037, 0, 849))`, `s` = counter · 0x1000 / 15 (C division, truncating; stored `int16_t`) on all axes;
-  - boulder: `trans_matrix(scale_matrix(rot_matrix(rotation), 0x1000), translation)` (`projectPosition`, 641; called at 633 and 1143);
+  - boulder: `trans_matrix(scale_matrix(rot_matrix(rotation), 0x1000), translation)` (`projectPosition`, 639; called at 633 and 1143);
   - big_box / small_box: identity with the box's location (P12);
   - big_lid / small_lid: `rot_matrix((lid, 0, 0))`, translation 0, relative to its box;
   - gearbox: identity at (−100, 0, 1700);

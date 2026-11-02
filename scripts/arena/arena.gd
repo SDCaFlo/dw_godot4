@@ -6,7 +6,8 @@ extends Node
 ## its own world in the field's 3D viewport (the arena model, its own fighters, the arena camera,
 ## the arena's lights) over the hidden field, runs an ArenaSession a frame, and gives the field back
 ## after. The script warps right after (specs/arena.md §1.1), which reloads the map.
-## The HUD is a plain one until step 5 (the original's pieces).
+## The HUD (ArenaHud) draws the bracket, the model scenes and the match's pieces; the podium is in
+## this world (STD_renderPodium sorts it into the main OT).
 
 const NPC_SCENE := preload("res://scenes/field/npc.tscn")
 const FX_VIEW_SCENE := preload("res://scenes/battle/effects/battle_fx_view.tscn")
@@ -15,6 +16,13 @@ const HUD_SCENE := preload("res://scenes/arena/arena_hud.tscn")
 ## STD_ARENA_MODELS (std_main.c:1326) by the map's arena_model; STD_ARENA_COLLISIONS: B_TOGI.ATR for both.
 const ARENA_MODELS := ["tmd_files/STDDAT/T_TOGI.gltf", "tmd_files/STDDAT/B_TOGI.gltf"]
 const ARENA_COLLISION := "atr_files/STDDAT/B_TOGI/B_TOGI.json"
+## STD_renderArena0 / 1 (std_setup.c:682-758): the objects sorted into the sub-OTs at 0xFFF (drawn
+## first) and 0xFFE (object 0), behind everything: PsxLit.as_backdrop's priorities, per arena.
+const BACKDROP := [{2: -2, 0: -1}, {1: -2, 2: -2, 0: -1}]
+## STD_renderArena1: object 3 only while STD_isBracketFinished().
+const AFTER_BRACKET := [-1, 3]
+## STD_loadChampionModels (std_hud.c:1349-1353): the podium, B_DAI on BETL02 (arena 1), else T_DAI.
+const PODIUMS := ["tmd_files/STDDAT/T_DAI.gltf", "tmd_files/STDDAT/B_DAI.gltf"]
 ## STD_initializeLighting (std_setup.c:474-499): three flat lights (direction, colour 0-255) and
 ## GsSetAmbient(0x400, ...) (4096 = 1.0).
 const LIGHTS := [[[1000, 1000, 1000], [255, 255, 255]], [[-1000, 1000, -1000], [160, 160, 160]],
@@ -28,6 +36,8 @@ const AMBIENT := 0x400
 var finished := false
 var result := 0
 var last_cup := -1
+## The map's arena_model of the last start (0 T_TOGI, 1 B_TOGI).
+var last_arena := 0
 var last_opponents: Array = []
 ## GAME_STATE 4 / 5: the field runs only the arena's frame.
 var active := false
@@ -55,10 +65,12 @@ var fx_view: BattleFxView
 var visuals_view: BattleVisualsView
 
 var _root: Node3D
+var _arena_id := 0
+var _model: Node3D
+var _podium: Node3D
 var _view: Camera3D
 var _collision: FieldMap
 var _entities: FieldEntities
-var _label: Label
 var _hidden := {}
 ## The field entities paused while the arena runs, with their process mode before.
 var _paused := {}
@@ -96,6 +108,8 @@ func start(cup: int, opponents: Array) -> void:
 	var arena_id := int(data.map(GameState.state["world"]["screen"]).get("arena_model", 0))
 	_build(arena_id)
 	session = ArenaSession.new(arena_world, effects, data, camera)
+	if arena_hud != null:
+		arena_hud.set_tournament(session)
 	session.spawn_opponent = _spawn_opponent
 	session.remove_opponents = _remove_opponents
 	session.fader = _fade
@@ -113,10 +127,19 @@ func _build(arena_id: int) -> void:
 	_root = Node3D.new()
 	_root.name = "Arena"
 	world.add_child(_root)
+	_arena_id = arena_id
+	last_arena = arena_id
+	_podium = null
 	var model := Content.load_model(ARENA_MODELS[arena_id])
+	_model = model
 	if model != null:
 		model.name = "ArenaModel"
 		_root.add_child(model)
+		var order: Dictionary = BACKDROP[arena_id]
+		for i in order:
+			var obj := model.find_child("object_%d" % i, true, false)
+			if obj != null:
+				PsxLit.as_backdrop(obj, order[i])
 	_collision = FieldMap.new()
 	_collision.name = "ArenaCollision"
 	var atr = Content.load_json(ARENA_COLLISION)
@@ -156,12 +179,6 @@ func _build(arena_id: int) -> void:
 	arena_hud.data = data
 	if hud_slot != null:
 		hud_slot.add_child(arena_hud)
-	_label = Label.new()
-	_label.name = "ArenaHud"
-	_label.position = Vector2(8, 196)
-	_label.add_theme_font_size_override("font_size", 9)
-	if hud != null:
-		hud.add_child(_label)
 
 
 ## An arena fighter: an NPC entity nobody ticks (STD_tickNPCTournament removes its object; the
@@ -270,12 +287,12 @@ func frame() -> void:
 			arena_hud.set_match(session.current_match)
 		arena_hud.tick(pressed)
 	_update_view()
+	_update_world()
 	if fx_view != null:
 		fx_view.draw_frame()
 	if visuals_view != null:
 		visuals_view.draw_frame()
 	arena_world.end_frame()
-	_update_hud()
 	if session.is_done():
 		_finish()
 
@@ -299,21 +316,24 @@ func _update_view() -> void:
 	_view.set_frustum(FieldMap.SCREEN.y * FieldMap.NEAR / h, Vector2.ZERO, FieldMap.NEAR, FieldMap.FAR)
 
 
-## A line naming the parts whose pictures come in step 6 (the bracket, the champion's scene).
-const PHASE_TEXT := {
-	ArenaSession.Phase.BRACKET_INTRO: "bracket intro (picture: step 6)",
-	ArenaSession.Phase.BRACKET: "bracket, before match %d (picture: step 6)",
-	ArenaSession.Phase.CHAMPION_BRACKET: "champion's bracket (picture: step 6)",
-	ArenaSession.Phase.CHAMPION_IN: "champion (picture: step 6)",
-	ArenaSession.Phase.CHAMPION: "champion (picture: step 6)",
-}
-
-
-func _update_hud() -> void:
-	if _label == null:
-		return
-	var text: String = PHASE_TEXT.get(session.phase, "")
-	_label.text = text % (session.played + 1) if "%d" in text else text
+## The arena's objects that come and go: arena 1's object 3 (after the bracket), the podium.
+func _update_world() -> void:
+	var after: int = AFTER_BRACKET[_arena_id]
+	if after >= 0 and _model != null:
+		var obj := _model.find_child("object_%d" % after, true, false) as Node3D
+		if obj != null:
+			obj.visible = session.bracket != null and session.bracket.finished
+	var sc: ArenaScenes = session.scenes
+	var up := sc != null and sc.podium
+	if up and _podium == null:
+		_podium = Content.load_model(PODIUMS[_arena_id])
+		if _podium != null:
+			_podium.name = "Podium"
+			_root.add_child(_podium)
+	if _podium != null:
+		_podium.visible = up
+		if up:
+			_podium.position = Content.psx_to_godot([0, sc.podium_y, 0])
 
 
 func _on_visual(kind: String, args: Array) -> void:
@@ -333,9 +353,6 @@ func _finish() -> void:
 		visuals_view.queue_free()
 		visuals_view = null
 	arena_world.restore_view()
-	if _label != null:
-		_label.queue_free()
-		_label = null
 	if arena_hud != null:
 		arena_hud.queue_free()
 		arena_hud = null

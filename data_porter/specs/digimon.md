@@ -134,6 +134,7 @@ Per-Digimon data: size, type, level, elements, drops and technique slots for all
   - `arena_name` `{glyphs, length}`: `glyphs` is the 14 raw katakana glyph bytes from `STD_INTRO_DIGIMON_NAMES[id]` (`std_main.c:870`); `length` is `len(US name) // 2` (`strlen(DIGIMON_DATA[type].name) / 2`, `STD_addIntroText`, `std_main.c:1650`), forced to 10 for 0x4E (J-Mojyamon) and 0x3C (HerculesKabuterimon) (checked against the C text);
   - `bracket_sprite_clut`: `STD_DIGIMON_SPRITE_CLUT[id]` (`std_main.c:1406`);
   - `bracket_icon`: `STD_BRACKET_PROJECTILE_ICONS[id]` (`std_main.c:1422`);
+  - `bracket_sprite` `{page, u, v}`: the 16×16 bracket sprite's cell, `STD_renderBracketDigimon` (`std_main.c:3363–3367`): `page` = `(id / 64) * 64 + 0x380` (VRAM x), `u` = `((id − 1) % 32) * 32 & 0xFF`, `v` = `((id − 1) / 8) * 32 & 0xFF` (C truncation; the frame adds 16 to u for `frame & 1` and to v for `frame / 2`). Derived from the id so the arena reads a property (`../../specs/arena.md` §4.7); the C text is checked;
   - `arena_stand_in`: `{id, name}` reference on 0x3F (Panjyamon -> 0x30 Leomon), 0x40 (Gigadramon -> 0x36 Megadramon), and 0x41 (MetalEtemon -> 0x2A Etemon) only (`STD_tournamentMain`, `std_setup.c:530–540`, checked against the C text).
 
 ## 4. Godot usage

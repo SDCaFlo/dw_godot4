@@ -34,6 +34,11 @@ var slots: Array[Dictionary] = []
 var projectiles: Dictionary = {}
 var flashes: Array = []
 
+## What the projectiles' and hit flashes' ticks drew this frame (they draw in their tick, before
+## STD_updateBracket): {slot, x, y, flag, facing} / {slot, x, y}, by slot (specs/arena.md §4.7).
+var drawn_projectiles: Array = []
+var drawn_flashes: Array = []
+
 var intro_timer: int = 0
 var intro_overlay: int = 0
 var intro_title: int = 0
@@ -139,7 +144,10 @@ func _tick_projectiles() -> void:
 		d = 1
 	elif self.match < 7:
 		d = 3
-	for id in projectiles.keys().duplicate():
+	drawn_projectiles.clear()
+	var ids: Array = projectiles.keys()
+	ids.sort()
+	for id in ids:
 		if not projectiles.has(id):
 			continue
 		var proj: Dictionary = projectiles[id]
@@ -147,6 +155,9 @@ func _tick_projectiles() -> void:
 			proj["x"] += d
 		else:
 			proj["x"] -= d
+		# STD_renderBracketProjectile: drawn, then the hit test (so also on the frame it hits).
+		drawn_projectiles.append({"slot": int(id), "x": int(proj["x"]), "y": int(proj["y"]),
+				"flag": int(proj["flag"]), "facing": int(slots[id]["facing"])})
 		var owner: int = int(proj["owner"])
 		if slots[id]["facing"] == 1:
 			if slots[owner]["x"] - proj["x"] < 9:
@@ -166,9 +177,15 @@ func _add_hit_flash(idx: int) -> void:
 
 ## STD_tickBracketHitFlash (std_main.c:3582-3600).
 func _tick_flashes() -> void:
-	for idx in flashes.duplicate():
+	drawn_flashes.clear()
+	var list: Array = flashes.duplicate()
+	list.sort()
+	for idx in list:
 		if slots[idx]["timer"] >= 0x10:
 			flashes.erase(idx)
+		# Drawn after the removal test, so also on the frame it goes.
+		if int(slots[idx]["timer"]) % 5 == 4:
+			drawn_flashes.append({"slot": int(idx), "x": int(slots[idx]["x"]), "y": int(slots[idx]["y"])})
 
 
 ## STD_battleTickFrame running projectile/flash ticks then STD_updateBracket in render.

@@ -5,7 +5,7 @@ extends SceneTree
 ## the port (reviewer's scratch, 2026-11-01) and were checked by hand on the cases marked so.
 ## Don't change them to make the code pass; when one looks wrong, report it with the C line.
 ##   godot --headless --path . -s res://tests/test_arena.gd
-## Gate: DW_STEP_4E_4=<n> runs steps 2..n (unset: steps 2-5, which are built). Step 1's checks are
+## Gate: DW_STEP_4E_4=<n> runs steps 2..n (unset: steps 2-6, which are built). Step 1's checks are
 ## data_porter/tests/test_arena_fields.py and asset_porter/tests/test_arena_assets.py; steps 3-7 get
 ## their checks here before each is built. Exits 1 if a check fails.
 ##
@@ -61,8 +61,8 @@ var data: Node
 
 
 func _initialize() -> void:
-	# Steps 2-5 are built (spec §6): their checks run by default; DW_STEP_4E_4 can still limit or extend them.
-	_step = int(OS.get_environment("DW_STEP_4E_4")) if OS.get_environment("DW_STEP_4E_4").is_valid_int() else 5
+	# Steps 2-6 are built (spec §6): their checks run by default; DW_STEP_4E_4 can still limit or extend them.
+	_step = int(OS.get_environment("DW_STEP_4E_4")) if OS.get_environment("DW_STEP_4E_4").is_valid_int() else 6
 	data = load("res://scripts/data/game_data.gd").new()
 	if not data.available():
 		print("SKIP: porter output missing")
@@ -93,6 +93,12 @@ func _initialize() -> void:
 		_test_session()
 	if _gate(5, "the arena HUD"):
 		_test_hud_pieces()
+	if _gate(6, "the bracket view and the scenes"):
+		_test_bracket_drawn()
+		_test_scenes()
+		_test_scenes_session()
+		_test_bracket_view()
+		_test_scene_view()
 
 	data.free()
 	var state := "OK" if _failed == 0 else "FAILED %d" % _failed
@@ -992,4 +998,445 @@ func _test_hud_pieces() -> void:
 
 	# The 1P / 2P markers only for the same Digimon (STD_initializeCombat 4140).
 	_check(hud.get_node("PlayerMarker").prims.is_empty(), "no player markers for two different Digimon")
+	hud.free()
+
+
+# --- step 6: the bracket view and the scenes (specs/arena.md §4.7) -----------------------------
+
+const SCENES := "res://scripts/systems/arena/arena_scenes.gd"
+const ICONS_A := "stdtim/00_digimon_icons_a"
+const ICONS_B := "stdtim/01_digimon_icons_b"
+
+
+## What the projectiles' and hit flashes' ticks draw this frame, from the state before it
+## (std_main.c:3582-3600, 3603-3670): both tick before STD_updateBracket (a render).
+func _test_bracket_drawn() -> void:
+	var s := _script(BRACKET)
+	if s == null:
+		return
+	var b: Object = s.new(data, BRACKET_PLAYER, BRACKET_ROUND1.duplicate(), BRACKET_ROUND2.duplicate())
+	var shots := 0
+	var flashes := 0
+	var bad := 0
+	for n in BRACKET_RESULTS.size():
+		b.begin()
+		var f := 0
+		while not b.finished and f < 5000:
+			f += 1
+			var d := 1 if int(b.match) < 5 else 3
+			var want_p := []
+			var ids: Array = b.projectiles.keys()
+			ids.sort()
+			for id in ids:
+				var p: Dictionary = b.projectiles[id]
+				var facing := int(b.slots[id]["facing"])
+				want_p.append({"slot": int(id), "x": int(p["x"]) + (d if facing == 1 else -d), "y": int(p["y"]),
+						"flag": int(p["flag"]), "facing": facing})
+			var want_f := []
+			var fl: Array = b.flashes.duplicate()
+			fl.sort()
+			for idx in fl:
+				var sl: Dictionary = b.slots[idx]
+				if int(sl["timer"]) % 5 == 4:
+					want_f.append({"slot": int(idx), "x": int(sl["x"]), "y": int(sl["y"])})
+			b.frame(BRACKET_RESULTS[n])
+			if _ints(b.drawn_projectiles) != want_p or _ints(b.drawn_flashes) != want_f:
+				bad += 1
+				if bad <= 3:
+					print("  bracket %d frame %d: drawn %s %s, want %s %s" % [n, f, b.drawn_projectiles, b.drawn_flashes, want_p, want_f])
+			shots += want_p.size()
+			flashes += want_f.size()
+	_eq(bad, 0, "bracket: the projectiles / flashes drawn each frame (their ticks, before the update)")
+	_check(shots > 0 and flashes > 0, "bracket: some projectiles (%d) and flashes (%d) were drawn" % [shots, flashes])
+
+
+func _scenes() -> Object:
+	var s := _script(SCENES)
+	if s == null:
+		return null
+	return s.new(data)
+
+
+func _locs(sc: Object, from: int, to: int) -> Array:
+	var out := []
+	for i in range(from, to):
+		out.append(sc.objects[i]["location"])
+	return out
+
+
+func _test_scenes() -> void:
+	var sc := _scenes()
+	if sc == null:
+		return
+	# Versus / Draw (std_hud.c:1138-1219): from x 1000, object i after timer > 5i, -200 a frame.
+	sc.add_versus()
+	_eq(sc.active, "versus", "versus: up")
+	_eq(_locs(sc, 0, 4), [Vector3i(1000, 0x78, 0x280), Vector3i(1000, 0x78, 0x280), Vector3i(1000, 0x78, 0x280),
+			Vector3i(1000, 0x78, 0x280)], "versus: the start")
+	for k in 6:
+		sc.tick()
+	_eq(_locs(sc, 0, 4).map(func(v: Vector3i) -> int: return v.x), [-200, 800, 1000, 1000], "versus: x after 6 frames")
+	sc.tick()
+	_eq(_locs(sc, 0, 2).map(func(v: Vector3i) -> int: return v.x), [-273, 600], "versus: object 0 clamped to -273")
+	for k in 0x50 - 7:
+		sc.tick()
+	_check(not sc.versus_finished(), "versus: not finished at 0x50")
+	sc.tick()
+	_check(sc.versus_finished(), "versus: finished at 0x51")
+	_eq(_locs(sc, 0, 4).map(func(v: Vector3i) -> int: return v.x), [-273, -86, 94, 272], "versus: every letter at its target")
+	sc.remove_versus()
+	_eq(sc.active, "", "versus: removed")
+
+	# Win (std_effect.c:1516-1574, the tables std_hud.c:1227-1240).
+	sc.add_win()
+	_eq(_locs(sc, 0, 4), [Vector3i(-0xFA, 0, -0x30C), Vector3i(-0x32, 0, -0x30C), Vector3i(0x64, 0, -0x30C),
+			Vector3i(0x104, 0, -0x30C)], "win: the start")
+	for k in 60:
+		sc.tick()
+	_eq(sc.objects[0]["location"], Vector3i(-0xFA, 0, -0x30C), "win: object 0 waits while timer <= 0x3C")
+	sc.tick()
+	_eq([sc.objects[0]["location"], sc.objects[0]["rotation"]], [Vector3i(51, 0, -730), Vector3i(204, 3123, 0)],
+			"win: object 0's first step (FIRST_X[1] = curve[15] - 0xE6, ROT_X/Y[1])")
+	_eq(sc.objects[1]["location"], Vector3i(-0x32, 0, -0x30C), "win: object 1 waits until timer > 0x42")
+	for k in 19:
+		sc.tick()
+	_eq([sc.objects[0]["location"], sc.objects[0]["rotation"]], [Vector3i(-210, 0, 220), Vector3i(0, 0, 0)],
+			"win: object 0 at rest after 20 steps (z 0xDC, FIRST_X[0x14] = curve[4] - 0xE6)")
+	_eq([sc.objects[3]["location"], sc.objects[3]["rotation"]], [Vector3i(35, 0, -680), Vector3i(409, 3174, 0)],
+			"win: object 3 after 2 steps (LAST_X[2] = 0x118 - curve[14])")
+	for k in 200:
+		sc.tick()
+	_eq(sc.timer, 0xA0, "win: the timer stops at 0xA0")
+	sc.remove_result()
+
+	# Lose (std_effect.c:1401-1509): 32 swaps with randomLimit(0x20), then the wipe and the drop.
+	var vals := []
+	for i in 32:
+		vals.append((i * 7 + 3) % 32)
+	var rolls := Rolls.new(vals)
+	sc.roll = rolls.roll
+	sc.add_lose()
+	var order := range(32)
+	for i in 32:
+		var j: int = vals[i]
+		var t: int = order[i]
+		order[i] = order[j]
+		order[j] = t
+	_eq(_ints(sc.wipe_order), order, "lose: the wipe order (swapByte(&order[i], &order[randomLimit(0x20)]))")
+	_check(rolls.limits.size() == 32 and rolls.limits.all(func(l: int) -> bool: return l == 0x20), "lose: 32 rolls of 0x20")
+	_eq(_locs(sc, 4, 8), [Vector3i(0, -0x2BC, 0xDC), Vector3i(0, -0x2BC, 0xDC), Vector3i(0, -0x2BC, 0xDC),
+			Vector3i(0, -0x2BC, 0xDC)], "lose: the letters at (0, -0x2BC, 0xDC)")
+	for k in 61:
+		sc.tick()
+	_eq(_locs(sc, 4, 8).map(func(v: Vector3i) -> int: return v.y), [-692, -700, -700, -700], "lose: object 4 drops first (step 0 = 1)")
+	for k in 9:
+		sc.tick()
+	_check(_ints(sc.wipe_heights).all(func(h: int) -> bool: return h == 0), "lose: no column before step 0 reaches 0xB (frame 70)")
+	sc.tick()
+	var hw := []
+	for i in 32:
+		hw.append(0x3C if order.find(i) < 8 else 0)
+	_eq(_ints(sc.wipe_heights), hw, "lose: frame 71, group 0's columns +0x3C")
+	for k in 3:
+		sc.tick()
+	hw = []
+	for i in 32:
+		var g: int = order.find(i) / 8
+		hw.append(0xF0 if g == 0 else (0x3C if g == 1 else 0))
+	_eq(_ints(sc.wipe_heights), hw, "lose: frame 74, group 0 at 0xF0, group 1 starts")
+	for k in 115 - 74:
+		sc.tick()
+	_eq(_locs(sc, 4, 8).map(func(v: Vector3i) -> int: return v.y), [100, 100, 100, 100], "lose: frame 115, all at DROP_Y[0x16]")
+	sc.tick()
+	_eq([sc.objects[4]["rotation"].x, sc.objects[7]["rotation"].x, sc.objects[4]["location"].y], [5, 5, 100],
+			"lose: frame 0x74, the tilt starts, y held")
+	for k in 128 - 116:
+		sc.tick()
+	_eq([sc.objects[5]["location"].y, sc.objects[5]["rotation"].x], [108, 882], "lose: frame 0x80, all drop again from step 1, + 0x320")
+	sc.tick()
+	_eq([sc.objects[6]["location"].y, sc.objects[6]["rotation"].x], [132, 1024], "lose: frame 0x81")
+	sc.tick()
+	_eq([sc.objects[6]["location"].y, sc.objects[6]["rotation"].x], [172, 1024], "lose: frame 0x82, the tilt held")
+	sc.remove_result()
+
+	# Champion (std_hud.c:1273-1396, std_effect.c:1259-1311).
+	sc.load_champion()
+	sc.init_champion()
+	_eq(sc.active, "champion", "champion: up")
+	_eq([sc.objects[0]["location"], sc.objects[4]["location"], sc.objects[5]["location"], sc.objects[8]["location"]],
+			[Vector3i(-0x2F8, 0xC8, 0x7BC), Vector3i(40, 0xC8, 0x7BC), Vector3i(0xBE, 0xC8, 0x7BC), Vector3i(0x2E4, 0xC8, 0x7BC)],
+			"champion: the letters' places")
+	_eq(sc.objects[3]["scale"], Vector3i(0x1000, 0x2000, 0x1000), "champion: scale (1, 2, 1)")
+	_check(range(9).all(func(i: int) -> bool: return not sc.objects[i]["visible"]), "champion: the letters start hidden (GsDOFF)")
+	_eq(_ints(sc.columns), [224, 224, 224, 224, 224, 224, 224, 224, 224], "champion: the columns from (0x378, 0) = page u 224")
+	_eq([sc.podium, sc.podium_y], [true, -0x1E], "champion: the podium at y -0x1E")
+	sc.champion_letters(1)
+	_eq([sc.objects[0]["rotation"].y, sc.objects[0]["visible"], sc.objects[1]["rotation"].y], [0x200, false, 0], "champion: timer 1")
+	for t in range(2, 6):
+		sc.champion_letters(t)
+	_eq([sc.objects[0]["rotation"].y, sc.objects[0]["visible"], sc.objects[1]["rotation"].y, sc.objects[1]["visible"]],
+			[0xA00, true, 0x200, false], "champion: timer 5, letter 0 shown, letter 1 starts")
+	for t in range(6, 20):
+		sc.champion_letters(t)
+	_eq(sc.objects[0]["rotation"].y, 0x600, "champion: timer 19, letter 0 still spinning")
+	sc.champion_letters(20)
+	_eq(sc.objects[0]["rotation"].y, 0, "champion: timer 0x14, letter 0 still")
+	for t in range(21, 61):
+		sc.champion_letters(t)
+	_check(sc.objects[8]["visible"], "champion: letter 8 shown at 45")
+	_eq(int(sc.columns[0]), 224, "champion: column 0 waits until 0x3D")
+	sc.champion_letters(61)
+	_eq(int(sc.columns[0]), 216, "champion: column 0 from 0x376 at 0x3D")
+	for t in range(62, 71):
+		sc.champion_letters(t)
+	_eq([int(sc.columns[0]), int(sc.columns[8])], [144, 208], "champion: timer 70, column 0 from 0x364, column 8 (from timer 69) from 0x374")
+	sc.champion_letters(71)
+	sc.champion_letters(72)
+	_eq(int(sc.columns[0]), 224, "champion: column 0 back to 0x378 at step 10, then still")
+	sc.champion_rise()
+	_eq([sc.objects[2]["location"].y, sc.podium_y], [0xC8 + 0x32, -0x1E - 0x19], "champion: rising")
+	for k in 8:
+		sc.champion_rise()
+	_eq([sc.objects[2]["location"].y, sc.podium_y], [0x258, -0x1E - 0x19 * 9], "champion: the letters stop at 0x258, the podium goes on")
+	sc.remove_champion()
+	_eq([sc.active, sc.podium], ["", false], "champion: removed")
+
+	# STD_offsetTMDObjectUVs (std_hud.c:1105): the UV word += (0x30 << 8) + (8 - i) * -24.
+	var s: Script = _script(SCENES)
+	_eq(s.champion_uv(152, 0, 8), Vector2i(152, 48), "champion uv: letter 8, v + 0x30")
+	_eq(s.champion_uv(152, 0, 0), Vector2i(216, 47), "champion uv: letter 0, u - 192 borrows from v")
+	_eq(s.champion_uv(247, 47, 0), Vector2i(55, 95), "champion uv: letter 0, (247, 47)")
+
+
+## A whole won tournament: the scenes the session and its matches add.
+func _test_scenes_session() -> void:
+	Rng.set_seed(7)
+	var w := _stub()
+	w.add(0, -1, Vector3i(0, 0, 0))
+	w.add(1, AGUMON, Vector3i(0, 0, 0), {"max_hp": 9999, "max_mp": 400, "offense": 999, "defense": 999,
+			"speed": 999, "brains": 150, "moves": [0x2E, null, null, 0x35], "moves_prio": [0, 0, 0, 0]})
+	var stub := TournamentStub.new()
+	stub.w = w
+	var session := _session(w, stub)
+	if session == null:
+		return
+	var events := []
+	session.visual.connect(func(kind: String, args: Array) -> void:
+		if kind in ["scene", "podium"]:
+			events.append([kind, args[0]]))
+	var seen := {}
+	session.begin(0, [GIGADRAMON, 0x1F, 0x20, 0x03, 0x11, 0x1F, 0x20], 0)
+	var n := 0
+	while not session.is_done() and n < 60000:
+		session.frame(Pad.CONFIRM if n % 10 == 0 else 0)
+		w.advance()
+		n += 1
+		if session.scenes != null:
+			seen[session.scenes.active] = true
+	_check(session.scenes != null, "the session owns ArenaScenes")
+	_eq(events.filter(func(e: Array) -> bool: return e == ["scene", "win"]).size(), 3,
+			"one win scene per match (the camera's signal connected once per match)")
+	_check(seen.has("win") and seen.has("champion"), "the win and champion scenes ran (%s)" % str(seen.keys()))
+	_check(["podium", true] in events and ["podium", false] in events, "the podium up and down")
+	if session.scenes != null:
+		_eq([session.scenes.podium_y, session.scenes.objects[0]["location"].y], [-0x1E - 0x19 * 0x50, 0x258],
+				"champion: the podium rose 0x50 frames, the letters to 0x258")
+		_eq(session.scenes.active, "", "no scene left at the end")
+
+
+func _hud_session() -> Array:
+	if not ResourceLoader.exists(HUD_SCENE):
+		_check(false, "missing " + HUD_SCENE)
+		return []
+	Rng.set_seed(7)
+	var w := _stub()
+	w.add(0, -1, Vector3i(0, 0, 0))
+	w.add(1, AGUMON, Vector3i(0, 0, 0), {"max_hp": 9999, "max_mp": 400, "offense": 999, "defense": 999,
+			"speed": 999, "brains": 150, "moves": [0x2E, null, null, 0x35], "moves_prio": [0, 0, 0, 0]})
+	var stub := TournamentStub.new()
+	stub.w = w
+	var session := _session(w, stub)
+	if session == null:
+		return []
+	var hud: Node = load(HUD_SCENE).instantiate()
+	hud.text_area = TextArea.new(data)
+	hud.data = data
+	hud.world = w
+	root.add_child(hud)
+	hud.set_tournament(session)
+	session.visual.connect(hud.on_visual)
+	session.begin(0, [GIGADRAMON, 0x1F, 0x20, 0x03, 0x11, 0x1F, 0x20], 0)
+	# The stub too: the session's callables don't keep it alive.
+	return [hud, session, w, stub]
+
+
+func _kinds(prims: Array, kind: String) -> Array:
+	return prims.filter(func(p: Dictionary) -> bool: return p.get("kind", "") == kind)
+
+
+func _test_bracket_view() -> void:
+	var hs := _hud_session()
+	if hs.is_empty():
+		return
+	var hud: Node = hs[0]
+	var session: Object = hs[1]
+	var w: Object = hs[2]
+	var view: Node = hud.get_node_or_null("BracketView")
+	_check(view != null, "the arena HUD has BracketView")
+	_check(hud.get_node_or_null("Scenes") != null, "the arena HUD has Scenes")
+	if view == null:
+		hud.free()
+		return
+	_check(view.get_index() < hud.get_node("StatusBars").get_index(), "the bracket behind the HUD pieces")
+	while session.phase != session.Phase.BRACKET_INTRO:
+		session.frame(0)
+		w.advance()
+	session.frame(0)
+	hud.tick(0)
+	# STD_renderBracketIntro (std_main.c:3704): STD_drawBracket, the overlay (layer 3), the title (layer 2).
+	var p: Array = view.prims
+	_eq(p.map(func(q: Dictionary) -> String: return q.get("kind", "")), ["box", "picture", "overlay", "title"],
+			"intro: box, picture, overlay, title (no sprites)")
+	if p.size() == 4:
+		_eq([p[0]["rect"], p[0]["fill"], p[0]["semi"], p[0].get("abr", -1)],
+				[Rect2i(-0xA0, -0x78, 0x140, 0xF0), Color8(0x20, 0x20, 0x20), true, -1], "the box fill: grey 0x20, semi mode 0")
+		_eq([p[1]["image"], p[1]["palette"], p[1]["uv"], _prim_rect(p[1]), p[1]["color"], p[1].get("abr", -1)],
+				["stdtim/05_bracket", 0, Rect2i(0, 0x78, 0xFF, 0x87), Rect2i(-0x80, -0x61, 0xFF, 0x87), BattleHudDraw.grey(0), 1],
+				"the bracket picture at fade 0x80: grey 0, additive")
+		_eq([p[2]["rect"], p[2]["fill"], p[2].get("abr", -1)], [Rect2i(-0xA0, -0x78, 0x140, 0xF0), BattleHudDraw.grey(0x80), 2],
+				"the overlay: white x 0x80, subtractive")
+		_eq([p[3]["image"], p[3]["palette"], p[3]["uv"], _prim_rect(p[3]), p[3]["color"], p[3].get("abr", -1)],
+				["tim_files/STDDAT/GRADE/GRADED", 0, Rect2i(0, 0, 0xFF, 0x80), Rect2i(-0x80, -0x40, 0xFF, 0x80), BattleHudDraw.grey(0x80), -1],
+				"the title: Grade D's picture, opaque while fade = 0x80")
+	while session.phase != session.Phase.BRACKET:
+		session.frame(0)
+		w.advance()
+	hud.tick(0)
+	p = view.prims
+	_eq(p.map(func(q: Dictionary) -> String: return q.get("kind", "")).slice(0, 10),
+			["box", "picture", "sprite", "sprite", "sprite", "sprite", "sprite", "sprite", "sprite", "sprite"],
+			"bracket: box, picture, the 8 sprites")
+	var sprites := _kinds(p, "sprite")
+	_eq(sprites.map(func(q: Dictionary) -> int: return q["index"]), [7, 6, 5, 4, 3, 2, 1, 0], "bracket: slot 0 drawn last (added first)")
+	_check(p[1].get("abr", -1) == -1 and p[1]["color"] == BattleHudDraw.grey(0x80), "bracket: the picture opaque at fade 0")
+	var types: Array = session.participants["participants"]
+	var b: Object = session.bracket
+	for q in sprites:
+		var i: int = q["index"]
+		var t := int(types[i])
+		var rec: Dictionary = data.digimon(t)
+		var cell: Dictionary = rec["bracket_sprite"]
+		var sl: Dictionary = b.slots[i]
+		var u := (int(cell["u"]) + (int(sl["frame"]) & 1) * 16) & 0xFF
+		var v := (int(cell["v"]) + (int(sl["frame"]) / 2) * 16) & 0xFF
+		var sw := 15 if u == 0xF0 else 16
+		var sh := 15 if v == 0xF0 else 16
+		var x := int(sl["x"])
+		var y := int(sl["y"])
+		var pts := [Vector2i(x, y), Vector2i(x + sw, y), Vector2i(x, y + sh), Vector2i(x + sw, y + sh)]
+		if int(sl["facing"]) == 1:
+			pts = [pts[1], pts[0], pts[3], pts[2]]
+		_eq([q["image"], q["palette"], q["uv"], q["pts"]],
+				[ICONS_A if int(cell["page"]) == 0x380 else ICONS_B, int(rec["bracket_sprite_clut"]), Rect2i(u, v, sw, sh), pts],
+				"bracket sprite of slot %d (type 0x%X)" % [i, t])
+	# The projectiles (layer 4) and the hit flashes (layer 3), from the bracket's drawn lists.
+	var shot := false
+	var flash := false
+	var n := 0
+	var cluts: Array = data.system("arena")[0]["bracket"]["projectile_cluts"]
+	while not (shot and flash) and n < 20000 and not session.is_done():
+		session.frame(0)
+		w.advance()
+		# As Arena.frame: the HUD gets each match.
+		if session.current_match != null and hud.session != session.current_match:
+			hud.set_match(session.current_match)
+		hud.tick(0)
+		n += 1
+		if session.bracket == null or not session.phase in [session.Phase.BRACKET, session.Phase.CHAMPION_BRACKET]:
+			continue
+		p = view.prims
+		var dp: Array = session.bracket.drawn_projectiles
+		var df: Array = session.bracket.drawn_flashes
+		var pr := _kinds(p, "projectile")
+		var fr := _kinds(p, "flash")
+		if not dp.is_empty() and not shot:
+			shot = true
+			var want := 0
+			for d in dp:
+				want += 1 + int(d["flag"])
+			_eq(pr.size(), want, "projectiles: one prim each, two with flag")
+			var d0: Dictionary = dp[0]
+			var icon := int(data.digimon(int(types[int(d0["slot"])]))["bracket_icon"])
+			var q0: Dictionary = pr.filter(func(q: Dictionary) -> bool: return q["index"] == int(d0["slot"]))[0]
+			_eq([q0["image"], q0["palette"], q0["uv"], _prim_rect(q0).size],
+					[ICONS_B, int(cluts[icon - 1]), Rect2i(icon * 8 - 8, 0xC0, 8, 8), Vector2i(8, 8) if int(d0["facing"]) != 1 else Vector2i(-8, 8)],
+					"projectile: icon %d's cell and palette" % icon)
+			_check(p.find(pr[0]) > p.find(sprites[0]) if not sprites.is_empty() else true, "projectiles over the sprites")
+		if not df.is_empty() and not flash:
+			flash = true
+			_eq(fr.size(), df.size(), "hit flashes: one prim each")
+			_eq([fr[0]["image"], fr[0]["palette"], fr[0]["uv"], _prim_rect(fr[0])],
+					[ICONS_B, 0, Rect2i(0, 0xC8, 16, 16), Rect2i(int(df[0]["x"]), int(df[0]["y"]), 16, 16)], "hit flash: icons_b (0, 0xC8)")
+	_check(shot and flash, "the bracket drew a projectile and a flash")
+	hud.free()
+
+
+func _test_scene_view() -> void:
+	var hs := _hud_session()
+	if hs.is_empty():
+		return
+	var hud: Node = hs[0]
+	var session: Object = hs[1]
+	var view: Node = hud.get_node_or_null("Scenes")
+	if view == null:
+		_check(false, "the arena HUD has Scenes")
+		hud.free()
+		return
+	_check(view.get_index() > hud.get_node("BracketView").get_index() and view.get_index() < hud.get_node("StatusBars").get_index(),
+			"the scenes between the bracket and the HUD pieces (layer 4)")
+	var sc: Object = session.scenes
+	sc.add_versus()
+	for k in 10:
+		sc.tick()
+	hud.tick(0)
+	_eq(view.projection(), 0x200, "versus: projection 0x200")
+	for i in 4:
+		var node: Node3D = view.object_node("versus", i)
+		_check(node != null and node.visible and node.position == Content.psx_to_godot([sc.objects[i]["location"].x,
+				sc.objects[i]["location"].y, sc.objects[i]["location"].z]), "versus: DRAW object %d placed" % i)
+	sc.remove_versus()
+	var rolls := Rolls.new(range(32))
+	sc.roll = rolls.roll
+	sc.add_lose()
+	for k in 71:
+		sc.tick()
+	hud.tick(0)
+	_eq(view.projection(), 0x15E, "lose: projection 0x15E")
+	var cols := _kinds(view.prims, "wipe")
+	_eq(cols.size(), 32, "lose: 32 columns")
+	if cols.size() == 32:
+		_eq([cols[5]["rect"], cols[5]["fill"], cols[5]["semi"]], [Rect2i(10 * 5 - 0xA0, -0x78, 10, int(sc.wipe_heights[5])), Color.BLACK, true],
+				"lose: column 5, black, semi mode 0")
+	var vis := []
+	for i in 8:
+		var node: Node3D = view.object_node("result", i)
+		vis.append(node != null and node.visible)
+	_eq(vis, [false, false, false, false, true, true, true, true], "lose: WIN_LOSE objects 4-7 only")
+	_check(view.object_node("versus", 0) == null or not view.object_node("versus", 0).visible, "lose: the DRAW letters hidden")
+	sc.remove_result()
+	sc.load_champion()
+	sc.init_champion()
+	hud.tick(0)
+	var src: Image = view.champion_source
+	var img: Image = view.champion_image
+	_check(src != null and img != null, "champion: the page copy")
+	if src != null and img != null:
+		_eq(img.get_pixel(32 + 24 * 3, 48 + 5), src.get_pixel(224, 5), "champion: column 3 copied from (0x378, 0)")
+		for t in range(1, 62):
+			sc.champion_letters(t)
+		hud.tick(0)
+		_eq(img.get_pixel(32 + 7, 48 + 9), src.get_pixel(216 + 7, 9), "champion: column 0 from 0x376 at 0x3D")
+		_eq(img.get_pixel(32 + 24 * 8, 48), src.get_pixel(224, 0), "champion: column 8 still from 0x378")
+	_eq(view.projection(), 0x200, "champion: projection 0x200")
+	_check(view.object_node("champion", 0).visible and view.object_node("champion", 8).visible, "champion: letters 0 and 8 shown by timer 61")
 	hud.free()

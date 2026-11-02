@@ -169,6 +169,23 @@ class ArenaFieldsTests(unittest.TestCase):
                 self.assertNotIn("bracket_sprite_clut", r, r["key"])
                 self.assertNotIn("bracket_icon", r, r["key"])
 
+    def test_bracket_sprite(self):
+        # STD_renderBracketDigimon (std_main.c:3363-3367): page (tile / 64) * 64 + 0x380,
+        # u = ((tile - 1) % 32) * 32, v = ((tile - 1) / 8) * 32, as uint8_t (C truncation).
+        mons = self.mons
+        self.assertEqual(mons[1]["bracket_sprite"], {"page": 0x380, "u": 0, "v": 0})
+        self.assertEqual(mons[3]["bracket_sprite"], {"page": 0x380, "u": 64, "v": 0})
+        self.assertEqual(mons[9]["bracket_sprite"], {"page": 0x380, "u": 0, "v": 32})
+        # 0x40: page 0x3C0; tile - 1 = 63: u 31 * 32 & 0xFF = 0xE0, v 7 * 32 = 0xE0.
+        self.assertEqual(mons[0x40]["bracket_sprite"], {"page": 0x3C0, "u": 0xE0, "v": 0xE0})
+        # 0x6F: tile - 1 = 110: u (14 * 32) & 0xFF = 0xC0, v (13 * 32) & 0xFF = 0xA0.
+        self.assertEqual(mons[0x6F]["bracket_sprite"], {"page": 0x3C0, "u": 0xC0, "v": 0xA0})
+        # 0: tile - 1 = -1: -1 % 32 = -1 in C, u (-32) & 0xFF = 0xE0; -1 / 8 = 0.
+        self.assertEqual(mons[0]["bracket_sprite"], {"page": 0x380, "u": 0xE0, "v": 0})
+        for r in mons:
+            if r["id"] >= 0x70:
+                self.assertNotIn("bracket_sprite", r, r["key"])
+
     def test_arena_stand_in(self):
         # STD_tournamentMain (std_setup.c:530-540): 0x40 -> 0x36, 0x3F -> 0x30, 0x41 -> 0x2A.
         mons = self.mons

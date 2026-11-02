@@ -34,6 +34,7 @@ Last updated: 2026-11-01
 
 ## Log
 
+- 2026-11-02 — `digimon_data` gets `bracket_sprite` `{page, u, v}` on id < 0x70 (`STD_renderBracketDigimon`, the C text checked; 60/60 checks), for the arena's bracket view (step 4e-4 step 6).
 - 2026-11-01 — Arena data for step 4e-4 (§5.0): new table `systems/arena` (music, bracket, camera, intro, command_menu, finisher_gauge, scenes: 24 arrays and 8 SVECTORs from `std_main.c`, `std_hud.c`, `std_setup.c`; 168/168 checks); `systems/maps` gets `arena_model` (1 for map 0x6A BETL02, else 0; the existing `arena` flag is unchanged); `digimon_data` gets `arena_name`, `bracket_sprite_clut`, `bracket_icon` on id < 0x70, and `arena_stand_in` on 0x3F, 0x40, 0x41 (59/59 checks).
 - 2026-11-01 — Systems: tournament entry fields for step 4e-3 (§5.1a): tournaments `won_trigger`, `rounds_to_win`, `open_pool`, `registered_by_builtin_0x21`; tournament_medals `cups` references, `min_wins`, `all_cards` and `trigger`; 8 new C checks (116/116 checks).
 - 2026-10-30 — Systems: `babies.reincarnation_eggs[].base_stats`, the literals of `initializeReincarnatedPartner`'s `setReincarnateStats` calls, read from the C text with a check that every egg Digimon has one (death and reincarnation, `../specs/death_reincarnation.md`); 108/108 checks.

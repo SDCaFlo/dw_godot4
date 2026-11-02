@@ -210,6 +210,28 @@ def _battle_music(digimon_id: int, mapping: list) -> int:
     return MUSIC_DEFAULT
 
 
+## STD_renderBracketDigimon (std_main.c:3363-3367): the C text `bracket_sprite` reproduces.
+BRACKET_SPRITE_EVIDENCE = (
+    "prim->tpage = GetTPage(0, 1, (tile / 64) * 64 + 0x380, 0);",
+    "u = ((tile - 1) % 32) * 32 + (STD_BRACKET_SLOTS[id].unk5 & 1) * 16;",
+    "v = ((tile - 1) / 8) * 32 + (STD_BRACKET_SLOTS[id].unk5 / 2) * 16;",
+)
+
+
+def _c_div(a: int, b: int) -> int:
+    """C integer division (truncates toward zero)."""
+    q = abs(a) // abs(b)
+    return q if (a >= 0) == (b > 0) else -q
+
+
+def bracket_sprite(type_id: int) -> dict:
+    """STD_renderBracketDigimon (std_main.c:3363-3367): the type's 16x16 sprite cell. tpage x =
+    (tile / 64) * 64 + 0x380; u = ((tile - 1) % 32) * 32 and v = ((tile - 1) / 8) * 32, both uint8_t."""
+    t = type_id - 1
+    rem = t - _c_div(t, 32) * 32
+    return {"page": (type_id // 64) * 64 + 0x380, "u": (rem * 32) & 0xFF, "v": (_c_div(t, 8) * 32) & 0xFF}
+
+
 def convert(input_root, output_root) -> GroupWriter:
     out = GroupWriter(output_root, NAME, SPEC, PURPOSE)
     out.reset()
@@ -255,6 +277,8 @@ def convert(input_root, output_root) -> GroupWriter:
               STAND_IN_EVIDENCE in std_setup_c, STAND_IN_EVIDENCE)
     out.check("arena intro text length (10 for 0x4e and 0x3c) in STD_addIntroText",
               INTRO_LEN_EVIDENCE in std_main_c, INTRO_LEN_EVIDENCE)
+    out.check("bracket sprite cell (page, u, v) in STD_renderBracketDigimon",
+              all(e in std_main_c for e in BRACKET_SPRITE_EVIDENCE), "; ".join(BRACKET_SPRITE_EVIDENCE))
 
     sprite_clut = tables.load(out, index, STD_MAIN, "STD_DIGIMON_SPRITE_CLUT")
     bracket_icons = tables.load(out, index, STD_MAIN, "STD_BRACKET_PROJECTILE_ICONS")
@@ -347,6 +371,7 @@ def convert(input_root, output_root) -> GroupWriter:
             }
             rec["bracket_sprite_clut"] = sprite_clut[REFERENCE].value[i]
             rec["bracket_icon"] = bracket_icons[REFERENCE].value[i]
+            rec["bracket_sprite"] = bracket_sprite(i)
         if i in STAND_INS:
             rec["arena_stand_in"] = digimon_ref(STAND_INS[i])
         rec["c"] = raw
@@ -414,6 +439,10 @@ def convert(input_root, output_root) -> GroupWriter:
                                     "meaning": "CLUT index of the 16x16 bracket sprite; id < 0x70 only"},
             "bracket_icon": {"c_name": "STD_BRACKET_PROJECTILE_ICONS[id]", "c_type": "uint8_t",
                              "meaning": "projectile icon index on the bracket; id < 0x70 only"},
+            "bracket_sprite": {"derived": "STD_renderBracketDigimon (std_main.c:3363-3367)",
+                               "meaning": "{page: VRAM x of the 16x16 sprites' texture page, u, v: the cell before the "
+                                          "frame offset (+16 u for frame & 1, +16 v for frame / 2, wrapping at 256)}; "
+                                          "id < 0x70 only"},
             "arena_stand_in": {"derived": "STD_tournamentMain (std_setup.c:530-540)",
                                "meaning": "Digimon that fights instead in tournaments (0x3f -> 0x30, 0x40 -> 0x36, 0x41 -> 0x2a); absent = self",
                                "ref": "digimon/digimon_data"},

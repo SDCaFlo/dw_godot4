@@ -60,6 +60,9 @@ var camera: ArenaCamera
 var tournament: ArenaTournament
 var bracket: ArenaBracket
 var current_match: ArenaMatch
+## The model scenes (versus, win, lose, champion, the podium); a new one each tournament
+## (STD_initializeTournament's STD_loadWinLoseModel).
+var scenes: ArenaScenes
 
 ## func(slot: int, type: int, stats: Dictionary) -> int (the entity): STD_initializeOpponent's model
 ## and entity (ENTITY_TABLE[slot + 2]).
@@ -127,6 +130,7 @@ func begin(cup_id: int, opponents: Array, arena_id: int) -> void:
 	match_result = 0
 	result = 0
 	champion_done = false
+	scenes = ArenaScenes.new(data)
 	participants = tournament.setup_participants(world.digimon_type(partner), list)
 	bracket = ArenaBracket.new(data, int(participants["player_slot"]), participants["round1"],
 			participants["round2"])
@@ -180,6 +184,7 @@ func _start_match() -> void:
 		stats["base"]["moves_prio"] = [0, 0, 0, 0]
 	var e: int = spawn_opponent.call(played, type, stats) if spawn_opponent.is_valid() else played + 2
 	current_match = ArenaMatch.new(world, effects, data, camera)
+	current_match.scenes = scenes
 	current_match.visual.connect(func(kind: String, args: Array) -> void: visual.emit(kind, args))
 	current_match.begin(partner, e, arena)
 	phase = Phase.MATCH
@@ -188,6 +193,8 @@ func _start_match() -> void:
 func _after_match() -> void:
 	match_result = current_match.result
 	played += 1
+	# STD_removeWinScene / STD_removeLoseScene (std_setup.c:574, 578).
+	scenes.remove_result()
 	if match_result == 1:
 		world.load_map_sounds(ARENA_SOUNDS)
 		visual.emit("scene", ["win_off"])
@@ -221,6 +228,7 @@ func _load_champion_models() -> void:
 		champion_angles.append(ORBIT_SPAN * (i * i) / (ORBIT_STEPS * ORBIT_STEPS))
 	for i in ORBIT_STEPS - 1:
 		champion_angles.append(0x1400 - champion_angles[0x26 - i])
+	scenes.load_champion()
 
 
 ## STD_initializeChampionScene: the partner on the podium, the champion camera.
@@ -232,6 +240,7 @@ func _initialize_champion_scene() -> void:
 	world.set_rotation_y(partner, PODIUM_FACING)
 	if camera != null:
 		camera.set_champion_camera()
+	scenes.init_champion()
 	visual.emit("podium", [true])
 
 
@@ -240,12 +249,14 @@ func _tick_champion() -> void:
 	match champion_state:
 		0:
 			champion_timer += 1
+			scenes.champion_letters(champion_timer)
 			if champion_timer >= CHAMPION_STATE0:
 				champion_timer = 0
 				champion_state = 1
 				world.start_animation(partner, ANIM_IDLE)
 		1:
 			champion_timer += 1
+			scenes.champion_rise()
 			var loc := world.location(partner)
 			world.set_location(partner, Vector3i(loc.x, loc.y - CHAMPION_RISE, loc.z))
 			if champion_timer < CHAMPION_ORBIT:
@@ -300,6 +311,8 @@ func _finish() -> void:
 
 ## The arena's objects of a frame outside a match: the camera (STD_tickVSPhase).
 func _objects() -> void:
+	if scenes != null:
+		scenes.tick()
 	if camera != null:
 		camera.tick()
 		camera.tick_objects()
@@ -375,6 +388,7 @@ func _step(pressed: int) -> bool:
 			return true
 		Phase.CHAMPION:
 			if champion_done:
+				scenes.remove_champion()
 				visual.emit("podium", [false])
 				visual.emit("champion", [false])
 				champion_done = true

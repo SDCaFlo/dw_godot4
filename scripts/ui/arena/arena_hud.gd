@@ -7,6 +7,8 @@ extends Control
 ## UI boxes the time-out window uses), gives it each match, its events and a tick per frame.
 
 var session: Object
+## The tournament (ArenaSession): the bracket view and the scenes read it.
+var tournament: Object
 var world: BattleWorld
 var text_area: TextArea
 var boxes: UIBoxes
@@ -33,10 +35,18 @@ func _share() -> void:
 		numbers.follows = true
 	for piece in pieces():
 		piece.session = session
+		if "tournament" in piece:
+			piece.tournament = tournament
 		piece.world = world
 		piece.text_area = text_area
 		piece.boxes = boxes
 		piece.data = data
+
+
+## The tournament (once, before its first frame).
+func set_tournament(t: Object) -> void:
+	tournament = t
+	_share()
 
 
 ## The current match (a new one each round of the tournament).

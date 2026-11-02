@@ -21,6 +21,8 @@ var _running := false
 var _failed := false
 var _phase := -1
 var _strong := true
+## What the step-6 parts showed during the run (specs/arena.md §4.7).
+var _seen := {}
 
 
 func _ready() -> void:
@@ -60,6 +62,7 @@ func _process(_delta: float) -> void:
 		arena.debug_result = -1
 		arena.start(CUP, OPPONENTS)
 		_check(arena.active, "the arena is running")
+		_check_backdrop(arena)
 		_running = true
 		_start = GameLoop.frame_count
 		return
@@ -72,6 +75,8 @@ func _process(_delta: float) -> void:
 		_check(false, "the arena HUD is up during a match")
 	if arena.active and arena.arena_hud != null and arena.arena_hud.get_parent() != _field.battle_host.hud_slot:
 		_check(false, "the arena HUD is in the field's HUD slot")
+	if arena.active and arena.session != null:
+		_watch(arena)
 	if arena.session != null and arena.session.phase != _phase:
 		_phase = arena.session.phase
 		if OS.get_environment("ARENA_DEBUG") != "":
@@ -90,6 +95,16 @@ func _process(_delta: float) -> void:
 		_check(_field.entities.partner.process_mode != Node.PROCESS_MODE_DISABLED, "the field partner runs again")
 		var cam: Camera3D = _field.map_session.field_map.get_node("Camera3D")
 		_check(cam.current, "the field camera is current again")
+		_check(_seen.has("bracket"), "the bracket view drew the bracket")
+		_check(_seen.has("intro"), "the bracket view drew the intro's title")
+		if _strong:
+			_check(_seen.has("podium"), "the podium shown in the champion scene")
+			_check(_seen.has("champion"), "the champion's letters shown")
+		var after: int = Arena.AFTER_BRACKET[arena.last_arena]
+		if after >= 0:
+			var seq: Array = _seen.get("object_after_bracket", [])
+			_check(seq.size() >= 2 and seq[0] == false and seq[1] == true,
+					"arena 1's object %d hidden under the bracket, shown in the match (%s)" % [after, _seen.get("object_after_bracket", [])])
 		var left: Node = _field.get_node("World/SubViewport").get_node_or_null("Arena")
 		_check(left == null or left.is_queued_for_deletion(), "the arena's world is gone")
 		_end()
@@ -97,6 +112,48 @@ func _process(_delta: float) -> void:
 	if frames > TIMEOUT:
 		_check(false, "the tournament ends within %d frames (phase %s)" % [TIMEOUT, ArenaSession.Phase.keys()[_phase]])
 		_end()
+
+
+## STD_renderArena0 / 1's sub-OTs: the back objects' priorities.
+func _check_backdrop(arena: Arena) -> void:
+	var model: Node = arena.get("_model")
+	if model == null:
+		_check(false, "the arena model loaded")
+		return
+	var order: Dictionary = Arena.BACKDROP[arena.last_arena]
+	for i in 3:
+		var obj := model.find_child("object_%d" % i, true, false)
+		var mi: MeshInstance3D = obj if obj is MeshInstance3D else (obj.find_children("*", "MeshInstance3D", true, false)[0] if obj != null else null)
+		var m: Material = mi.get_active_material(0) if mi != null else null
+		_check(m != null and m.render_priority == int(order.get(i, 0)),
+				"arena object %d's render priority %s (want %d)" % [i, m.render_priority if m != null else "none", int(order.get(i, 0))])
+
+
+func _watch(arena: Arena) -> void:
+	var hud: Node = arena.arena_hud
+	var phase: int = arena.session.phase
+	if hud != null:
+		var bv: Node = hud.get_node("BracketView")
+		var kinds: Array = bv.prims.map(func(p: Dictionary) -> String: return p.get("kind", ""))
+		if phase == ArenaSession.Phase.BRACKET and "sprite" in kinds:
+			_seen["bracket"] = true
+		if phase == ArenaSession.Phase.BRACKET_INTRO and "title" in kinds:
+			_seen["intro"] = true
+		var sv: Node = hud.get_node("Scenes")
+		var letter: Node3D = sv.object_node("champion", 0) if phase == ArenaSession.Phase.CHAMPION else null
+		if letter != null and letter.visible:
+			_seen["champion"] = true
+	var podium: Node3D = arena.get("_podium")
+	if podium != null and podium.visible and phase == ArenaSession.Phase.CHAMPION:
+		_seen["podium"] = true
+	var after: int = Arena.AFTER_BRACKET[arena.last_arena]
+	var model: Node = arena.get("_model")
+	if after >= 0 and model != null and phase in [ArenaSession.Phase.BRACKET, ArenaSession.Phase.MATCH]:
+		var shown: bool = (model.find_child("object_%d" % after, true, false) as Node3D).visible
+		var list: Array = _seen.get("object_after_bracket", [])
+		if list.is_empty() or list[-1] != shown:
+			list.append(shown)
+		_seen["object_after_bracket"] = list
 
 
 func _check(cond: bool, what: String) -> void:

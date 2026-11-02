@@ -101,6 +101,8 @@ var _result_screen: Array = []
 var _result_timer := 0
 var _result_step := 0
 var _versus_timer := -1
+## The tournament's model scenes (ArenaSession.scenes; null: none).
+var scenes: ArenaScenes
 var _deinit := [0, 0]
 var _effect_slots: Array = []
 
@@ -117,12 +119,23 @@ func _init(battle_world: BattleWorld, effect_host: EffectHost, game_data: Node, 
 			return battle.anim_of_move(world.stats(e)["base"]["moves"][slot], e)
 	battle.visual.connect(func(kind: String, args: Array) -> void: visual.emit(kind, args))
 	if camera != null:
-		camera.scene_requested.connect(func(kind: String) -> void: visual.emit("scene", [kind]))
+		camera.scene_requested.connect(_on_scene_requested)
 	start_text = BattleStartText.new(data)
 
 
 func is_done() -> bool:
 	return phase == Phase.DONE
+
+
+## STD_selectRandomCamera's mode 5 (std_main.c:2478-2482): STD_addWinScene / STD_addLoseScene.
+## Connected while this match runs (the camera is the tournament's).
+func _on_scene_requested(kind: String) -> void:
+	if scenes != null:
+		if kind == "win":
+			scenes.add_win()
+		else:
+			scenes.add_lose()
+	visual.emit("scene", [kind])
 
 
 ## The start text's state for the HUD's StartText piece: 1 assembling (STD_combatSetup's first
@@ -495,6 +508,8 @@ func _objects() -> void:
 		start_text.tick_burst()
 	if _versus_timer >= 0:
 		_versus_timer += 1
+	if scenes != null:
+		scenes.tick()
 	if bars_active:
 		battle.apply_damage_buffers()
 	if effects != null:
@@ -564,6 +579,8 @@ func _step() -> bool:
 		Phase.VERSUS:
 			if _versus_timer >= VERSUS_FRAMES:
 				_versus_timer = -1
+				if scenes != null:
+					scenes.remove_versus()
 				visual.emit("versus", [false])
 				if _result_step == 3:
 					_result_step = 0
@@ -661,6 +678,8 @@ func _end_result_screen() -> void:
 
 func _start_versus() -> void:
 	_versus_timer = 0
+	if scenes != null:
+		scenes.add_versus()
 	visual.emit("versus", [true])
 	phase = Phase.VERSUS
 
@@ -753,4 +772,6 @@ func _finish_deinit() -> void:
 	if camera != null:
 		camera.remove_camera_intro()
 		camera.state = ArenaCamera.STATE_ROTATING
+		if camera.scene_requested.is_connected(_on_scene_requested):
+			camera.scene_requested.disconnect(_on_scene_requested)
 	phase = Phase.DONE

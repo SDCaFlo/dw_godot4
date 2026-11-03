@@ -37,6 +37,8 @@ func _process(_delta: float) -> bool:
 		_step4()
 	if _gate(5, "step 5b: Machinedramon's view and wiring"):
 		_step5b()
+	if _gate(6, "step 6: the ending's view, wiring and the game's end"):
+		_step6()
 	_teardown()
 	var state := "FAILED %d" % _failed if _failed else "OK"
 	if _pending:
@@ -731,5 +733,128 @@ func _step5b() -> void:
 
 ## One game frame of the scene: the tamer's state, then the objects (Field._frame's order).
 func _eab_frame(tamer: Tamer, host: Node) -> void:
+	tamer.tick()
+	host.call("tick_objects")
+
+
+# --- Step 6 (specs/map_events.md §4.4.2) -----------------------------------------------------------
+
+func _step6() -> void:
+	if not ResourceLoader.exists("res://scripts/field/hosts/ending_host.gd"):
+		_check(false, "step 6: scripts/field/hosts/ending_host.gd exists")
+		return
+	var tamer := Tamer.new()
+	root.add_child(tamer)
+	tamer.field = map
+	var partner := Partner.new()
+	partner.tamer = tamer
+	root.add_child(partner)
+	var layer := Node3D.new()
+	root.add_child(layer)
+	var sound := SoundStub.new()
+	root.add_child(sound)
+	var host: Node = load("res://scripts/field/hosts/ending_host.gd").new()
+	host.set("tamer", tamer)
+	host.set("field_map", map)
+	host.set("sound", sound)
+	host.set("data", data)
+	host.set("map_layer_nodes", func() -> Array: return [layer])
+	host.set("world", root)
+	root.add_child(host)
+	interp.tamer = tamer
+	interp.partner = partner
+	interp.set("ending", host)
+	tamer.script_ctx = ctx
+	tamer.set("ending", host)
+	tamer.set("map_layer_nodes", func() -> Array: return [layer])
+	unported.clear()
+	interp._reported.clear()
+	var ended := []
+	interp.connect("game_ended", func() -> void: ended.append(true))
+	var scene = host.get("scene")
+
+	# Digimon routine 5: the opening (state 15): a frame, then the map layer on and the sync bit.
+	MapLayer.set_enabled([layer], false)
+	ctx.sync_bit = 1
+	interp.call_digimon_routine(5)
+	_eq(tamer.state, 15, "routine 5: tamer state 15")
+	_eq(partner.state, Partner.STATE_IDLE, "routine 5: partner state 11")
+	_eq(ctx.sync_bit, 0, "routine 5: the sync bit cleared")
+	tamer.tick()
+	_eq(ctx.sync_bit, 0, "state 15: sub-state 0 only steps")
+	tamer.tick()
+	_eq(layer.visible, true, "state 15: setMapLayerEnabled(1)")
+	_eq(ctx.sync_bit, 1, "state 15: the sync bit")
+	_check(not "CALL_DIGIMON_ROUTINE 5" in unported, "CALL_DIGIMON_ROUTINE 5 is no longer unported")
+
+	# Routine 0x34: the map's sound set 0x14.
+	_run([0x64, 0x34, 0xFE, 0])
+	_frames(2)
+	_check(["map_sounds", 0x14] in sound.calls, "0x34: loadMapSounds2(0x14)")
+	# Routine 0x35: tamer state 16, the routine waits for the sync bit, then the game ends.
+	tamer.set_state(0)
+	_run([0x64, 0x35, 0xFE, 0])
+	_frame()
+	_eq(tamer.state, 16, "0x35: tamer state 16")
+	_eq(ctx.sync_bit, 0, "0x35: the sync bit cleared")
+	_eq(ctx.active_instruction, ScriptContext.OP_CALL_ROUTINE, "0x35: the routine waits")
+	sound.calls.clear()
+	_end_frame(tamer, host)
+	_check(["play", 8, 0] in sound.calls, "N1: playSound(8, 0)")
+	_eq(scene.frame, 1, "state 16: ENDI started, then ticked")
+	var shadow := tamer.get_node_or_null("DropShadow")
+	_check(shadow != null and shadow.get("enabled") == false, "N1: PLAYER_SHADOW_ENABLED = 0")
+	var mats := _tamer_passes(tamer)
+	_check(not mats.is_empty(), "the tamer has materials")
+	_check(mats.all(func(m): return m.shader.resource_path.contains("blended") \
+			and m.get_shader_parameter("abr") == 1 and m.next_pass == null), "N1: every surface one additive pass")
+	for i in 29:
+		_end_frame(tamer, host)
+	_eq(scene.frame, 30, "frame 30")
+	_check(mats.all(func(m): return is_equal_approx(m.get_shader_parameter("tint").x, 0.5)), "N2: the tint at frame 30")
+	_eq(host.get("drawn").size(), scene.particles.filter(func(p): return p["active"] >= 0).size(),
+			"N6: every active particle drawn")
+	while scene.frame < 79:
+		_end_frame(tamer, host)
+	_check(tamer.scale.is_equal_approx(Vector3.ONE * scene.scale / 4096.0), "N3: the tamer's scale")
+	_check(ended.is_empty() and ctx.active_instruction == ScriptContext.OP_CALL_ROUTINE, "still waiting")
+	while scene.frame >= 0 and scene.frame < 200:
+		_end_frame(tamer, host)
+	_eq(host.get("drawn"), [], "N5: the particles gone")
+	_eq(ctx.sync_bit, 0, "the sync bit on the next tamer tick")
+	_end_frame(tamer, host)
+	_eq(ctx.sync_bit, 1, "tamerTickEnding: the sync bit")
+	_frame()
+	_eq(ended.size(), 1, "case 53: game_ended (MAIN_STATE = 3)")
+	_eq(ctx.active_instruction, 0, "case 53: the wait over")
+	# Digimon routine 6: the ending without the routine's wait.
+	interp.call_digimon_routine(6)
+	_eq(tamer.state, 16, "routine 6: tamer state 16")
+	for name in ["CALL_ROUTINE 0x34", "CALL_ROUTINE 0x35", "CALL_DIGIMON_ROUTINE 6"]:
+		_check(not name in unported, "%s is no longer unported" % name)
+	_check(load("res://scripts/game/game.gd").new().has_method("_end_game"), "Game: the end path (cleanupGame, movie 3, title)")
+
+	interp.set("ending", null)
+	interp.tamer = null
+	interp.partner = null
+	for n: Node in [host, sound, layer, partner, tamer]:
+		n.free()
+
+
+## Every pass material on the tamer's meshes (their surface overrides).
+func _tamer_passes(tamer: Node) -> Array:
+	var out := []
+	for node in tamer.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi is DropShadow or mi.mesh == null:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var m := mi.get_surface_override_material(i)
+			if m is ShaderMaterial:
+				out.append(m)
+	return out
+
+
+func _end_frame(tamer: Tamer, host: Node) -> void:
 	tamer.tick()
 	host.call("tick_objects")

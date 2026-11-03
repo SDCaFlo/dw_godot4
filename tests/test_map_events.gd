@@ -24,6 +24,8 @@ func _process(_delta: float) -> bool:
 		_screen_effects()
 	if _gate(5, "step 5a: Machinedramon's logic (EabScene)"):
 		_eab()
+	if _gate(6, "step 6: the ending's logic (EndingScene)"):
+		_ending()
 	var state := "FAILED %d" % _failed if _failed else "OK"
 	if _pending:
 		state += "; PENDING (DW_STEP_4F=%d): %s" % [_step, ", ".join(_pending)]
@@ -661,3 +663,110 @@ func _eab_spawn_rings(cls: GDScript) -> void:
 	_eq(e.rings[0]["timer"], -1, "E7: ring 0 gone at 0x3A")
 	e.tick()
 	_eq(e.rings[0]["timer"], 1, "E7: slot 0 again at 0x3B")
+
+
+# --- Step 6: the ending's logic (§3.4, §4.4.1) ----------------------------------------------------
+
+const ENDING_PATH := "res://scripts/field/ending/ending_scene.gd"
+
+
+## A bone's world matrix for the tests: no rotation, at (bone * 10, -100 * bone, 7).
+func _bone_m(bone: int) -> PackedInt32Array:
+	return _ident_at(Vector3i(bone * 10, -100 * bone, 7))
+
+
+## world(p) with _bone_m: s16(div(pos * scale, 4096)) + t.
+func _world(pos: Vector3i, bone: int, scale: int) -> Vector3i:
+	var v := Vector3i(PsxMath.div(pos.x * scale, 0x1000), PsxMath.div(pos.y * scale, 0x1000), PsxMath.div(pos.z * scale, 0x1000))
+	return PsxMath.s16_vec(PsxMath.s16_vec(v) + PsxMath.translation(_bone_m(bone)))
+
+
+func _ending() -> void:
+	if not ResourceLoader.exists(ENDING_PATH):
+		_check(false, "step 6: %s exists" % ENDING_PATH)
+		return
+	var cls: GDScript = load(ENDING_PATH)
+	_eq(cls.PARTICLES, 80, "N6: NUM_ENDI_PARTICLES")
+	_eq(cls.fade_factor(0), 1.0, "N2: full colour before the fade")
+	_eq(cls.fade_factor(30), 0.5, "N2: half at frame 30")
+	_eq(cls.fade_factor(60), 0.0, "N2: black at 60")
+	var e = cls.new()
+	e.bone_count = 12
+	e.bone_matrix = _bone_m
+	_eq(e.render(), [], "nothing before the start")
+	e.start()
+	_eq(e.events, [["sound", 8, 0]], "N1: playSound(8, 0)")
+	_check(e.active and e.shown and e.attached, "N1: running, the particles shown and attached")
+	_eq(e.frame, 0, "N1: frame 0")
+	_eq(e.scale, 0x1000, "N1: scale 1")
+	_eq(e.fade_frame, 0, "N1: no fade yet")
+	# Frame 1: the fade at 1, a particle at bone 1 % 11 + 1 = 2 with three rolls x, y, z.
+	Rng.set_seed(7)
+	var r := [Rng.rand(), Rng.rand(), Rng.rand()]
+	Rng.set_seed(7)
+	e.tick()
+	_eq(e.events, [], "frame 1: no event")
+	_eq(e.frame, 1, "N2: frame incremented first")
+	_eq(e.fade_frame, 1, "N2: the fade runs at frame 1")
+	_eq(e.particles[0]["active"], 0, "N6: slot 0 spawned")
+	_eq(e.particles[0]["bone"], 2, "N2: bone frame % (count - 1) + 1")
+	_eq(e.particles[0]["pos"], Vector3i(r[0] % 140 - 70, r[1] % 80 - 40, r[2] % 80 - 40), "N6: the offset rolls")
+	# The render's rolls: r, g, b, size per particle.
+	Rng.set_seed(9)
+	var c := [Rng.rand(), Rng.rand(), Rng.rand(), Rng.rand()]
+	Rng.set_seed(9)
+	var drawn: Array = e.render()
+	_eq(drawn.size(), 1, "N6: one particle drawn")
+	if drawn.size() == 1:
+		_eq(drawn[0]["color"], Vector3i(c[0] % 70 + 60, c[1] % 70 + 60, c[2] % 70 + 60), "N6: the colour rolls")
+		_eq(drawn[0]["size"], c[3] % 15 + 15, "N6: the size roll")
+		_eq(drawn[0]["pos"], _world(e.particles[0]["pos"], 2, 0x1000), "N6: attached to its bone")
+	while e.frame < 60:
+		e.tick()
+	_eq(e.phase, 1, "N2: phase 1 at 60")
+	_eq(e.fade_frame, 60, "N2: the last fade at 60")
+	_eq(e.scale, 0x1000, "N2: no scale in phase 0")
+	while e.frame < 70:
+		e.tick()
+	_eq(e.scale, _l(0x1000, 0x999, 60, 78, 70), "N3: shrinking at 70")
+	_eq(e.fade_frame, 60, "N3: no fade after phase 0")
+	while e.frame < 79:
+		e.tick()
+	_eq(e.scale, _l(0x999, 0x1800, 78, 80, 79), "N3: growing at 79")
+	var before := []
+	for p in e.particles:
+		before.append([p["active"], p["pos"], p["bone"]])
+	e.tick()
+	_eq(e.frame, 80, "frame 80")
+	_eq(e.scale, 0x1800, "N3: 0x1800 at 80")
+	_eq(e.events, [["sound", 8, 1]], "N3: playSound(8, 1)")
+	_eq(e.phase, 2, "N3: phase 2")
+	_eq(e.velocity, -450, "N3: velocity -450")
+	_eq(e.attached, false, "N3: released")
+	_eq(e.particles.filter(func(p): return p["active"] >= 0).size(), 80, "N6: 80 spawns fill the 80 slots")
+	var m0 := _bone_m(0)
+	_eq(e.base, PsxMath.s16_vec(Vector3i(m0[10], m0[11], 0)), "N7: base from t[1], t[2] and 0")
+	var kept := true
+	for i in 79:
+		var want := _world(before[i][1], before[i][2], 0x1800)
+		kept = kept and PsxMath.s16_vec(e.particles[i]["pos"] + e.base) == want
+	_check(kept, "N3: released where they were, at scale 0x1800")
+	var base_y: int = e.base.y
+	e.tick()
+	_eq(e.base.y, base_y - 450, "N4: base y += velocity")
+	_eq(e.velocity, -430, "N4: velocity += 20")
+	drawn = e.render()
+	_eq(drawn.size(), 80, "N4: 80 drawn")
+	if drawn.size() == 80:
+		_eq(drawn[5]["pos"], PsxMath.s16_vec(e.particles[5]["pos"] + e.base), "N4: detached: pos + base")
+	var ticks := 1
+	while e.phase == 2 and ticks < 100:
+		e.tick()
+		ticks += 1
+	_eq(ticks, 23, "N4: 23 frames up to velocity >= 0")
+	_eq(e.frame, 103, "N4: phase 3 from frame 103")
+	e.tick()
+	_eq(e.events, ["stop_sound"], "N5: stopSound")
+	_eq(e.result(), -1, "N5: frame -1")
+	_eq(e.active, false, "N5: over")
+	_eq(e.render(), [], "N5: the particles removed")

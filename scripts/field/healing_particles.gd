@@ -29,9 +29,6 @@ const COLOR2 := [[0x04, 0x09, 0x03], [0x0a, 0x0e, 0x05], [0x10, 0x13, 0x06], [0x
 		[0x56, 0x51, 0x16], [0x5c, 0x57, 0x17], [0x62, 0x5c, 0x18], [0x68, 0x61, 0x1a]]
 const COLOR3 := [[0x47, 0x51, 0x00], [0x60, 0x6b, 0x19], [0x7d, 0x86, 0x3d], [0xb3, 0xbb, 0x7a],
 		[0xd7, 0xdc, 0xb7], [0xff, 0xff, 0xff]]
-## renderFXParticle's DEFEFF dot (etctim/02_defeff palette 1, u 0 v 160 - 0x80, 15 x 15), added.
-const DEFEFF := "etctim/02_defeff"
-const DOT := Rect2(0, 32, 15, 15)
 
 ## Set by the owner: the partner (its bone 0 and its Digimon's size), the map (its projection).
 var partner: Node3D
@@ -48,8 +45,8 @@ var has_particle2 := false
 var entries1: Array[Dictionary] = []
 var entries2: Array[Dictionary] = []
 
-var _sprites: WorldSprites
-var _dot: PsxTexture
+## renderFXParticle's sprites (FxParticles).
+var _sprites: FxParticles
 
 
 func _init() -> void:
@@ -59,7 +56,7 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	_sprites = WorldSprites.new()
+	_sprites = FxParticles.new()
 	_sprites.name = "Sprites"
 	add_child(_sprites)
 
@@ -144,14 +141,6 @@ func draw_frame() -> void:
 	_sprites.end()
 
 
-## renderFXParticle: culled at the OT depth (SZ >> 4) - 0x37 (addFXPrim).
+## renderFXParticle (FxParticles.particle).
 func _fx_particle(at: Vector3i, size: int, rgb: Array) -> void:
-	var ws := field_map.world_screen_matrix()
-	var depth := (PsxMath.apply_matrix_lv(ws, at) + PsxMath.translation(ws)).z
-	var ot := (depth >> 4) - 0x37
-	if depth <= 0 or ot <= 0x20 or ot >= 0x1000:
-		return
-	if _dot == null:
-		_dot = PsxTexture.load_palette(DEFEFF, 1)
-	_sprites.sprite(_dot, PsxLit.ADD, Content.psx_to_godot([at.x, at.y, at.z]), Vector2(size, size), DOT,
-			Color(rgb[0] / 128.0, rgb[1] / 128.0, rgb[2] / 128.0))
+	_sprites.particle(field_map, at, size, Vector3i(rgb[0], rgb[1], rgb[2]))

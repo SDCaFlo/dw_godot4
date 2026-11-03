@@ -348,6 +348,40 @@ The view:
 
 Digimon routine 6 and routine 0x35 set tamer state 16. Routine 0x35's wait (case 53) sees the sync bit and asks the game to end the field: `Game` frees the field, plays movie 3 (not skippable), then shows the title (`main.c` loop). Digimon routine 5 (debug menu only) sets tamer state 15: map layer on, sync bit set.
 
+Found in the data and the C (2026-11-02):
+- The tamer's TMD (`CHDAT/MMD0/BOYS`, the porter's sidecar) has 305 primitives, all mode 0x34 (116) or 0x3C (189): `ENDI_setModelSemiTrans`'s switch (which doesn't advance on another mode) changes them all, so the whole tamer becomes semi-transparent, abr 1 (additive). Its textures use CLUTs (0, 488)… inside the faded rect (0, 488) 16 × 24.
+- `ENDI_updateEnding` increments `frame` before the switch, so the fade runs at frames 1–60; at 60 every colour is 0, so the tamer is invisible from then on (a colour 0 without STP is transparent).
+- N7 cancels out: at the release `pos = world − base` and from then the particle is drawn at `pos + base` (both SVECTOR, so only an int16 wrap could show). The port uses 0 for `t[3]` (`port-only`); §8.4 answered.
+- Script 192 calls routine 0x36 (`gameClearSave`, the game-clear save; `SaveRoutines`, already ported) before 0x35.
+- Routine 0x34's `loadTextureFile(OP.TIM)` lands at VRAM (576, 256) (the porter's `tim_files/ETCHI/OP.json`); nothing in `endi.c` reads it (`renderFXParticle` reads (768, 256)): nothing to port.
+
+#### 4.4.1 The logic's API (step 6)
+
+`class_name EndingScene extends RefCounted` (`scripts/field/ending/ending_scene.gd`). Values are PSX integers; `lerp` is `PsxMath.lerp_int`, C divisions `PsxMath.div`, `rand()` is `Rng.rand()`.
+- Constants: `PARTICLES := 80` (`NUM_ENDI_PARTICLES`, `endi.h:10`), `FADE_END := 60` (172), `PEAK := 78` (183), `GROW_END := 80` (189), `SCALE_ONE := 0x1000`, `SCALE_LOW := 0x999`, `SCALE_HIGH := 0x1800` (186–188), `VELOCITY := -450` (194), `GRAVITY := 20` (205), `SOUND_BANK := 8`, the particle rolls (`rand() % 140 − 70`, `% 80 − 40`, `% 80 − 40`, 280–282; colour `rand() % 70 + 60`, size `rand() % 15 + 15`, 390–394).
+- State: `frame`, `phase` (`ENDI_STATE`), `active`; `particles: Array[Dictionary]` (80 × `{"active": -1, "bone", "pos": Vector3i}`), `attached := true` (`ENDI_DATA.flag`), `shown := false` (the render object 0x813 is in the list), `base: Vector3i`, `velocity`, `scale := 0x1000` (the tamer's `posData->scale`), `fade_frame := 0` (the frame of the last `ENDI_fadeClut`).
+- Inputs: `bone_count` (`DIGIMON_DATA[0].boneCount`), `bone_matrix: Callable` (bone → `PackedInt32Array`, PsxMath's 12-int layout: the bone's world matrix, `calculateBoneMatrix` / `posMatrix.workm`).
+- Outputs: `events` (cleared at the start of each `tick()`; `["sound", 8, id]`, `"stop_sound"`).
+- `start()` (`ENDI_tickEnding(entity, 0)`, 407–431): frame 0, phase 0, active, every particle −1, `attached`, `shown`, `fade_frame = 0`, `scale = 0x1000`; event `["sound", 8, 0]` (the CLUT STP, the semi-transparency and the shadow are the host's).
+- `result()`: `frame` (−1 once over).
+- `tick()` (`ENDI_updateEnding`, 159): exactly as the C: `frame += 1`; phase 0: `fade_frame = frame`, a particle at bone `frame % (bone_count − 1) + 1`, phase 1 at ≥ 60; phase 1: a particle, `scale` per N3, at ≥ 80 `["sound", 8, 1]`, phase 2, `release()`, `velocity = −450`; phase 2: `base.y = s16(base.y + velocity)`, `velocity += 20`, phase 3 at ≥ 0; phase 3: `"stop_sound"`, `shown = false`, `frame = −1`, not active.
+- Spawn (`ENDI_spawnParticle`, 266): the first slot with `active < 0` (none: nothing, `port-only` guard: the C writes slot 80; 80 spawns fill exactly the 80 slots, so it never happens), `active 0`, the bone, `pos` from the three rolls in order x, y, z.
+- `release()` (`ENDI_releaseParticles`, 302): `attached = false`; `base = s16(m0.t[1], m0.t[2], 0)` with `m0 = bone_matrix(0)` (N7); each active particle: `pos = s16(world(p) − base)`.
+- `world(p)`: `v = s16(div(pos · scale, 0x1000))` per axis, `s16(apply_matrix_lv(m, v) + m.t)` with `m = bone_matrix(p.bone)` (`ApplyMatrixSV`, 327–332, 375–380).
+- `render() -> Array` (`ENDI_renderParticles`, 368): `[]` unless `shown`; per active particle in slot order `{"pos": world(p) if attached else s16(pos + base), "color": Vector3i(r, g, b), "size"}`, rolling r, g, b, size in that order.
+- `static func fade_factor(fade_frame) -> float` = `(60 − fade_frame) / 60.0` (`stand-in` for `ENDI_fadeClut`'s per-5-bit-channel `c · (60 − f) / 60`, as `PaletteFade` in `specs/death_scene.md` §4.9).
+
+#### 4.4.2 The host, the view and the wiring (step 6)
+
+`EndingHost` (`scripts/field/hosts/ending_host.gd`, `class_name EndingHost extends Node`, `$Systems/EndingHost`):
+- References: `tamer`, `field_map`, `sound`, `data`, `map_layer_nodes`, `world`.
+- `load_scene()`, routine 0x34 (`script_interp.c:1848–1852`): `sound.load_map_sounds(0x14)` (the OP.TIM load and the REL have nothing to port).
+- `start()` / `result()`, tamer state 16 (`tamerTickEnding`, `tamer.c:1682`; `isSoundLoaded(0, 8)` has nothing to wait for): `scene.bone_count` from `data.digimon(0)`, `scene.bone_matrix` from the tamer's skeleton, `scene.start()`; then the tamer's materials replaced by `PsxLit.semi_transparent(model, 1)` (N1: one blended pass per surface, abr 1, every texel), its `DropShadow.enabled = false` (`PLAYER_SHADOW_ENABLED = 0`); events run.
+- `tick_objects()` after `EabHost.tick_objects`: while active, `scene.tick()`, events (`sound.play_sound` / `sound.stop_sound`), then the drawing: the tamer's tint `fade_factor(scene.fade_frame)` on every pass, `tamer.scale = scale / 4096`, the particles (`scene.render()`) through `FxParticles.draw` (`renderFXParticle`, moved out of `HealingParticles`: the DEFEFF dot, added, culled at OT depth (SZ >> 4) − 0x37).
+- Routines: `ScriptInterpreter.ending: EndingHost`; 0x34 → `load_scene()`; 0x35 (`script_interp.c:1858–1864`): `isSoundLoaded`, `tamer.set_state(16)`, sync bit 0, waits (`OP_CALL_ROUTINE`, mode 0); the wait (case 53, 516–520): sync bit 1 → `active_instruction = 0`, the `game_ended` signal, the frame ends. Digimon routines 5 / 6 (`partner.c:1166–1175`): tamer state 15 / 16, partner state 11, sync bit 0, `_sync_scene`.
+- `Tamer.STATE_OPENING := 15` (`tamerTickOpening`, 1668: sub-state 0 → 1; 1: the map layer on through `Tamer.map_layer_nodes`, sync bit 1) and `STATE_ENDING := 16` (`tick_ending`: sub-state 0 `ending.start()`, 1; 1: `ending.result() < 0` → sync bit 1).
+- `Field.game_ended` (relayed from the interpreter's, `MAIN_STATE = 3`): `Game` listens on the field it made: `cleanupGame` (the field freed), `finalizeMusic` (`Sound.music.stop_bgm()`), `playMovie(3, 1)` (not skippable), then `_title()` (the C's boot loop: `main.c:3410`).
+
 ## 5. Godot design (files)
 
 | Part | Files |
@@ -356,7 +390,7 @@ Digimon routine 6 and routine 0x35 set tamer state 16. Routine 0x35's wait (case
 | Interpreter | `scripts/script/script_interpreter.gd` (the routines and opcodes) |
 | Screen effects | `scripts/field/fade.gd`, `scripts/field/meramon_shake.gd`, `scripts/field/ninjamon_effect.gd`, `scripts/field/mood_bubble.gd` (logic), `mood_bubble_view.gd`, `scripts/field/field_map.gd` (`offset_shake`) |
 | Machinedramon | `scripts/field/eab/eab_scene.gd`, `eab_view.gd`, `scripts/field/hosts/eab_host.gd`, `scripts/field/tamer.gd` (state 18), `scripts/script/script_interpreter.gd` (0x28, 0x33, digimon routine 8), `scripts/field/field.gd`, `scenes/field/field.tscn` (wiring), `scripts/field/evolution/evl_particles_view.gd` (`set_lines`) |
-| Ending | `scripts/field/ending/ending_scene.gd`, `ending_view.gd`, `scripts/field/tamer.gd` (states 15 / 16), `scripts/game/game.gd` (end → movie 3 → title) |
+| Ending | `scripts/field/ending/ending_scene.gd`, `scripts/field/hosts/ending_host.gd`, `scripts/field/fx_particles.gd` (`renderFXParticle`, out of `healing_particles.gd`), `scripts/content/psx_lit.gd` (`semi_transparent`), `content.gd` (`psx_matrix`), `scripts/field/drop_shadow.gd` (`enabled`), `scripts/field/tamer.gd` (states 15 / 16), `scripts/script/script_interpreter.gd` (0x34, 0x35, case 53, digimon routines 5 / 6), `scripts/field/field.gd` (`game_ended`), `scripts/game/game.gd` (end → movie 3 → title) |
 
 ## 6. Order of work
 
@@ -370,7 +404,7 @@ All suites and scans pass after every step; a step is done when its gate in §7 
 | 4 | Screen-effect views and wiring: `Fade` white (additive layer), `FieldMap.offset_shake`, the overlays, `MoodBubble` drawing, the routines | **Medium**: rendering is simple (a fade, a sprite, an offset), the tests check the state | agy or Sonnet; **agy** if step 2 went well |
 | 5a | Machinedramon's logic (§3.3, §4.3.1): `EabScene`, every timeline by the frame | **Medium** · Gemini 3.8 Flash (High) with the exact API and tests | **agy** |
 | 5b | **Done (2026-11-02).** Machinedramon's view and wiring (§4.3, §4.3.2): rings, quads, lines, wireframe, camera, hidden entities, routines 0x28 / 0x33, digimon routine 8, tamer state 18 | **Hard** · main session (Opus) | no |
-| 6 | The ending and credits (§3.4, §4.4): `EndingScene` **Medium**, the view and the CLUT/STP fade **Hard**, the `Game` end path **Medium** | **Hard** · main session | no (the `Game` path could be split off to agy) |
+| 6 | **Done (2026-11-02).** The ending and credits (§3.4, §4.4): `EndingScene` **Medium**, the view and the CLUT/STP fade **Hard**, the `Game` end path **Medium** | **Hard** · main session | no (the `Game` path could be split off to agy) |
 | 7 | ~~Robot House's TFS reload (§3.5)~~: the map rereads its own TFS, so nothing changes (§8.1, 2026-11-02) | none | dropped |
 | 8 | VERIFY "Map events", PLANS, "As built", gates | main session | no |
 
@@ -403,6 +437,6 @@ Steps 1–4 can run before 5–6, and 1 and 3 in parallel (they own different fi
 1. **~~Volume Villa's CLUTs (§3.5)~~: answered (2026-11-02).** Routine 0x2A runs in script 140, on OMOC03 itself, so `readMapTFS(0x92)` rereads the map's own TFS: the CLUTs stay the same. Nothing to port (step 7 dropped).
 2. **The pedestal and the time of day (P21).** Kept as in the C. Seen only if the hour changes during Ice Sanctuary's (ICSA01) pedestal scene.
 3. **EAB's flash and backdrop (E9, E10): answered from the data (2026-11-02).** The texel at (832, 256) 8bpp, u 0 v 0x80, CLUT (0, 487) is SPOT256's (`etctim/07_spot256`, image (0, 0)) index 255 = 0xFFFF: white with STP. Subtracted at colour 0xFF it removes everything: the flash turns the screen black, and the backdrop (OT 0xFA0, in front of the background, behind the models) blacks out the map behind Machinedramon.
-4. **ENDI's base (N7)** reads `t[1..3]` (one past the translation): the detached sparks are offset. The port keeps it with `t[3]` = the next word of the C's `MATRIX` (`port-only` value 0 if unknown). To confirm in the original.
+4. **~~ENDI's base (N7)~~: answered (2026-11-02): it cancels out (§4.4).** It reads `t[1..3]` (one past the translation): the detached sparks are offset. The port keeps it with `t[3]` = the next word of the C's `MATRIX` (`port-only` value 0 if unknown). To confirm in the original.
 6. **~~The mood bubble's faces (S10)~~: answered (2026-11-02).** Scripts 199–202 run on GCAN11, the Monochrome Shop (script 49 jumps to them), not on TWNB20–23. GCAN11's 4bpp image 0 is exactly the rect the sprite reads (VRAM (640, 0), 160 × 32: five 32 × 32 faces); the porter exports it (`maps/GCAN11/mood/faces.png`, `asset_porter/specs/map.md`) and `MoodBubbleView` draws it (§4.2.3).
 5. **Movie 3** is the credits (`movies.json`); `MoviePlayer` must not let Start skip it (`specs/new_game.md`).

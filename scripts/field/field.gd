@@ -49,6 +49,10 @@ var boot := false
 
 var _maps: PackedStringArray
 
+## MAIN_STATE = 3 (routine 0x35's wait, the ending over): the game loop ends after this frame
+## (main.c:3522); Game frees the field and plays the credits.
+signal game_ended
+
 @onready var _field: FieldMap = $World/SubViewport/FieldMap
 @onready var _tamer: Tamer = $World/SubViewport/Tamer
 @onready var _label: Label = $Hud/Label
@@ -67,6 +71,7 @@ var _maps: PackedStringArray
 @onready var death_host: DeathHost = $Systems/DeathHost
 @onready var evolution_host: EvolutionHost = $Systems/EvolutionHost
 @onready var eab_host: EabHost = $Systems/EabHost
+@onready var ending_host: EndingHost = $Systems/EndingHost
 @onready var tournament_host: TournamentHost = $Systems/TournamentHost
 @onready var arena: Arena = $Systems/Arena
 @onready var debug: DebugHost = $Debug
@@ -262,6 +267,19 @@ func _start() -> void:
 	_tamer.eab = eab_host
 	if scripts.interpreter != null:
 		scripts.interpreter.eab = eab_host
+	# The ending (specs/map_events.md §4.4.2): routines 0x34 / 0x35, the tamer's states 15 / 16; the
+	# game's end goes to Game (game_ended).
+	ending_host.tamer = _tamer
+	ending_host.field_map = _field
+	ending_host.sound = Sound
+	ending_host.data = GameData
+	ending_host.map_layer_nodes = map_layer_nodes
+	ending_host.world = _world
+	_tamer.ending = ending_host
+	_tamer.map_layer_nodes = map_layer_nodes
+	if scripts.interpreter != null:
+		scripts.interpreter.ending = ending_host
+		scripts.interpreter.game_ended.connect(func() -> void: game_ended.emit())
 	map_session.partner = partner
 	if map_session.map_props_view != null:
 		map_session.map_props_view.partner = partner
@@ -383,6 +401,7 @@ func _frame() -> void:
 		death_host.tick_objects()
 		evolution_host.tick_objects()
 		eab_host.tick_objects()
+		ending_host.tick_objects()
 		_field.overlays.tick()
 		if map_session.map_props_view != null:
 			map_session.map_props_view.render()

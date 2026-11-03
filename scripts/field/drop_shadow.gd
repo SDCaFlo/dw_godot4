@@ -22,6 +22,9 @@ const _SHADER := preload("res://shaders/drop_shadow.gdshader")
 
 static var _material: ShaderMaterial
 
+## PLAYER_SHADOW_ENABLED (model.c, the tamer's: renderDigimon skips the shadow while 0; ENDI clears it).
+var enabled := true
+
 var _radius := -1
 
 
@@ -69,6 +72,8 @@ func update() -> void:
 
 ## renderDigimon draws the entity (on the map, on screen) and getTileTrigger isn't -1.
 func shown() -> bool:
+	if not enabled:
+		return false
 	var value: Variant = entity.get("field")
 	if not is_instance_valid(value) or not value is FieldMap:
 		return false

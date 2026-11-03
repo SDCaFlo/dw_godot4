@@ -241,6 +241,17 @@ static func psx_transform(m: PackedInt32Array) -> Transform3D:
 	return Transform3D(basis, origin)
 
 
+
+## A Godot basis as a PSX rotation matrix (4096 = 1.0; int16 entries): F · B · F with F the flip
+## (x, -y, -z); psx_transform's inverse for the rotation (moved from FieldBattleWorld).
+static func psx_matrix(b: Basis) -> PackedInt32Array:
+	var f := [1.0, -1.0, -1.0]
+	var m := PsxMath.identity()
+	for i in 3:
+		for j in 3:
+			m[i * 3 + j] = PsxMath.s16(roundi(f[i] * b[j][i] * f[j] * 4096.0))
+	return m
+
 # --- Editor mirror ---------------------------------------------------------------------------
 
 ## Copies the MIRROR selection of the porter output into res://content/dw1/ (new or changed files

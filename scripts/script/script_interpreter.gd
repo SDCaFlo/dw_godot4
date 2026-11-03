@@ -13,6 +13,9 @@ extends RefCounted
 signal unported(op: int, name: String)
 ## The script has ended (IS_SCRIPT_PAUSED set and cleaned up).
 signal ended
+## Routine 0x35's wait saw the ending's sync bit (case 53, script_interp.c:516-520): MAIN_STATE = 3, the
+## game loop ends after this frame (main.c:3522: cleanupGame, the credits, the title).
+signal game_ended
 
 ## The longjmp codes of the instruction handlers (tickScript, script_interp.c:600-632).
 const NEXT := 1
@@ -67,6 +70,12 @@ const ROUTINE_DYING := 3
 const ROUTINE_REBIRTH := 4
 const ROUTINE_COLLAPSE := 7
 const ROUTINE_BATTLE_LOSS := 9
+## CALL_DIGIMON_ROUTINE 5 / 6: the opening (tamer state 15) and the ending (16), partner state 11
+## (partner.c:1166-1175).
+const ROUTINE_OPENING := 5
+const ROUTINE_ENDING := 6
+## CALL_ROUTINE 0x35's wait (case 53).
+const ROUTINE_START_ENDING := 0x35
 ## CALL_DIGIMON_ROUTINE 8: Machinedramon's spawn (tamer state 18, partner state 11; partner.c:1189).
 const ROUTINE_MACHINEDRAMON := 8
 ## CALL_ROUTINE 0x28: EAB_startBuildup on the entity of script id 5 (script_interp.c:1855).
@@ -172,6 +181,10 @@ var fade: Fade
 var map_effects: MapEffects
 ## Machinedramon's build-up and spawn (EabHost); null: routines 0x33 / 0x28 and digimon routine 8 unported.
 var eab: EabHost
+## The ending (EndingHost); null: routines 0x34 / 0x35 and digimon routines 5 / 6 unported.
+var ending: EndingHost
+## A waiting builtin's tick ended the frame (longjmp 2).
+var _wait_ended_frame := false
 ## The field's battles (BattleHost, specs/battle.md §5.3): start_battle(talked_entity),
 ## battle_done() and battle_outcome(). Without it START_BATTLE is skipped and reported.
 var battles: Object
@@ -282,6 +295,9 @@ func tick_script() -> bool:
 			pause_game(0xFF)
 			ctx.map_change = 0
 	_tick_waiting_instruction()
+	if _wait_ended_frame:
+		_wait_ended_frame = false
+		return ctx.is_paused
 	if ctx.map_change != 0 or ctx.active_instruction != 0:
 		return ctx.is_paused
 	var count := 0
@@ -324,6 +340,12 @@ func _tick_waiting_instruction() -> void:
 				# case 50 (script_interp.c:506-509)
 				if map_props.move_pedestal():
 					ctx.active_instruction = 0
+			elif ctx.script_param_1 == ROUTINE_START_ENDING and ending != null:
+				# case 53 (script_interp.c:516-520): the sync bit ends the game, then the frame.
+				if ctx.sync_bit == 1:
+					ctx.active_instruction = 0
+					_wait_ended_frame = true
+					game_ended.emit()
 			else:
 				ctx.active_instruction = 0
 		OP_WAIT_FOR_ENTITY:
@@ -1364,6 +1386,14 @@ func call_digimon_routine(routine: int) -> void:
 		ctx.sync_bit = 0
 		_sync_scene = true
 		return
+	# 5 / 6: the opening (tamerTickOpening) and the ending (tamerTickEnding).
+	if (routine == ROUTINE_OPENING or routine == ROUTINE_ENDING) and partner != null and tamer != null \
+			and (routine == ROUTINE_OPENING or ending != null):
+		tamer.set_state(Tamer.STATE_OPENING if routine == ROUTINE_OPENING else Tamer.STATE_ENDING)
+		partner.set_state(Partner.STATE_IDLE)
+		ctx.sync_bit = 0
+		_sync_scene = true
+		return
 	# 8: Machinedramon's spawn (tamerTickMachinedramonSpawn waits for EAB_tick, then sets the bit).
 	if routine == ROUTINE_MACHINEDRAMON and partner != null and tamer != null and eab != null:
 		tamer.set_state(Tamer.STATE_MACHINEDRAMON_SPAWN)
@@ -1454,6 +1484,16 @@ func _call_routine(routine: int) -> int:
 		0x28 when eab != null:
 			# EAB_startBuildup(ENTITY_TABLE[scriptIdToEntityId(5)]) (script_interp.c:1853-1856)
 			eab.start_buildup(_entity_for_script_id(BUILDUP_SCRIPT_ID))
+		0x34 when ending != null:
+			# OP.TIM, ENDI_REL, loadMapSounds2(0x14) (script_interp.c:1848-1852)
+			ending.load_scene()
+		0x35 when ending != null and tamer != null:
+			# isSoundLoaded(0, 8), tamerSetState(0x10), the sync bit cleared, the wait (script_interp.c:1858-1864)
+			tamer.set_state(Tamer.STATE_ENDING)
+			ctx.sync_bit = 0
+			ctx.active_instruction = ScriptContext.OP_CALL_ROUTINE
+			ctx.textbox_mode = 0
+			return STOP
 		0x33 when eab != null:
 			# BOSS_EFE.TMD, EAB_REL, readVBALLSection(5, 0x73), loadMapSounds2(0x15) (script_interp.c:1841-1846)
 			eab.load_scene()

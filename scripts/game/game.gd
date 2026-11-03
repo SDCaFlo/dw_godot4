@@ -5,7 +5,8 @@ extends Node
 ## the title menu (TitleMenu), then for a new game (mode 0) the intro (NewGameScene), movie 1,
 ## then the field on the start map with the partner the answers picked. Continuing a game
 ## (modes 1 and 2) loads the saved slot and boots directly into the saved map (mode 2 plays
-## movie 2 first).
+## movie 2 first). The ending (the field's game_ended, MAIN_STATE = 3) frees the field, plays the
+## credits (movie 3, not skippable) and starts over at the title (main.c:3522-3527, the boot loop).
 ## The parts are exported scenes, so a mod can replace one. Running field.tscn on its own keeps
 ## the field's debug start.
 ##
@@ -62,11 +63,7 @@ func _continue_game(slot: int) -> void:
 		var movie := _show(movie_scene) as MoviePlayer
 		movie.play(2)
 		await movie.finished
-	var field := field_scene.instantiate()
-	field.set("boot", true)
-	for property in field_overrides:
-		field.set(property, field_overrides[property])
-	_replace(field)
+	_start_field()
 
 
 ## Mode 0 (main.c:3438-3454).
@@ -82,11 +79,28 @@ func _new_game() -> void:
 		movie.play(int(new_game.get("movie", 1)))
 		await movie.finished
 	GameState.start_new_game_partner(GameState.script_value(ANSWER_VALUE))
+	_start_field()
+
+
+## The field on the record's map; its game_ended ends the game.
+func _start_field() -> void:
 	var field := field_scene.instantiate()
 	field.set("boot", true)
 	for property in field_overrides:
 		field.set(property, field_overrides[property])
+	if field.has_signal("game_ended"):
+		field.connect("game_ended", _end_game, CONNECT_ONE_SHOT)
 	_replace(field)
+
+
+## main.c:3522-3527: while (MAIN_STATE != 3) gameLoop(); cleanupGame (the field freed), finalizeMusic,
+## playMovie(3, 1); then the boot loop again (main.c:3410: the title).
+func _end_game() -> void:
+	Sound.music.stop_bgm()
+	var movie := _show(movie_scene) as MoviePlayer
+	movie.play(3)
+	await movie.finished
+	_title()
 
 
 func _new_game_record() -> Dictionary:

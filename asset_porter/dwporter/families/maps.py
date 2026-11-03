@@ -48,6 +48,23 @@ KNOWN_UNLOADED_CLUT = {"GIAS06B", "ICSA05"}
 # 4bpp page (704, 0), v 0xD8-0xF7; symbols tpage 0x2B + CLUT (48, 486), window tpage 0x4B + CLUT (64, 486).
 TRAINING_MAPS = {0x70, 0x4E, 0x77}
 SLOT_PAGE, SLOT_V, SLOT_H = (704, 0), 0xD8, 0x20
+# Script-spawned props whose TMDs have no texture of their own: they read the map's VRAM (tmd.md "map
+# textures"), so they are exported per map like the doors, on the maps whose scripts spawn them
+# (../../specs/map_events.md §1; scripts/index.json gives the script each map's MAPHEAD sets).
+PROP_TMDS = {
+    "TUNN05": ["ETCNA/T_YAMA.TMD"],                       # script 29, routine 0x1B (loadDirtPileModel, map_object.c:1205)
+    "OMOC08": ["ETCNA/BIGBOX.TMD", "ETCNA/SMABOX.TMD"],    # script 145, routine 0x2B (spawnToyTownBoxes, :662)
+    "OMOC03": ["ETCNA/GAND.TMD"],                         # script 140, routine 0x29 (spawnGearbox, :749)
+    "ICSA01": ["ETCNA/ABOX.TMD"],                         # script 93, routine 0x31 (spawnAngemonPedestal, :775)
+    "MGEN99": ["ETCHI/BOSS_EFE.TMD"],                     # script 184, routine 0x33 (Machinedramon's rings, eab.c:255)
+}
+# Monochromon's mood bubble (createMonochromonMoodBubble: routine 0x1C in scripts 199-202, which script
+# 49 jumps to, on GCAN11, the Monochrome Shop). Its sprite (script_common.c:271 MONOCHROMON_BUBBLE_SPRITE)
+# reads the map's VRAM: 4bpp page (640, 0), u = mood * 32 (moods 0-4), v 0, 32 x 32, CLUT (0, 486),
+# attribute 0x50000000 (semi-transparent, rate 1: the STP texels add). GCAN11's 4bpp image 0 is exactly
+# that rect (640, 0, 40 x 32 words = 160 x 32 texels).
+MOOD_BUBBLE_MAPS = {"GCAN11"}
+MOOD_PAGE, MOOD_W, MOOD_H, MOOD_CLUT, MOOD_TPAGE = (640, 0), 5 * 32, 32, (0, 486), 0x0A
 SLOT_STRIPS = {3: {"clut": (48, 486), "tpage": 0x2B, "sprite": "TRN_SLOT_SPRITE1 (symbols, u = (symbol - 1) * 32)"},
                4: {"clut": (64, 486), "tpage": 0x4B, "sprite": "TRN_SLOT_SPRITE2 (reel window, u 0xE0, 8 x 32)"}}
 
@@ -185,6 +202,44 @@ def _training_slots(out: AssetWriter, folder, vram: Vram, msrc, parsed: dict, vr
     _dump(sidecar, record)
     out.assets.append({"asset_id": span.asset_id, "sidecar": out._rel(sidecar), "outputs": [o["path"] for o in outputs]})
     return {"outputs": outputs, "key": (indices, tuple(tuple(c["colors"]) for c in cluts.values()))}
+
+
+def _mood_faces(out: AssetWriter, folder, vram: Vram, msrc, parsed: dict, vram_label: str, label: str) -> list:
+    """Monochromon's mood faces (../../specs/map_events.md S10): u 0-159, v 0-31 of the 4bpp page
+    (640, 0) as the map's images leave it, through CLUT (0, 486), one indexed PNG + STP mask."""
+    px, py = MOOD_PAGE
+    indices, loaded = vram.page_indices(px, py, 4, 0, 0, MOOD_W, MOOD_H)
+    rect = {"x": px, "y": py, "w": MOOD_W // 4, "h": MOOD_H}
+    writers = vram.sources_in(rect["x"], rect["y"], rect["w"], rect["h"])  # load order: the last one wins
+    holder = [i for i in parsed["images"] if i["kind"] == "4bpp" and f"{vram_label}.MAP@0x{i['offset']:X}" in writers][-1]
+    cx, cy = MOOD_CLUT
+    words = [vram.word(cx + i, cy) for i in range(16)]
+    missing = loaded.count(0) + sum(1 for _, ok in words if not ok)
+    colors = [c for c, _ in words]
+    path = folder / "mood" / "faces.png"
+    png.write(path, png.encode_indexed(MOOD_W, MOOD_H, indices, [psx.color_to_rgba(c) for c in colors]))
+    spath = path.with_name("faces.stp.png")
+    png.write(spath, png.encode_gray(MOOD_W, MOOD_H, bytes(255 if colors[i] >> 15 else 0 for i in indices)))
+    outputs = [{"path": out._rel(path), "kind": "mood_faces", "encoding": "indexed4"},
+               {"path": out._rel(spath), "kind": "stp_mask", "encoding": "gray8"}]
+    out.check(f"{label}: mood bubble faces fully in loaded VRAM", missing == 0, f"{missing} texels/CLUT entries")
+    span = msrc.span(holder["offset"], holder["tim"].size)
+    sidecar = folder / "mood" / "faces.json"
+    record = {
+        "asset_id": span.asset_id, "family": NAME, "format": "VRAM (MAP 4bpp TIMs)",
+        "source": span.identity(), "psxprev_name": span.psxprev_name, "outputs": outputs,
+        "vram": {"page": {"x": px, "y": py, "bpp": 4}, "uv_rect": {"u": 0, "v": 0, "w": MOOD_W, "h": MOOD_H},
+                 "rect": rect, "clut": {"x": cx, "y": cy}, "clut_id": psx.get_clut(cx, cy), "colors": colors,
+                 "clut_sources": vram.sources_in(cx, cy, 16, 1), "tpage": MOOD_TPAGE, "attribute": 0x50000000,
+                 "sprite_size": 32, "faces": 5},
+        "source_images": [{"offset": i["offset"], "index": i["index"], "vram": i["tim"].vram_info()}
+                          for i in parsed["images"] if f"{vram_label}.MAP@0x{i['offset']:X}" in writers],
+        "code_refs": ["dw_decomp/src/main/script_common.c:271 MONOCHROMON_BUBBLE_SPRITE",
+                      "dw_decomp/src/main/script_common.c:1220 renderMonochromonMoodBubble, 3038 createMonochromonMoodBubble"],
+    }
+    _dump(sidecar, record)
+    out.assets.append({"asset_id": span.asset_id, "sidecar": out._rel(sidecar), "outputs": [o["path"] for o in outputs]})
+    return outputs
 
 
 def _background(tfs, setup: dict, palette: int) -> tuple:
@@ -358,6 +413,9 @@ def convert(input_root, output_root, map_ids=None) -> AssetWriter:
             slots = _training_slots(out, folder, vrams[next(iter(vrams))], msrc, parsed, mpath[:-4], label)
             outputs += slots["outputs"]
             slot_strips[name] = slots["key"]
+        # Monochromon's mood faces (the CLUT row 486 doesn't depend on the TFS palette either)
+        if name in MOOD_BUBBLE_MAPS:
+            outputs += _mood_faces(out, folder, vrams[next(iter(vrams))], msrc, parsed, mpath[:-4], label)
 
         # doors
         door_list = []
@@ -378,6 +436,17 @@ def convert(input_root, output_root, map_ids=None) -> AssetWriter:
                 missing = [t["missing_texels_in_uv_box"] for t in result["textures"]]
                 out.check(f"{label}: door {model:02d} textures fully covered", not any(missing), str(missing))
                 outputs.append({"path": out._rel(result["files"][0]), "kind": "door_model", "door_model": model})
+
+        # script-spawned props textured with this map's VRAM
+        for tpath in PROP_TMDS.get(name, []):
+            psrc = SourceFile.open(input_root, tpath)
+            tmd = tmdfmt.parse(psrc.data)
+            from .. import models
+            stem = tpath.split("/")[-1][:-4]
+            result = models.build(folder / "props" / stem, psrc.span(0, tmd.size).asset_id, tmd, vrams[next(iter(vrams))])
+            missing = [t["missing_texels_in_uv_box"] for t in result["textures"]]
+            out.check(f"{label}: prop {stem} textures fully covered", not any(missing), str(missing))
+            outputs.append({"path": out._rel(result["files"][0]), "kind": "prop_model", "tmd": tpath})
 
         overview = _overview(folder / "overview.png", backgrounds[0] if backgrounds else (128, 128, bytes(128 * 128 * 4)),
                              parsed, door_list, sprites_day)

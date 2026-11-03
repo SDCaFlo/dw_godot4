@@ -82,6 +82,8 @@ const KEY_FIELDS := [
 var data: Node
 var save_dir := ""
 var state := {}
+## Values the C keeps in static data, never saved, kept across new games and loads (port-only, C behaviour).
+var session := {}
 
 
 func _ready() -> void:

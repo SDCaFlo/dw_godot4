@@ -23,6 +23,13 @@ var care_host: CareHost
 ## The items on the ground and the chests (specs/map_items.md).
 var map_items: MapItems
 var map_chests: MapChests
+## The props logic and 3D view (specs/map_events.md §4.1.2).
+var map_props: MapProps
+var map_props_view: MapPropsView
+## The screen effects (specs/map_events.md §4.2.2).
+var map_effects: MapEffects
+## Monochromon's mood bubble on screen; the field puts it into the HUD.
+var mood_bubble_view: MoodBubbleView
 ## scriptTickChangeMap's SCRIPT_MAP_CHANGE_STATE.
 var _script_change_state := 0
 
@@ -39,6 +46,24 @@ func start_map_items() -> void:
 	map_chests.field = field_map
 	map_chests.game_state = GameState
 	world.add_child(map_chests)
+	map_props = MapProps.new(GameState.session)
+	map_props_view = MapPropsView.new()
+	map_props_view.name = "MapProps"
+	map_props_view.props = map_props
+	map_props_view.field = field_map
+	map_props_view.partner = partner
+	world.add_child(map_props_view)
+	map_effects = MapEffects.new()
+	map_effects.name = "MapEffects"
+	map_effects.field_map = field_map
+	map_effects.game_state = GameState
+	add_child(map_effects)
+	mood_bubble_view = MoodBubbleView.new()
+	mood_bubble_view.name = "MoodBubble"
+	mood_bubble_view.effects = map_effects
+	mood_bubble_view.field = field_map
+	mood_bubble_view.data = GameData
+	field_map.daytime_transition_removed.connect(_on_daytime_transition_removed)
 	tamer.map_items = map_items
 	tamer.map_chests = map_chests
 
@@ -76,6 +101,8 @@ func _load_map_at_exit(map_name: String, exit: int) -> bool:
 	if map_items != null:
 		map_items.clear()
 		map_chests.clear()
+	if map_props != null:
+		map_props.unload()
 	# changeMap's removeMapEntities, then loadMap's clearMapDigimon + loadMapDigimon (the NPCs
 	# appear when the MAPHEAD section's SET_DIGIMON places them).
 	if entities != null:
@@ -253,3 +280,9 @@ func debug_change_map(map_name: String, exit := 0) -> void:
 
 func _interpreter() -> ScriptInterpreter:
 	return scripts.interpreter if scripts != null else null
+
+
+## P21: removeObject(0xFBE, target) when a daytime fade ends or updateTimeOfDay cuts it (map.c:4307,
+## 4577; world_object.c:51) also finds the pedestal when the target time of day is 0.
+func _on_daytime_transition_removed(palette: int) -> void:
+	map_props.on_daytime_removal(Clock.PALETTE.find_key(palette))

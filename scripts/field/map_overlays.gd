@@ -32,6 +32,8 @@ const FADED_ROW_FIRST := 480
 const FADED_ROWS := [484, 486]
 const BACK_Y := 10000
 const ORDER_SNOW := 0x1E
+## buildMapOverlayPrim (overworld.c:499): order < 20 uses screen coordinates.
+const SCREEN_ORDER := 20
 ## buildMapOverlayPrim: transparency 4 is opaque; others blend with mode `transparency & 3`.
 const OPAQUE := 4
 ## updateMapLightState: the hours the light entries test (7 <= HOUR < 0x13).
@@ -196,7 +198,10 @@ func _show(inst: Dictionary) -> void:
 	var obj: Dictionary = _sprites[sprite]
 	var size := Vector2(int(obj["width"]), int(obj["height"]))
 	var corner := Vector2(inst["x"], inst["y"])
-	if inst["flag"] & SNOW:
+	if inst["order"] < SCREEN_ORDER:
+		# overworld.c:741-743, buildMapOverlayPrim mode 1 (screen coordinates)
+		corner = field.scroll + corner + FieldMap.SCREEN / 2
+	elif inst["flag"] & SNOW:
 		# buildSnowflakePrim: screen coordinates, not scrolled.
 		corner = field.scroll + Vector2(inst["x"] + inst.get("drift", 0), inst["y"])
 	var depth: float = inst["order"] * OT_UNIT
@@ -317,6 +322,19 @@ func load_positions(positions: Array, start: int) -> void:
 		inst["x"] = positions[i].x
 		inst["y"] = positions[i].y
 		inst["flag"] = _s8(inst["flag"] & ~0x10)
+		_show(inst)
+
+
+## renderNinjamonEffect (overworld.c:801): writes positions and order to instances.
+func set_positions(positions: Array, start: int, order: int) -> void:
+	for i in positions.size():
+		var k := start + i
+		if k < 0 or k >= _instances.size():
+			continue
+		var inst: Dictionary = _instances[k]
+		inst["x"] = positions[i].x
+		inst["y"] = positions[i].y
+		inst["order"] = order
 		_show(inst)
 
 

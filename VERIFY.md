@@ -643,3 +643,35 @@ How to get there fast: lose a battle (a strong wild Digimon, or Toy Town's trap 
    - The partner walks up to you before anything happens; then the iris closes (the partner over the black once it fills the window), the map changes, it dissolves as in 2.
    - Jijimon's egg panel: 4 eggs, ← → moves (cursor sound), ✕ closes the box. That egg hatches. The new partner keeps (tamer level) % of the old one's stats.
 4. **After any rebirth**: 3 hearts, lifetime 360 h, the baby's first technique equipped. A later natural death or last life lost works again (the care checks resume once the script is over).
+
+## Map events and the ending (`scripts/field/map_props*.gd`, `hosts/map_effects.gd`, `eab/`, `ending/`, `hosts/eab_host.gd`, `ending_host.gd`; `specs/map_events.md`)
+
+Code: `MapProps` / `MapPropsView` (the props), `MapEffects` with `MeramonShake`, `NinjamonEffect`, `MoodBubble` / `MoodBubbleView` and the `Fade`'s white mode (the screen effects), `EabScene` / `EabHost` / `EabView` (Machinedramon), `EndingScene` / `EndingHost` (the ending), `Game._end_game` (the credits); the routines and opcodes in `scripts/script/script_interpreter.gd`, the tamer's states 15 / 16 / 18.
+
+Automated: `test_map_events.gd` prints `OK: map event checks (321 run)`, `test_map_events_field.gd` `OK: map event field checks (315 run)`; `tests/exit_scan.tscn` prints `unported on the way: none`.
+
+How to get there: run `scenes/field/field.tscn` with `DW_START_MAP=<map>` set (or the Field node's **Start Map** in the Inspector, then F6). A map loaded this way runs only its MAPHEAD setup: a scene that its script starts from a trigger cell, an NPC or a warp's section doesn't play by itself. Key **D** in the game window runs the map script's sections one by one (the help line, **H**, names the one started; a script's section 0xFE is empty, so press D again). Run the editor's Project > Tools > "DW: Mirror dw1 assets" first if you use the mirror: the porter added `maps/<NAME>/props/` and `maps/GCAN11/mood/`.
+
+1. **Props** (script ids are not map ids: the maps below are the ones whose MAPHEAD sets the script):
+   - Underground Pond (TUNN05), Drimogemon's digging: a textured dirt pile shrinks a step at each dig and is gone below 6/15 of its size; the partner pushes a cart in front of it, turning with it. Drill Tunnel (TUNN01) has the cart too.
+   - Drill Tunnel 2nd floor (TUNN06): a boulder appears, rolls as the script moves it, then disappears.
+   - Toy Mansion (OMOC08): a big and a small box, textured; the chosen one's lid swings open over 11 frames.
+   - Robot House (OMOC03): the gearbox, textured.
+   - Ice Sanctuary (ICSA01): the pedestal slides 500 units away, shaking ±5 sideways, over 50 frames.
+2. **Screen effects:**
+   - Lava Cave (TUNN08), Meramon: the 3D world shakes sideways for 10.5 s; the background doesn't.
+   - Digimon Bridge (MAYO08A), Ninjamon: the map's sprites streak to the right for 3 s, then vanish.
+   - The Monochrome Shop (GCAN11), while bargaining: one of 5 faces (32 × 32, happy to furious) pops up over the customer's head and grows for 1.5 s.
+   - Ogre Fortress (OGRE03), Ice Sanctuary (ICSA06), Mt. Infinity (MGEN99): the screen fades to white and back; the clock keeps running.
+3. **Machinedramon** (Mt. Infinity, MGEN99, script 184 section 0x33: from the start of the map, press **D** twice, or play up to "Your turn, Machinedramon!"):
+   - Build-up: flat rings swell and shrink round the spot where he'll stand, three at a time, new ones every 6 frames; he isn't there yet.
+   - Spawn: nine flashes, then the screen turns black and fades back over about 1.5 s. Everything but Machinedramon is hidden (the tamer, the partner, the map's objects), against a black backdrop.
+   - He forms from flickering grey outlines while the camera swings round him; green line squares spread from his feet, behind him; rings pulse at his feet.
+   - About 16 s in, the map, everyone and the map's camera come back; then the battle.
+   - Stand-in: the flash is drawn over the 3D world but under the HUD, so the clock shows through the black.
+4. **The ending** (File City TEND01 / TEND02, script 192 section 0x33). The game runs it through Machinedramon's warp (`WARP_TO screen=236 / 237 section=51`), not by entering the map: loaded on its own, everyone stands there and nothing happens until you press **D** (twice).
+   - The farewell's dialogue, then the game-clear save menu (picking a slot writes a real "game cleared" save there).
+   - The tamer turns see-through (added to the picture), loses his shadow and fades out over 3 s while grey sparks gather on his body; he shrinks, then pops to 1.5×, and the sparks shoot up and stop.
+   - Then the credits (movie 3; Start doesn't skip it), then the title. Only when the game runs from its main scene (`Game`): with `field.tscn` on its own, the screen stays on the field after the sparks.
+   - Stand-in: the fade multiplies the tamer's colours (the C fades each palette colour in 5-bit integer steps).
+5. **The whole path:** from the main scene, a save on Mt. Infinity before Machinedramon: the build-up, the spawn, the battle, the white fade, the warp to File City, the farewell, the save, the ending, the credits, the title. A later Continue from that save plays movie 2 and starts in File City.

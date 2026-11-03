@@ -13,6 +13,9 @@ extends RefCounted
 signal unported(op: int, name: String)
 ## The script has ended (IS_SCRIPT_PAUSED set and cleaned up).
 signal ended
+## Routine 0x35's wait saw the ending's sync bit (case 53, script_interp.c:516-520): MAIN_STATE = 3, the
+## game loop ends after this frame (main.c:3522: cleanupGame, the credits, the title).
+signal game_ended
 
 ## The longjmp codes of the instruction handlers (tickScript, script_interp.c:600-632).
 const NEXT := 1
@@ -67,6 +70,16 @@ const ROUTINE_DYING := 3
 const ROUTINE_REBIRTH := 4
 const ROUTINE_COLLAPSE := 7
 const ROUTINE_BATTLE_LOSS := 9
+## CALL_DIGIMON_ROUTINE 5 / 6: the opening (tamer state 15) and the ending (16), partner state 11
+## (partner.c:1166-1175).
+const ROUTINE_OPENING := 5
+const ROUTINE_ENDING := 6
+## CALL_ROUTINE 0x35's wait (case 53).
+const ROUTINE_START_ENDING := 0x35
+## CALL_DIGIMON_ROUTINE 8: Machinedramon's spawn (tamer state 18, partner state 11; partner.c:1189).
+const ROUTINE_MACHINEDRAMON := 8
+## CALL_ROUTINE 0x28: EAB_startBuildup on the entity of script id 5 (script_interp.c:1855).
+const BUILDUP_SCRIPT_ID := 5
 const ROUTINE_EVOLVE := 10
 const PSTAT_SUKAMON_BACKUP := 5
 const PSTAT_EVOLUTION := 0xFE
@@ -159,6 +172,19 @@ var sound: Node
 ## them those opcodes are skipped and reported.
 var map_items: MapItems
 var map_chests: MapChests
+## The map props (specs/map_events.md §4.1.2): dirt cart, dirt pile, boulder, boxes, gearbox, pedestal.
+## Without them the routines and opcodes stay unported.
+var map_props: MapProps
+## The screen fade (specs/map_events.md §4.2.2): fadeToWhite, fadeFromWhite.
+var fade: Fade
+## The screen effects (specs/map_events.md §4.2.2): shake, ninjamon, mood bubble.
+var map_effects: MapEffects
+## Machinedramon's build-up and spawn (EabHost); null: routines 0x33 / 0x28 and digimon routine 8 unported.
+var eab: EabHost
+## The ending (EndingHost); null: routines 0x34 / 0x35 and digimon routines 5 / 6 unported.
+var ending: EndingHost
+## A waiting builtin's tick ended the frame (longjmp 2).
+var _wait_ended_frame := false
 ## The field's battles (BattleHost, specs/battle.md §5.3): start_battle(talked_entity),
 ## battle_done() and battle_outcome(). Without it START_BATTLE is skipped and reported.
 var battles: Object
@@ -269,6 +295,9 @@ func tick_script() -> bool:
 			pause_game(0xFF)
 			ctx.map_change = 0
 	_tick_waiting_instruction()
+	if _wait_ended_frame:
+		_wait_ended_frame = false
+		return ctx.is_paused
 	if ctx.map_change != 0 or ctx.active_instruction != 0:
 		return ctx.is_paused
 	var count := 0
@@ -307,6 +336,16 @@ func _tick_waiting_instruction() -> void:
 			# The ported builtins tick until they end (ACTIVE_INSTRUCTION = 0); the others end at once.
 			if routines != null and routines.handles(ctx.script_param_1):
 				routines.tick(ctx.script_param_1)
+			elif ctx.script_param_1 == 0x32 and map_props != null:
+				# case 50 (script_interp.c:506-509)
+				if map_props.move_pedestal():
+					ctx.active_instruction = 0
+			elif ctx.script_param_1 == ROUTINE_START_ENDING and ending != null:
+				# case 53 (script_interp.c:516-520): the sync bit ends the game, then the frame.
+				if ctx.sync_bit == 1:
+					ctx.active_instruction = 0
+					_wait_ended_frame = true
+					game_ended.emit()
 			else:
 				ctx.active_instruction = 0
 		OP_WAIT_FOR_ENTITY:
@@ -608,6 +647,11 @@ func _actor(slot: int) -> Node3D:
 	if entities != null and slot < 10:
 		return entities.entity(slot)
 	return null
+
+
+## getEntityFromScriptId (script_interp.c:644, scriptIdToEntityId); null when there is none.
+func entity_for_script_id(script_id: int) -> Node3D:
+	return _entity_for_script_id(script_id)
 
 
 ## getEntityFromScriptId; null when there is none.
@@ -1193,6 +1237,21 @@ func _op_64_7e(op: int) -> int:
 			var z := _s16(_u16())
 			var rotation := _s16(_u16())
 			map_chests.spawn(item, Vector3i(x, y, z), rotation, _u16())
+		0x76 when map_props != null:
+			# SPAWN_BOULDER (script_interp.c:2129)
+			ctx.next_byte()
+			map_props.spawn_boulder()
+		0x77 when map_props != null:
+			# MOVE_BOULDER (script_interp.c:2133): byte, two signed shorts, ends the frame (longjmp 2)
+			ctx.next_byte()
+			var x := _s16(_u16())
+			var z := _s16(_u16())
+			map_props.move_boulder(x, z)
+			return STOP
+		0x78 when map_props != null:
+			# DESPAWN_BOULDER (script_interp.c:2138)
+			ctx.next_byte()
+			map_props.despawn_boulder()
 		_:
 			return _unported_op(op)
 	return NEXT
@@ -1327,6 +1386,21 @@ func call_digimon_routine(routine: int) -> void:
 		ctx.sync_bit = 0
 		_sync_scene = true
 		return
+	# 5 / 6: the opening (tamerTickOpening) and the ending (tamerTickEnding).
+	if (routine == ROUTINE_OPENING or routine == ROUTINE_ENDING) and partner != null and tamer != null \
+			and (routine == ROUTINE_OPENING or ending != null):
+		tamer.set_state(Tamer.STATE_OPENING if routine == ROUTINE_OPENING else Tamer.STATE_ENDING)
+		partner.set_state(Partner.STATE_IDLE)
+		ctx.sync_bit = 0
+		_sync_scene = true
+		return
+	# 8: Machinedramon's spawn (tamerTickMachinedramonSpawn waits for EAB_tick, then sets the bit).
+	if routine == ROUTINE_MACHINEDRAMON and partner != null and tamer != null and eab != null:
+		tamer.set_state(Tamer.STATE_MACHINEDRAMON_SPAWN)
+		partner.set_state(Partner.STATE_IDLE)
+		ctx.sync_bit = 0
+		_sync_scene = true
+		return
 	# Routines past 10 aren't cases of the C's switch: nothing happens (the gyms call 214).
 	if routine > ROUTINE_LAST:
 		return
@@ -1364,12 +1438,79 @@ func _call_routine(routine: int) -> int:
 		0x10:
 			textboxes.trigger_box_close_flag(2)
 			return STOP
+		0x13 when map_props != null:
+			# setDirtCartModel (script_interp.c:1753-1756)
+			map_props.set_dirt_cart_model(ctx.read_pstat(0xFE))
+			return STOP
+		0x14 when map_props != null:
+			# decreaseDirtPileSize (script_interp.c:1757-1759)
+			map_props.decrease_dirt_pile()
+			return STOP
 		0x19:
 			ctx.saved_pstat0 = ctx.read_pstat(0xFE)
+		0x1A when map_props != null:
+			# loadDirtCartModel (script_interp.c:1777-1779)
+			map_props.load_dirt_cart()
+		0x1B when map_props != null:
+			# loadDirtPileModel (script_interp.c:1780-1782)
+			map_props.load_dirt_pile()
+		0x1C when map_effects != null:
+			# createMonochromonMoodBubble (script_interp.c:1783-1785)
+			map_effects.create_mood_bubble()
 		0x1E:
 			ctx.shop_variable = 0
 		0x1F:
 			ctx.shop_variable += ctx.read_pstat(0xF4) + (ctx.read_pstat(0xF3) << 8)
+		0x22 when map_effects != null:
+			# createMeramonShake (script_interp.c:1814-1816)
+			map_effects.start_meramon_shake()
+		0x26 when map_effects != null:
+			# createNinjamonEffect (script_interp.c:1838-1840)
+			map_effects.start_ninjamon()
+		0x29 when map_props != null:
+			# spawnGearbox (script_interp.c:1870-1872)
+			map_props.spawn_gearbox()
+		0x2A when map_props != null:
+			# somethingToyTown (script_interp.c:1873-1875). Its readMapTFS(0x92) rereads the Robot
+			# House's own TFS (routine 0x2A runs only in OMOC03's script 140): nothing changes on screen
+			# (specs/map_events.md §3.5, §8.1).
+			map_props.set_box(_s8(ctx.read_pstat(0xFE)), game_state.is_trigger_set(350))
+		0x2B when map_props != null:
+			# spawnToyTownBoxes (script_interp.c:1876-1878)
+			map_props.spawn_toy_town_boxes()
+		0x2C when map_props != null:
+			# openToyTownBox (script_interp.c:1879-1881)
+			map_props.open_box(_s8(ctx.read_pstat(0xFE)))
+		0x28 when eab != null:
+			# EAB_startBuildup(ENTITY_TABLE[scriptIdToEntityId(5)]) (script_interp.c:1853-1856)
+			eab.start_buildup(_entity_for_script_id(BUILDUP_SCRIPT_ID))
+		0x34 when ending != null:
+			# OP.TIM, ENDI_REL, loadMapSounds2(0x14) (script_interp.c:1848-1852)
+			ending.load_scene()
+		0x35 when ending != null and tamer != null:
+			# isSoundLoaded(0, 8), tamerSetState(0x10), the sync bit cleared, the wait (script_interp.c:1858-1864)
+			tamer.set_state(Tamer.STATE_ENDING)
+			ctx.sync_bit = 0
+			ctx.active_instruction = ScriptContext.OP_CALL_ROUTINE
+			ctx.textbox_mode = 0
+			return STOP
+		0x33 when eab != null:
+			# BOSS_EFE.TMD, EAB_REL, readVBALLSection(5, 0x73), loadMapSounds2(0x15) (script_interp.c:1841-1846)
+			eab.load_scene()
+		0x2D when fade != null:
+			# fadeToWhite (script_interp.c:1882-1884)
+			fade.fade_to_white(ctx.read_pstat(0xFE))
+		0x2E when fade != null:
+			# fadeFromWhite (script_interp.c:1885-1887)
+			fade.fade_from_white(ctx.read_pstat(0xFE))
+		0x31 when map_props != null:
+			# spawnAngemonPedestal (script_interp.c:1888-1890)
+			map_props.spawn_pedestal()
+		0x32 when map_props != null:
+			# moveAngemonPedestal setup (script_interp.c:1770-1774)
+			ctx.active_instruction = ScriptContext.OP_CALL_ROUTINE
+			ctx.textbox_mode = 0
+			return STOP
 		0x38:
 			game_state.set_script_value(0xF3, (ctx.shop_variable / 256) & 0xFF)
 			game_state.set_script_value(0xF4, ctx.shop_variable & 0xFF)

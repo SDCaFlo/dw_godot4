@@ -188,28 +188,4 @@ static func load_strip(map_name: String, palette: int) -> PsxTexture:
 	var rel := TEXTURES % [map_name, palette]
 	if map_name == "" or not Content.exists(rel + ".png"):
 		return null
-	var texture := Content.load_texture(rel + ".png")
-	if texture == null:
-		return null
-	var image := texture.get_image()
-	if image.is_compressed():
-		image.decompress()
-	image.convert(Image.FORMAT_RGBA8)
-	var mask: Image = null
-	if Content.exists(rel + ".stp.png"):
-		var m := Content.load_texture(rel + ".stp.png")
-		mask = m.get_image() if m != null else null
-		if mask != null and mask.is_compressed():
-			mask.decompress()
-	var base := image.duplicate()
-	var stp := Image.create(image.get_width(), image.get_height(), false, Image.FORMAT_RGBA8)
-	if mask != null:
-		for y in image.get_height():
-			for x in image.get_width():
-				if mask.get_pixel(x, y).r > 0.5 and image.get_pixel(x, y).a > 0.0:
-					stp.set_pixel(x, y, image.get_pixel(x, y))
-					base.set_pixel(x, y, Color(0, 0, 0, 0))
-	var result := PsxTexture.new()
-	result.base = ImageTexture.create_from_image(base)
-	result.stp = ImageTexture.create_from_image(stp)
-	return result
+	return PsxTexture.load_masked(rel)

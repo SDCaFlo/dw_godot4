@@ -8,6 +8,10 @@ extends Node3D
 ## 100 units. The camera reproduces GsSetRefView2 + the drawing offset of the original
 ## (map.c: setupMap, initializeDrawingOffsets, updateDrawingOffsets).
 
+## P21: emitted in set_time_of_day when a daytime fade is running (_transition_frame >= 0)
+## before _end_transition() (map.c:4307, 4577; specs/map_events.md §4.1.2).
+signal daytime_transition_removed(palette: int)
+
 const SCREEN := Vector2(320, 240)
 const CELL := 100
 const GRID := 100
@@ -124,6 +128,8 @@ func display_name() -> String:
 ## 0 day, 1 evening, 2 night (updateTimeOfDay); maps with one palette always show palette 0.
 ## Ends a running fade, as updateTimeOfDay removes the transition object (map.c:4307).
 func set_time_of_day(value: int) -> void:
+	if _transition_frame >= 0:
+		daytime_transition_removed.emit(_transition_target)
 	time_of_day = value
 	_end_transition()
 	# The lights change with the palette (specs/lighting.md §2.1); maps without a time of day (flag
@@ -530,12 +536,22 @@ func projection() -> float:
 	return _projection
 
 
+## What Meramon's shake adds to DRAWING_OFFSET_X (map.c:5482, port-only name).
+var offset_shake := Vector2.ZERO
+
+
+## Stores offset_shake and updates the frustum shift (map.c:5482, port-only).
+func set_offset_shake(v: Vector2) -> void:
+	offset_shake = v
+	_apply_scroll()
+
+
 ## The drawing offset (DRAWING_OFFSET_X / Y): the projection centre's screen pixel. The battle
 ## effects' screen primitives are placed relative to it.
 func drawing_offset() -> Vector2:
 	if _scene_view:
-		return _scene_offset
-	return background_size / 2 - scroll
+		return _scene_offset + offset_shake
+	return background_size / 2 - scroll + offset_shake
 
 
 ## The Godot point at view depth `depth` drawn at screen position `relative` (pixels from the

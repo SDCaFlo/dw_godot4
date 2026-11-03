@@ -65,6 +65,10 @@ Findings (all three maps give **identical** strips, indices and both palettes):
 - p3: the symbols at u 0–223 (HP heart, MP circle, Offense, Defense, Speed arrows, Brains bulb, poop), index 0 = 0x0000 (transparent); **no colour has the STP bit**, so the symbols' semi-transparent mode never applies (drawn opaque).
 - p4: every colour has the STP bit (0xFFFF … 0x8000, white to black); the window column u 0xE0–0xE7 is index 0 (white) at the top and bottom rows and 15 (0x8000, black) in the middle, so the subtraction darkens the reel's edges and leaves the pay line clear. u 0xE8–0xFF is index 0.
 
+### Monochromon's mood faces (the Monochrome Shop)
+
+`createMonochromonMoodBubble` / `renderMonochromonMoodBubble` (`script_common.c:3038`, 1220; `../../specs/map_events.md` S9–S11) draw `MONOCHROMON_BUBBLE_SPRITE` (`script_common.c:271`): 32 × 32, tpage 0x0A (`getTPage(0, 0, 640, 0)`: 4bpp page (640, 0)), u = mood · 32 (moods 0–4), v 0, CLUT (0, 486) = row-486 palette 0, attribute 0x50000000 (semi-transparent, rate 1: STP texels add). It has no texture of its own. Routine 0x1C is called by scripts 199–202, which script 49 jumps to (`JUMP_TO_FILE`): map 49 **GCAN11**, the Monochrome Shop (`MOOD_BUBBLE_MAPS` in `families/maps.py`), whose 4bpp image 0 is exactly that rect (640, 0, 40 × 32 words = 160 × 32 texels: the five faces).
+
 ## Camera (verified)
 
 `GsSetRefView2`: eye = viewpoint × 2, target = reference × 2 (PSX axes, +Y down); camera right = down × forward, screen down = forward × right. A point projects to `screen = H · (x/z, y/z)`; the screen centre shows the background centre at load (`setupMap`: cameraX = width·128/2 − 160, drawing offset 160, 120), so
@@ -91,6 +95,8 @@ For Godot (axes x, −y, −z): camera at `(eye.x, −eye.y, −eye.z)` looking 
 | `training/slots_p3.png`, `slots_p4.png` | training maps only: the slot strip (256 × 32, page (704, 0) v 0xD8–0xF7) as indexed PNG keeping the 4bpp indices, through CLUT (48, 486) / (64, 486) |
 | `training/slots_p<p>.stp.png` | grey mask, 255 where the texel's colour has the STP bit (always written: all 0 for p3, all 255 for p4) |
 | `training/slots.json` | sidecar: `asset_id` = the image holding the strip, `vram` (page, uv rect, VRAM rect, per palette: CLUT pos + id, raw u16 colours, CLUT source, tpage + semi-trans rate, drawing sprite), `source_images` (every image writing into the rect, load order), `code_refs` |
+| `props/<NAME>.gltf` (+ textures) | the script-spawned props whose TMDs read the map's VRAM (`PROP_TMDS` in `families/maps.py`: T_YAMA on TUNN05, BIGBOX / SMABOX on OMOC08, GAND on OMOC03, ABOX on ICSA01, BOSS_EFE on MGEN99; `../../specs/map_events.md` §1), textured with this map's VRAM like the doors |
+| `mood/faces.png`, `faces.stp.png`, `faces.json` | GCAN11 only: u 0–159, v 0–31 of the 4bpp page (640, 0) as indexed PNG through CLUT (0, 486), its STP mask, and a sidecar like `training/slots.json` (page, uv rect, VRAM rect, CLUT pos + id + raw colours + sources, tpage, attribute, `source_images`, `code_refs`) |
 | `overview.png` | **human check**: background (palette 0) + object sprites (frame 0, opaque) + walkable cells (green), trigger cells (orange), spawns (cyan), NPC digimon (yellow), doors (magenta) |
 | `map.json` | everything: table entry (incl. display name, sound, flags), header, setup, camera, TFS palettes + tile headers, image TIM headers/VRAM, objects (+ placement in VRAM, missing texels, whether used), instances, spawns, warps (+ target map name), digimon (+ type name, stats, AI, waypoints), doors, toilet, collision values, overview counts |
 
@@ -100,7 +106,9 @@ For Godot (axes x, −y, −z): camera at `(eye.x, −eye.y, −eye.z)` looking 
 - MAP and TFS parse; TFS ends exactly after its tiles; MAP bytes explained.
 - Sprites used by object instances are fully in loaded VRAM (unused definitions may point at unloaded CLUTs, e.g. MAYO10 object 17). UVs wrap inside the page like the GPU's 8-bit UVs (MIST02 object 10 is 480 px tall, FACT08B object 89 crosses u = 256; `uv_wraps` in `map.json`). **Exception:** GIAS06B objects 63–66 use CLUT row 485, which neither the map nor its TFS loads (its twin GIAS06A has the same images); it must come from an event or leftover VRAM — sprites are exported with those texels transparent. Same for **ICSA05** (Ice Sanctuary, map 101, reached only through warp crystals): objects 0–2 read 4bpp pages at x = 448 / 512 that the map does not load.
 - Door textures fully covered by the map's VRAM.
+- Prop textures (`props/`) fully covered by the map's VRAM.
 - Training maps: the slot strip and its two CLUTs fully in loaded VRAM. Informational (always passes, detail + `manifest.json` `training_slots`): whether the three maps' strips are identical.
+- GCAN11: the mood faces and their CLUT fully in loaded VRAM.
 - Projected collision lands on the background.
 
 ## Open questions

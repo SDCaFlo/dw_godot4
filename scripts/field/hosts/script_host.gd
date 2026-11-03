@@ -17,6 +17,7 @@ var entities: FieldEntities
 var clock: Clock
 var map_items: MapItems
 var map_chests: MapChests
+var map_props: MapProps
 
 ## The text area and the six UI boxes everything that shows text shares (specs/text.md); the field
 ## puts the boxes and the map name into the HUD. All null without the game data.
@@ -99,6 +100,7 @@ func start() -> void:
 	tamer.sound = Sound
 	interpreter.map_items = map_items
 	interpreter.map_chests = map_chests
+	interpreter.map_props = map_props
 	# The ported builtin routines (shops, ...): the Routines node's children (specs/shops.md §3).
 	clouds = CloudFX.new()
 	clouds.name = "CloudFX"

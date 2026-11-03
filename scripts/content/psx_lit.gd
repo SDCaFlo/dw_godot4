@@ -79,6 +79,25 @@ static func blended(texture: Texture2D, abr: int, double_sided := true, lit := f
 	return m
 
 
+## Every polygon of a model made semi-transparent with `abr`, every texel blended (ENDI_setModelSemiTrans
+## with ENDI_setClutStp: each non-black colour gets STP, black loses it and is transparent; with abr 1
+## a black texel adds nothing, so one blended pass is the same; specs/map_events.md §4.4.2): each
+## surface's PsxLit material replaced by one blended pass with its texture, sidedness and lighting.
+static func semi_transparent(model: Node, abr: int) -> void:
+	for node in model.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi is DropShadow or mi.mesh == null:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var source := mi.get_active_material(i) as ShaderMaterial
+			if source == null:
+				continue
+			var double := source.shader == _SHADERS[false][true] or source.shader == _SHADERS[true][true]
+			var tex: Texture2D = source.get_shader_parameter("albedo_texture")
+			var m := blended(tex, abr, double, bool(source.get_shader_parameter("lit")))
+			mi.set_surface_override_material(i, m)
+
+
 ## The opaque shaders without depth writes: [double-sided].
 const _BACKDROP := {false: preload("res://shaders/psx_lit/opaque_backdrop.gdshader"),
 		true: preload("res://shaders/psx_lit/opaque_double_backdrop.gdshader")}

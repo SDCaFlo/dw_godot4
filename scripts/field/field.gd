@@ -49,6 +49,10 @@ var boot := false
 
 var _maps: PackedStringArray
 
+## MAIN_STATE = 3 (routine 0x35's wait, the ending over): the game loop ends after this frame
+## (main.c:3522); Game frees the field and plays the credits.
+signal game_ended
+
 @onready var _field: FieldMap = $World/SubViewport/FieldMap
 @onready var _tamer: Tamer = $World/SubViewport/Tamer
 @onready var _label: Label = $Hud/Label
@@ -66,6 +70,8 @@ var _maps: PackedStringArray
 @onready var battle_host: BattleHost = $Systems/BattleHost
 @onready var death_host: DeathHost = $Systems/DeathHost
 @onready var evolution_host: EvolutionHost = $Systems/EvolutionHost
+@onready var eab_host: EabHost = $Systems/EabHost
+@onready var ending_host: EndingHost = $Systems/EndingHost
 @onready var tournament_host: TournamentHost = $Systems/TournamentHost
 @onready var arena: Arena = $Systems/Arena
 @onready var debug: DebugHost = $Debug
@@ -142,6 +148,7 @@ func _start() -> void:
 	scripts.clock = clock
 	scripts.map_items = map_session.map_items
 	scripts.map_chests = map_session.map_chests
+	scripts.map_props = map_session.map_props
 	scripts.arena = arena
 	scripts.start()
 	scripts.message.connect(debug.show_message)
@@ -157,6 +164,11 @@ func _start() -> void:
 	care_host.debug_partner = debug_partner
 	care_host.start()
 	care_host.message.connect(debug.show_message)
+	if scripts.interpreter != null:
+		scripts.interpreter.fade = care_host.fade
+		if map_session.map_effects != null:
+			map_session.map_effects.interpreter = scripts.interpreter
+			scripts.interpreter.map_effects = map_session.map_effects
 	menu_host.tamer = _tamer
 	menu_host.partner = partner
 	menu_host.care = care_host.care
@@ -242,7 +254,35 @@ func _start() -> void:
 	evolution_host.start()
 	$World/SubViewport/Background.add_child(evolution_host.background_dark)
 	$World/SubViewport/Background.add_child(evolution_host.particles_view)
+	# Machinedramon's build-up and spawn (specs/map_events.md §4.3.2): routines 0x33 / 0x28 and the
+	# tamer's state 18; its backdrop and lines go on the background layer, after the evolution's.
+	eab_host.field_map = _field
+	eab_host.entities = entities.entities
+	eab_host.sound = Sound
+	eab_host.data = GameData
+	eab_host.map_layer_nodes = map_layer_nodes
+	eab_host.world = _world
+	eab_host.background = $World/SubViewport/Background
+	eab_host.start()
+	_tamer.eab = eab_host
+	if scripts.interpreter != null:
+		scripts.interpreter.eab = eab_host
+	# The ending (specs/map_events.md §4.4.2): routines 0x34 / 0x35, the tamer's states 15 / 16; the
+	# game's end goes to Game (game_ended).
+	ending_host.tamer = _tamer
+	ending_host.field_map = _field
+	ending_host.sound = Sound
+	ending_host.data = GameData
+	ending_host.map_layer_nodes = map_layer_nodes
+	ending_host.world = _world
+	_tamer.ending = ending_host
+	_tamer.map_layer_nodes = map_layer_nodes
+	if scripts.interpreter != null:
+		scripts.interpreter.ending = ending_host
+		scripts.interpreter.game_ended.connect(func() -> void: game_ended.emit())
 	map_session.partner = partner
+	if map_session.map_props_view != null:
+		map_session.map_props_view.partner = partner
 	map_session.entities = entities.entities
 	map_session.scripts = scripts
 	map_session.clock = clock
@@ -303,7 +343,7 @@ func _start_debug() -> void:
 	debug.window.ui_filter_changed.connect(func(on: bool) -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
-	for node: Node in [care_host.bars, care_host.bubbles, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
+	for node: Node in [care_host.bars, care_host.bubbles, map_session.mood_bubble_view, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
 			care_host.fade, scripts.boxes, death_host.darken,
 			scripts.map_name]:
 		if node != null:
@@ -314,7 +354,7 @@ func _start_debug() -> void:
 ## ground, the chests, the poop), which a technique may hide for a frame.
 func map_layer_nodes() -> Array:
 	return [_field.get_node_or_null("Doors"), _field.overlays, map_session.map_items, map_session.map_chests,
-			care_host.poop]
+			map_session.map_props_view, care_host.poop]
 
 
 ## One game frame, in the original's object order (specs/scenes.md §3): the tamer and the partner
@@ -360,7 +400,14 @@ func _frame() -> void:
 		scripts.tick_objects()
 		death_host.tick_objects()
 		evolution_host.tick_objects()
+		eab_host.tick_objects()
+		ending_host.tick_objects()
 		_field.overlays.tick()
+		if map_session.map_props_view != null:
+			map_session.map_props_view.render()
+		if map_session.map_effects != null:
+			map_session.map_effects.tick()
+			map_session.mood_bubble_view.refresh()
 	debug.tick_message()
 	debug.tick_gallery()
 	care_host.tick_visuals(in_menu)

@@ -230,6 +230,28 @@ static func psx_yaw(vy: float) -> float:
 	return -vy * TAU / PSX_TURN
 
 
+## A PSX 3x4 matrix (PackedInt32Array) to a Godot Transform3D (specs/map_events.md §4.1.2).
+static func psx_transform(m: PackedInt32Array) -> Transform3D:
+	var f := [1.0, -1.0, -1.0]
+	var cols: Array[Vector3] = []
+	for j in 3:
+		cols.append(Vector3(f[0] * m[j] * f[j], f[1] * m[3 + j] * f[j], f[2] * m[6 + j] * f[j]) / 4096.0)
+	var basis := Basis(cols[0], cols[1], cols[2])
+	var origin := psx_to_godot([m[9], m[10], m[11]])
+	return Transform3D(basis, origin)
+
+
+
+## A Godot basis as a PSX rotation matrix (4096 = 1.0; int16 entries): F · B · F with F the flip
+## (x, -y, -z); psx_transform's inverse for the rotation (moved from FieldBattleWorld).
+static func psx_matrix(b: Basis) -> PackedInt32Array:
+	var f := [1.0, -1.0, -1.0]
+	var m := PsxMath.identity()
+	for i in 3:
+		for j in 3:
+			m[i * 3 + j] = PsxMath.s16(roundi(f[i] * b[j][i] * f[j] * 4096.0))
+	return m
+
 # --- Editor mirror ---------------------------------------------------------------------------
 
 ## Copies the MIRROR selection of the porter output into res://content/dw1/ (new or changed files

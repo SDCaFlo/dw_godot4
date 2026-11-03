@@ -1,7 +1,7 @@
 extends SceneTree
 ## The map events' wiring on a field (specs/map_events.md §4.1.2, §7), on the porter output:
 ##   DW_STEP_4F=<n> godot --headless --path . -s res://tests/test_map_events_field.gd
-## DW_STEP_4F gives the last built step (0: none); a later step's checks are reported PENDING.
+## Steps 1-6 are built, so every check runs (DW_STEP_4F=<n> still limits them to the steps up to n).
 ## Exits 1 if a check fails.
 
 var _failed := 0
@@ -23,7 +23,8 @@ func _process(_delta: float) -> bool:
 	if _started:
 		return false
 	_started = true
-	_step = int(OS.get_environment("DW_STEP_4F")) if OS.get_environment("DW_STEP_4F").is_valid_int() else 0
+	# Steps 1-6 are built (spec §6): every check runs; DW_STEP_4F=<n> can still limit them.
+	_step = int(OS.get_environment("DW_STEP_4F")) if OS.get_environment("DW_STEP_4F").is_valid_int() else 6
 	data = load("res://scripts/data/game_data.gd").new()
 	if not data.available() or not Content.exists("maps/MAYO01/map.json"):
 		print("SKIP: porter output missing")
@@ -207,7 +208,7 @@ func _routines() -> void:
 	gs.set_trigger(350)
 	_run([0x64, 0x2A, 0xFE, 0])
 	_frames(2)
-	_check("readMapTFS (step 7)" in unported, "0x2A with trigger 350: the TFS reload reported")
+	_check(not "readMapTFS (step 7)" in unported, "0x2A with trigger 350: OMOC03 rereads its own TFS, nothing to report (§3.5)")
 	# 0x29 gearbox.
 	props.open_box(1)
 	_run([0x64, 0x29, 0xFE, 0])

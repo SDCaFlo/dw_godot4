@@ -1,7 +1,7 @@
 extends SceneTree
 ## The map events (specs/map_events.md §7), one block per step of §6:
 ##   DW_STEP_4F=<n> godot --headless --path . -s res://tests/test_map_events.gd
-## DW_STEP_4F gives the last built step (0: none); a later step's checks are reported PENDING.
+## Steps 1-6 are built, so every check runs (DW_STEP_4F=<n> still limits them to the steps up to n).
 ## Exits 1 if a check fails.
 
 const PROPS_PATH := "res://scripts/field/map_props.gd"
@@ -17,7 +17,8 @@ func _process(_delta: float) -> bool:
 	if _started:
 		return false
 	_started = true
-	_step = int(OS.get_environment("DW_STEP_4F")) if OS.get_environment("DW_STEP_4F").is_valid_int() else 0
+	# Steps 1-6 are built (spec §6): every check runs; DW_STEP_4F=<n> can still limit them.
+	_step = int(OS.get_environment("DW_STEP_4F")) if OS.get_environment("DW_STEP_4F").is_valid_int() else 6
 	if _gate(1, "step 1: MapProps logic"):
 		_props()
 	if _gate(3, "step 3: screen-effect logic"):

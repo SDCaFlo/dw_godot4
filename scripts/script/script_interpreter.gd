@@ -1471,10 +1471,10 @@ func _call_routine(routine: int) -> int:
 			# spawnGearbox (script_interp.c:1870-1872)
 			map_props.spawn_gearbox()
 		0x2A when map_props != null:
-			# somethingToyTown (script_interp.c:1873-1875)
-			var reload := map_props.set_box(_s8(ctx.read_pstat(0xFE)), game_state.is_trigger_set(350))
-			if reload:
-				_report(ScriptContext.OP_CALL_ROUTINE, "readMapTFS (step 7)")
+			# somethingToyTown (script_interp.c:1873-1875). Its readMapTFS(0x92) rereads the Robot
+			# House's own TFS (routine 0x2A runs only in OMOC03's script 140): nothing changes on screen
+			# (specs/map_events.md §3.5, §8.1).
+			map_props.set_box(_s8(ctx.read_pstat(0xFE)), game_state.is_trigger_set(350))
 		0x2B when map_props != null:
 			# spawnToyTownBoxes (script_interp.c:1876-1878)
 			map_props.spawn_toy_town_boxes()

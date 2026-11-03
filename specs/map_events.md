@@ -1,6 +1,6 @@
 # Map events and the ending (step 4f)
 
-Status (2026-11-02): **approved.** The open questions (§8) stay open: the port does what the C reads, and the user checks in the game later. This is step 4f of `PLANS.md`, from the gap analysis after 4e-4. The scripts' remaining builtins and opcodes run as no-ops today (`ScriptInterpreter.UNPORTED` / `ROUTINE_WAITS`), so the story goes on, but the scene or effect is missing. With this step the game plays from start to the credits.
+Status (2026-11-02): **built** (steps 1-6 and 8; 7 dropped; "As built" at the end, VERIFY "Map events and the ending"). Approved 2026-11-02. The open questions (§8) stay open: the port does what the C reads, and the user checks in the game later. This is step 4f of `PLANS.md`, from the gap analysis after 4e-4. The scripts' remaining builtins and opcodes run as no-ops today (`ScriptInterpreter.UNPORTED` / `ROUTINE_WAITS`), so the story goes on, but the scene or effect is missing. With this step the game plays from start to the credits.
 
 The C names are the decomp's (US). Each line number is in the file its table names.
 
@@ -406,7 +406,7 @@ All suites and scans pass after every step; a step is done when its gate in §7 
 | 5b | **Done (2026-11-02).** Machinedramon's view and wiring (§4.3, §4.3.2): rings, quads, lines, wireframe, camera, hidden entities, routines 0x28 / 0x33, digimon routine 8, tamer state 18 | **Hard** · main session (Opus) | no |
 | 6 | **Done (2026-11-02).** The ending and credits (§3.4, §4.4): `EndingScene` **Medium**, the view and the CLUT/STP fade **Hard**, the `Game` end path **Medium** | **Hard** · main session | no (the `Game` path could be split off to agy) |
 | 7 | ~~Robot House's TFS reload (§3.5)~~: the map rereads its own TFS, so nothing changes (§8.1, 2026-11-02) | none | dropped |
-| 8 | VERIFY "Map events", PLANS, "As built", gates | main session | no |
+| 8 | **Done (2026-11-02).** VERIFY "Map events and the ending", PLANS, "As built", gates (both test files default to step 6) | main session | no |
 
 Steps 1–4 can run before 5–6, and 1 and 3 in parallel (they own different files). The story reaches the credits after step 6.
 
@@ -440,3 +440,17 @@ Steps 1–4 can run before 5–6, and 1 and 3 in parallel (they own different fi
 4. **~~ENDI's base (N7)~~: answered (2026-11-02): it cancels out (§4.4).** It reads `t[1..3]` (one past the translation): the detached sparks are offset. The port keeps it with `t[3]` = the next word of the C's `MATRIX` (`port-only` value 0 if unknown). To confirm in the original.
 6. **~~The mood bubble's faces (S10)~~: answered (2026-11-02).** Scripts 199–202 run on GCAN11, the Monochrome Shop (script 49 jumps to them), not on TWNB20–23. GCAN11's 4bpp image 0 is exactly the rect the sprite reads (VRAM (640, 0), 160 × 32: five 32 × 32 faces); the porter exports it (`maps/GCAN11/mood/faces.png`, `asset_porter/specs/map.md`) and `MoodBubbleView` draws it (§4.2.3).
 5. **Movie 3** is the credits (`movies.json`); `MoviePlayer` must not let Start skip it (`specs/new_game.md`).
+
+## As built (2026-11-02)
+
+- **Steps and commits:** spec `aac8364`; 1 `MapProps` (`48e5af5`, agy); 2-3 the props' view and wiring, the screen effects' logic (`a594525`, agy); 4 the screen effects' views and wiring (`e20e94b`, agy); 5a `EabScene` (agy), the mood bubble's view and the per-map props (`ce6773a`); 5b `EabHost` / `EabView` (`9491dd3`); 6 `EndingScene` / `EndingHost`, the credits (`753846d`); 8 this. Step 7 dropped (§8.1).
+- **Found on the way** (in the tables now):
+  - a script id is not a map id: §1's maps were corrected from `scripts/index.json` (the first draft took script 145 for map 145); the map-textured TMDs (T_YAMA, BIGBOX, SMABOX, GAND, ABOX, BOSS_EFE) are exported per map (porter `maps/<NAME>/props/`, like the doors), and Monochromon's faces from GCAN11 (`maps/GCAN11/mood/`);
+  - `unloadMap` (`map.c:4446`) never removes the screen effects: no map-change clear (agy's step 4 had one; removed);
+  - EAB: the flash and backdrop texel is SPOT256's 0xFFFF, subtracted (black, §8.3); `EAB_renderBackdrop` runs at frame 0x140 too (before the phase-2 test); all 12 of BOSS_EFE's quads are 0x2F, so `EAB_setModelColor` colours them all;
+  - ENDI: all of the tamer's 305 primitives are 0x34 / 0x3C (no stall); the fade runs at frames 1-60; the release's `t[3]` cancels out (§8.4);
+  - script 192 runs routine 0x36 (the game-clear save, already ported) before 0x35; the ending's section is started by Machinedramon's `WARP_TO … section=51`, not by entering TEND01 / TEND02 (VERIFY).
+- **Shared code changed:** `Fade` (white, additive), `FieldMap.offset_shake` / `set_offset_shake`, `MapOverlays.set_positions`, `PsxTexture.load_masked` (out of `TrainingSlotsBox`), `EvlParticlesView.set_lines`, `FxParticles` (`renderFXParticle`, out of `HealingParticles`), `PsxLit.semi_transparent`, `Content.psx_transform` / `psx_matrix` (the latter out of `FieldBattleWorld`), `DropShadow.enabled`, `Tamer.bone_basis`, `GameState.session`, `Game._start_field` / `_end_game`.
+- **Stand-ins** (marked in the code): a ring or particle is ticked in the frame it is added (the C's object order); EAB's flash over the world but under the HUD; the restored viewpoint is the map's own; the ending's CLUT fade as one tint (`PaletteFade`'s rule); the tamer's mood-bubble point is his position.
+- **Left outside 4f** (PLANS): `SaveRoutines`' 0x36 skips `awardMachinedramonData` and hard-codes map 0xCC instead of `getFileCityTopMap()`.
+- **Tests:** `test_map_events.gd` 321 checks (steps 1, 3, 5a, 6), `test_map_events_field.gd` 315 (steps 2, 4, 5b, 6); every check runs by default (`DW_STEP_4F` can limit them). The exit scan reports nothing unported.

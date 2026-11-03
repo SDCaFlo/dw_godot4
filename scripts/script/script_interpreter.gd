@@ -67,6 +67,10 @@ const ROUTINE_DYING := 3
 const ROUTINE_REBIRTH := 4
 const ROUTINE_COLLAPSE := 7
 const ROUTINE_BATTLE_LOSS := 9
+## CALL_DIGIMON_ROUTINE 8: Machinedramon's spawn (tamer state 18, partner state 11; partner.c:1189).
+const ROUTINE_MACHINEDRAMON := 8
+## CALL_ROUTINE 0x28: EAB_startBuildup on the entity of script id 5 (script_interp.c:1855).
+const BUILDUP_SCRIPT_ID := 5
 const ROUTINE_EVOLVE := 10
 const PSTAT_SUKAMON_BACKUP := 5
 const PSTAT_EVOLUTION := 0xFE
@@ -166,6 +170,8 @@ var map_props: MapProps
 var fade: Fade
 ## The screen effects (specs/map_events.md §4.2.2): shake, ninjamon, mood bubble.
 var map_effects: MapEffects
+## Machinedramon's build-up and spawn (EabHost); null: routines 0x33 / 0x28 and digimon routine 8 unported.
+var eab: EabHost
 ## The field's battles (BattleHost, specs/battle.md §5.3): start_battle(talked_entity),
 ## battle_done() and battle_outcome(). Without it START_BATTLE is skipped and reported.
 var battles: Object
@@ -1358,6 +1364,13 @@ func call_digimon_routine(routine: int) -> void:
 		ctx.sync_bit = 0
 		_sync_scene = true
 		return
+	# 8: Machinedramon's spawn (tamerTickMachinedramonSpawn waits for EAB_tick, then sets the bit).
+	if routine == ROUTINE_MACHINEDRAMON and partner != null and tamer != null and eab != null:
+		tamer.set_state(Tamer.STATE_MACHINEDRAMON_SPAWN)
+		partner.set_state(Partner.STATE_IDLE)
+		ctx.sync_bit = 0
+		_sync_scene = true
+		return
 	# Routines past 10 aren't cases of the C's switch: nothing happens (the gyms call 214).
 	if routine > ROUTINE_LAST:
 		return
@@ -1438,6 +1451,12 @@ func _call_routine(routine: int) -> int:
 		0x2C when map_props != null:
 			# openToyTownBox (script_interp.c:1879-1881)
 			map_props.open_box(_s8(ctx.read_pstat(0xFE)))
+		0x28 when eab != null:
+			# EAB_startBuildup(ENTITY_TABLE[scriptIdToEntityId(5)]) (script_interp.c:1853-1856)
+			eab.start_buildup(_entity_for_script_id(BUILDUP_SCRIPT_ID))
+		0x33 when eab != null:
+			# BOSS_EFE.TMD, EAB_REL, readVBALLSection(5, 0x73), loadMapSounds2(0x15) (script_interp.c:1841-1846)
+			eab.load_scene()
 		0x2D when fade != null:
 			# fadeToWhite (script_interp.c:1882-1884)
 			fade.fade_to_white(ctx.read_pstat(0xFE))

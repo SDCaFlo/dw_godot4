@@ -66,6 +66,7 @@ var _maps: PackedStringArray
 @onready var battle_host: BattleHost = $Systems/BattleHost
 @onready var death_host: DeathHost = $Systems/DeathHost
 @onready var evolution_host: EvolutionHost = $Systems/EvolutionHost
+@onready var eab_host: EabHost = $Systems/EabHost
 @onready var tournament_host: TournamentHost = $Systems/TournamentHost
 @onready var arena: Arena = $Systems/Arena
 @onready var debug: DebugHost = $Debug
@@ -248,6 +249,19 @@ func _start() -> void:
 	evolution_host.start()
 	$World/SubViewport/Background.add_child(evolution_host.background_dark)
 	$World/SubViewport/Background.add_child(evolution_host.particles_view)
+	# Machinedramon's build-up and spawn (specs/map_events.md §4.3.2): routines 0x33 / 0x28 and the
+	# tamer's state 18; its backdrop and lines go on the background layer, after the evolution's.
+	eab_host.field_map = _field
+	eab_host.entities = entities.entities
+	eab_host.sound = Sound
+	eab_host.data = GameData
+	eab_host.map_layer_nodes = map_layer_nodes
+	eab_host.world = _world
+	eab_host.background = $World/SubViewport/Background
+	eab_host.start()
+	_tamer.eab = eab_host
+	if scripts.interpreter != null:
+		scripts.interpreter.eab = eab_host
 	map_session.partner = partner
 	if map_session.map_props_view != null:
 		map_session.map_props_view.partner = partner
@@ -368,6 +382,7 @@ func _frame() -> void:
 		scripts.tick_objects()
 		death_host.tick_objects()
 		evolution_host.tick_objects()
+		eab_host.tick_objects()
 		_field.overlays.tick()
 		if map_session.map_props_view != null:
 			map_session.map_props_view.render()

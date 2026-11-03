@@ -32,6 +32,8 @@ const STATE_CHEST := 14
 ## (tamerTickBattleLostLife: MURD), CALL_DIGIMON_ROUTINE 7 and 9 (specs/death_reincarnation.md §3).
 const STATE_SICKNESS_LOST_LIFE := 17
 const STATE_BATTLE_LOST_LIFE := 19
+## tamerTickMachinedramonSpawn (tamer.c:1718): EAB's spawn, digimon routine 8.
+const STATE_MACHINEDRAMON_SPAWN := 18
 ## A training station runs (tamerTickTraining, specs/training.md §2.6): his cheer, facing the partner.
 const STATE_TRAINING := 8
 ## tamerSetState(-1) (the Brains stations): no case in tamerTick, so nothing but his animation, as
@@ -125,6 +127,8 @@ var care: Care
 ## 19 end at once.
 var murd: MurdScene
 var dooa: DooaScene
+## Machinedramon's spawn (EAB_tick), state 18; null: the state ends at once.
+var eab: EabHost
 var script_ctx: ScriptContext
 ## For the pickup and the chests (specs/map_items.md): the items on the ground, the chests, the
 ## pickup / chest box (box 1, no arrow), the GameState and GameData nodes, the sound.
@@ -286,6 +290,8 @@ func tick() -> void:
 			tick_training()
 		STATE_SICKNESS_LOST_LIFE, STATE_BATTLE_LOST_LIFE:
 			tick_lost_life()
+		STATE_MACHINEDRAMON_SPAWN:
+			tick_machinedramon_spawn()
 	if state != STATE_FREE:
 		step_blocked = false
 	step = 0.0
@@ -326,6 +332,19 @@ func tick_lost_life() -> void:
 			if state == STATE_SICKNESS_LOST_LIFE:
 				over = over and (dooa == null or dooa.frame < 0)
 			if over and script_ctx != null:
+				script_ctx.sync_bit = 1
+
+
+## tamerTickMachinedramonSpawn (tamer.c:1718): EAB_tick(ENTITY_TABLE[2], 0), then the sync bit once
+## EAB_tick(.., 1) is below 0.
+func tick_machinedramon_spawn() -> void:
+	match sub_state:
+		0:
+			if eab != null:
+				eab.start_spawn()
+			sub_state = 1
+		1:
+			if (eab == null or eab.result() < 0) and script_ctx != null:
 				script_ctx.sync_bit = 1
 
 

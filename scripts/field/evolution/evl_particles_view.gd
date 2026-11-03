@@ -41,6 +41,13 @@ func draw_particles(particles: EvlParticles, project: Callable, offset: Vector2)
 	queue_redraw()
 
 
+## [from, to, colour] per line, already culled (EabView.particle_lines: EAB's particles are the same
+## LINE_F2 squares, eab.c:613-643).
+func set_lines(lines: Array) -> void:
+	_lines = lines.duplicate()
+	queue_redraw()
+
+
 func clear() -> void:
 	_lines.clear()
 	queue_redraw()

@@ -300,6 +300,42 @@ The nine flashes go through the death scene's `EFECreateFlash` port. `TamerHost`
 - `particle_size(i) -> int` = `lerp(8, 0x9C4, 0, 0x56, timer)`; `particle_color(i) -> Vector3i` = each channel `lerp(c, 0, 0, 0x56, timer)` (`EAB_renderParticle`, 608–647).
 - C quirk kept: `EAB_setModelColor` (159) only advances its primitive pointer on a 0x2D / 0x2F primitive, so after the first other primitive it rewrites nothing more. The view colours what the C colours (step 5b).
 
+#### 4.3.2 The host, the view and the wiring (step 5b, main session)
+
+`BOSS_EFE.TMD` (the porter's `tmd_files/ETCHI/BOSS_EFE.json`): one object of 12 quads, all mode 0x2F (textured, semi-transparent, brightness off), tsb 42 (page (640, 0) 4bpp, abr 1: additive), CBA (0, 486), colour 128. `EAB_setModelColor` therefore rewrites all 12 to 0x3C: the texel × 0x3C / 128, its STP texels added. The texture is the map's VRAM: `maps/MGEN99/props/BOSS_EFE.gltf` (§4.2.3's per-map props; `tmd_files/ETCHI/BOSS_EFE.gltf` on another map, untextured).
+
+`EabHost` (`scripts/field/hosts/eab_host.gd`, `class_name EabHost extends Node`) owns `scene: EabScene` and `view: EabView` and does what the C's events do:
+- References: `field_map`, `entities: FieldEntities`, `sound`, `data`, `map_layer_nodes: Callable`, `world` (the 3D views' parent), `background: Node` (the field's background layer).
+- `load_scene()`, routine 0x33 (`script_interp.c:1841–1846`): `readVBALLSection(5, 0x73)` → `sound.load_bank(5, "sound/VBALL/set_%02d" % vball)` with `vball` = `data.digimon_sounds(0x73).vball` (`DIGIMON_VBALL_SOUND_ID[0x73]`, `sound_async.c:227`); `loadMapSounds2(0x15)` → `sound.load_map_sounds(0x15)`; the ring model loaded (`view.load_model(field_map.map_name)`). The REL load and the file request have nothing to port.
+- `start_buildup(entity)`, routine 0x28 (`script_interp.c:1853–1856`, `isSoundLoaded(0, 8)` is a wait with nothing to wait for: `port-only` none): the build-up entity kept, `scene.start_buildup()`, its events run at once.
+- `start_spawn()` / `result()`, tamer state 18 (`tamerTickMachinedramonSpawn`, `tamer.c:1718`): entity 2 kept as the spawn entity (`EAB_tick(ENTITY_TABLE[2], 0)`), the inputs set, `scene.start_spawn()`, its events run at once; `result()` = `scene.result()`.
+- `tick_objects()`, once per frame after `EvolutionHost.tick_objects` (the object list, `port-only` place): the inputs from entity 2 (`location` its position, `yaw` its `direction`, `bone0` its bone 0's world position, `anim_id` / `anim_ended` its animator's `anim_id` and `frame == frame_count`), `scene.tick()`, the events in order, the view, then `view.draw_frame(...)`. Nothing runs while neither the build-up nor the spawn nor a ring is live.
+- The events:
+  - `"buildup_entity_hidden"`: the build-up entity `on_map = false`, hidden (`entity->isOnMap = 0`, 663);
+  - `["sound", b, id]`, `["sound2", b, id]`: `sound.play_sound(b, id)` (`playSound` / `playSound2`: the port plays both the same way, as `TrainingStation`);
+  - `"stop_sound"`: `sound.stop_sound()`;
+  - `"entity_on_map"`: entity 2 `on_map = true`, shown;
+  - `["animation", id]`: entity 2's `start_animation(id)`;
+  - `"hide_entities"` / `"show_entities"`: `EAB_setEntitiesVisible` (497): every entity but 2 that is on the map goes off it (hidden), its slot remembered (`EAB_D_80061A04`); back: every entity but 2 gets the remembered `on_map` (shown when 1);
+  - `"map_layer_off"` / `"map_layer_on"`: `MapLayer.set_enabled(map_layer_nodes, …)`;
+  - `"save_view"`: `field_map.view()` kept (`EAB_D_800619E4 = GS_VIEWPOINT`);
+  - `scene.view` not empty: `field_map.set_view({"eye", "ref", "projection", "offset"})` with the saved projection and drawing offset (the C changes only `GS_VIEWPOINT`);
+  - `"restore_view"`: `field_map.restore_map_view()` (`stand-in`: the saved viewpoint is the map's own; script 184 moves no camera before).
+  - `["vab", 5]`: entity 2's `sound_slot = 5` (`stats.current.vabId`, 391).
+- The wireframe: a `PartnerWireframe` on entity 2's model (`ENTITY1_WIREFRAME_TOTAL`, `model.c:2922`), attached at `start_spawn`, `set_share(scene.wireframe_total)` every frame and `roll_greys(0x37, 0xFF)` while it isn't 16 (`WIREFRAME_COLOR_MIN` / `MAX`, `model.c:89`, 91); detached at the end (`frame` −1).
+- The flashes: a `BattleFxView` on `scene.fx`.
+
+`EabView` (`scripts/field/eab/eab_view.gd`, `class_name EabView extends Node`) draws:
+- `rings`: 3 instances of the ring model in `world`, tinted 0x3C / 128 (`PaletteFade.apply`); ring i shown when its timer ≥ 0, its transform `Content.psx_transform(ring_matrix(scale, location))` = `TransMatrix(ScaleMatrix(RotMatrix(RING_ROTATION), scale), location)` (`renderTMDModel`, `effect_common.c:579`), the location the build-up entity's for a build-up ring, entity 2's for a spawn ring (`fx->entity`, 236, 293);
+- `lines` (a `Node2D` on the background layer, over the backdrop: OT 0xF9F in front of 0xFA0, behind every model): each live particle's square (corners `pos ± size` in x and z, 613–620), each edge between two corners whose `sz >> 4` is in (0x20, 0x1000) (628–629), 1 px, its colour (as `EvlParticlesView`);
+- `backdrop` (a `ColorRect` on the background layer, before `lines`): shown while `scene.backdrop`, subtractive, level `subtract_level(0xFF)`;
+- `flash` (a `Control` on a `CanvasLayer` of layer 1 in `world`: over the 3D world, `stand-in` for OT 0xA under the HUD): one full-screen subtractive rect per `scene.flashes_drawn` value, each `subtract_level(c)`.
+- `static func subtract_level(c) -> int` = `mini(0x1F, (0x1F * c) >> 7)`: the texel (SPOT256 index 255 = 0xFFFF: 31 per channel) × the colour / 128, saturated (§8.3); the rect subtracts `level / 31`.
+- `static func ring_matrix(scale: Vector3i, location: Vector3i) -> PackedInt32Array`.
+- `static func particle_lines(scene, project: Callable, offset: Vector2) -> Array` (`[from, to, Color]` per edge, screen pixels with the drawing offset).
+
+Wiring: `ScriptInterpreter.eab: EabHost`; routines 0x33 / 0x28 (no longer unported); digimon routine 8 (`partner.c:1189`): `tamer.set_state(18)`, `partner.set_state(Partner.STATE_IDLE)` (11), sync bit 0, `_sync_scene`. `Tamer.STATE_MACHINEDRAMON_SPAWN := 18`, `tick_machinedramon_spawn()`: sub-state 0 `eab.start_spawn()`, 1; sub-state 1: `eab.result() < 0` → sync bit 1. `Field` makes the host (`$Systems/EabHost`), hands the references and calls `tick_objects`.
+
 ### 4.4 The ending and the credits
 
 `EndingScene` (logic, `scripts/field/ending/ending_scene.gd`): N1–N7.
@@ -319,7 +355,7 @@ Digimon routine 6 and routine 0x35 set tamer state 16. Routine 0x35's wait (case
 | Props | `scripts/field/map_props.gd`, `scripts/field/map_props_view.gd`; `scripts/content/content.gd` (`psx_transform`); `scripts/field/field.gd`, `scripts/field/hosts/map_session.gd`, `script_host.gd` (wiring); `scripts/field/field_map.gd` (P21's signal); `scripts/state/game_state.gd` (`session`) |
 | Interpreter | `scripts/script/script_interpreter.gd` (the routines and opcodes) |
 | Screen effects | `scripts/field/fade.gd`, `scripts/field/meramon_shake.gd`, `scripts/field/ninjamon_effect.gd`, `scripts/field/mood_bubble.gd` (logic), `mood_bubble_view.gd`, `scripts/field/field_map.gd` (`offset_shake`) |
-| Machinedramon | `scripts/field/eab/eab_scene.gd`, `eab_view.gd`, `scripts/field/tamer.gd` (state 18), `scripts/field/hosts/` (wiring) |
+| Machinedramon | `scripts/field/eab/eab_scene.gd`, `eab_view.gd`, `scripts/field/hosts/eab_host.gd`, `scripts/field/tamer.gd` (state 18), `scripts/script/script_interpreter.gd` (0x28, 0x33, digimon routine 8), `scripts/field/field.gd`, `scenes/field/field.tscn` (wiring), `scripts/field/evolution/evl_particles_view.gd` (`set_lines`) |
 | Ending | `scripts/field/ending/ending_scene.gd`, `ending_view.gd`, `scripts/field/tamer.gd` (states 15 / 16), `scripts/game/game.gd` (end → movie 3 → title) |
 
 ## 6. Order of work
@@ -333,7 +369,7 @@ All suites and scans pass after every step; a step is done when its gate in §7 
 | 3 | Screen-effect logic: `MeramonShake`, `NinjamonEffect`'s maths, the bubble's timer / scale, the white fade's counters (S1–S11) | **Low** · Gemini 3.8 Flash (High) | **agy** |
 | 4 | Screen-effect views and wiring: `Fade` white (additive layer), `FieldMap.offset_shake`, the overlays, `MoodBubble` drawing, the routines | **Medium**: rendering is simple (a fade, a sprite, an offset), the tests check the state | agy or Sonnet; **agy** if step 2 went well |
 | 5a | Machinedramon's logic (§3.3, §4.3.1): `EabScene`, every timeline by the frame | **Medium** · Gemini 3.8 Flash (High) with the exact API and tests | **agy** |
-| 5b | Machinedramon's view and wiring (§4.3): rings, quads, lines, wireframe, camera, hidden entities, routines 0x28 / 0x33, digimon routine 8, tamer state 18 | **Hard** · main session (Opus) | no |
+| 5b | **Done (2026-11-02).** Machinedramon's view and wiring (§4.3, §4.3.2): rings, quads, lines, wireframe, camera, hidden entities, routines 0x28 / 0x33, digimon routine 8, tamer state 18 | **Hard** · main session (Opus) | no |
 | 6 | The ending and credits (§3.4, §4.4): `EndingScene` **Medium**, the view and the CLUT/STP fade **Hard**, the `Game` end path **Medium** | **Hard** · main session | no (the `Game` path could be split off to agy) |
 | 7 | ~~Robot House's TFS reload (§3.5)~~: the map rereads its own TFS, so nothing changes (§8.1, 2026-11-02) | none | dropped |
 | 8 | VERIFY "Map events", PLANS, "As built", gates | main session | no |

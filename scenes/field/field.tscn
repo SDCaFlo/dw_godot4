@@ -13,6 +13,7 @@
 [ext_resource type="PackedScene" path="res://scenes/field/hosts/death_host.tscn" id="14_death_host"]
 [ext_resource type="PackedScene" path="res://scenes/field/hosts/evolution_host.tscn" id="15_evolution_host"]
 [ext_resource type="Script" path="res://scripts/field/hosts/tournament_host.gd" id="16_tournament_host"]
+[ext_resource type="Script" path="res://scripts/field/hosts/eab_host.gd" id="18_eab_host"]
 [ext_resource type="Script" path="res://scripts/field/hosts/battle_host.gd" id="13_battle_host"]
 [ext_resource type="Script" path="res://scripts/script/script_routines.gd" id="11_routines"]
 [ext_resource type="PackedScene" path="res://scenes/script/shop_routines.tscn" id="12_shop_routines"]
@@ -132,6 +133,9 @@ script = ExtResource("13_battle_host")
 [node name="DeathHost" parent="Systems" instance=ExtResource("14_death_host")]
 
 [node name="EvolutionHost" parent="Systems" instance=ExtResource("15_evolution_host")]
+
+[node name="EabHost" type="Node" parent="Systems"]
+script = ExtResource("18_eab_host")
 
 [node name="TournamentHost" type="Node" parent="Systems"]
 script = ExtResource("16_tournament_host")

@@ -35,6 +35,8 @@ func _process(_delta: float) -> bool:
 		_step2()
 	if _gate(4, "step 4: screen-effect views and wiring"):
 		_step4()
+	if _gate(5, "step 5b: Machinedramon's view and wiring"):
+		_step5b()
 	_teardown()
 	var state := "FAILED %d" % _failed if _failed else "OK"
 	if _pending:
@@ -544,3 +546,190 @@ func _mood_view(effects: Node) -> void:
 	effects.bubble_draws = []
 	view.free()
 	npc.free()
+
+
+# --- Step 5b (specs/map_events.md §4.3.2) ---------------------------------------------------------
+
+## The sound calls the EAB host makes.
+class SoundStub:
+	extends Node
+	var calls: Array = []
+
+	func load_bank(slot: int, folder: String) -> bool:
+		calls.append(["bank", slot, folder])
+		return true
+
+	func load_map_sounds(set_id: int) -> void:
+		calls.append(["map_sounds", set_id])
+
+	func play_sound(slot: int, value: int) -> int:
+		calls.append(["play", slot, value])
+		return 0
+
+	func stop_sound() -> void:
+		calls.append(["stop"])
+
+
+func _step5b() -> void:
+	if not ResourceLoader.exists("res://scripts/field/hosts/eab_host.gd") \
+			or not ResourceLoader.exists("res://scripts/field/eab/eab_view.gd"):
+		_check(false, "step 5b: eab_host.gd and eab_view.gd exist")
+		return
+	var view_script: GDScript = load("res://scripts/field/eab/eab_view.gd")
+	# The colour levels and the ring matrix (E9, E10, renderTMDModel).
+	_eq(view_script.call("subtract_level", 0xFF), 0x1F, "subtract_level(0xFF): all")
+	_eq(view_script.call("subtract_level", 0x80), 0x1F, "subtract_level(0x80): saturated")
+	_eq(view_script.call("subtract_level", 0x40), 0x0F, "subtract_level(0x40): 31 * 64 >> 7")
+	_eq(view_script.call("subtract_level", 0), 0, "subtract_level(0)")
+	var m: PackedInt32Array = view_script.call("ring_matrix", Vector3i(0x1000, 0x800, 0x1000), Vector3i(10, 20, 30))
+	_eq(m, PsxMath.trans_matrix(PsxMath.scale_matrix(PsxMath.rot_matrix(Vector3i(0, 0x800, 0)),
+			Vector3i(0x1000, 0x800, 0x1000)), Vector3i(10, 20, 30)), "ring_matrix: Trans(Scale(Rot))")
+	_eq(view_script.call("model_path", "MGEN99"), "maps/MGEN99/props/BOSS_EFE.gltf", "the ring: Mt. Infinity's own")
+	_eq(view_script.call("model_path", "MAYO01"), "tmd_files/ETCHI/BOSS_EFE.gltf", "the ring elsewhere: the plain TMD")
+
+	var ents := FieldEntities.new()
+	var tamer := Tamer.new()
+	var partner := Partner.new()
+	partner.tamer = tamer
+	root.add_child(tamer)
+	root.add_child(partner)
+	ents.tamer = tamer
+	ents.partner = partner
+	var mach := FieldDigimon.new()
+	root.add_child(mach)
+	_check(mach.load_digimon(data, 0x73), "Machinedramon's model loads")
+	mach.position = Vector3(780, 0, -530)
+	mach.direction = 0x200
+	ents.npcs[0] = mach
+	ents.slots[0]["script_id"] = 5
+	var gone := FieldDigimon.new()
+	root.add_child(gone)
+	gone.on_map = false
+	gone.visible = false
+	ents.npcs[1] = gone
+	ents.slots[1]["script_id"] = 6
+	var layer := Node3D.new()
+	root.add_child(layer)
+	var background := CanvasLayer.new()
+	root.add_child(background)
+	var sound := SoundStub.new()
+	root.add_child(sound)
+	var host: Node = load("res://scripts/field/hosts/eab_host.gd").new()
+	host.set("field_map", map)
+	host.set("entities", ents)
+	host.set("sound", sound)
+	host.set("data", data)
+	host.set("map_layer_nodes", func() -> Array: return [layer])
+	host.set("world", root)
+	host.set("background", background)
+	root.add_child(host)
+	host.call("start")
+	interp.entities = ents
+	interp.tamer = tamer
+	interp.partner = partner
+	interp.set("eab", host)
+	tamer.script_ctx = ctx
+	tamer.set("eab", host)
+	unported.clear()
+	interp._reported.clear()
+	var scene: EabScene = host.get("scene")
+	var view: Node = host.get("view")
+
+	# Routine 0x33: Machinedramon's VBALL set into slot 5, the map's sound set 0x15, the ring model.
+	_run([0x64, 0x33, 0xFE, 0])
+	_frames(2)
+	var vball := int(data.digimon_sounds(0x73).get("vball", -1))
+	_check(["bank", 5, "sound/VBALL/set_%02d" % vball] in sound.calls, "0x33: readVBALLSection(5, 0x73)")
+	_check(["map_sounds", 0x15] in sound.calls, "0x33: loadMapSounds2(0x15)")
+	var rings: Array = view.get("rings")
+	_eq(rings.size(), 3, "0x33: three ring instances")
+	# Routine 0x28: the build-up on script entity 5.
+	sound.calls.clear()
+	_run([0x64, 0x28, 0xFE, 0])
+	_frames(2)
+	_eq(mach.on_map, false, "0x28: the build-up entity off the map")
+	_eq(mach.visible, false, "0x28: and hidden")
+	_check(["play", 8, 0] in sound.calls, "0x28: playSound2(8, 0)")
+	_eq(scene.buildup_active, true, "0x28: the build-up runs")
+	for i in 6:
+		host.call("tick_objects")
+	_eq(scene.rings[0]["timer"], 1, "the first ring after 6 frames")
+	if rings.size() == 3:
+		_check(rings[0].visible and not rings[1].visible, "only the live ring is drawn")
+		var loc := Vector3i(780, 0, 530)
+		var want := _pt(view_script.call("ring_matrix", scene.ring_scale(0), loc))
+		_check(rings[0].transform.is_equal_approx(want), "the ring at the build-up entity, scaled (E3)")
+	for name in ["CALL_ROUTINE 0x33", "CALL_ROUTINE 0x28"]:
+		_check(not name in unported, "%s is no longer unported" % name)
+
+	# Digimon routine 8: tamer state 18, the partner idle, the sync bit cleared.
+	ctx.sync_bit = 1
+	interp.call_digimon_routine(8)
+	_eq(tamer.state, 18, "routine 8: tamer state 18")
+	_eq(partner.state, Partner.STATE_IDLE, "routine 8: partner state 11")
+	_eq(ctx.sync_bit, 0, "routine 8: the sync bit cleared")
+	_check(not "CALL_DIGIMON_ROUTINE 8" in unported, "CALL_DIGIMON_ROUTINE 8 is no longer unported")
+	var map_eye: Vector3i = map.view()["eye"]
+	sound.calls.clear()
+	_eab_frame(tamer, host)
+	_eq(scene.frame, 1, "state 18: EAB_tick started, then ticked")
+	_check(["play", 8, 1] in sound.calls, "the spawn's playSound(8, 1)")
+	var wire: PartnerWireframe = host.get("wireframe")
+	_check(wire.is_attached(), "the wireframe on entity 2")
+	while scene.frame < 0x32:
+		_eab_frame(tamer, host)
+	_eq(mach.on_map, true, "0x32: entity 2 on the map")
+	_check(mach.visible, "0x32: entity 2 shown")
+	_check(not tamer.on_map and not tamer.visible, "0x32: the tamer hidden")
+	_check(not partner.on_map and not partner.visible, "0x32: the partner hidden")
+	_check(not gone.on_map and not gone.visible, "0x32: an entity already off stays off")
+	_eq(layer.visible, false, "0x32: the map layer off")
+	_eq(mach.sound_slot, 5, "0x32: vabId 5")
+	_eq(view.call("flash_levels"), [0x1F, 0x1F], "0x32: phase 0's flash and phase 1's at 0xFF")
+	_check(view.get("backdrop").visible, "0x32: the backdrop")
+	_eq(map.view()["eye"], scene.view["eye"], "0x32: the orbit's eye")
+	_eq(map.view()["ref"], scene.view["ref"], "0x32: the orbit's target")
+	var lines_seen := false
+	while scene.frame < 0x80:
+		_eab_frame(tamer, host)
+		var want_lines: Array = view_script.call("particle_lines", scene, map.world_to_screen, map.drawing_offset())
+		_eq(view.get("lines").call("shown_lines"), want_lines.size(), "frame %d: the particle edges" % scene.frame)
+		lines_seen = lines_seen or want_lines.size() > 0
+	_check(lines_seen, "some particle edges drawn")
+	_eq(view.call("flash_levels"), [], "0x80: no flash")
+	_check(scene.wireframe_total < 16, "0x80: in wireframe")
+	_eq(wire.share, scene.wireframe_total, "0x80: the wireframe's share")
+	while scene.frame < 0x13F:
+		_eab_frame(tamer, host)
+	_eq(map.view()["eye"], map_eye, "0x13F: the saved viewpoint")
+	_eab_frame(tamer, host)
+	_check(tamer.on_map and tamer.visible, "0x140: the tamer back")
+	_check(partner.on_map and partner.visible, "0x140: the partner back")
+	_check(not gone.on_map and not gone.visible, "0x140: the one off stays off")
+	_eq(layer.visible, true, "0x140: the map layer on")
+	_check(["play", 8, 3] in sound.calls, "0x140: playSound(8, 3)")
+	_check(view.get("backdrop").visible, "0x140: phase 1 still draws the backdrop (eab.c:412 before the 0x140 test)")
+	_eab_frame(tamer, host)
+	_check(not view.get("backdrop").visible, "0x141: no backdrop in phase 2")
+	_eq(map.view()["eye"], map_eye, "0x140: the map's viewpoint")
+	while scene.frame >= 0 and scene.frame < 0x160:
+		_check(ctx.sync_bit == 0, "no sync bit before the end")
+		_eab_frame(tamer, host)
+	_eq(scene.result(), -1, "0x154: EAB done")
+	_eab_frame(tamer, host)
+	_eq(ctx.sync_bit, 1, "tamerTickMachinedramonSpawn: the sync bit")
+	_check(not rings.any(func(r): return r.visible), "the rings gone")
+	_check(not wire.is_attached(), "the wireframe detached")
+
+	interp.set("eab", null)
+	interp.entities = null
+	interp.tamer = null
+	interp.partner = null
+	for n: Node in [host, sound, background, layer, gone, mach, partner, tamer]:
+		n.free()
+
+
+## One game frame of the scene: the tamer's state, then the objects (Field._frame's order).
+func _eab_frame(tamer: Tamer, host: Node) -> void:
+	tamer.tick()
+	host.call("tick_objects")

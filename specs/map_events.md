@@ -20,26 +20,26 @@ The C names are the decomp's (US). Each line number is in the file its table nam
 
 ## 1. The C code and where it runs
 
-The call sites come from the exported scripts (`asset_porter/output/scripts/DG/script_<map>.txt`, 2026-11-02).
+The call sites come from the exported scripts (`asset_porter/output/scripts/DG/script_<id>.txt`, 2026-11-02). A script id is **not** a map id: `scripts/index.json` gives the script each map's MAPHEAD section sets (`SET_SCRIPT`), and a few scripts are only reached by another's `JUMP_TO_FILE` (corrected 2026-11-02; the first draft took script ids for map ids).
 
 | Event | C | Called by | Maps (script) |
 |---|---|---|---|
-| Dirt cart | `loadDirtCartModel` (`map_object.c:423`), `setDirtCartModel` (1186), `renderDirtCartModel` (1232) | routines 0x1A, 0x13 | Drill Tunnel TUNN02, TUNN06 (25, 29) |
-| Dirt pile | `loadDirtPileModel` (1205), `decreaseDirtPileSize` (1109), `renderDirtPile` (435) | routines 0x1B, 0x14 | TUNN06 (29) |
-| Boulder | `spawnBoulder` (616), `moveBoulder` (1130), `renderBoulder` (648); `script_interp.c:2129–2142` | opcodes 0x76 / 0x77 / 0x78 | Lava Cave TUNN07 (30) |
-| Toy Town boxes | `spawnToyTownBoxes` (662), `renderToyTownBoxes` (708), `openToyTownBox` (1148) | routines 0x2B, 0x2C | Costume House OMOC02 (145) |
-| Gearbox | `spawnGearbox` (749), `renderGearbox` (767) | routine 0x29 | Volume Villa GKYO01 (140) |
-| Volume Villa's CLUT source | `somethingToyTown` (1156) → `readMapTFS(0x92)` (`map.c:4217`) | routine 0x2A | GKYO01 (140) |
-| Angemon's pedestal | `spawnAngemonPedestal` (775), `renderAngemonPedestal` (794), `moveAngemonPedestal` (1167); tick case 50 (`script_interp.c:506`) | routines 0x31, 0x32 | Freezeland FRZL06 (93) |
-| White fade | `fadeToWhite` / `fadeFromWhite` (`fade.c:170`, 193), `renderFade` (144) | routines 0x2D, 0x2E | Ogre Fortress OGRE03 (48), Ice Sanctuary ICSA02 (98), File City TWNB05 (184) |
+| Dirt cart | `loadDirtCartModel` (`map_object.c:423`), `setDirtCartModel` (1186), `renderDirtCartModel` (1232) | routines 0x1A, 0x13 | Drill Tunnel TUNN01 (script 25), Underground Pond TUNN05 (29) |
+| Dirt pile | `loadDirtPileModel` (1205), `decreaseDirtPileSize` (1109), `renderDirtPile` (435) | routines 0x1B, 0x14 | Underground Pond TUNN05 (29) |
+| Boulder | `spawnBoulder` (616), `moveBoulder` (1130), `renderBoulder` (648); `script_interp.c:2129–2142` | opcodes 0x76 / 0x77 / 0x78 | Drill Tunnel 2nd floor TUNN06 (30) |
+| Toy Town boxes | `spawnToyTownBoxes` (662), `renderToyTownBoxes` (708), `openToyTownBox` (1148) | routines 0x2B, 0x2C | Toy Mansion OMOC08 (145) |
+| Gearbox | `spawnGearbox` (749), `renderGearbox` (767) | routine 0x29 | Robot House OMOC03 (140) |
+| Robot House's TFS reload | `somethingToyTown` (1156) → `readMapTFS(0x92)` (`map.c:4217`) | routine 0x2A | Robot House OMOC03 (140) |
+| Angemon's pedestal | `spawnAngemonPedestal` (775), `renderAngemonPedestal` (794), `moveAngemonPedestal` (1167); tick case 50 (`script_interp.c:506`) | routines 0x31, 0x32 | Ice Sanctuary ICSA01 (93) |
+| White fade | `fadeToWhite` / `fadeFromWhite` (`fade.c:170`, 193), `renderFade` (144) | routines 0x2D, 0x2E | Ogre Fortress OGRE03 (48), Ice Sanctuary ICSA06 (98), Mt. Infinity MGEN99 (184) |
 | Meramon's shake | `createMeramonShake` / `tickMeramonShake` (`map.c:5472`, 5482) | routine 0x22 | Lava Cave TUNN08 (31) |
-| Ninjamon's effect | `createNinjamonEffect` / `renderNinjamonEffect` (`overworld.c:777`, 801) | routine 0x26 | Digimon Bridge MAYO08B (10) |
-| Monochromon's mood | `createMonochromonMoodBubble` (`script_common.c:3038`), `renderMonochromonMoodBubble` (1220) | routine 0x1C | File City TWNB20–23 (199–202) |
-| Machinedramon's build-up | `EAB_startBuildup` (`eab/eab.c:649`), rings 219–341 | routine 0x33 (load), 0x28 (start, entity script id 5) | File City TWNB05 (184) |
-| Machinedramon's spawn | `EAB_tick` (670), `EAB_tickSpawn` (349); `tamerTickMachinedramonSpawn` (`tamer.c:1718`, state 18) | digimon routine 8 (`partner.c:1189`) | TWNB05 (184) |
-| The ending | `ENDI_tickEnding` (`endi/endi.c:407`), `ENDI_updateEnding` (159); `tamerTickEnding` (`tamer.c:1682`, state 16) | routine 0x34 (load), 0x35 (start); digimon routine 6 | File City TWNB13 (192); the debug room ROOM14 (209) |
+| Ninjamon's effect | `createNinjamonEffect` / `renderNinjamonEffect` (`overworld.c:777`, 801) | routine 0x26 | Digimon Bridge MAYO08A (10) |
+| Monochromon's mood | `createMonochromonMoodBubble` (`script_common.c:3038`), `renderMonochromonMoodBubble` (1220) | routine 0x1C | the Monochrome Shop GCAN11 (script 49 jumps to 199–202) |
+| Machinedramon's build-up | `EAB_startBuildup` (`eab/eab.c:649`), rings 219–341 | routine 0x33 (load), 0x28 (start, entity script id 5) | Mt. Infinity MGEN99 (184) |
+| Machinedramon's spawn | `EAB_tick` (670), `EAB_tickSpawn` (349); `tamerTickMachinedramonSpawn` (`tamer.c:1718`, state 18) | digimon routine 8 (`partner.c:1189`) | MGEN99 (184) |
+| The ending | `ENDI_tickEnding` (`endi/endi.c:407`), `ENDI_updateEnding` (159); `tamerTickEnding` (`tamer.c:1682`, state 16) | routine 0x34 (load), 0x35 (start); digimon routine 6 | File City TEND01 / TEND02 (192); script 209 (jumped to from TWNA01's 164 and ROOM08's 178) |
 | Then the credits | tick case 53 (`script_interp.c:516`): `MAIN_STATE = 3`; `main.c:3522–3527`: `cleanupGame`, `playMovie(3, 1)`, back to the title | after routine 0x35 | |
-| The opening | digimon routine 5 → tamer state 15, `tamerTickOpening` (`setMapLayerEnabled(1)`) | digimon routine 5 | ROOM14 (209, debug menu only) |
+| The opening | digimon routine 5 → tamer state 15, `tamerTickOpening` (`setMapLayerEnabled(1)`) | digimon routine 5 | script 209 |
 
 Routine 0x24 (`readMapTFS(CURRENT_SCREEN_ID)`) is called by no script.
 
@@ -47,19 +47,18 @@ Routine 0x24 (`readMapTFS(CURRENT_SCREEN_ID)`) is called by no script.
 
 ## 2. What the player sees
 
-- **Drill Tunnel:**
+- **Drill Tunnel (TUNN01) and Underground Pond (TUNN05):**
   - The partner pushes a cart (`DOSYA.TMD`) or carries a box (`HAKO.TMD`) in front of it, turning with it.
-  - In TUNN06 a dirt pile (`T_YAMA.TMD`) shrinks a step each time Drimogemon's scene digs. It is gone once it is under 6/15 of its size.
-- **Lava Cave:**
-  - A boulder (`IWA.TMD`, `IWA1.TIM`) appears, rolls (pitching 10 units a frame) as the script moves it, then disappears.
-  - In TUNN08 the screen shakes sideways for 10.5 s (Meramon).
-- **Costume House:** a big and a small box. Choosing one opens its lid (it swings 90° over 11 frames).
-- **Volume Villa:** a gearbox (`GAND.TMD`) stands by the path.
-- **Freezeland:** a pedestal (`ABOX.TMD`) slides 500 units away, shaking ±5 sideways, over 50 frames.
-- **Ogre Fortress, Ice Sanctuary, File City:** the screen fades to white and back. The game time keeps running.
-- **Digimon Bridge:** the map's sprites (0–0x28) streak to the right for 3 s, then vanish.
-- **File City, Monochromon's shop:** a mood bubble (one of 5 faces, 32×32) pops up and grows over a Digimon's head for 1.5 s.
-- **Machinedramon** (File City, the end of the story):
+  - In TUNN05 a dirt pile (`T_YAMA.TMD`) shrinks a step each time Drimogemon's scene digs. It is gone once it is under 6/15 of its size.
+- **Drill Tunnel 2nd floor (TUNN06):** a boulder (`IWA.TMD`, `IWA1.TIM`) appears, rolls (pitching 10 units a frame) as the script moves it, then disappears.
+- **Lava Cave (TUNN08):** the 3D world shakes sideways for 10.5 s (Meramon).
+- **Toy Mansion (OMOC08):** a big and a small box. Choosing one opens its lid (it swings 90° over 11 frames).
+- **Robot House (OMOC03):** a gearbox (`GAND.TMD`).
+- **Ice Sanctuary (ICSA01):** a pedestal (`ABOX.TMD`) slides 500 units away, shaking ±5 sideways, over 50 frames.
+- **Ogre Fortress (OGRE03), Ice Sanctuary (ICSA06), Mt. Infinity (MGEN99):** the screen fades to white and back. The game time keeps running.
+- **Digimon Bridge (MAYO08A):** the map's sprites (0–0x28) streak to the right for 3 s, then vanish.
+- **The Monochrome Shop (GCAN11):** a mood bubble (one of 5 faces, 32×32) pops up and grows over a Digimon's head for 1.5 s.
+- **Machinedramon** (Mt. Infinity MGEN99, the end of the story):
   - **Build-up:** flat rings swell and shrink round a point, three at a time, new ones every 6 frames.
   - **Spawn:** the screen goes black (a subtractive full-screen quad, then fading back over 32 frames). Everything but Machinedramon is hidden, the map too, against a black backdrop (§8.3). It materialises from a wireframe while the camera swings round it, green line-squares spread from its feet, and rings pulse. After 16 s the map comes back and the battle starts.
 - **The ending:** the tamer fades to black and turns translucent while sparks rise from his bones. He shrinks, then grows, and the sparks fly up. Then the credits movie plays, and the title screen follows.
@@ -138,12 +137,12 @@ Routine 0x24 (`readMapTFS(CURRENT_SCREEN_ID)`) is called by no script.
 | N7 | Release quirk | 313–317 | `ENDI_DATA.base` takes bone 0's `t[1], t[2], t[3]` (y, z, and one past the array) as x, y, z: the base is shifted | §8.4 |
 | N8 | After | `script_interp.c:516–520`, `main.c:3522–3527` | the routine's wait (case 53) sees the sync bit: `MAIN_STATE = 3`. The game loop ends, `cleanupGame`, `playMovie(3, 1)`, then the boot loop again (landing screen, title) | |
 
-### 3.5 Volume Villa's CLUT source
+### 3.5 Robot House's TFS reload
 
 | # | Name | C | Value | Status |
 |---|---|---|---|---|
-| V1 | `somethingToyTown(box)` | `map_object.c:1156–1164` | `TOY_TOWN_SELECTED_BOX = box`; when box 0 and trigger 350: `readMapTFS(0x92)` (Robot House OMOC03's TFS into `GENERAL_BUFFER`) | |
-| V2 | Its effect | `map.c:4233–4241`, 4301–4325 | `setupMap` keeps pointers into that buffer (`MAP_CLUTS[0..2]`, the day / evening / night CLUTs). `updateTimeOfDay` reloads CLUT row 480 from them, so after V1 Volume Villa's background takes OMOC03's CLUTs at the next time-of-day update | §8.1 |
+| V1 | `somethingToyTown(box)` | `map_object.c:1156–1164` | `TOY_TOWN_SELECTED_BOX = box`; when box 0 and trigger 350: `readMapTFS(0x92)`: map 0x92 = 146 = OMOC03, the Robot House itself (script 140 runs there): its own TFS read again into `GENERAL_BUFFER` | |
+| V2 | Its effect | `map.c:4233–4241`, 4301–4325 | `setupMap` keeps pointers into that buffer (`MAP_CLUTS[0..2]`, the day / evening / night CLUTs) that `updateTimeOfDay` reloads row 480 from. The same file read into the same buffer gives the same CLUTs: nothing changes on screen (it restores the buffer if something used it meanwhile) | nothing to port (§8.1) |
 
 ## 4. Behaviour (the port)
 
@@ -254,9 +253,18 @@ No drawing and no wiring (step 4). `int16_t` values wrap as in the C (`PsxMath.s
     1. shake: `field_map.set_offset_shake(field_map.offset_shake + Vector2(shake.tick(), 0))`; when `shake.done`, `set_offset_shake(Vector2(shake.saved_offset))` and `shake_running = false` (S6: the C restores the saved offsets; the port's offset follows the scroll, so it restores the shake part: `stand-in`);
     2. Ninjamon: `done = ninjamon.tick()`; `field_map.overlays.set_positions(ninjamon.positions, 0, NinjamonEffect.ORDER)`; when done, `field_map.overlays.set_flag(0, 1, NinjamonEffect.COUNT)` and `ninjamon_running = false`;
     3. the bubble: `bubble_entity` = the entity for script value 0xF7 (as above); `bubble_draws = bubble.render(bubble_entity != null)`.
-  - No drawing of the bubble in this step: `MoodBubbleView` comes later in the main session, with a porter export of the faces (the map's 4bpp page at VRAM (640, 0), u = mood · 32, v 0, 32 × 32, CLUT (0, 486): TWNB20–23's 4bpp image 0).
+  - The bubble is drawn by `MoodBubbleView` (§4.2.3).
 - **`ScriptInterpreter`:** `var fade: Fade`, `var map_effects: MapEffects` (null: unported as now), and `func entity_for_script_id(script_id: int) -> Node3D` (public, returns `_entity_for_script_id`). Routines: 0x1C `map_effects.create_mood_bubble()` (`script_interp.c:1783`), 0x22 `start_meramon_shake()` (1814), 0x26 `start_ninjamon()` (1838), 0x2D `fade.fade_to_white(read_pstat(0xFE))` (1882), 0x2E `fade.fade_from_white(read_pstat(0xFE))` (1885). None ends the frame.
 - **Wiring:** `MapSession.start_map_items()` also makes `map_effects` (name `"MapEffects"`, `field_map`, `game_state = GameState`), added as a child of the session; `Field._start()`, after `care_host.start()`: `scripts.interpreter.fade = care_host.fade`, `map_session.map_effects.interpreter = scripts.interpreter`, `scripts.interpreter.map_effects = map_session.map_effects` (only when `scripts.interpreter` isn't null); `Field._frame()` calls `map_session.map_effects.tick()` right after `map_props_view.render()`.
+
+#### 4.2.3 The mood bubble's view (step 4b, main session)
+
+- **Asset porter** (`maps` family, `asset_porter/specs/map.md`): GCAN11's faces, u 0–159 v 0–31 of the 4bpp page (640, 0) through CLUT (0, 486), as `maps/GCAN11/mood/faces.png` + `.stp.png` + sidecar.
+- **`MoodBubbleView`** (`scripts/field/mood_bubble_view.gd`, a HUD `Control` like `ConditionBubbles`): each frame (`refresh()` after `MapEffects.tick()`), one sprite per `bubble_draws` entry: the condition-FX point of `bubble_entity` (`translateConditionFXToEntity`: `GameData.condition_fx_offset`'s offset through the bone's world basis), projected by `FieldMap.world_to_screen` from `drawing_offset()`; the pivot (16, 16) on (x, y − offset), size 32 · scale / 4096; region u = `bubble.u`. Opaque texels drawn, STP texels added (attribute 0x50000000, rate 1). The faces are the current map's (`maps/<NAME>/mood/faces`), so a map without them draws nothing. `stand-in`: in the HUD, over the 3D world (the C sorts it at OT depth >> 4).
+- **`PsxTexture.load_masked(rel)`**: a porter PNG split by its `.stp.png` mask (`TrainingSlotsBox.load_strip` uses it too).
+- **Wiring:** `MapSession.mood_bubble_view` (made in `start_map_items`), in the field's HUD after the condition bubbles.
+
+**The map-textured props (found 2026-11-02).** T_YAMA, BIGBOX, SMABOX, GAND, ABOX and BOSS_EFE have no texture of their own: they read the map's VRAM (`asset_porter/specs/tmd.md`). The porter now exports them per map like the doors (`maps/<NAME>/props/<FILE>.gltf`: T_YAMA on TUNN05, the boxes on OMOC08, GAND on OMOC03, ABOX on ICSA01, BOSS_EFE on MGEN99), and `MapPropsView.model_path()` prefers the current map's copy.
 
 ### 4.3 Machinedramon
 
@@ -267,6 +275,30 @@ No drawing and no wiring (step 4). `int16_t` values wrap as in the C (`PsxMath.s
 - the wireframe on entity 2 (`DooaScene`'s wireframe draw, entity 2's instead of the partner's).
 
 The nine flashes go through the death scene's `EFECreateFlash` port. `TamerHost` / the interpreter: digimon routine 8 sets tamer state 18 and partner state 11, clears the sync bit, and the scene sets it again (as routines 7 / 9). Routines 0x33 / 0x28 load the model and start the build-up on script entity 5.
+
+#### 4.3.1 The logic's API (step 5a)
+
+`class_name EabScene extends RefCounted` (`scripts/field/eab/eab_scene.gd`), modelled on `EvlSequence`. Values are PSX integers; `lerp` is `PsxMath.lerp_int` (with its wrap quirk: E6's angle runs past 0x122 until 0x140), `_sin` is `PsxMath.sin512`, C divisions `PsxMath.div`.
+
+- Constants (each with its line): `RINGS := 3` (the slots `EAB_addBuildupRing` / `EAB_addSpawnRing` search, 219, 276), `RING_BUILDUP := 0`, `RING_SPAWN := 1`, `BUILDUP_RING_LIFE := 0x12` (249), `SPAWN_RING_LIFE := 9` (306), `PARTICLES := 100` (519), `PARTICLE_LIFE := 0x56` (600), `FLASHES` (`EAB_D_8006170C`, 136: nine `[x, y, z, scale_max]`), `PULSE` (`EAB_D_8006179C`, 148: 18 values), `PARTICLE_RB := 0x0A` (`MAIN_D_80134C3C`, 124), `MODEL_COLOR := Vector3i(0x3C, 0x3C, 0x3C)` (E1), `RING_ROTATION := Vector3i(0, 0x800, 0)` (122, 123), `ANIM_RISE := 0x21`, `ANIM_LOOP := 0x33`, `VAB_ID := 5`, `SOUND_BANK := 8`.
+- State: `buildup_active`, `buildup_frame` (`MAIN_D_801353F0`); `spawn_active`, `frame`, `phase` (`EAB_D_800617E8`); `rings: Array[Dictionary]` (3 × `{"timer": -1, "kind"}`); `particles: Array[Dictionary]` (100 × `{"timer": -1, "pos": Vector3i, "color": Vector3i}`); `fx := BattleFx.new()` (its own flash slots: `initializeFlashData(EAB_D_80061800)`); `wireframe_total := 16` (`ENTITY1_WIREFRAME_TOTAL`, `model.c:85`, kept between frames).
+- Inputs the host sets before each `tick()`: `location: Vector3i` (`ENTITY_TABLE[2]`'s location), `yaw: int` (its rotation.vy), `bone0: Vector3i` (`calculateBoneMatrix(entity, 0).t`), `anim_id: int`, `anim_ended: bool` (animFrame == frameCount).
+- Outputs, cleared at the start of each `tick()`: `events: Array` (in the C's order; strings or arrays: `"buildup_entity_hidden"`, `["sound2", bank, id]`, `["sound", bank, id]`, `"stop_sound"`, `"entity_on_map"`, `["animation", id]`, `"hide_entities"`, `"show_entities"`, `"map_layer_off"`, `"map_layer_on"`, `"save_view"`, `"restore_view"`, `["vab", id]`), `flashes_drawn: Array[int]` (each `EAB_renderFlash` colour this frame, in order), `backdrop: bool`, `view: Dictionary` (`{"eye": Vector3i, "ref": Vector3i}` when the orbit set `GS_VIEWPOINT` this frame and no restore followed, else `{}`).
+- `start_buildup()` (`EAB_startBuildup`, 649): `buildup_frame = 0`, `buildup_active = true`, every ring's timer −1; events `"buildup_entity_hidden"`, `["sound2", 8, 0]` (called from routine 0x28; its events are read by the host right away).
+- `start_spawn()` (`EAB_tick` init, 680–706): `frame = 0`, `phase = 0`, `spawn_active = true`, every particle's timer −1, `fx.reset()`, then per `FLASHES[i]`: `fx.create_flash(0x20, Vector3i(x, y, z), 0x22, 0x32, 0, scale_max, Vector3i(0x14, 0x14, 0x14), Vector3i(0xFF, 0xFF, 0xFF))` (the stack order of 694–703); event `["sound", 8, 1]`.
+- `result() -> int` (`EAB_tick(entity, 1)`): `frame` (−1 once done: `tamerTickMachinedramonSpawn` then sets the sync bit).
+- `tick()`, one game frame, in this order (`port-only`: the C's object list puts the rings and particles after the objects that add them, so a ring or particle is ticked in the frame it is added: `stand-in` for the slot order):
+  1. `buildup_active`: `EAB_tickBuildup` (187): `buildup_frame = (buildup_frame + 1) % 18`; when `% 6 == 0` a ring of kind `RING_BUILDUP` (the first slot with timer < 0 gets timer 0; none free: nothing).
+  2. `spawn_active`: `EAB_tickSpawn` (349–458) exactly as the C: `frame += 1`; when `anim_id == ANIM_LOOP and anim_ended`: `["animation", 0x33]`; then the phases:
+     - phase 0: frame ≥ 0x2D → `flashes_drawn.append(0xFF)`; frame < 0x32 → stop. Else phase 1 and events `"entity_on_map"`, `["animation", 0x21]`, `"hide_entities"`, `"map_layer_off"`, `"save_view"`, `buildup_active = false`, `"stop_sound"`, `["sound2", 8, 2]`, `["vab", 5]`; falls through;
+     - phase 1: a `RING_SPAWN` ring; frame == 0xD2 → `["animation", 0x33]`; 0x32 ≤ frame < 0x53 → `flashes_drawn.append(lerp(0xFF, 0, 0x32, 0x52, frame))`; `v = PULSE[frame % 18]` ≠ 0 → a particle at `location`, colour (0x0A, g, 0x0A) with `g = lerp(0x32, 0xE6, 1, 5, v)`, then `g = div(g · sin512(lerp(0, 0x80, 0x32, 0x122, frame)), 4096) & 0xFF` (the first free of 100 slots gets timer 0; none: nothing); `backdrop = true`; 0x32 ≤ frame < 0x123 → `wireframe_total = 0x10 − div(sin512(lerp(0x80, 0, 0x32, 0x122, frame)) · 16, 4096)`; the orbit: `ry = lerp(0x71C, 0x171C, 0x32, 0x122, frame)` for 0x32 ≤ frame < 0x123, else 0x171C; `ry += yaw`; `distance = lerp(0xDAC, 0xBB8, 0x32, 0x140, frame)`; `height = lerp(0x258, 0x32, 0x32, 0x140, frame)`; `ref = bone0 − (0, 0x64, 0)`; `eye = apply_matrix_lv(rot_matrix_zyx((0, ry, 0)), (0, 0, distance)) + ref − (0, height, 0)` (`EAB_calculateCameraOrbit`, 559); `view = {"eye", "ref"}`; frame == 0x13F → `view = {}`, `"restore_view"`; frame < 0x140 → stop. Else phase 2: every particle's timer −1, `"map_layer_on"`, `"show_entities"`, `view = {}`, `"restore_view"`, `"stop_sound"`, `["sound", 8, 3]`;
+     - phase 2: frame < 0x14A → a `RING_SPAWN` ring; frame ≥ 0x154 → every ring's timer −1, `frame = −1`, `spawn_active = false`.
+  3. Each ring with timer ≥ 0: timer + 1; at ≥ its kind's life → −1 (`EAB_tickBuildupRing` 241, `EAB_tickSpawnRing` 298).
+  4. Each particle with timer ≥ 0: at ≥ 0x56 → −1, else + 1 (`EAB_tickParticle`, 595).
+  5. `fx.tick()`.
+- `ring_scale(i) -> Vector3i` (x, y, z) for ring i's timer `t`: buildup: xz `lerp(0x10B8, 0x614, 1, 0x12, t)`, y `div(sin512(lerp(0, 0x80, 1, 0x12, t)) · 0xC3C, 4096) + 0x15C` (255–274); spawn: xz `lerp(0x16CC, 0x10B8, 1, 0x12, t)`, y `div(sin512(…) · 0x2B8, 4096) + 0xAE` (312–329).
+- `particle_size(i) -> int` = `lerp(8, 0x9C4, 0, 0x56, timer)`; `particle_color(i) -> Vector3i` = each channel `lerp(c, 0, 0, 0x56, timer)` (`EAB_renderParticle`, 608–647).
+- C quirk kept: `EAB_setModelColor` (159) only advances its primitive pointer on a 0x2D / 0x2F primitive, so after the first other primitive it rewrites nothing more. The view colours what the C colours (step 5b).
 
 ### 4.4 The ending and the credits
 
@@ -300,9 +332,10 @@ All suites and scans pass after every step; a step is done when its gate in §7 
 | 2 | `MapProps` view and wiring: the models, map layer, cart following the partner, the interpreter's routines / opcodes, map change, `GameState.session` | **Medium** · Claude Sonnet 5.5 (Medium), or agy with a precise brief: several files, the tests cover the wiring, an in-game look covers placement | **agy** (brief lists every hook) |
 | 3 | Screen-effect logic: `MeramonShake`, `NinjamonEffect`'s maths, the bubble's timer / scale, the white fade's counters (S1–S11) | **Low** · Gemini 3.8 Flash (High) | **agy** |
 | 4 | Screen-effect views and wiring: `Fade` white (additive layer), `FieldMap.offset_shake`, the overlays, `MoodBubble` drawing, the routines | **Medium**: rendering is simple (a fade, a sprite, an offset), the tests check the state | agy or Sonnet; **agy** if step 2 went well |
-| 5 | Machinedramon (§3.3, §4.3): `EabScene` logic **Medium**, the view **Hard** (rings, quads, lines, wireframe, camera, hidden entities) | **Hard** · main session (Opus) | no |
+| 5a | Machinedramon's logic (§3.3, §4.3.1): `EabScene`, every timeline by the frame | **Medium** · Gemini 3.8 Flash (High) with the exact API and tests | **agy** |
+| 5b | Machinedramon's view and wiring (§4.3): rings, quads, lines, wireframe, camera, hidden entities, routines 0x28 / 0x33, digimon routine 8, tamer state 18 | **Hard** · main session (Opus) | no |
 | 6 | The ending and credits (§3.4, §4.4): `EndingScene` **Medium**, the view and the CLUT/STP fade **Hard**, the `Game` end path **Medium** | **Hard** · main session | no (the `Game` path could be split off to agy) |
-| 7 | Volume Villa's CLUT source (§3.5), after §8.1 is decided | **Hard** (background palettes) · main session | no |
+| 7 | ~~Robot House's TFS reload (§3.5)~~: the map rereads its own TFS, so nothing changes (§8.1, 2026-11-02) | none | dropped |
 | 8 | VERIFY "Map events", PLANS, "As built", gates | main session | no |
 
 Steps 1–4 can run before 5–6, and 1 and 3 in parallel (they own different files). The story reaches the credits after step 6.
@@ -319,7 +352,7 @@ Steps 1–4 can run before 5–6, and 1 and 3 in parallel (they own different fi
   - the routines are gone from the unported reports;
   - a map change unloads;
   - the cart's world transform for a given partner position, yaw and radius;
-  - in the scan: Drill Tunnel's and Costume House's sections run with the props drawn.
+  - in the scan: Underground Pond's and Toy Mansion's sections run with the props drawn.
 - **Step 3:**
   - the shake's 210 steps (sum 0, the amplitude per range), the offsets restored;
   - Ninjamon with a seeded `Rng`: positions after 1 / 2 frames, a wrap, all hidden at 0x3C;
@@ -331,8 +364,9 @@ Steps 1–4 can run before 5–6, and 1 and 3 in parallel (they own different fi
 
 ## 8. Open questions
 
-1. **Volume Villa's CLUTs (§3.5).** After trigger 350, does the original Volume Villa's background change colours at the next hour (OMOC03's CLUTs)? If the CLUTs are the same or the change is visible and intended, port it (step 7). If it looks broken in the original, keep it and note it. Needs the user to check the original game.
-2. **The pedestal and the time of day (P21).** Kept as in the C. Seen only if the hour changes during Freezeland's pedestal scene.
-3. **EAB's flash and backdrop (E9, E10)** are subtractive (abr 2) at colour 0xFF on the texel at (832, 256) u 0 v 0x80, CLUT 487: if that texel is white, the screen goes black (flash) and the background behind Machinedramon is black (backdrop at OT 0xFA0). Step 5 reads the texel from the VRAM dump to confirm; the port follows the C either way.
+1. **~~Volume Villa's CLUTs (§3.5)~~: answered (2026-11-02).** Routine 0x2A runs in script 140, on OMOC03 itself, so `readMapTFS(0x92)` rereads the map's own TFS: the CLUTs stay the same. Nothing to port (step 7 dropped).
+2. **The pedestal and the time of day (P21).** Kept as in the C. Seen only if the hour changes during Ice Sanctuary's (ICSA01) pedestal scene.
+3. **EAB's flash and backdrop (E9, E10): answered from the data (2026-11-02).** The texel at (832, 256) 8bpp, u 0 v 0x80, CLUT (0, 487) is SPOT256's (`etctim/07_spot256`, image (0, 0)) index 255 = 0xFFFF: white with STP. Subtracted at colour 0xFF it removes everything: the flash turns the screen black, and the backdrop (OT 0xFA0, in front of the background, behind the models) blacks out the map behind Machinedramon.
 4. **ENDI's base (N7)** reads `t[1..3]` (one past the translation): the detached sparks are offset. The port keeps it with `t[3]` = the next word of the C's `MATRIX` (`port-only` value 0 if unknown). To confirm in the original.
+6. **~~The mood bubble's faces (S10)~~: answered (2026-11-02).** Scripts 199–202 run on GCAN11, the Monochrome Shop (script 49 jumps to them), not on TWNB20–23. GCAN11's 4bpp image 0 is exactly the rect the sprite reads (VRAM (640, 0), 160 × 32: five 32 × 32 faces); the porter exports it (`maps/GCAN11/mood/faces.png`, `asset_porter/specs/map.md`) and `MoodBubbleView` draws it (§4.2.3).
 5. **Movie 3** is the credits (`movies.json`); `MoviePlayer` must not let Start skip it (`specs/new_game.md`).

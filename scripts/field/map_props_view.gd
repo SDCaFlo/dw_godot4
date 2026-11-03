@@ -16,6 +16,9 @@ const GROUPS := {
 
 ## The logic state (positions, matrices, timers).
 var props: MapProps
+## The field: its map's textured copies of the props (asset porter maps/<NAME>/props/, like the
+## doors: these TMDs read the map's VRAM). A prop without one uses MapProps.MODELS.
+var field: FieldMap
 ## The partner (FieldDigimon: position, direction, radius); the cart is placed in front of it.
 var partner: FieldDigimon
 
@@ -37,8 +40,8 @@ func render() -> void:
 		if is_loaded:
 			for model_key: StringName in model_keys:
 				if not _nodes.has(model_key):
-					var model_path: String = MapProps.MODELS[model_key]
-					var model: Node3D = Content.load_model(model_path) if Content.exists(model_path) else null
+					var path := model_path(model_key)
+					var model: Node3D = Content.load_model(path) if Content.exists(path) else null
 					if model == null:
 						continue
 					model.name = String(model_key)
@@ -86,6 +89,17 @@ func render() -> void:
 		var small_lid := _nodes[&"small_box"].find_child("object_1", true, false) as Node3D
 		if small_lid != null:
 			small_lid.transform = Content.psx_transform(props.transform(&"small_lid"))
+
+
+## The map's own copy of a prop's model when the porter wrote one (maps/<NAME>/props/<FILE>.gltf),
+## else MapProps.MODELS's.
+func model_path(model_key: StringName) -> String:
+	var path: String = MapProps.MODELS[model_key]
+	if field != null:
+		var per_map := "maps/%s/props/%s" % [field.map_name, path.get_file()]
+		if Content.exists(per_map):
+			return per_map
+	return path
 
 
 ## Model node for a prop (P1-P18), or null when not loaded.

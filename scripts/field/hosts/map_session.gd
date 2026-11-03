@@ -28,6 +28,8 @@ var map_props: MapProps
 var map_props_view: MapPropsView
 ## The screen effects (specs/map_events.md §4.2.2).
 var map_effects: MapEffects
+## Monochromon's mood bubble on screen; the field puts it into the HUD.
+var mood_bubble_view: MoodBubbleView
 ## scriptTickChangeMap's SCRIPT_MAP_CHANGE_STATE.
 var _script_change_state := 0
 
@@ -48,6 +50,7 @@ func start_map_items() -> void:
 	map_props_view = MapPropsView.new()
 	map_props_view.name = "MapProps"
 	map_props_view.props = map_props
+	map_props_view.field = field_map
 	map_props_view.partner = partner
 	world.add_child(map_props_view)
 	map_effects = MapEffects.new()
@@ -55,6 +58,11 @@ func start_map_items() -> void:
 	map_effects.field_map = field_map
 	map_effects.game_state = GameState
 	add_child(map_effects)
+	mood_bubble_view = MoodBubbleView.new()
+	mood_bubble_view.name = "MoodBubble"
+	mood_bubble_view.effects = map_effects
+	mood_bubble_view.field = field_map
+	mood_bubble_view.data = GameData
 	field_map.daytime_transition_removed.connect(_on_daytime_transition_removed)
 	tamer.map_items = map_items
 	tamer.map_chests = map_chests

@@ -312,6 +312,14 @@ func _view() -> void:
 	props.spawn_boulder()
 	view.render()
 	_check(view.node(&"boulder") != null, "P8: the boulder loads")
+	# The map's textured copy (asset porter maps/<NAME>/props/, the TMDs that read the map's VRAM).
+	_eq(view.model_path(&"big_box"), "tmd_files/ETCNA/BIGBOX.gltf", "a map without its copy: the shared model")
+	view.field = map
+	map.load_map("OMOC08")
+	_eq(view.model_path(&"big_box"), "maps/OMOC08/props/BIGBOX.gltf", "OMOC08's own BIGBOX (its VRAM)")
+	_eq(view.model_path(&"cart"), "tmd_files/ETCNA/DOSYA.gltf", "the cart has its own texture")
+	map.load_map("MAYO01")
+	view.field = null
 	# Unload frees the models.
 	props.unload()
 	view.render()
@@ -496,3 +504,43 @@ func _mood(effects: Node) -> void:
 	_eq(effects.get("bubble_draws"), [], "S11: nothing drawn")
 	_eq(effects.get("bubble_entity"), null, "S11: no entity")
 	_eq(interp.call("entity_for_script_id", 0x50), null, "entity_for_script_id: none")
+	_mood_view(effects)
+
+
+func _mood_view(effects: Node) -> void:
+	if not ResourceLoader.exists("res://scripts/field/mood_bubble_view.gd"):
+		_check(false, "scripts/field/mood_bubble_view.gd exists")
+		return
+	# The porter's faces strip of the Monochrome Shop (S10).
+	var faces = PsxTexture.load_masked("maps/GCAN11/mood/faces")
+	_check(faces != null, "S10: maps/GCAN11/mood/faces.png exported")
+	if faces != null:
+		_eq(Vector2i(faces.base.get_size()), Vector2i(160, 32), "S10: 5 faces of 32 x 32")
+	_check(not Content.exists("maps/MAYO01/mood/faces.png"), "S10: only the shop's map")
+	var view = load("res://scripts/field/mood_bubble_view.gd").new()
+	view.effects = effects
+	view.field = map
+	view.data = data
+	root.add_child(view)
+	_eq(view.sprite_rects().size(), 0, "S11: nothing without an entity")
+	var npc := FieldDigimon.new()
+	npc.digimon = "dw1:monochromon"
+	root.add_child(npc)
+	npc.position = Vector3(200, 0, -300)
+	effects.bubble_entity = npc
+	effects.bubble_draws = [{"offset": 1, "scale": 0x100}, {"offset": 16, "scale": 0x1000}]
+	var rects: Array = view.sprite_rects()
+	_eq(rects.size(), 2, "S11: one sprite per render object")
+	var p: Vector3 = view.fx_point(npc)
+	var r: Dictionary = map.world_to_screen(Vector3i(roundi(p.x), roundi(-p.y), roundi(-p.z)))
+	var screen: Vector2 = map.drawing_offset() + Vector2(r["screen"])
+	if rects.size() == 2:
+		_check(rects[0].is_equal_approx(Rect2(screen - Vector2(0, 1) - Vector2(1, 1), Vector2(2, 2))),
+				"S11: timer 0x1E: 1/16 size, raised 1")
+		_check(rects[1].is_equal_approx(Rect2(screen - Vector2(0, 16) - Vector2(16, 16), Vector2(32, 32))),
+				"S11: timer 0: full size, raised 16, the pivot on the point")
+	_check(not data.condition_fx_offset("dw1:monochromon").is_empty(), "translateConditionFXToEntity: Monochromon has an offset")
+	effects.bubble_entity = null
+	effects.bubble_draws = []
+	view.free()
+	npc.free()

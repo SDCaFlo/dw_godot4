@@ -311,7 +311,7 @@ func _start_debug() -> void:
 	debug.window.ui_filter_changed.connect(func(on: bool) -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
-	for node: Node in [care_host.bars, care_host.bubbles, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
+	for node: Node in [care_host.bars, care_host.bubbles, map_session.mood_bubble_view, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
 			care_host.fade, scripts.boxes, death_host.darken,
 			scripts.map_name]:
 		if node != null:
@@ -373,6 +373,7 @@ func _frame() -> void:
 			map_session.map_props_view.render()
 		if map_session.map_effects != null:
 			map_session.map_effects.tick()
+			map_session.mood_bubble_view.refresh()
 	debug.tick_message()
 	debug.tick_gallery()
 	care_host.tick_visuals(in_menu)

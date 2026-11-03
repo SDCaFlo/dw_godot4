@@ -22,6 +22,8 @@ func _process(_delta: float) -> bool:
 		_props()
 	if _gate(3, "step 3: screen-effect logic"):
 		_screen_effects()
+	if _gate(5, "step 5a: Machinedramon's logic (EabScene)"):
+		_eab()
 	var state := "FAILED %d" % _failed if _failed else "OK"
 	if _pending:
 		state += "; PENDING (DW_STEP_4F=%d): %s" % [_step, ", ".join(_pending)]
@@ -476,3 +478,186 @@ func _mood(cls: GDScript) -> void:
 ## An array as text, so typed and untyped arrays compare by their contents.
 func _list(a) -> String:
 	return str(Array(a))
+
+
+# --- Step 5a: Machinedramon's logic (§3.3, §4.3.1) ----------------------------------------------
+
+const EAB_PATH := "res://scripts/field/eab/eab_scene.gd"
+
+
+func _l(a: int, b: int, t0: int, t1: int, t: int) -> int:
+	return PsxMath.lerp_int(a, b, t0, t1, t)
+
+
+func _live(list: Array) -> int:
+	return list.filter(func(r): return r["timer"] >= 0).size()
+
+
+func _eab() -> void:
+	if not ResourceLoader.exists(EAB_PATH):
+		_check(false, "step 5a: %s exists" % EAB_PATH)
+		return
+	var cls: GDScript = load(EAB_PATH)
+	_eq(cls.FLASHES.size(), 9, "E4: nine flash positions")
+	_eq(cls.FLASHES[0], [0, -300, -900, 0x1400], "E4: EAB_D_8006170C[0]")
+	_eq(cls.FLASHES[8], [-1200, -300, -2500, 0x1400], "E4: EAB_D_8006170C[8]")
+	_eq(cls.PULSE, [1, 2, 3, 4, 5, 4, 3, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], "E8: EAB_D_8006179C")
+	_eab_buildup(cls)
+	_eab_spawn(cls)
+	_eab_particles(cls)
+	_eab_spawn_rings(cls)
+
+
+func _ring_y(amp: int, base: int, t: int) -> int:
+	return PsxMath.div(PsxMath.sin512(_l(0, 0x80, 1, 0x12, t)) * amp, 4096) + base
+
+
+func _eab_buildup(cls: GDScript) -> void:
+	var e = cls.new()
+	e.start_buildup()
+	_eq(e.events, ["buildup_entity_hidden", ["sound2", 8, 0]], "E2: start events")
+	_eq(e.buildup_active, true, "E2: running")
+	# Frames 1-5: no ring; frame 6: the first, ticked in its own frame (timer 1).
+	for f in 5:
+		e.tick()
+	_eq(_live(e.rings), 0, "E2: no ring before frame 6")
+	e.tick()
+	_eq(e.rings[0]["timer"], 1, "E2: a ring at frame 6, ticked in its frame")
+	_eq(e.rings[0]["kind"], cls.RING_BUILDUP, "E2: a build-up ring")
+	_eq(e.ring_scale(0), Vector3i(0x10B8, _ring_y(0xC3C, 0x15C, 1), 0x10B8), "E3: scale at t 1")
+	# Frames 6, 12, 18 add one each.
+	for f in 12:
+		e.tick()
+	_eq(_live(e.rings), 3, "E2: three rings by frame 18")
+	_eq([e.rings[0]["timer"], e.rings[1]["timer"], e.rings[2]["timer"]], [13, 7, 1], "E2: their timers")
+	var xz := _l(0x10B8, 0x614, 1, 0x12, 13)
+	_eq(e.ring_scale(0), Vector3i(xz, _ring_y(0xC3C, 0x15C, 13), xz), "E3: scale at t 13")
+	# The first ends at t 0x12 (frame 23), so frame 24 finds slot 0 free.
+	for f in 5:
+		e.tick()
+	_eq(e.rings[0]["timer"], -1, "E3: gone at 0x12 (frame 23)")
+	e.tick()
+	_eq(e.rings[0]["timer"], 1, "E2: frame 24 reuses slot 0")
+	_eq(e.buildup_frame, 6, "E2: (frame + 1) % 18 (24 -> 6)")
+
+
+func _eab_spawn(cls: GDScript) -> void:
+	var e = cls.new()
+	e.start_buildup()
+	e.location = Vector3i(100, 0, 2000)
+	e.yaw = 0x400
+	e.bone0 = Vector3i(100, -800, 2000)
+	e.start_spawn()
+	_check(e.events.has(["sound", 8, 1]), "E4: playSound(8, 1)")
+	_eq(e.fx.flashes.filter(func(f): return f["progress"] >= 0).size(), 9, "E4: nine flashes")
+	var f0: Dictionary = e.fx.flashes[0]
+	_eq([f0["mode"], f0["position"], f0["fixed_depth"], f0["t_max"], f0["scale_min"], f0["scale_max"], f0["color_min"], f0["color_max"]],
+			[0x20, Vector3i(0, -300, -900), 0x22, 0x32, 0, 0x1400, Vector3i(0x14, 0x14, 0x14), Vector3i(0xFF, 0xFF, 0xFF)],
+			"E4: EFECreateFlash's arguments")
+	_eq(e.result(), 0, "EAB_tick(_, 1): frame 0")
+	var events := {}
+	var views := {}
+	var wire := {}
+	var flashes := {}
+	var backdrop := {}
+	var done_at := -1
+	for n in 0x160:
+		e.anim_id = 0x33 if n >= 0xD2 else 0x21
+		e.anim_ended = n == 0xE0
+		e.tick()
+		var f := n + 1
+		events[f] = e.events.duplicate()
+		views[f] = e.view.duplicate()
+		wire[f] = e.wireframe_total
+		flashes[f] = e.flashes_drawn.duplicate()
+		backdrop[f] = e.backdrop
+		if e.result() < 0:
+			done_at = f
+			break
+	_eq(done_at, 0x154, "E12: frame -1 at 0x154")
+	_eq(e.spawn_active, false, "E12: done")
+	_eq(_live(e.rings), 0, "E12: the rings removed")
+	_eq(flashes[0x2C], [], "E5: no flash before 0x2D")
+	_eq(flashes[0x2D], [0xFF], "E5: the flash from 0x2D")
+	_eq(flashes[0x32], [0xFF, 0xFF], "E5/E6: frame 0x32 draws both (phase 0, then the fall-through)")
+	_eq(flashes[0x40], [_l(0xFF, 0, 0x32, 0x52, 0x40)], "E6: the fade at 0x40")
+	_eq(flashes[0x53], [], "E6: no flash from 0x53")
+	_eq(events[0x32], ["entity_on_map", ["animation", 0x21], "hide_entities", "map_layer_off", "save_view", "stop_sound",
+			["sound2", 8, 2], ["vab", 5]], "E5: the setup at 0x32")
+	_eq(e.buildup_active, false, "E5: the build-up removed")
+	_eq(events[0xD2], [["animation", 0x33]], "E6: animation 0x33 at 0xD2")
+	_eq(events[0xE1], [["animation", 0x33]], "E6: 0x33 restarts when it ends (353-356)")
+	_eq(backdrop[0x31], false, "E10: no backdrop in phase 0")
+	_eq(backdrop[0x32] and backdrop[0x140], true, "E10: the backdrop 0x32-0x140")
+	_eq(backdrop[0x141], false, "E10: none in phase 2")
+	_eq(wire[0x31], 0x10, "E6: whole before 0x32")
+	_eq(wire[0x32], 0x10 - PsxMath.div(PsxMath.sin512(0x80) * 16, 4096), "E6: wireframe total at 0x32")
+	_eq(wire[0xA0], 0x10 - PsxMath.div(PsxMath.sin512(_l(0x80, 0, 0x32, 0x122, 0xA0)) * 16, 4096), "E6: at 0xA0")
+	_eq(wire[0x122], 0x10, "E6: whole again at 0x122")
+	_eq(wire[0x130], 0x10, "E6: kept after 0x122")
+	var ref := Vector3i(100, -800 - 0x64, 2000)
+	var ry := _l(0x71C, 0x171C, 0x32, 0x122, 0x80) + 0x400
+	var dist := _l(0xDAC, 0xBB8, 0x32, 0x140, 0x80)
+	var h := _l(0x258, 0x32, 0x32, 0x140, 0x80)
+	var eye := PsxMath.apply_matrix_lv(PsxMath.rot_matrix_zyx(Vector3i(0, ry, 0)), Vector3i(0, 0, dist)) + ref - Vector3i(0, h, 0)
+	_eq(views[0x80], {"eye": eye, "ref": ref}, "E11: the orbit at 0x80")
+	ry = 0x171C + 0x400
+	dist = _l(0xDAC, 0xBB8, 0x32, 0x140, 0x130)
+	h = _l(0x258, 0x32, 0x32, 0x140, 0x130)
+	eye = PsxMath.apply_matrix_lv(PsxMath.rot_matrix_zyx(Vector3i(0, ry, 0)), Vector3i(0, 0, dist)) + ref - Vector3i(0, h, 0)
+	_eq(views[0x130], {"eye": eye, "ref": ref}, "E11: yaw 0x171C after 0x122")
+	_eq([views[0x13F], events[0x13F]], [{}, ["restore_view"]], "E11: frame 0x13F restores the view")
+	_eq(events[0x140], ["map_layer_on", "show_entities", "restore_view", "stop_sound", ["sound", 8, 3]], "E12: phase 2 at 0x140")
+	_eq(views[0x140], {}, "E12: the view restored")
+	_eq(views[0x31], {}, "E11: no orbit in phase 0")
+
+
+func _eab_particles(cls: GDScript) -> void:
+	# Frame 0x80: PULSE[0x80 % 18] = PULSE[2] = 3, so a particle.
+	var g := PsxMath.div(_l(0x32, 0xE6, 1, 5, 3) * PsxMath.sin512(_l(0, 0x80, 0x32, 0x122, 0x80)), 4096) & 0xFF
+	var e = cls.new()
+	e.location = Vector3i(7, 8, 9)
+	e.start_spawn()
+	var added := {}
+	for n in 0x80:
+		e.tick()
+		added[n + 1] = e.particles.filter(func(p): return p["timer"] == 1).size()
+	_eq(added[0x31], 0, "E8: none in phase 0")
+	_eq(added[0x36], 1, "E8: a particle at 0x36 (PULSE[0] = 1)")
+	_eq(added[0x3F], 0, "E8: none at 0x3F (PULSE[9] = 0)")
+	var newest: Array = e.particles.filter(func(p): return p["timer"] == 1)
+	_eq(newest.size(), 1, "E8: frame 0x80's particle")
+	if newest.size() != 1:
+		return
+	var k: int = e.particles.find(newest[0])
+	_eq(newest[0]["color"], Vector3i(0x0A, g, 0x0A), "E8: its colour")
+	_eq(newest[0]["pos"], Vector3i(7, 8, 9), "E8: at the entity's location")
+	_eq(e.particle_size(k), _l(8, 0x9C4, 0, 0x56, 1), "E8: size at t 1")
+	_eq(e.particle_color(k), Vector3i(_l(0x0A, 0, 0, 0x56, 1), _l(g, 0, 0, 0x56, 1), _l(0x0A, 0, 0, 0x56, 1)), "E8: colour fades")
+	# A particle shows t 1..0x56, then goes.
+	for n in 0x55:
+		e.tick()
+	_eq(e.particles[k]["timer"], 0x56, "E8: t 0x56 on its 86th frame")
+	e.tick()
+	_eq(e.particles[k]["timer"], -1, "E8: gone the next")
+
+
+func _eab_spawn_rings(cls: GDScript) -> void:
+	var e = cls.new()
+	e.start_spawn()
+	for n in 0x32:
+		e.tick()
+	_eq(_live(e.rings), 1, "E7: a spawn ring at 0x32")
+	_eq(e.rings[0]["kind"], cls.RING_SPAWN, "E7: spawn kind")
+	_eq(e.ring_scale(0), Vector3i(0x16CC, _ring_y(0x2B8, 0xAE, 1), 0x16CC), "E7: scale at t 1")
+	for n in 2:
+		e.tick()
+	_eq(_live(e.rings), 3, "E7: three by 0x34")
+	e.tick()
+	_eq(_live(e.rings), 3, "E7: no fourth")
+	# Ring 0 (t 1 at 0x32) reaches t 9 and goes at 0x3A, after that frame's add found no slot.
+	for n in 5:
+		e.tick()
+	_eq(e.rings[0]["timer"], -1, "E7: ring 0 gone at 0x3A")
+	e.tick()
+	_eq(e.rings[0]["timer"], 1, "E7: slot 0 again at 0x3B")

@@ -51,7 +51,7 @@ The parser computes the layout from the bits and **rejects any packet whose layo
 | Arena TIM | `T_TOGI`, `T_DAI` (`T_TOGI.TIM`); `B_TOGI`, `B_DAI` (`B_TOGI.TIM`); `E_TOGI`, `E_DAI` (`E_TOGI.TIM`) | arena tables, `std_hud.c` |
 | `STDDAT/STDTIM.BIN` | `1P2PWIN`, `CHAMP`, `DRAW`, `WIN_LOSE` | `time_up` entry (832, 0) |
 | none (untextured) | `FEEL_EF` | |
-| **map textures, not bound yet** | `DOOR/*`, `ETCNA/DOOR`, `ABOX`, `BIGBOX`, `GAND`, `SMABOX`, `TRY`, `T_YAMA`, `WARP`, `KARRING`, `BOSS_EFE` | pages at (640/704/512/384, 0) and CLUT rows 484-486, the area map textures occupy |
+| **map textures** (bound per map by `maps`: the doors in `doors/`, `ABOX`, `BIGBOX`, `GAND`, `SMABOX`, `T_YAMA`, `BOSS_EFE` in `props/`; the others not bound yet) | `DOOR/*`, `ETCNA/DOOR`, `ABOX`, `BIGBOX`, `GAND`, `SMABOX`, `TRY`, `T_YAMA`, `WARP`, `KARRING`, `BOSS_EFE` | pages at (640/704/512/384, 0) and CLUT rows 484-486, the area map textures occupy |
 
 ## Godot representation
 

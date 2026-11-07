@@ -45,12 +45,12 @@ var on_map := true
 ## The whole object stands still, its animation too (an NPC while the △ menu is open:
 ## NPCEntityTickOverworld returns before its tickAnimation, overworld.c:1232, :1353).
 var frozen := false
-## Ground distance the root motion moved during the last game frame: the step entityMoveForward
-## probes with (the animation's forward momentum; 0 while idling).
+## Ground length of the step the next game frame moves (the root motion pending, ISSUES.md I-28):
+## what entityMoveForward probes with (the animation's momentum; 0 while idling and on the tick an
+## animation starts).
 var step := 0.0
-## The animation's forward momentum over the last game frame, signed along the facing (a
-## knock-back slides backwards: negative), held or not: what entityMoveForward probes with in
-## battle (the momentum's z delta, map.c:3677).
+## The same step, signed along the facing (a knock-back slides backwards: negative), held or not:
+## what entityMoveForward probes with in battle (the momentum's z delta, map.c:3677).
 var forward_step := 0.0
 ## animFlag & 2: the root motion is held this frame (the step ran into the tamer).
 var step_blocked := false
@@ -63,6 +63,20 @@ var moves_without_map := false
 
 var _skeleton: Skeleton3D
 var _model: Node3D
+
+## The root motion one tick late, as the C moves (ISSUES.md I-28): startAnimation resets the
+## momentum (anim.c:248) and tickAnimation applies it (tickMomentum, anim.c:290) before reading
+## the frame's keyframes, so an animation moves nothing on its first tick and tick k's keyframe
+## delta on tick k + 1. The animator plays tick k -> k + 1 in the game frame after tick k, so the
+## motion it gives in a game frame (`_next`, the C's momentum) is moved in the following one
+## (`_moving`), turned by the facing of then (applyRootMomentum rotates by the root's rotation).
+## Local root motion (the skeleton's space) sampled this game frame: the next game frame's step.
+var _next := Vector3.ZERO
+## Local root motion being moved this game frame, and the part of it still to move (0-1).
+var _moving := Vector3.ZERO
+var _moving_left := 0.0
+## GameLoop.frame_count when `_next` started (-1: not yet).
+var _motion_frame := -1
 
 
 ## Loads the model of a Digimon (key or id) through its files component.
@@ -102,14 +116,34 @@ func load_digimon(data: Node, ref: Variant, preloaded := {}) -> bool:
 func _process(delta: float) -> void:
 	if animator == null or (field == null and not moves_without_map) or frozen:
 		return
-	var motion := _skeleton.global_basis * animator.advance(delta)
+	var tick := _game_frame()
+	if tick != _motion_frame:
+		# A new game frame: what is left of the last one's step moves now, then the motion the
+		# animator gave over the last game frame is this one's step.
+		if _motion_frame >= 0 and _moving_left > 0.0 and not step_blocked:
+			_move(_skeleton.global_basis * (_moving * _moving_left))
+		_moving = _next
+		_moving_left = 1.0
+		_next = Vector3.ZERO
+		_motion_frame = tick
+	_next += animator.advance(delta)
 	sounds.update(animator.player)
+	var ahead := _skeleton.global_basis * _next
 	var angle := (direction - 0x800) * PI / 0x800
-	forward_step += motion.x * sin(angle) - motion.z * cos(angle)
-	if step_blocked:
+	forward_step = ahead.x * sin(angle) - ahead.z * cos(angle)
+	step = Vector2(ahead.x, ahead.z).length()
+	# This game frame's step, spread over its Godot frames (a held step doesn't move: animFlag & 2).
+	var part := minf(delta * PsxAnimator.FPS, _moving_left)
+	_moving_left -= part
+	if step_blocked or part <= 0.0:
 		return
-	step += Vector2(motion.x, motion.z).length()
-	_move(motion)
+	_move(_skeleton.global_basis * (_moving * part))
+
+
+## The game frame number (GameLoop.frame_count); a scene without GameLoop counts Godot frames.
+func _game_frame() -> int:
+	var loop := get_node_or_null("/root/GameLoop")
+	return int(loop.frame_count) if loop != null else Engine.get_process_frames()
 
 
 ## The entity scene's child `part_name` (specs/scenes.md §4.1: `Model`, the components); an entity
@@ -129,6 +163,10 @@ func start_animation(id: int) -> void:
 	clear_step_flags()
 	if animator != null and animator.play(id):
 		sounds.restart()
+		# resetMomentumData (anim.c:248): the old animation's step to come is dropped.
+		_next = Vector3.ZERO
+		step = 0.0
+		forward_step = 0.0
 
 
 func _on_animation_sound(bank: int, value: int) -> void:

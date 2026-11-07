@@ -310,6 +310,8 @@ func _toilet() -> void:
 		interp.tick_script()
 		map.tick_pan()
 		boxes.step()
+		# A game frame (the root motion moves one tick late, by GameLoop's frame count: I-28).
+		root.get_node("GameLoop").frame_count += 1
 		partner._process(1.0 / GameLoop.FRAME_RATE)
 		if partner.state == Partner.STATE_TOILET and (subs.is_empty() or subs.back() != partner.sub_state):
 			subs.append(partner.sub_state)

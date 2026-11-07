@@ -572,7 +572,11 @@ func tick_idle() -> void:
 ## startAnimation of a scene animation; one the model lacks counts as played, so the scene goes
 ## on (the original would wait on the previous animation forever).
 func play_or_skip(id: int) -> void:
-	if not animator.play(id):
+	if animator.has(id):
+		# startAnimation: the flags and the momentum start over too (the walk's step to come is
+		# dropped, ISSUES.md I-28).
+		start_animation(id)
+	else:
 		animator.frame = animator.frame_count
 
 

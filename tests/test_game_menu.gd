@@ -341,6 +341,8 @@ func _npc_frozen() -> void:
 	_check(npc.position == at and npc.animator.frame == frame, "a frozen NPC neither walks nor animates")
 	npc.frozen = false
 	for i in 20:
+		# One game frame each (the root motion moves one tick late, by GameLoop's frame count: I-28).
+		root.get_node("GameLoop").frame_count += 1
 		npc._process(0.05)
 	_check(npc.position != at, "unfrozen, its walk goes on")
 	npc.free()

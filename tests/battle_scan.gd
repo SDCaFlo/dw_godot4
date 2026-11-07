@@ -7,6 +7,7 @@ extends Node
 ## Env: BATTLE_MAPS=MAYO04A,TROP00 other maps; BATTLE_RAW=1 keeps the new game's partner as it is;
 ## BATTLE_DEBUG=1 prints the fighters every 100 frames; BATTLE_TALK=1 talks to the enemy (its talk
 ## section runs, ✕ closes its text, its START_BATTLE starts the fight) instead of starting it directly;
+## BATTLE_SEED=7 seeds the rolls (Rng and Godot's global generator; default 1), so a failing run can be replayed;
 ## BATTLE_ENTITY=3 picks the enemy; BATTLE_SECTION=51 runs that section of the map's script instead (a
 ## trigger cell's key fight; BATTLE_VALUES=1:50 sets script values first); BATTLE_AT=x,z moves the enemy there first (PSX units).
 
@@ -26,9 +27,16 @@ var MAPS: Array = DEFAULT_MAPS
 ## Game frames a fighter stood on a blocking map cell (out of the walkable map) this battle.
 var _outside := 0
 var _printed_start := false
+## The fighters' last frames (entity -> lines), printed when one first stands on a blocking cell.
+var _trace := {}
 
 
 func _ready() -> void:
+	var seed_text := OS.get_environment("BATTLE_SEED")
+	var rolls_seed := int(seed_text) if seed_text.is_valid_int() else 1
+	Rng.set_seed(rolls_seed)
+	seed(rolls_seed)
+	print("battle_scan: seed %d" % rolls_seed)
 	_field = load("res://scenes/field/field.tscn").instantiate()
 	_field.debug_window = false
 	_field.render_scale = 1
@@ -161,11 +169,23 @@ func _process(_delta: float) -> void:
 		for f in host.session.battle.fighters:
 			var at := host.battle_world.location(f.entity)
 			var t := FieldMap.model_tile(at.x, at.z)
+			var n: Node = host.battle_world._node(f.entity)
+			var lines: Array = _trace.get(f.entity, [])
+			lines.append("  %d pos %s tile %s rot %x anim %x step %s fwd %s held %s probe %d flags %x" % [frames, at, t,
+					host.battle_world.rotation_y(f.entity), host.battle_world.animation_id(f.entity), n.get("step"),
+					n.get("forward_step"), n.get("step_blocked"),
+					host.battle_world.check_collision(f.entity, -1, Battle.AREA_W, Battle.AREA_H), f.flags])
+			if lines.size() > 12:
+				lines.pop_front()
+			_trace[f.entity] = lines
 			if map._cell(t.x, t.y) & 0x80:
 				_outside += 1
 				if _outside == 1:
 					print("%s: entity %d on a blocking cell at %s (anim %x)" % [MAPS[_index], f.entity, at,
 							host.battle_world.animation_id(f.entity)])
+					if OS.get_environment("BATTLE_TRACE") != "":
+						print("
+".join(lines))
 	if host.session != null and not _printed_start:
 		_printed_start = true
 		print("%s: fighters %s, predefined %s, bubbles %s, slots %s" % [MAPS[_index], host.session.entity_ids,

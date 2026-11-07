@@ -27,6 +27,8 @@ var MAPS: Array = DEFAULT_MAPS
 ## Game frames a fighter stood on a blocking map cell (out of the walkable map) this battle.
 var _outside := 0
 var _printed_start := false
+## The fighters' last frames (entity -> lines), printed when one first stands on a blocking cell.
+var _trace := {}
 
 
 func _ready() -> void:
@@ -167,11 +169,23 @@ func _process(_delta: float) -> void:
 		for f in host.session.battle.fighters:
 			var at := host.battle_world.location(f.entity)
 			var t := FieldMap.model_tile(at.x, at.z)
+			var n: Node = host.battle_world._node(f.entity)
+			var lines: Array = _trace.get(f.entity, [])
+			lines.append("  %d pos %s tile %s rot %x anim %x step %s fwd %s held %s probe %d flags %x" % [frames, at, t,
+					host.battle_world.rotation_y(f.entity), host.battle_world.animation_id(f.entity), n.get("step"),
+					n.get("forward_step"), n.get("step_blocked"),
+					host.battle_world.check_collision(f.entity, -1, Battle.AREA_W, Battle.AREA_H), f.flags])
+			if lines.size() > 12:
+				lines.pop_front()
+			_trace[f.entity] = lines
 			if map._cell(t.x, t.y) & 0x80:
 				_outside += 1
 				if _outside == 1:
 					print("%s: entity %d on a blocking cell at %s (anim %x)" % [MAPS[_index], f.entity, at,
 							host.battle_world.animation_id(f.entity)])
+					if OS.get_environment("BATTLE_TRACE") != "":
+						print("
+".join(lines))
 	if host.session != null and not _printed_start:
 		_printed_start = true
 		print("%s: fighters %s, predefined %s, bubbles %s, slots %s" % [MAPS[_index], host.session.entity_ids,

@@ -84,6 +84,7 @@ func _run() -> void:
 	partner.step = 0.0
 	map._collision.fill(0)
 	_animator(partner)
+	_root_motion_timing(partner)
 	_walking(partner, tamer, gs)
 	_waypoints(partner)
 
@@ -111,6 +112,49 @@ func _paths() -> void:
 	_eq(map.is_five_tile_wide_path_blocked(Vector2i(10, 30), Vector2i(20, 30)), true, "5-wide path: a wall 2 tiles aside blocks")
 	_eq(map.is_five_tile_wide_path_blocked(Vector2i(10, 40), Vector2i(20, 40)), false, "5-wide path free")
 	map.free()
+
+
+## The root motion one tick late (ISSUES.md I-28): startAnimation resets the momentum (anim.c:248)
+## and tickAnimation moves it (tickMomentum, anim.c:290) before reading the frame's keyframes, so
+## an animation moves 0 on its first tick and tick k's keyframe delta on tick k + 1. Agumon's walk
+## (0x24): 0 after tick 1, 30 after tick 2 (the porter's simulate). The partner's _process is
+## called by hand, three Godot frames (1/60 s) per game frame, GameLoop paused for the frame count.
+func _root_motion_timing(partner: Partner) -> void:
+	var loop: Node = root.get_node_or_null("GameLoop")
+	_eq(loop != null, true, "GameLoop autoload (the game frame count)")
+	if loop == null:
+		return
+	var was_paused: bool = loop.paused
+	var was_frame: int = loop.frame_count
+	loop.paused = true
+	partner.position = Vector3(1000, 0, 0)
+	partner._set_direction(0xC00)
+	loop.frame_count = 5000
+	var start := partner.position
+	partner.start_animation(0x24)
+	for i in 3:
+		partner._process(1.0 / 60.0)
+	_eq(partner.position.distance_to(start) < 0.01, true, "a walk's first game frame doesn't move (tick 1: momentum reset)")
+	_eq(absf(partner.step - 30.0) < 0.5, true, "but its step (the momentum frame 1 set) is 30 for the probes: %.2f" % partner.step)
+	_eq(absf(partner.forward_step - 30.0) < 0.5, true, "forward_step, the same along the facing: %.2f" % partner.forward_step)
+	loop.frame_count += 1
+	for i in 3:
+		partner._process(1.0 / 60.0)
+	_eq(absf(partner.position.distance_to(start) - 30.0) < 0.5, true, "the second game frame moves the 30 (%.2f)" % partner.position.distance_to(start))
+	# Restarted every tick (the cornered fighter of I-28): it never moves.
+	var held := partner.position
+	for t in 6:
+		loop.frame_count += 1
+		partner.start_animation(0x21 if t % 2 == 0 else 0x24)
+		for i in 3:
+			partner._process(1.0 / 60.0)
+	# The first restart's frame still moves what was left of the walk's tick 2 (nothing at 60 fps).
+	_eq(partner.position.distance_to(held) < 0.5, true, "a walk restarted every tick stays put (%.2f)" % partner.position.distance_to(held))
+	partner.start_animation(0)
+	partner.step = 0.0
+	partner.forward_step = 0.0
+	loop.frame_count = was_frame
+	loop.paused = was_paused
 
 
 func _animator(partner: Partner) -> void:

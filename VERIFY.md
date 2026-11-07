@@ -485,6 +485,7 @@ In the game (F5):
 8. **Compare with the game:** the HUD's positions and timing (menu slide, bars, numbers, shout), the start text, the throw's arc, the end windows.
 9. **A bubble at the battle's start (I-32):** start a fight while the partner shows a condition bubble (sleepy, hungry…): the bubble finishes its rise (about 2.5 seconds) and goes; no new one appears during the fight. In the field the bubble sways once a second as it floats.
 10. **Flattening (I-33):** a flattened fighter squashes, then turns into a small blocky picture of itself, standing upright and flickering between two frames; it shoots aura projectiles; when it ends the model comes back. In the gallery: Visual "Flat sprite (flattened)" toggles it on the caster.
+11. **Cornered against a fence (I-28):** fight a wild Digimon next to a fence or the map's edge (TROP02's south fence) and let the enemy press the partner into it. The partner turns back and forth in place, or slides along the fence; it never ends up on the other side. `BATTLE_SEED=7` on `battle_scan.tscn` replays the run that used to push it through (`BATTLE_TRACE=1` prints a fighter's last frames when one stands on a blocking cell).
 
 ## Battle effects (`scripts/systems/battle/efe_view.gd`, `battle_fx_view.gd`, `world_sprites.gd`, `scripts/debug/effect_gallery.gd`; `specs/battle_effects.md` §7)
 
@@ -551,6 +552,7 @@ The technique gallery (steps 5d-5a, 5d-5b): every technique's drawing (models, s
 4. **Standing still:** after a few seconds he plays another standing animation now and then. Hungry, sleepy, happy and other mood animations need the care step.
 5. **Walls:** walk around a corner or a tree so that the wall is between you. He takes the way you walked; he never stays pressed into a wall or corner. On a tight corner he may cut a little into the wall: the original doesn't stop him at walls either (`specs/partner.md` §3). Compare with the game: does Agumon cut corners the same way? If you walk far away while he's off screen, he catches up by appearing on your path.
 6. **Map changes:** after a warp he appears 200 units from your spawn point, facing you.
+6b. **Starting to walk (I-28, the root motion one tick late):** when you start walking away, he starts a moment later (a 20th of a second, as the original), with no jump or slide; when he stops he doesn't drift on past where he stopped.
 7. **Other Digimon:** select the `Field` node and type a key in **Debug Partner** in the Inspector (e.g. `dw1:gabumon`, `dw1:greymon`; keys are shown in the DW Data dock), then F5: that model follows instead, with its own size. Clear it afterwards (it's saved in the scene).
    - Wrong if: he floats, sinks, slides without animating, runs in place, or gets stuck walking next to the tamer.
 8. **What isn't there yet:**

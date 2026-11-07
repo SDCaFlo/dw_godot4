@@ -1,6 +1,6 @@
 extends Node
-## A new game started the way the game starts it (Game, scenes/game.tscn; specs/new_game.md §3.3),
-## with the intro skipped (DW_SKIP_INTRO=1), then played on by pressing ✕ now and then so File
+## A new game started the way the game starts it (Game, scenes/game.tscn; specs/new_game.md §3.3):
+## ✕ on the title menu's New Game (the cursor starts on it, title_menu.gd), with the intro skipped (DW_SKIP_INTRO=1), then played on by pressing ✕ now and then so File
 ## City's opening goes on:
 ##   godot --headless --fixed-fps 60 --path . res://tests/new_game_scan.tscn
 ## Checks the start (map TWNA01 at exit 9, the partner raised, its first technique, the clock
@@ -34,6 +34,14 @@ func _ready() -> void:
 func _frame() -> void:
 	_frames += 1
 	var field := _game.get_child(0) if _game.get_child_count() > 0 else null
+	if field is TitleMenu:
+		# New Game is the first item and the cursor starts on it; ✕ until the menu fades out.
+		if _frames % 6 == 0:
+			GameLoop.press("pad_cross")
+		if _frames >= _limit:
+			_check(false, "the title menu starts a new game within %d frames" % _limit)
+			get_tree().quit(1)
+		return
 	if _intro and (field is NewGameScene or field is MoviePlayer):
 		# ✕ on every line, choice and letter (six A's move the cursor to OK); Start ends the movie.
 		if _frames % 6 == 0:

@@ -33,7 +33,8 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 ### I-28. In battle the partner can walk onto a blocking cell
 - **Seen:** by `tests/battle_scan.tscn` with a new game's partner (`BATTLE_RAW=1 BATTLE_MAPS=TROP01,TROP02,MAYO03,MAYO01,MAYO04A`), in about half the runs: the partner, walking (animation 0x24, `ANIM_WALK`), stands on a blocking map cell for 4 to 116 frames (TROP02 near (-700, -3020), MAYO01 near (-2928, -1011), TROP01). Found 2026-10-27; the same on the committed 5d-4 code, so not from 5d-5. Not the knock-back of I-26 (that one is a hit animation).
 - **What the original does:** to check: the battle's walking (moving into range, `BTL_tickMeleeAttack` / `BTL_tickRangedAttack`, the move-forward probe `entityCheckCollision` like the knock-back's).
-- **Status:** open. The scan's runs differ (frame pacing), so it is intermittent; the next step is a run that dumps the partner's state when it happens.
+- **Repro (2026-11-07):** the scan's rolls are now seeded (`BATTLE_SEED`, default 1), and the runs are repeatable. With the strong partner and the default maps, seeds 7 and 15 of 1-16 fail, both on TROP02 with the partner walking (anim 24, `ANIM_WALK`): `BATTLE_SEED=7 godot --headless --fixed-fps 60 --path . res://tests/battle_scan.tscn` puts entity 1 on a blocking cell at (-251, -3100) every run (1514 frames out of the map); seed 15 at (-712, -3030) for 17 frames. `BATTLE_MAPS=TROP02` alone uses the rolls differently and passes: keep the three maps.
+- **Status:** open, reproducible (seed 7). The next step: dump the partner's state on the first blocking frame and compare the walk's collision probe with the C.
 
 ### I-36. Jijimon footsteps silent during new game intro
 - **Seen:** 2026-10-27 in new game intro scene (`newGameScene`). When Jijimon walks into the frame, his footsteps are silent.

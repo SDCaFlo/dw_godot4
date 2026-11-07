@@ -7,6 +7,7 @@ extends Node
 ## Env: BATTLE_MAPS=MAYO04A,TROP00 other maps; BATTLE_RAW=1 keeps the new game's partner as it is;
 ## BATTLE_DEBUG=1 prints the fighters every 100 frames; BATTLE_TALK=1 talks to the enemy (its talk
 ## section runs, ✕ closes its text, its START_BATTLE starts the fight) instead of starting it directly;
+## BATTLE_SEED=7 seeds the rolls (Rng and Godot's global generator; default 1), so a failing run can be replayed;
 ## BATTLE_ENTITY=3 picks the enemy; BATTLE_SECTION=51 runs that section of the map's script instead (a
 ## trigger cell's key fight; BATTLE_VALUES=1:50 sets script values first); BATTLE_AT=x,z moves the enemy there first (PSX units).
 
@@ -29,6 +30,11 @@ var _printed_start := false
 
 
 func _ready() -> void:
+	var seed_text := OS.get_environment("BATTLE_SEED")
+	var rolls_seed := int(seed_text) if seed_text.is_valid_int() else 1
+	Rng.set_seed(rolls_seed)
+	seed(rolls_seed)
+	print("battle_scan: seed %d" % rolls_seed)
 	_field = load("res://scenes/field/field.tscn").instantiate()
 	_field.debug_window = false
 	_field.render_scale = 1

@@ -53,14 +53,35 @@ func _start_save_machine() -> bool:
 
 # --- Game-clear save (builtin 0x36) -------------------------------------------------------------
 
-## gameClearSave: MAIN_STATE = 2, saves to File City.
+## gameClearSave (main_menu.c:5318): MAIN_STATE = 2, CURRENT_SCREEN = getFileCityTopMap(), saves.
 func _start_game_clear() -> bool:
 	game_state.state["boot_mode"] = 2  # BOOT_GAME_CLEARED
-	# Set the save location to File City top map.
-	var file_city_map: String = str(data.key_of("systems/maps", 0xCC))
-	game_state.state["world"]["screen"] = file_city_map
+	game_state.state["world"]["screen"] = str(data.key_of("systems/maps", file_city_top_map(game_state)))
 	_open_slot_box(SaveSlotBox.MODE_SAVE)
 	return true  # Waits.
+
+
+## getFileCityTopMap (map.c:5592-5639): File City's top map as the town has grown, TWNA02-TWNA13
+## (0xA8-0xB3), from five recruitment triggers. dw1's own rule (literal triggers and maps, like the
+## C); TWNA01 (0xCC) is the empty town of a new game only (main.c:3455).
+static func file_city_top_map(state: Node) -> int:
+	var a: bool = state.is_trigger_set(0xDC) and state.is_trigger_set(0xD6)
+	var b: bool = state.is_trigger_set(0xDD)
+	var e1: bool = state.is_trigger_set(0xE1)
+	var f6: bool = state.is_trigger_set(0xF6)
+	var base := 0xA8
+	if a and b:
+		base = 0xB1
+	elif a:
+		base = 0xAE
+	elif b:
+		base = 0xAB
+	# The last two tests of each branch: 0xE1 first, then 0xF6, else the branch's own map.
+	if e1:
+		return base + 2
+	if f6:
+		return base + 1
+	return base
 
 
 func _open_slot_box(mode: int) -> void:

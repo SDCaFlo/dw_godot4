@@ -38,6 +38,7 @@ func _process(_delta: float) -> bool:
 	_test_save_slot_box_save_and_load()
 	_test_save_slot_box_sleep_mode()
 	_test_save_routines()
+	_test_file_city_top_map()
 	_test_title_menu()
 	_teardown()
 	var summary := "%s: save system checks (%d run)" % ["FAILED %d" % _failed if _failed else "OK", _checks]
@@ -341,12 +342,28 @@ func _test_save_routines() -> void:
 	_check(waits, "routine 0x36 waits for user")
 	_check(int(gs.state["boot_mode"]) == 2,
 			"game clear sets boot_mode to BOOT_GAME_CLEARED")
-	_check(gs.state["world"]["screen"] == data.key_of("systems/maps", 0xCC),
-			"game clear saves map as File City (0xCC)")
+	_check(gs.state["world"]["screen"] == data.key_of("systems/maps", SaveRoutines.file_city_top_map(gs)),
+			"game clear saves map as File City's top map (getFileCityTopMap)")
 	_press(Pad.CANCEL)  # Cancel slot selection.
 	routines.tick(0x36)
 	_check(ctx.active_instruction == 0,
 			"routine 0x36 finishes on cancel")
+
+
+## getFileCityTopMap (map.c:5592): every branch, from the recruitment triggers.
+func _test_file_city_top_map() -> void:
+	var saved: Array = gs.state["script"]["triggers"].duplicate()
+	var cases := [
+		[[], 0xA8], [[0xF6], 0xA9], [[0xE1], 0xAA], [[0xE1, 0xF6], 0xAA],
+		[[0xDD], 0xAB], [[0xDD, 0xF6], 0xAC], [[0xDD, 0xE1], 0xAD],
+		[[0xDC], 0xA8], [[0xD6], 0xA8], [[0xDC, 0xD6], 0xAE], [[0xDC, 0xD6, 0xF6], 0xAF], [[0xDC, 0xD6, 0xE1], 0xB0],
+		[[0xDC, 0xD6, 0xDD], 0xB1], [[0xDC, 0xD6, 0xDD, 0xF6], 0xB2], [[0xDC, 0xD6, 0xDD, 0xE1, 0xF6], 0xB3],
+	]
+	for c in cases:
+		gs.state["script"]["triggers"] = (c[0] as Array).duplicate()
+		var got: int = SaveRoutines.file_city_top_map(gs)
+		_check(got == c[1], "getFileCityTopMap with triggers %s: 0x%X (got 0x%X)" % [c[0], c[1], got])
+	gs.state["script"]["triggers"] = saved
 
 
 func _test_title_menu() -> void:

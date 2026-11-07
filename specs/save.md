@@ -185,7 +185,7 @@ Implemented in step 4e-2 (`PLANS.md`):
 4. **Save Routines (`scenes/script/save_routines.tscn`, `scripts/script/save_routines.gd`):**
    - Wired under `Systems/ScriptHost/Routines` in `scenes/field/field.tscn`.
    - Handles builtin `0x30` (Save Machine: sets `boot_mode = BOOT_CONTINUE`, opens `SaveSlotBox` in save mode).
-   - Handles builtin `0x36` (Game-clear save: sets `boot_mode = BOOT_GAME_CLEARED`, sets save map to File City `0xCC`, opens `SaveSlotBox`).
+   - Handles builtin `0x36` (Game-clear save: sets `boot_mode = BOOT_GAME_CLEARED`, sets the save map to `getFileCityTopMap()`, `SaveRoutines.file_city_top_map`: TWNA02-13 as the town has grown, opens `SaveSlotBox`).
 
 5. **Sleep Save Prompt:**
    - Decoupled via `sleep_save_prompt: Callable` in `scripts/field/partner.gd`.

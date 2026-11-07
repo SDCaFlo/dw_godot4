@@ -26,6 +26,8 @@ var _checked_intro := false
 var MAPS: Array = DEFAULT_MAPS
 ## Game frames a fighter stood on a blocking map cell (out of the walkable map) this battle.
 var _outside := 0
+## Game frames a fighter was wholly off screen (entityIsOffScreen 320 x 240) while fighting.
+var _off_screen := 0
 var _printed_start := false
 ## The fighters' last frames (entity -> lines), printed when one first stands on a blocking cell.
 var _trace := {}
@@ -142,6 +144,7 @@ func _process(_delta: float) -> void:
 			host.start_battle(npc)
 		_fighting = true
 		_outside = 0
+		_off_screen = 0
 		_printed_start = false
 		_checked_intro = false
 		_start = GameLoop.frame_count
@@ -178,14 +181,18 @@ func _process(_delta: float) -> void:
 			if lines.size() > 12:
 				lines.pop_front()
 			_trace[f.entity] = lines
+			if host.battle_world.current_hp(f.entity) > 0 and host.battle_world.is_off_screen(f.entity, 320, 240):
+				_off_screen += 1
+				if _off_screen == 1:
+					print("%s: entity %d left the screen at %s (anim %x)" % [MAPS[_index], f.entity, at,
+							host.battle_world.animation_id(f.entity)])
 			if map._cell(t.x, t.y) & 0x80:
 				_outside += 1
 				if _outside == 1:
 					print("%s: entity %d on a blocking cell at %s (anim %x)" % [MAPS[_index], f.entity, at,
 							host.battle_world.animation_id(f.entity)])
 					if OS.get_environment("BATTLE_TRACE") != "":
-						print("
-".join(lines))
+						print("\n".join(lines))
 	if host.session != null and not _printed_start:
 		_printed_start = true
 		print("%s: fighters %s, predefined %s, bubbles %s, slots %s" % [MAPS[_index], host.session.entity_ids,
@@ -214,6 +221,9 @@ func _process(_delta: float) -> void:
 					if e.global_position != was:
 						print("%s: the defeated entity %d still moves off the map" % [MAPS[_index], host.session.entity_ids[i]])
 						_failed = true
+		if _off_screen > 0:
+			print("%s: a fighter was off screen for %d frames" % [MAPS[_index], _off_screen])
+			_failed = true
 		if _outside > 0:
 			print("%s: a fighter stood out of the map for %d frames" % [MAPS[_index], _outside])
 			_failed = true

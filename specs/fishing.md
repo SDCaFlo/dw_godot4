@@ -247,6 +247,10 @@ The world object runs on maps 8 (`MAYO10`) and 6 (`MAYO06`) from the map's load,
 
 **Escape:** `escaped = 1`; bobber command 7; heading away from the tamer (+0x800); state 0x5A.
 
+**Notes found while porting (F3):**
+- `pressedFrames` counts down from 0 while ✕ is up, so `pressedFrames == −1` in the rest test is the first frame after a release, not "never pressed".
+- The splash's ripple (command 7: kind −1, attract 0x64) scares every fish within 0x64 of the bobber for its 7 frames (§2.2), and the population waits `escapeTimer` 0x1E frames. A cast right next to a fish sends it away.
+
 After the state, `framesOnState++`, `animPhase++`, `strikeTimer` counts down, and for Seadramon the history is pushed.
 
 **`FISH_tryStrike`** (✕ in rod state 0xA): in state 0x14 within the first half of `catchingTime`, `strikeTimer = 0x14` and grabbed. Otherwise escape.
@@ -371,6 +375,9 @@ After every state, `framesOnState++` and the bobber ticks (`FISH_tickBobberPhysi
 
 It returns 0 when no move was needed: that is the "centred" test of states 2, 0xE96, 0xD, 0xE and 0x11AF.
 
+- **The saved scroll is never restored.** `FISH_applySavedCameraScroll` clears the control flag *before* calling `FISH_scrollCameraTo`, which then returns at once. So `FISH_endFishing` leaves the view where fishing put it, and the follow takes over from there (`setCameraFollowPlayer`). The port keeps that order.
+- With a radius the step is cut by `(radius × rcos) >> 12`, which rounds towards −∞, so a diagonal step can be up to √2 pixels longer than the radius.
+
 `FISH_panCameraWithDPad`: 5 pixels per frame per held direction, clamped. ○ held turns the d-pad into this pan in states 6, 8, 9, 0xB.
 
 ### 2.13 The rod model and the line
@@ -482,7 +489,7 @@ Also:
 |---|---|---|
 | F1 | Data: §4 (porter + `GameData` accessors), with its checks | Low |
 | F2 | Logic, world: spots, water tests, fish and Seadramon AI, ripples, markers, population (`tests/test_fishing.gd`, fixed seeds). **Done 2026-11-07:** `FishingCamera` (`FISH_projectPoint`, `mapToWorldPosition`, the background bounds; checked within 2 px of `FieldMap.background_pixel` on both maps), `Fishing` (the pools, `random_point_in_spot` with the C's in-table clamp, `is_water` from the data's rule, the fish states, Seadramon, ripples, markers, `find_fish_to_bite`); 98 checks | Medium |
-| F3 | Logic, rod: the state machine, bobber physics, hooked fish, tension, catch and snag (fake world in the tests) | Hard |
+| F3 | Logic, rod: the state machine, bobber physics, hooked fish, tension, catch and snag (fake world in the tests). **Done 2026-11-07:** `FishingRod` (`FISH_tickRod`, the bobber, the bait sprite, the hooked fish, tension, the rod's pose, the pans, load / end / `FISH_tamerTick`), `FishingTextBox`, `FishingBaitMenu`, `FishingWorld` (the interface the field implements in F4); `tests/test_fishing_rod.gd`, 103 checks. Found while porting: see §2.12 and the notes under §2.6 | Hard |
 | F4 | Field wiring: the host, the menu, tamer state 11, the clock, dying / evolution, the camera, Seadramon's script | Medium |
 | F5 | View: the sprites, the rod, the line, the gauge; the bait menu and the text box on `UIBoxes` | Medium |
 | F6 | `tests/fishing_scan.tscn` (a cast, a bite, a catch on map 8 with a fixed seed), `VERIFY.md` | Medium |

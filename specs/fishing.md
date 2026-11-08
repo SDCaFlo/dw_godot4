@@ -429,6 +429,8 @@ Every value in §2 is from the line given there. The tables:
 
 ## 4. Data to add (data porter)
 
+**Done (F1, 2026-11-07):** `data_porter/specs/systems.md` "fishing", `GameData.fishing()`, `fishing_map(key or id)`, `fishing_bite_chance(bait, kind)`. Both TIMs are converted (`tim_files/ETCDAT/FISHING*.png`): the sprites' CLUT ids are the TIM's palettes 0 (0x601C), 1 (0x605C), 2 (0x609C) and 4 (0x611C), image v from 0x8C. The amazing rod's `MoveImage` (VRAM (0x1C0, 0x1E4, 0x1C × 8) → (0x1C0, 0x1DC)) copies texture rows v 0xE4–0xEB, u 0–0x6F onto v 0xDC–0xE3: that is a view detail for F5. The maps table gets no `fishing` flag: the field asks `GameData.fishing_map(map)`, which is {} off the fishing maps.
+
 The `systems/fishing` record keeps its fields. The fishing map entries gain resolved values in place of the C symbol names:
 
 - `map`: the map's key (`dw1:mayo10`, `dw1:mayo06`), so the field asks "does this map have fishing" instead of testing ids;

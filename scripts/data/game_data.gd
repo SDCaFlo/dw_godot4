@@ -673,6 +673,34 @@ func slot_machine() -> Dictionary:
 	return rows[0] if not rows.is_empty() else {}
 
 
+## The fishing table (specs/fishing.md §4: kinds, bite_chance_by_bait, snagged_items, maps, sprites),
+## or {}.
+func fishing() -> Dictionary:
+	var rows := system("fishing")
+	return rows[0] if not rows.is_empty() else {}
+
+
+## The fishing data of a map (checkFishingMap, main/fish.c:126: spots, water, Seadramon's path and
+## hours, scales), by key or id; {} for a map without fishing.
+func fishing_map(map_ref: Variant) -> Dictionary:
+	var key := key_of("systems/maps", map_ref) if not map_ref is String else str(map_ref)
+	for m in fishing().get("maps", []):
+		if str(m["map"]["key"]) == key:
+			return m
+	return {}
+
+
+## FISH_BITE_CHANCE for a bait item and a fish kind (FISH_findFishToBite, fish.c:3080-3089): the %
+## per check; 0 for a bait outside the table.
+func fishing_bite_chance(bait: Variant, kind: int) -> int:
+	var id := id_of("items/item_data", bait) if bait is String else int(bait)
+	for row in fishing().get("bite_chance_by_bait", []):
+		if int(row["bait"]["id"]) == id:
+			var chances: Array = row["chances"]
+			return int(chances[kind]) if kind >= 0 and kind < chances.size() else 0
+	return 0
+
+
 ## enforceStatsLimits' cap of a script stat (STATS_LIMIT_ARRAY; stat 22 reads past it, see the
 ## table); -1 for an unknown stat.
 func script_stat_limit(stat: int) -> int:

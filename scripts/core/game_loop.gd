@@ -38,6 +38,10 @@ func _process(delta: float) -> void:
 			_poll()
 			frame_count += 1
 			frame.emit()
+			# The pause froze the game (handlePause's wait loop, specs/pause.md): no more frames.
+			if is_inside_tree() and get_tree().paused:
+				_accumulated = 0.0
+				return
 
 
 func _input(event: InputEvent) -> void:

@@ -287,7 +287,7 @@ Reported 2026-10-25.
 ### I-15. No pause
 - **Seen:** the game can't be paused.
 - **Expected:** the original's pause (START in the field).
-- **Status:** won't fix (not a bug: unimplemented feature). In the original, pause is handled by `handlePause()` (`utils2.c:402`), opening static UI box 5, looping `pauseFrame()`, and polling START input (0x800). Belongs in `PLANS.md` as an unported field feature.
+- **Status:** fixed (2026-11-07): ported as `specs/pause.md` (`handlePause`, `utils2.c:402`). START (keyboard `P`) pauses in the field, in battle fights and in tournament matches.
 
 ### I-18. The inventory cursor at the top
 - **Question:** in the original inventory, does ↑ on the first row wrap to the bottom, or stay at the top?

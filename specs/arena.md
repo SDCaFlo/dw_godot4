@@ -150,7 +150,7 @@ Phases: `FADE_OUT` (6 frames) → `BRACKET_INTRO` (0x79 frames) → per match: `
 
 - `INTRO_PARTNER` / `INTRO_OPPONENT`: until the walk animation ends (`animFlag & 1` clear) or ✕.
 - `SETUP` (`STD_initializeCombat`, then `STD_combatSetup`'s two loops: the start text and its burst).
-- `FIGHT`: each frame `STD_checkEndCondition`, then `tickPartnerAI`, `tickEnemyAI`, `STD_tickBattle`, the object frame. The pause (`handlePause`) waits for the field pause, as in battles.
+- `FIGHT`: each frame `STD_checkEndCondition`, then `tickPartnerAI`, `tickEnemyAI`, `STD_tickBattle`, the object frame. The pause (`handlePause`, `specs/pause.md`), as in battles.
 - End test (`STD_checkEndCondition`, US = `JP_TRIAL` or newer: none while either damage buffer is non-zero):
   - the partner fainted (0x2B ended): −1 if the opponent still lives, else 2 once the opponent's faint ended;
   - the opponent fainted (ended): 1 if the partner's HP minus its buffer > 0, else 2 once the partner's faint ended;

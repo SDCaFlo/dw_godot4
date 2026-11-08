@@ -185,6 +185,12 @@ func step() -> void:
 		var b := boxes[i]
 		if b.registered and (b.state == STATE_OPEN or b.state == STATE_MENU) and b.tick.is_valid():
 			b.tick.call(i)
+	render_frame()
+
+
+## The boxes' render functions only (renderObjects), as the pause's pauseFrame draws them
+## (specs/pause.md).
+func render_frame() -> void:
 	for i in COUNT:
 		var b := boxes[i]
 		b.drawn = DRAWN_NOTHING

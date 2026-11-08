@@ -117,7 +117,7 @@ The combat area is set to the screen centre (`COMBAT_AREA` from the drawing offs
    - the effect engine (`specs/battle_effects.md`);
    - the HUD pieces;
    - the HP bars' draw, which also applies the damage (§2.11);
-6. the pause (`handlePause`; not ported in the field yet, `PLANS.md` §6);
+6. the pause (`handlePause`, `specs/pause.md`);
 7. `BATTLE_FRAME_COUNT` + 1.
 
 **The end test** (`BTL_isBattleFinished`):
@@ -540,7 +540,7 @@ VERIFY gets "Battles": walk into a wild Digimon on a map near File City, watch t
 - **Loading length** (§2.2): the original's loading frames are CD time. Decided (2026-10-26): the port shows the flee bubbles and the run-in for a fixed 40 frames. To compare with the game later.
 - **The discipline delay** is dead code in the US release (§2.6). The port keeps it at 0; an option could restore it later.
 - **`unk2` / `unk5` / `unk7` and `PlayerDataSub`** keep the C names until their use is clear (`unk25` is the enemy bar's visibility timer).
-- **The pause** in battle waits for the field pause (`PLANS.md` §6).
+- **The pause** in battle: ported (`specs/pause.md`, while the phase is `FIGHT`).
 - **Map `unk1`** of the NPC record: its name `targets_partner` is from its two uses here; to confirm on maps where it is 1.
 - **The arena** (`std`) copies this code with changes: when 4e comes, `Battle` gets an arena mode rather than a copy.
 
@@ -559,7 +559,7 @@ VERIFY gets "Battles": walk into a wild Digimon on a map near File City, watch t
 - **Corrections to this spec:**
   - In the US release ✕ (`CONFIRM`) gives a command and **△** (`CANCEL`) opens the inventory (§2.6 said ✕).
   - ~~After a won battle, the fleeing enemies that are off screen stay on the map.~~ Corrected 2026-10-26 (ISSUES.md I-25): `isOnScreen` is only updated by the NPCs' field tick, so in a battle it keeps its value from the battle's start; the enemies on screen then leave the map after the battle, even once they have run off screen.
-- **Not yet (moved to 5d-4 with the HUD):** items in battle (the inventory's battle mode, throwing; △ shows a message), the flee bubbles, start text, menu, bars, numbers, countdown and end boxes on screen (their state is in the logic; the end box's text waits 60 frames per text or a press). `handlePause` waits for the field pause.
+- **Not yet (moved to 5d-4 with the HUD):** items in battle (the inventory's battle mode, throwing; △ shows a message), the flee bubbles, start text, menu, bars, numbers, countdown and end boxes on screen (their state is in the logic; the end box's text waits 60 frames per text or a press). `handlePause` is ported since (`specs/pause.md`).
 - **Approximations to revisit:**
   - the loading run-in uses the field's partner collision, plus "idle on reaching the tamer" (`partnerTickCollision` in `GAME_STATE` 3);
   - `world_screen_matrix` (`GsWSMATRIX`) is the identity until the field exposes its camera matrix, so the effects' screen-projection built-ins aren't exact yet (5d-5);

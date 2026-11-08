@@ -61,6 +61,16 @@ Sections are added as systems are ported (`PLANS.md`).
 5. **Dialogue:** see the Scripts section: the dialogue box is checked with the script sections that use it.
 6. **Not there yet:** the medal and tamer-level messages, the sounds.
 
+## Pause (`scripts/systems/pause.gd`, `scripts/field/hosts/pause_host.gd`; `specs/pause.md`)
+
+`test_pause.gd` checks the logic and the freeze. In the game:
+
+1. **In the field:** walk around and press START (keyboard `P`): a small "Pause" box in the middle of a half-dark screen, with a sound. Everything stops: the tamer, the partner, the NPCs, the clock. The music goes on.
+2. **Resume:** START again: the box closes with the same sound and the game goes on where it stopped. Holding START doesn't pause again; release and press.
+3. **Not during scripts:** talk to an NPC and press START while the dialogue shows: nothing. Same during a warp's fade to black and while game time is stopped (e.g. an event).
+4. **In battle:** during the fight, START pauses the same way (the HUD dims too). Not during the intro or after the fight ends.
+5. **In a tournament match:** START pauses during the fight only, not on the bracket or the scenes.
+
 ## Controller (`scripts/core/pad.gd`, `tamer.gd`; `specs/text.md` §2.8)
 
 `test_text.gd` checks the pad actions, `test_camera.gd` the direction chain. With a gamepad plugged in:

@@ -51,6 +51,9 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	# The SPU and libsnd's sequencer (SS_TICK240, sound.c:524) run on interrupts: the sound goes on
+	# while the pause stops the game (specs/pause.md).
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	ensure_buses()
 	for voice in voices:
 		add_child(voice)

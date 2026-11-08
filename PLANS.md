@@ -136,7 +136,7 @@ Last updated: 2026-11-02
    - [x] Backlog (controller, reported 2026-10-23): fixed 2026-10-24, see "Done".
 5. **Next milestones, in order:** text and scripts (above: NPC dialogue, Jijimon intro, new game) → menus (inventory, feeding, items, Digimon status) → battle → evolution and training → tournaments and minigames.
 6. **Field (as needed by the milestones):** NPC Digimon, map object sprites (water, fire), lighting, depth against the background, events.
-   - [ ] Field pause (`handlePause()`, `utils2.c:402`: static UI box 5, pause frame loop, PadRead 0x800).
+   - [x] Field pause (`handlePause()`, `utils2.c:402`): done 2026-11-07, `specs/pause.md` (`Pause`, `PauseHost`; the field, battle fights and tournament matches; START or `P`). Not reproduced: `pauseFrame`'s two object ticks before the freeze (§4).
    - [ ] The butterfly (`butterfly.c`) and the condition bubble's bone offset (see 3. above).
    - [ ] Misty Trees mist overlay (`renderMist()`, `overworld.c:550–660`: multi-layered scrolling semi-transparent poly effect for maps `MIST01`–`MIST07`, fade via `tickRemoveMist()`).
 7. **Text, later parts:** the battle / menu control codes (`#C1 #R #W` / `{C1}` / bare `C R W`, data_porter/specs/text.md §2) with their renderers; the `ja` font comes from the JP glyph table (`specs/text.md` §2.1).

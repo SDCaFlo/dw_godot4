@@ -74,6 +74,7 @@ signal game_ended
 @onready var ending_host: EndingHost = $Systems/EndingHost
 @onready var tournament_host: TournamentHost = $Systems/TournamentHost
 @onready var arena: Arena = $Systems/Arena
+@onready var pause_host: PauseHost = $Systems/PauseHost
 @onready var debug: DebugHost = $Debug
 
 
@@ -303,6 +304,11 @@ func _start() -> void:
 	arena.hud_slot = battle_host.hud_slot
 	arena.text_area = scripts.text_area
 	arena.boxes = scripts.boxes
+	# The pause (specs/pause.md): box 5 and its text, at the end of every frame.
+	pause_host.boxes = scripts.boxes
+	pause_host.text_area = scripts.text_area
+	pause_host.sound = Sound
+	pause_host.data = GameData
 	# STD_initializeTournament: removeMapEntities, the tamer off screen, STD_removeOverworldObjects
 	# (the clock, the map, the poop); the arena draws over the hidden field.
 	arena.field_nodes = func() -> Array:
@@ -371,6 +377,7 @@ func _frame() -> void:
 		if arena.active:
 			scripts.step_boxes()
 			care_host.tick_fade()
+			_handle_pause(arena.in_fight(), false)
 			return
 	# A battle runs its own loop in the original (BTL_battleMain): only the battle's frame, then the
 	# boxes and the fade (specs/battle.md §5.3).
@@ -384,6 +391,7 @@ func _frame() -> void:
 			care_host.tick_healing()
 			scripts.step_boxes()
 			care_host.tick_fade()
+			_handle_pause(battle_host.in_fight(), false)
 			return
 	_tamer.tick()
 	var in_menu := menu_host.is_open()
@@ -415,6 +423,18 @@ func _frame() -> void:
 	debug.tick_panel()
 	scripts.step_boxes()
 	care_host.tick_fade()
+	_handle_pause(true, true)
+
+
+## handlePause at the end of the frame (utils2.c:402; specs/pause.md): gameLoop calls it, and so do
+## BTL_battleMain's fight loop and the match's STD loop (`in_loop`). Only the field (GAME_STATE 0)
+## checks the script and game time; a fade to black blocks it everywhere.
+func _handle_pause(in_loop: bool, in_field: bool) -> void:
+	if pause_host == null:
+		return
+	var fade_protection: bool = care_host.fade != null and care_host.fade.protection
+	var running: bool = clock_host.clock == null or clock_host.clock.running
+	pause_host.frame(in_loop, Pause.is_blocked(in_field, int(GameState.script_value(Pause.PSTAT_SCRIPT)), running, fade_protection))
 
 
 ## The 3D viewport at 320 x 240 x `value`, shown at the PSX size (ISSUES.md I-3). The background

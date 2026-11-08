@@ -127,6 +127,11 @@ func frame() -> void:
 		_finish()
 
 
+## The frame was one of BTL_battleMain's fight loop, which calls handlePause (specs/pause.md).
+func in_fight() -> bool:
+	return active and session != null and session.phase == BattleSession.Phase.FIGHT
+
+
 func battle_done() -> bool:
 	return _done
 

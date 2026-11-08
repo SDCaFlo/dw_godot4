@@ -276,6 +276,14 @@ func _fade(kind: String, frames: int) -> void:
 
 # --- the frame ------------------------------------------------------------------------------------
 
+## The frame was one of the match's STD loop (STD_combatMain), which calls handlePause
+## (specs/pause.md).
+func in_fight() -> bool:
+	if not active or session == null or session.phase != ArenaSession.Phase.MATCH:
+		return false
+	return session.current_match != null and session.current_match.phase == ArenaMatch.Phase.FIGHT
+
+
 ## One game frame of the tournament (STD_battleTickFrame for the session's phase).
 func frame() -> void:
 	if not active:

@@ -46,7 +46,7 @@ const DEFAULT_EVENTS := {
 	"pad_l2": {"keys": [], "axes": [[JOY_AXIS_TRIGGER_LEFT, 1.0]]},
 	"pad_r2": {"keys": [], "axes": [[JOY_AXIS_TRIGGER_RIGHT, 1.0]]},
 	"pad_select": {"keys": [], "buttons": [JOY_BUTTON_BACK]},
-	"pad_start": {"keys": [], "buttons": [JOY_BUTTON_START]},
+	"pad_start": {"keys": [KEY_P], "buttons": [JOY_BUTTON_START]},
 	"pad_up": {"keys": [KEY_UP], "buttons": [JOY_BUTTON_DPAD_UP], "axes": [[JOY_AXIS_LEFT_Y, -1.0]]},
 	"pad_down": {"keys": [KEY_DOWN], "buttons": [JOY_BUTTON_DPAD_DOWN], "axes": [[JOY_AXIS_LEFT_Y, 1.0]]},
 	"pad_left": {"keys": [KEY_LEFT], "buttons": [JOY_BUTTON_DPAD_LEFT], "axes": [[JOY_AXIS_LEFT_X, -1.0]]},

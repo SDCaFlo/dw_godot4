@@ -162,7 +162,7 @@ The hardware rules come from psx-spx ("Sound Processing Unit"). The asset porter
   - `Clock.tick_game_clock` calls `update_bgm` at its end.
   - `TextBoxes.sound` / `UIBoxes.sound` → `play_sound(0, id)`.
   - `AnimationSounds` (on the tamer and every `FieldDigimon`) emits the glTF animation `events` of type sound as the animation passes them, loops included. The entity plays it if it is on screen, with bank 4 replaced by the entity's slot: the partner's is 4 (`partner_impl.c:465`), the tamer and NPCs skip bank 4 (§6). In the field animations (ids 0–4) only bank 1 (747 events: footsteps) and bank 3 (6) occur.
-- **Not wired yet (later steps):** item and chest sounds (5b, `tamer.c:1447–1811`), battle start and its music (5d), menus and shops (5e), the pause box, the title screen.
+- **Not wired yet (later steps):** item and chest sounds (5b, `tamer.c:1447–1811`), battle start and its music (5d), menus and shops (5e), the title screen. The pause box's sound 0 / 3 is wired (`specs/pause.md`).
 
 ## 4. Data
 

@@ -481,7 +481,7 @@ Also:
 | Step | What | Complexity |
 |---|---|---|
 | F1 | Data: §4 (porter + `GameData` accessors), with its checks | Low |
-| F2 | Logic, world: spots, water tests, fish and Seadramon AI, ripples, markers, population (`tests/test_fishing.gd`, fixed seeds) | Medium |
+| F2 | Logic, world: spots, water tests, fish and Seadramon AI, ripples, markers, population (`tests/test_fishing.gd`, fixed seeds). **Done 2026-11-07:** `FishingCamera` (`FISH_projectPoint`, `mapToWorldPosition`, the background bounds; checked within 2 px of `FieldMap.background_pixel` on both maps), `Fishing` (the pools, `random_point_in_spot` with the C's in-table clamp, `is_water` from the data's rule, the fish states, Seadramon, ripples, markers, `find_fish_to_bite`); 98 checks | Medium |
 | F3 | Logic, rod: the state machine, bobber physics, hooked fish, tension, catch and snag (fake world in the tests) | Hard |
 | F4 | Field wiring: the host, the menu, tamer state 11, the clock, dying / evolution, the camera, Seadramon's script | Medium |
 | F5 | View: the sprites, the rod, the line, the gauge; the bait menu and the text box on `UIBoxes` | Medium |

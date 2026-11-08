@@ -308,6 +308,8 @@ func _start() -> void:
 	# Fishing (specs/fishing.md §5.2): checkFishingMap at every map load, the world object in the
 	# frame, the rod as the tamer's state 11, the clock's isFishing, the partner's enable / disable.
 	fishing_host.field_map = _field
+	fishing_host.world_root = _world
+	fishing_host.text_area = scripts.text_area
 	fishing_host.tamer = _tamer
 	fishing_host.partner = partner
 	fishing_host.clock = clock
@@ -370,7 +372,7 @@ func _start_debug() -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
 	for node: Node in [care_host.bars, care_host.bubbles, map_session.mood_bubble_view, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
-			care_host.fade, scripts.boxes, death_host.darken,
+			fishing_host.hud, care_host.fade, scripts.boxes, death_host.darken,
 			scripts.map_name]:
 		if node != null:
 			_hud.add_child(node)
@@ -422,6 +424,7 @@ func _frame() -> void:
 	menu_host.tick()
 	# FISH_tickFishingWorld (object 0x3001): after the entities, whether the △ menu is open or not.
 	fishing_host.tick_world()
+	fishing_host.render()
 	clock_host.tick()
 	if scripts.interpreter != null:
 		tournament_host.tick()

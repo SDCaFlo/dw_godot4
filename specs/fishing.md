@@ -482,7 +482,8 @@ Also:
 
 - **The sprites** (fish, Seadramon segments, ripples, bobber, bait icon) are quads in the 3D viewport, from `FISH_SPRITES` on the fishing texture, with the PSX blend modes: subtractive (fish), additive (ripples), opaque (bobber). Their depth-order offsets become a small render priority.
 - **The rod:** the 4 meshes of `SAO.gltf`, posed each frame from the logic's segment transforms.
-- **The line and the gauge:** 2D on the HUD (`PsxDraw` lines; the gauge's sprites).
+- **The line:** a 3D line (`WorldSprites.line`) from the line start to the bobber: the projection of a straight 3D segment is the C's straight 2D line, and the depth test stands in for its ordering-table depth per 0x40-pixel step (`FISH_drawFishingLine`).
+- **The gauge:** 2D on the HUD (`FishingHud`), under the UI boxes.
 - **The bait menu and the text box** on `UIBoxes` slots 3 and 2 (`docs/ui.md`), from `FishingBaitMenu` / `FishingTextBox` logic.
 
 ## 6. Steps
@@ -493,7 +494,7 @@ Also:
 | F2 | Logic, world: spots, water tests, fish and Seadramon AI, ripples, markers, population (`tests/test_fishing.gd`, fixed seeds). **Done 2026-11-07:** `FishingCamera` (`FISH_projectPoint`, `mapToWorldPosition`, the background bounds; checked within 2 px of `FieldMap.background_pixel` on both maps), `Fishing` (the pools, `random_point_in_spot` with the C's in-table clamp, `is_water` from the data's rule, the fish states, Seadramon, ripples, markers, `find_fish_to_bite`); 98 checks | Medium |
 | F3 | Logic, rod: the state machine, bobber physics, hooked fish, tension, catch and snag (fake world in the tests). **Done 2026-11-07:** `FishingRod` (`FISH_tickRod`, the bobber, the bait sprite, the hooked fish, tension, the rod's pose, the pans, load / end / `FISH_tamerTick`), `FishingTextBox`, `FishingBaitMenu`, `FishingWorld` (the interface the field implements in F4); `tests/test_fishing_rod.gd`, 103 checks. Found while porting: see §2.12 and the notes under §2.6 | Hard |
 | F4 | Field wiring: the host, the menu, tamer state 11, the clock, dying / evolution, the camera, Seadramon's script. **Done 2026-11-07:** `FishingHost` (`Systems/FishingHost`: `check_map` on `map_loaded`, `tick_world` after the menu object, `tamer_tick` as the tamer's `STATE_FISHING`, `availability`, `start_from_menu`, `set_disabled`, `deinitialize`, section 0x4E4), `FieldFishingWorld` (the tamer's bones in PSX axes, `GameState`'s inventory and triggers 45 / 46, `fish_caught`, `FieldMap.scroll_pixels`), `GameMenu.fishing_chosen`, `Clock.is_fishing`, the partner's hooks; the windows are UI boxes 2 / 3 with the logic's ticks (contents in F5). `tests/fishing_scan.tscn` (the map, the icon, the menu, the bait menu, aiming, △) | Medium |
-| F5 | View: the sprites, the rod, the line, the gauge; the bait menu and the text box on `UIBoxes` | Medium |
+| F5 | View: the sprites, the rod, the line, the gauge; the bait menu and the text box on `UIBoxes`. **Done 2026-11-07:** `FishingView` (`scenes/field/fishing_view.tscn`, in the 3D world: `FISH_drawSprite3D`'s quads on `WorldSprites` with the PSX blends (fish subtract, ripples add, bobber opaque), the markers at their depth, `SAO.TMD`'s 4 and `SEA.TMD`'s 5 objects posed from the logic's matrices, the line as a 3D line in the tension colour, the bait icon; the amazing rod's `MoveImage` on the rod's texture), `FishingHud` (the gauge), `FishingWindows` (the text box's lines and arrow, the bait menu's icons, names, "×", counts, cursor and scroll rows) | Medium |
 | F6 | `tests/fishing_scan.tscn` (a cast, a bite, a catch on map 8 with a fixed seed), `VERIFY.md` | Medium |
 
 ## 7. Tests

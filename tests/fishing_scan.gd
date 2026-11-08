@@ -67,6 +67,8 @@ func _process(_delta: float) -> void:
 			if in_phase < 40:
 				return
 			_check(host.fishing.fish_count >= 20, "fish swim on the map (%d after 40 frames)" % host.fishing.fish_count)
+			_check(host.view != null and host.view.sprites.used() >= 10, "their shadows are drawn (F5: %d quads)" % (host.view.sprites.used() if host.view != null else 0))
+			_check(not host.view.get_node("Rod").visible, "no rod while walking")
 			for i in 30:
 				GameState.state["inventory"]["slots"][i] = null
 			_check(host.availability() == 1, "no rod and no food: the icon shows, disabled (availability 1)")
@@ -105,6 +107,7 @@ func _process(_delta: float) -> void:
 				return
 			var b: UIBoxes.Box = _field.scripts.boxes.boxes[FishingBaitMenu.BOX_ID]
 			_check(b.registered and b.animated, "the bait menu is UI box 3, animated")
+			_check(b.render.is_valid() and b.on_render.is_valid(), "with FishingWindows' contents (F5)")
 			_check(host.rod.bait_menu.items[0] >= 0 and host.rod.bait_menu.total_rows == 1, "one row: the Meat")
 			_next(5)
 		5:
@@ -113,6 +116,8 @@ func _process(_delta: float) -> void:
 			if host.rod.state == FishingRod.STATE_AIM:
 				_check(host.rod.bait == GameData.id_of("items/item_data", "dw1:meat"), "Meat is the bait")
 				_check(host.rod.display_line and host.rod.display_swimmer, "the line and the bobber show")
+				_check(host.view.get_node("Rod").visible, "the rod model shows (F5)")
+				_check(not host.hud._shown, "no tension gauge before a fish is hooked")
 				_next(6)
 			elif in_phase > 600:
 				_fail("didn't reach aiming (rod state %x)" % host.rod.state)

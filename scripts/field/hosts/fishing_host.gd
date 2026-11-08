@@ -1,14 +1,20 @@
 class_name FishingHost
 extends Node
 ## Fishing on the field (specs/fishing.md §5.2; main/fish.c): made at every map load on a map with
-## fishing data (checkFishingMap), ticked as the world object (FISH_tickFishingWorld) in the field's
-## frame, the rod ticked by the tamer's state 11 (tamerTickFishing). The two windows are UI boxes 2
-## and 3 with the logic's tick functions; their contents are drawn by the view (step F5).
+## fishing data (checkFishingMap), ticked as the world object (FISH_tickFishingWorld) and drawn
+## (FISH_renderFishingWorld: FishingView in the 3D world, FishingHud's gauge) in the field's frame,
+## the rod ticked by the tamer's state 11 (tamerTickFishing). The two windows are UI boxes 2 and 3
+## with the logic's tick functions and FishingWindows' contents.
 
 ## triggerSeadramonCutscene (script_common.c:3057): callScriptSection(0, 0x4E4, 0).
 const SEADRAMON_SECTION := 0x4E4
+## The world part (a mod may replace the scene).
+const VIEW_SCENE := preload("res://scenes/field/fishing_view.tscn")
 
 var field_map: FieldMap
+## The 3D world (World/SubViewport): the view goes in it.
+var world_root: Node
+var text_area: TextArea
 var tamer: Tamer
 var partner: Partner
 var clock: Clock
@@ -26,7 +32,11 @@ var frame_count := Callable()
 var fishing: Fishing
 var rod: FishingRod
 var world: FieldFishingWorld
-## Emitted when a session starts or ends, for the view (F5).
+var view: FishingView
+## The tension gauge; the field adds it to the HUD.
+var hud := FishingHud.new()
+var windows := FishingWindows.new()
+## Emitted when a session starts or ends.
 signal session_changed
 
 
@@ -37,6 +47,7 @@ func _ready() -> void:
 		data = get_node_or_null("/root/GameData")
 	if sound == null:
 		sound = get_node_or_null("/root/Sound")
+	hud.name = "FishingHud"
 
 
 ## checkFishingMap (main/fish.c:117): the last map's fishing goes; a fishing map gets a fresh one;
@@ -56,6 +67,9 @@ func check_map(map_id: int) -> void:
 		world.sound = sound
 		rod = FishingRod.new()
 		rod.setup(fishing, world, pad, data.fishing()["snagged_items"])
+		_ensure_view()
+		if view != null:
+			view.setup(str(map_data["sprite_file"]), data.fishing()["sprites"])
 		_connect_boxes()
 		session_changed.emit()
 	if clock != null:
@@ -74,6 +88,7 @@ func deinitialize() -> void:
 	fishing = null
 	rod = null
 	world = null
+	render()
 	session_changed.emit()
 
 
@@ -117,6 +132,24 @@ func tick_world() -> void:
 	fishing.tick_world()
 
 
+## FISH_renderFishingWorld, once per game frame after the tick (the view, the gauge).
+func render() -> void:
+	if view != null:
+		view.draw_frame(fishing, rod)
+	var gauge := fishing != null and not fishing.disabled and not fishing.partner_evolving \
+			and rod.display_rod and rod.tension_display
+	hud.show_gauge(gauge, rod.tension_bars() if gauge else 0, rod.tension_color if gauge else Color.WHITE)
+
+
+func _ensure_view() -> void:
+	if view != null or world_root == null:
+		return
+	view = VIEW_SCENE.instantiate()
+	view.data = data
+	world_root.add_child(view)
+	hud.view = view
+
+
 ## tamerTickFishing (main/fish.c:81), the tamer's state 11.
 func tamer_tick() -> void:
 	if fishing == null:
@@ -146,20 +179,28 @@ func _refresh_camera() -> void:
 	cam.offset = Vector2i(field_map.drawing_offset().round())
 
 
-## The windows as UI boxes with their tick functions (the view adds their contents, F5).
+## The windows as UI boxes: the logic's tick functions, FishingWindows' contents.
 func _connect_boxes() -> void:
 	if boxes == null:
 		return
 	var menu := rod.bait_menu
+	var box := rod.text_box
+	windows.boxes = boxes
+	windows.text_area = text_area
+	windows.data = data
+	windows.game_state = game_state
+	windows.text_box = box
+	windows.bait_menu = menu
 	menu.box_animating = func() -> bool:
 		var b: UIBoxes.Box = boxes.boxes[FishingBaitMenu.BOX_ID]
 		return b.state == UIBoxes.STATE_OPENING or b.state == UIBoxes.STATE_CLOSING
 	menu.opened.connect(func() -> void:
+		windows.prepare_bait_menu()
 		boxes.create_animated(FishingBaitMenu.BOX_ID, 0, menu.features(), FishingBaitMenu.BOX_RECT, menu.start_rect,
-				func(_id: int) -> void: menu.tick(pad)))
+				func(_id: int) -> void: menu.tick(pad), windows.render_bait_menu, windows.on_render_bait_menu))
 	menu.closed.connect(func() -> void: boxes.remove_animated(FishingBaitMenu.BOX_ID, menu.start_rect))
-	var box := rod.text_box
 	box.opened.connect(func() -> void:
+		windows.draw_text_lines()
 		boxes.create_static(FishingTextBox.BOX_ID, 0, UIBoxes.FEATURE_HALF_FILL, FishingTextBox.BOX_RECT,
-				func(_id: int) -> void: box.tick(pad)))
+				func(_id: int) -> void: box.tick(pad), windows.render_text_box, windows.on_render_text_box))
 	box.closed.connect(func() -> void: boxes.remove_static(FishingTextBox.BOX_ID))

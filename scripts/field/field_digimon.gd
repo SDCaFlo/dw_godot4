@@ -314,13 +314,20 @@ static func touches(square: Rect2, x1: float, z1: float, x2: float, z2: float) -
 ## with none free, turn 32 and hold the step. `source` is skipped by the probes (the partner
 ## passes the tamer, so bumping only him keeps the old rotation).
 func collision_grace(source: Node3D = null) -> void:
+	grace_with(func(vy: int) -> int: return probe(vy, source))
+
+
+## collisionGrace with its entityCheckCollision given as `probe_at(rotation_vy)` -> FREE or a hit:
+## the battle's (FieldBattleWorld.collision_grace) tests the combat area too and skips the
+## fainted and the walking tamer, as the C's entityCheckCollision(target, entity, 0x118, 0xC8).
+func grace_with(probe_at: Callable) -> void:
 	clear_step_flags()
-	if probe(direction, source) == FREE:
+	if probe_at.call(direction) == FREE:
 		return
 	var start := direction
 	var flags := 0
 	for candidate: int in GRACE[start / 512]:
-		if probe(candidate, source) != FREE:
+		if probe_at.call(candidate) != FREE:
 			flags |= 8 << (candidate / 1024)
 		else:
 			var clockwise: int = start - candidate

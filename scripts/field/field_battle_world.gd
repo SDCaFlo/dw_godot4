@@ -420,10 +420,16 @@ func _screen(p: Vector3i) -> Vector2:
 	return field_map.background_pixel(Content.psx_to_godot([p.x, p.y, p.z])) - field_map.scroll
 
 
-func collision_grace(id: int, source: int, _w: int, _h: int) -> void:
+## collisionGrace(source, entity, w, h) (map.c:3466): its probes are entityCheckCollision with the
+## same combat area (map.c:3479, :3486), so a sidestep never turns a fighter out of the area, and a
+## fainted Digimon or the tamer it walks past doesn't count (map.c:3446-3452).
+func collision_grace(id: int, source: int, w: int, h: int) -> void:
 	var n := _digimon_node(id)
-	if n != null:
-		n.collision_grace(_node(source))
+	if n == null:
+		return
+	n.grace_with(func(vy: int) -> int:
+		n.set_direction(vy)
+		return check_collision(id, source, w, h))
 
 
 ## entityIsOffScreen (map.c:3871): off screen unless one of its 8 corners projects inside.

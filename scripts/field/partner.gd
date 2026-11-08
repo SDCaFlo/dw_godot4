@@ -61,6 +61,10 @@ var item_use: ItemUse
 var evolution_scene: EvolutionScene
 ## The death and rebirth scene (DOOA_tick, DOOA_getSequenceState); null: states 8 and 14 end at once.
 var dooa: DooaScene
+## setFishingDisabled / Enabled (func(on: bool)) and deinitializeFishing, from the field's FishingHost
+## (partner.c:646-810; specs/fishing.md §1.1). Unset off the fishing maps' field.
+var set_fishing_disabled := Callable()
+var deinitialize_fishing := Callable()
 ## Callable(on_done: Callable) -> void: opens the sleep save prompt (sub-state 5).
 var sleep_save_prompt: Callable
 var _tamer_hand_reset := false
@@ -311,14 +315,16 @@ func _special_evolution(mode: int) -> void:
 
 ## State 13: time stops, the tamer stands and looks at it, it walks to him; close to him the scene
 ## starts (EvolutionScene: the evolution is applied inside it); at its end time runs again, and
-## either the script's sync bit is set (a script evolution) or the tamer is free. The C also closes
-## the △ menu, the inventory and box 1 and disables fishing: the partner doesn't tick while the menu
-## is open, and the items start it after the menu closed, so the port has nothing to close.
+## either the script's sync bit is set (a script evolution) or the tamer is free. Fishing is disabled while it runs
+## (setFishingDisabled). The C also closes the △ menu, the inventory and box 1: the partner doesn't
+## tick while the menu is open, and the items start it after the menu closed, so the port has
+## nothing to close.
 func tick_evolving() -> void:
 	match sub_state:
 		0:
 			if clock != null:
 				clock.running = false
+			_set_fishing_disabled(true)
 			tamer.camera_follow = false
 			tamer.look_at_psx(int(position.x), int(-position.z))
 			start_animation(ANIM_WALK)
@@ -342,6 +348,7 @@ func tick_evolving() -> void:
 					clock.running = true
 				if care != null:
 					care.evolution_target = -1
+				_set_fishing_disabled(false)
 				set_state(STATE_NORMAL)
 				if script_ctx != null and script_ctx.sync_bit == 0:
 					script_ctx.sync_bit = 1
@@ -355,11 +362,14 @@ func tick_evolving() -> void:
 ## State 8 (CALL_DIGIMON_ROUTINE 3, the natural death; also set by DOOA's map change,
 ## setSomeDyingState, at sub-state 2): it walks to the tamer, who looks at it; close to him the
 ## dissolution starts and he stands; when it is over the care timers start again and the script's
-## sync bit is set. The C also closes the fishing, the △ menu, the inventory and box 1: the port's
-## partner doesn't tick while they are open (as tick_evolving).
+## sync bit is set. Sub-state 0 ends the map's fishing (deinitializeFishing); sub-state 1 disables it,
+## the end enables it. The C also closes the △ menu, the inventory and box 1: the port's partner
+## doesn't tick while they are open (as tick_evolving).
 func tick_dying() -> void:
 	match sub_state:
 		0:
+			if deinitialize_fishing.is_valid():
+				deinitialize_fishing.call()
 			start_animation(ANIM_WALK)
 			tamer.look_at_psx(int(position.x), int(-position.z))
 			tamer.camera_follow = false
@@ -371,12 +381,14 @@ func tick_dying() -> void:
 			if closeness() > 0:
 				if dooa != null:
 					dooa.start_dissolve()
+				_set_fishing_disabled(true)
 				tamer.set_state(Tamer.STATE_STILL)
 				tamer.camera_follow = false
 				sub_state = 2
 		2:
 			# Every frame once the object is over, as the C (it stays in this sub-state).
 			if dooa == null or dooa.frame == -1:
+				_set_fishing_disabled(false)
 				_reset_death_timers()
 				if script_ctx != null:
 					script_ctx.sync_bit = 1
@@ -394,6 +406,7 @@ func tick_rebirth() -> void:
 			sub_state = 1
 		1:
 			if dooa == null or dooa.frame == -1:
+				_set_fishing_disabled(false)
 				_reset_death_timers()
 				if game_state != null:
 					game_state.state["partner"]["care"]["evo_timer"] = 0
@@ -401,6 +414,12 @@ func tick_rebirth() -> void:
 				if script_ctx != null:
 					script_ctx.sync_bit = 1
 				sub_state = 2
+
+
+## setFishingDisabled / setFishingEnabled (main/fish.c:45-57), when the field has fishing.
+func _set_fishing_disabled(on: bool) -> void:
+	if set_fishing_disabled.is_valid():
+		set_fishing_disabled.call(on)
 
 
 ## The end of states 8 and 14: remainingLifetime 360, sicknessTimer and injuryTimer 0, and the

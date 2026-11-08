@@ -40,6 +40,8 @@ const STATE_ENDING := 16
 const STATE_MACHINEDRAMON_SPAWN := 18
 ## A training station runs (tamerTickTraining, specs/training.md §2.6): his cheer, facing the partner.
 const STATE_TRAINING := 8
+## tamerTickFishing (tamer.c:480, main/fish.c:81): the rod's tick (specs/fishing.md §2.8).
+const STATE_FISHING := 11
 ## tamerSetState(-1) (the Brains stations): no case in tamerTick, so nothing but his animation, as
 ## STATE_SCRIPT: the station walks and turns him.
 const STATE_NONE := -1
@@ -133,6 +135,8 @@ var murd: MurdScene
 var dooa: DooaScene
 ## Machinedramon's spawn (EAB_tick), state 18; null: the state ends at once.
 var eab: EabHost
+## tamerTickFishing, state 11 (FishingHost.tamer_tick); unset: the state ends at once.
+var fishing_tick := Callable()
 ## The ending (ENDI_tickEnding), state 16; null: the state ends at once.
 var ending: EndingHost
 ## The map layer's nodes (Field.map_layer_nodes): tamerTickOpening's setMapLayerEnabled(1).
@@ -296,6 +300,11 @@ func tick() -> void:
 			tick_take_chest()
 		STATE_TRAINING:
 			tick_training()
+		STATE_FISHING:
+			if fishing_tick.is_valid():
+				fishing_tick.call()
+			else:
+				set_state(STATE_FREE)
 		STATE_SICKNESS_LOST_LIFE, STATE_BATTLE_LOST_LIFE:
 			tick_lost_life()
 		STATE_MACHINEDRAMON_SPAWN:
@@ -742,6 +751,13 @@ func scene_animation_ended() -> bool:
 ## animFrame >= frameCount of the scene animation (also true when the model lacks it).
 func scene_animation_done() -> bool:
 	return not _scene_playing or not _scene.playing
+
+
+## anim.loopCount = 1 on the scene animation (fishing's splash, fish.c:3958): an endless loop plays
+## to its end and stops.
+func finish_scene_loop() -> void:
+	if _scene_playing and _scene != null:
+		_scene.finish_loop()
 
 
 ## entityLookAtLocation (map.c:3389).

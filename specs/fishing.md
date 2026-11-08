@@ -29,6 +29,8 @@ The C names below are the decomp's (US). Line numbers are for `src/fish/fish.c` 
 - `getBestFishingRod` (`main/fish.c:19`): 2 with trigger `TRIGGER_HAVE_AMAZING_ROD`, 1 with `TRIGGER_HAVE_OLD_FISHROD`, else 0.
 - `hasFoodItem` (`:32`): an inventory slot holds an item whose `ITEM_PARA.sortingValue == 2`.
 
+**Game time after a map load.** `checkFishingMap` ends with `startGameTime` on every map, fishing or not (`main/fish.c:143`), and `loadMap` calls it (`map.c:4092`). The port had no such call; `FishingHost.check_map` now sets `Clock.running` at every map load (F4), as the C. A script warp stops it again with its `scriptPauseGame` after the change (`specs/script.md` §2.2).
+
 ### 1.2 The parts of `fish.c`
 
 | Part | Functions | Lines |
@@ -490,7 +492,7 @@ Also:
 | F1 | Data: §4 (porter + `GameData` accessors), with its checks | Low |
 | F2 | Logic, world: spots, water tests, fish and Seadramon AI, ripples, markers, population (`tests/test_fishing.gd`, fixed seeds). **Done 2026-11-07:** `FishingCamera` (`FISH_projectPoint`, `mapToWorldPosition`, the background bounds; checked within 2 px of `FieldMap.background_pixel` on both maps), `Fishing` (the pools, `random_point_in_spot` with the C's in-table clamp, `is_water` from the data's rule, the fish states, Seadramon, ripples, markers, `find_fish_to_bite`); 98 checks | Medium |
 | F3 | Logic, rod: the state machine, bobber physics, hooked fish, tension, catch and snag (fake world in the tests). **Done 2026-11-07:** `FishingRod` (`FISH_tickRod`, the bobber, the bait sprite, the hooked fish, tension, the rod's pose, the pans, load / end / `FISH_tamerTick`), `FishingTextBox`, `FishingBaitMenu`, `FishingWorld` (the interface the field implements in F4); `tests/test_fishing_rod.gd`, 103 checks. Found while porting: see §2.12 and the notes under §2.6 | Hard |
-| F4 | Field wiring: the host, the menu, tamer state 11, the clock, dying / evolution, the camera, Seadramon's script | Medium |
+| F4 | Field wiring: the host, the menu, tamer state 11, the clock, dying / evolution, the camera, Seadramon's script. **Done 2026-11-07:** `FishingHost` (`Systems/FishingHost`: `check_map` on `map_loaded`, `tick_world` after the menu object, `tamer_tick` as the tamer's `STATE_FISHING`, `availability`, `start_from_menu`, `set_disabled`, `deinitialize`, section 0x4E4), `FieldFishingWorld` (the tamer's bones in PSX axes, `GameState`'s inventory and triggers 45 / 46, `fish_caught`, `FieldMap.scroll_pixels`), `GameMenu.fishing_chosen`, `Clock.is_fishing`, the partner's hooks; the windows are UI boxes 2 / 3 with the logic's ticks (contents in F5). `tests/fishing_scan.tscn` (the map, the icon, the menu, the bait menu, aiming, △) | Medium |
 | F5 | View: the sprites, the rod, the line, the gauge; the bait menu and the text box on `UIBoxes` | Medium |
 | F6 | `tests/fishing_scan.tscn` (a cast, a bite, a catch on map 8 with a fixed seed), `VERIFY.md` | Medium |
 

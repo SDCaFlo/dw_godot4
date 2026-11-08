@@ -46,6 +46,8 @@ var music: MusicPlayer
 var active := false
 ## IS_GAMETIME_RUNNING (clock.c:51): scripts stop the time. Not saved.
 var running := true
+## isFishing() (clock.c:103): the clock stands while the rod is out. Set by the field.
+var is_fishing := Callable()
 ## SUBFRAME_COUNT (clock.c:49), for half speed. Not saved.
 var subframe_count := 0
 ## CURRENT_TIME_OF_DAY (map.c), set by update_time_of_day.
@@ -71,7 +73,7 @@ func tick() -> void:
 func tick_game_clock() -> void:
 	var clock: Dictionary = game_state.state["clock"]
 	clock["last_handled_frame"] = clock["frame"]
-	if not active or not running:
+	if not active or not running or (is_fishing.is_valid() and is_fishing.call()):
 		return
 	var speed: int = game_state.script_value(PSTAT_TIME_SPEED)
 	if speed == SPEED_RESET:

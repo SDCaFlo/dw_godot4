@@ -61,6 +61,15 @@ Sections are added as systems are ported (`PLANS.md`).
 5. **Dialogue:** see the Scripts section: the dialogue box is checked with the script sections that use it.
 6. **Not there yet:** the medal and tamer-level messages, the sounds.
 
+## Fishing (`scripts/systems/fishing/`, `scripts/field/hosts/fishing_host.gd`, `field_fishing_world.gd`; `specs/fishing.md`)
+
+`test_fishing.gd`, `test_fishing_rod.gd` and `tests/fishing_scan.tscn` check the logic and the wiring. Until step F5 the fish, the rod, the line and the windows' contents aren't drawn (the two windows show as empty boxes). In the game, on MAYO10 or MAYO06 (the two fishing maps; the debug map list jumps there):
+
+1. **The icon:** △ opens the menu with 8 options and the cursor on Fishing (the top row). Without a rod (trigger 45 / 46) or without food in the bag, the icon is greyed and ✕ on it does nothing.
+2. **Starting:** with a rod and food, ✕ on Fishing: the menu closes, the clock stops, the camera pans to the tamer, then the bait window (box 3) opens from him. ✕ chooses, △ cancels (fishing ends).
+3. **Aiming:** after the bait, he takes the rod (anim 0x1B); ← / → turn him. △ puts the rod away: the camera pans back to him, he is free, the clock runs again.
+4. **Off the fishing maps:** no Fishing row (7 options), as before.
+
 ## Pause (`scripts/systems/pause.gd`, `scripts/field/hosts/pause_host.gd`; `specs/pause.md`)
 
 `test_pause.gd` checks the logic and the freeze. In the game:

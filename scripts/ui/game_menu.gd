@@ -8,8 +8,10 @@ extends Node
 ## page (896, 256), so a sprite's (u, v) is image pixel (u, v - 192). Screen coordinates are
 ## relative to the centre (160, 120).
 
-## Fishing was chosen: fishing is not ported yet.
+## An option not ported yet was chosen.
 signal unported(what: String)
+## Fishing was chosen (game_menu.c:2215): the field starts it (initializeFishing, tamer state 11).
+signal fishing_chosen
 ## Digimon: box 0 is closed, the Digimon screen opens (tickTriangleMenu state 3).
 signal open_digimon_screen
 ## Player: box 0 is closed, the Player screen opens (tickTriangleMenu state 5).
@@ -94,8 +96,8 @@ var pad: Pad
 var sound: Node
 var game_state: Node
 var data: Node
-## getFishingAvailability (fish.c:59): 0 none, 1 a rod but no food or no rod upgrade, 2 ready.
-## Fishing isn't ported: always 0 (the fishing row isn't shown).
+## getFishingAvailability (main/fish.c:59): 0 no fishing here (no row), 1 no rod or no food (the
+## icon disabled), 2 ready. Unset: 0.
 var fishing_availability := Callable()
 
 ## IS_IN_MENU.
@@ -284,7 +286,14 @@ func choose(entry: int) -> void:
 		PLAYER:
 			menu_state = STATE_PLAYER
 		FISHING:
-			unported.emit("Fishing")
+			# closeTriangleMenu, setCameraFollowPlayer, initializeFishing, tamerSetState(0xB),
+			# IS_IN_MENU = 0; game time stays stopped (fishing starts it when it ends).
+			close()
+			if tamer != null:
+				tamer.camera_follow = true
+			fishing_chosen.emit()
+			is_open = false
+			closed.emit()
 		PRAISE, SCOLD, SLEEP:
 			close()
 			if partner != null:

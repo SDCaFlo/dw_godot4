@@ -232,14 +232,27 @@ func _open_and_close() -> void:
 			break
 		_frame()
 	_check(menu.menu_state == GameMenu.STATE_OPEN, "the menu is open once box 0 reached frame 4")
-	# Fishing: not ported yet, named; the menu stays open (the Player screen: test_player_screen.gd).
-	var told := []
-	menu.unported.connect(func(what): told.append(what))
+	# Fishing (game_menu.c:2210-2219; specs/fishing.md §1.1): disabled, nothing; enabled, the menu
+	# closes, the field starts fishing, game time stays stopped.
+	var chosen := [0]
+	menu.fishing_chosen.connect(func() -> void: chosen[0] += 1)
+	menu.fishing_disabled = true
+	menu.choose(GameMenu.FISHING)
+	_check(chosen[0] == 0 and host.is_open(), "a disabled Fishing does nothing")
 	menu.fishing_disabled = false
 	menu.choose(GameMenu.FISHING)
+	_check(chosen[0] == 1 and not host.is_open(), "Fishing: the menu closes, fishing starts")
+	_check(not clock.running and tamer.camera_follow, "game time stays stopped; setCameraFollowPlayer")
 	menu.fishing_disabled = true
-	_check(told == ["Fishing"], "Fishing: named as not ported")
-	_check(host.is_open(), "the menu stays open")
+	# Open it again for the △ checks.
+	tamer.set_state(Tamer.STATE_FREE)
+	_frames(8)
+	_frame(Pad.TRIANGLE)
+	for i in 10:
+		if menu.menu_state == GameMenu.STATE_OPEN:
+			break
+		_frame()
+	_check(host.is_open() and menu.menu_state == GameMenu.STATE_OPEN, "the menu opens again")
 	_frame()
 	sounds.played.clear()
 	_frame(Pad.TRIANGLE)

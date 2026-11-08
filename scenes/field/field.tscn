@@ -31,6 +31,7 @@
 [ext_resource type="PackedScene" path="res://scenes/script/tournament_routines.tscn" id="12_tournament_routines"]
 [ext_resource type="PackedScene" path="res://scenes/arena/arena.tscn" id="17_arena"]
 [ext_resource type="Script" path="res://scripts/field/hosts/pause_host.gd" id="20_pause_host"]
+[ext_resource type="Script" path="res://scripts/field/hosts/fishing_host.gd" id="21_fishing_host"]
 
 [sub_resource type="Environment" id="Environment_bg"]
 background_mode = 3
@@ -149,6 +150,9 @@ script = ExtResource("16_tournament_host")
 
 [node name="PauseHost" type="Node" parent="Systems"]
 script = ExtResource("20_pause_host")
+
+[node name="FishingHost" type="Node" parent="Systems"]
+script = ExtResource("21_fishing_host")
 
 [node name="Debug" type="Node" parent="."]
 script = ExtResource("9_debug")

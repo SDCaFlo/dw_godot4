@@ -402,7 +402,7 @@ func _turn() -> void:
 
 ## giveUp (fish.c:3760).
 func _give_up() -> void:
-	if not _has_food():
+	if not has_food():
 		_set_state(STATE_END)
 		return
 	world.start_animation(ANIM_IDLE)
@@ -1349,7 +1349,8 @@ func is_within_cast_range(pos: Vector3i, extra: int) -> bool:
 	return PsxMath.get_distance(pos.x - t.x, 0, pos.z - t.z) <= int(fishing.map.get("cast_range", 0)) + extra
 
 
-func _has_food() -> bool:
+## hasFoodItem (main/fish.c:32).
+func has_food() -> bool:
 	for t in world.inventory_types():
 		if int(t) != FishingBaitMenu.EMPTY and world.is_food(int(t)):
 			return true

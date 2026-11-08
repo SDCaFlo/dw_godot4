@@ -1,6 +1,6 @@
 # Fishing (step 4g-F)
 
-Status (2026-11-07): **draft, waiting for approval.** First minigame of step 4g (`PLANS.md`). Its C is the `FISH_REL` overlay (`src/fish/fish.c`, 4713 lines, about 3,800 of them code) plus `src/main/fish.c` (144 lines), which hooks it into the field.
+Status (2026-11-07): **approved** by the user. First minigame of step 4g (`PLANS.md`). Its C is the `FISH_REL` overlay (`src/fish/fish.c`, 4713 lines, about 3,800 of them code) plus `src/main/fish.c` (144 lines), which hooks it into the field.
 
 The C names below are the decomp's (US). Line numbers are for `src/fish/fish.c` unless another file is named. The tables at the top of `fish.c` (`:343–936`) are the data, and §3 lists every constant.
 
@@ -342,7 +342,8 @@ After every state, `framesOnState++` and the bobber ticks (`FISH_tickBobberPhysi
 ### 2.10 Catches and snags
 
 **A catch** (state 0xD):
-- The message, US: size ≥ 200 → `"Great! Total length %d m %d cm"` with **`size / 200` and `size % 200`**. That is a bug of the US release: 250 reads "1 m 50 cm". Size ≥ 100 → `"Total length %d m %d cm"` (`/ 100`, `% 100`). Else `"Total length %d cm"`.
+- The message, US: size ≥ 200 → `"Great! Total length %d m %d cm"`; size ≥ 100 → `"Total length %d m %d cm"` (`/ 100`, `% 100`); else `"Total length %d cm"`.
+  - The US C divides the ≥ 200 case by **200** (`size / 200`, `size % 200`, `:4279`), so 250 reads "1 m 50 cm". **Port-only fix (the user, 2026-11-07):** the port uses `/ 100` and `% 100` there too, so the length shown is right. The other releases print the right digits as well (`:4233–4276`).
 - A new record per kind goes into `FISH_RECORD_SIZE` (not saved, never shown).
 - `PARTNER_PARA.fishCaught + 1` (the "100 fish" medal); sound 8 / 8.
 - `giveItem(item, 1)`. The box: the item name, the length, "I got one!", plus "It looks sad. Let it go." when the bag is full.
@@ -499,7 +500,7 @@ Also:
   - the bite test against `FISH_BITE_CHANCE` with a fixed seed;
   - nibble / strike windows (too fast, too late);
   - the tension per case and the snap / escape thresholds (15 / 10 / 5 frames);
-  - the catch message (the US `/ 200` bug included);
+  - the catch message (the right length for ≥ 200: the port-only fix of the US `/ 200`);
   - `fishCaught + 1`, the item given / bag full;
   - the snag table.
 - **F4:**

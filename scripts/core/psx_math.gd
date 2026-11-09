@@ -137,6 +137,20 @@ static func rcos(a: int) -> int:
 	return _rsin[(a + 1024) & 0xFFF]
 
 
+## SquareRoot0 (libgte): the integer square root of an unsigned 32-bit value, from its documented
+## behaviour: the floor of the root of `v & 0xFFFFFFFF`. libgte's own table and Newton steps aren't in
+## the decomp and may differ by one in some values (specs/curling.md §8 Q5). Integer method, so no
+## float rounding for large values.
+static func square_root0(v: int) -> int:
+	v &= 0xFFFFFFFF
+	var r := int(sqrt(float(v)))
+	while r * r > v:
+		r -= 1
+	while (r + 1) * (r + 1) <= v:
+		r += 1
+	return r
+
+
 ## ratan2(y, x): -2048..2048.
 static func ratan2(y: int, x: int) -> int:
 	if y == 0 and x == 0:

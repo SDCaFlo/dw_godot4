@@ -701,6 +701,20 @@ func fishing_bite_chance(bait: Variant, kind: int) -> int:
 	return 0
 
 
+## The curling table (specs/curling.md §4: map, pstats, stone_types, zones, hints, sprites), or {}.
+func curling() -> Dictionary:
+	var rows := system("curling")
+	return rows[0] if not rows.is_empty() else {}
+
+
+## The curling data of a map (checkCurlingMap, src/main/kar.c:10: map 136 only), by key or id;
+## {} for a map without curling.
+func curling_map(map_ref: Variant) -> Dictionary:
+	var key := key_of("systems/maps", map_ref) if not map_ref is String else str(map_ref)
+	var c := curling()
+	return c if not c.is_empty() and str(c["map"]["key"]) == key else {}
+
+
 ## enforceStatsLimits' cap of a script stat (STATS_LIMIT_ARRAY; stat 22 reads past it, see the
 ## table); -1 for an unknown stat.
 func script_stat_limit(stat: int) -> int:

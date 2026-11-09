@@ -42,6 +42,8 @@ const STATE_MACHINEDRAMON_SPAWN := 18
 const STATE_TRAINING := 8
 ## tamerTickFishing (tamer.c:480, main/fish.c:81): the rod's tick (specs/fishing.md §2.8).
 const STATE_FISHING := 11
+## KAR_tick (tamer.c:483, kar.c:973): curling's match, digimon routine 1 (specs/curling.md §2.6).
+const STATE_CURLING := 12
 ## tamerSetState(-1) (the Brains stations): no case in tamerTick, so nothing but his animation, as
 ## STATE_SCRIPT: the station walks and turns him.
 const STATE_NONE := -1
@@ -137,6 +139,8 @@ var dooa: DooaScene
 var eab: EabHost
 ## tamerTickFishing, state 11 (FishingHost.tamer_tick); unset: the state ends at once.
 var fishing_tick := Callable()
+## KAR_tick, state 12 (CurlingHost.tamer_tick); unset: the state ends at once.
+var curling_tick := Callable()
 ## The ending (ENDI_tickEnding), state 16; null: the state ends at once.
 var ending: EndingHost
 ## The map layer's nodes (Field.map_layer_nodes): tamerTickOpening's setMapLayerEnabled(1).
@@ -303,6 +307,11 @@ func tick() -> void:
 		STATE_FISHING:
 			if fishing_tick.is_valid():
 				fishing_tick.call()
+			else:
+				set_state(STATE_FREE)
+		STATE_CURLING:
+			if curling_tick.is_valid():
+				curling_tick.call()
 			else:
 				set_state(STATE_FREE)
 		STATE_SICKNESS_LOST_LIFE, STATE_BATTLE_LOST_LIFE:

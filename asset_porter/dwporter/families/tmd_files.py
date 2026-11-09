@@ -11,6 +11,7 @@ from ..assets import AssetWriter
 from ..formats import tim as timfmt
 from ..formats import tmd as tmdfmt
 from ..formats.vram import Vram
+from . import maps
 from ..source import SourceFile
 
 NAME = "tmd_files"
@@ -34,6 +35,7 @@ class TmdFile:
     code_refs: tuple
     textures: tuple  # files loaded into VRAM (all TIMs in each, at their header positions), or MAP
     texture_note: str = ""
+    map_vram: str = ""  # drawn with this map's textures: VRAM as loadMap leaves it (maps.map_vram)
 
 
 DOORS = [TmdFile(f"DOOR/DOOR{i:02d}.TMD", f"Door model {i:02d}",
@@ -44,8 +46,10 @@ FILES = DOORS + [
     TmdFile("ETCDAT/DEFEFF.TMD", "Default effect meshes (smoke)", (), ETCTIM, "DEFEFF.TIM part of ETCTIM.BIN"),
     TmdFile("ETCDAT/EX.TMD", "Effect meshes", ("dw_decomp/src/main/efe_table.c:10 EFEX_PATH_ARRAY",), ("ETCDAT/EX.TIM",)),
     TmdFile("ETCDAT/FEEL_EF.TMD", "Feeling effect mesh (untextured)", ("dw_decomp/src/main/efe_table.c:8 EFEX_PATH_ARRAY",), ()),
-    TmdFile("ETCDAT/KARRING.TMD", "Curling (KAR) rink", ("dw_decomp/src/kar/kar.c:786 readFile(KAR_D_8005ABA4)",), MAP,
-            "texture page 640,0 / CLUT row 486, loaded by the KAR overlay or map"),
+    TmdFile("ETCDAT/KARRING.TMD", "Curling (KAR) rink", ("dw_decomp/src/kar/kar.c:786 readFile(KAR_D_8005ABA4)",),
+            ("MAP/MAP10/FRZL17.MAP", "MAP/MAP10/FRZL17.TFS"),
+            "texture page 640,0 / CLUT row 486: FRZL17's 4bpp image, loadMapImage2 (overworld.c:394)",
+            map_vram="FRZL17"),
     TmdFile("ETCDAT/SAO.TMD", "Fishing rod", ("dw_decomp/src/fish/fish.c:4604 FISH_loadTMDModel(FISH_PATH_ROD_MODEL)",),
             ("ETCDAT/FISHING.TIM",), "FISHING2.TIM has the same layout"),
     TmdFile("ETCDAT/SEA.TMD", "Seadramon shadow in the water (5 flat semi-transparent segments, fishing)", ("dw_decomp/src/fish/fish.c:2009 FISH_loadTMDModel(FISH_PATH_SEADRAMON_MODEL)",),
@@ -135,7 +139,13 @@ def convert(input_root, output_root) -> AssetWriter:
         out.check(f"{label}: vertex/normal pad words are zero", all(o.nonzero_pads == 0 for o in tmd.objects), "")
 
         textured = any(p.textured for o in tmd.objects for p in o.primitives)
-        vram = _vram(input_root, entry.textures) if entry.textures else None
+        if entry.map_vram:
+            vram, map_sources = maps.map_vram(input_root, entry.map_vram)
+            sources += map_sources
+        elif entry.textures:
+            vram = _vram(input_root, entry.textures)
+        else:
+            vram = None
         record = out.write_tmd(entry.path.rsplit(".", 1)[0], src.span(0, tmd.size), tmd, vram, {
             "model": {
                 "description": entry.description,

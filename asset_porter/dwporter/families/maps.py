@@ -65,6 +65,11 @@ PROP_TMDS = {
 # that rect (640, 0, 40 x 32 words = 160 x 32 texels).
 MOOD_BUBBLE_MAPS = {"GCAN11"}
 MOOD_PAGE, MOOD_W, MOOD_H, MOOD_CLUT, MOOD_TPAGE = (640, 0), 5 * 32, 32, (0, 486), 0x0A
+# Curling rink (KAR overlay, specs/curling.md §4.1; on FRZL17, Freezeland, map 136). Its HUD sprites
+# and KARRING.TMD's stone textures read the map's 4bpp VRAM: page (640, 0), u 0-255, v 0-87, and the
+# 16-row CLUT block spread to row 486 (loadMapImage2, overworld.c:394).
+CURLING_MAPS = {"FRZL17"}
+CURLING_PAGE, CURLING_W, CURLING_H, CURLING_CLUT_ROW = (640, 0), 256, 88, 486
 SLOT_STRIPS = {3: {"clut": (48, 486), "tpage": 0x2B, "sprite": "TRN_SLOT_SPRITE1 (symbols, u = (symbol - 1) * 32)"},
                4: {"clut": (64, 486), "tpage": 0x4B, "sprite": "TRN_SLOT_SPRITE2 (reel window, u 0xE0, 8 x 32)"}}
 
@@ -130,6 +135,18 @@ def _map_vram(parsed: dict, tfs, palette: int, label: str) -> Vram:
                     vram._write(row * 16, 486, 16, 1, colors[:16])
                 vram.sources.append((f"{name} CLUT -> row 486", {"x": 0, "y": 486, "w": 16 * t.clut.height, "h": 1}))
     return vram
+
+
+def map_vram(input_root, name: str, palette: int = 0) -> tuple:
+    """VRAM as loadMap leaves it for map file `name` (its MAP_ENTRIES entry from the executable),
+    and the source files read. For other families drawing with a map's textures (tmd_files: KARRING)."""
+    exe = SourceFile.open(input_root, mmd_files.EXE)
+    entry = next(e for e in read_tables(exe.data)["entries"] if e["filename"] == name)
+    mpath, tpath = map_path(entry["id"], name, ".MAP"), map_path(entry["id"], name, ".TFS")
+    msrc, tsrc = SourceFile.open(input_root, mpath), SourceFile.open(input_root, tpath)
+    parsed = mapfmt.parse_map(msrc.data, entry["num_8bpp"], entry["num_4bpp"], entry["has_digimon"])
+    tfs = mapfmt.parse_tfs(tsrc.data, sum(1 for t in parsed["setup"]["tiles"] if t != -1))
+    return _map_vram(parsed, tfs, palette, mpath[:-4]), [exe, msrc, tsrc]
 
 
 def _object_sprite(vram: Vram, obj: dict, cache: dict):
@@ -236,6 +253,68 @@ def _mood_faces(out: AssetWriter, folder, vram: Vram, msrc, parsed: dict, vram_l
                           for i in parsed["images"] if f"{vram_label}.MAP@0x{i['offset']:X}" in writers],
         "code_refs": ["dw_decomp/src/main/script_common.c:271 MONOCHROMON_BUBBLE_SPRITE",
                       "dw_decomp/src/main/script_common.c:1220 renderMonochromonMoodBubble, 3038 createMonochromonMoodBubble"],
+    }
+    _dump(sidecar, record)
+    out.assets.append({"asset_id": span.asset_id, "sidecar": out._rel(sidecar), "outputs": [o["path"] for o in outputs]})
+    return outputs
+
+
+def _curling_sheet(out: AssetWriter, folder, vram: Vram, msrc, parsed: dict, vram_label: str, label: str) -> list:
+    """FRZL17's curling sheet (specs/curling.md §4.1): u 0-255, v 0-87 of the 4bpp page (640, 0)
+    as the map's images leave it, sheet.png (indexed, palette 0), sheet.p00..p15.png (RGBA, one per CLUT row),
+    and sheet.json sidecar."""
+    px, py = CURLING_PAGE
+    indices, loaded = vram.page_indices(px, py, 4, 0, 0, CURLING_W, CURLING_H)
+    rect = {"x": px, "y": py, "w": CURLING_W // 4, "h": CURLING_H}
+    writers = vram.sources_in(rect["x"], rect["y"], rect["w"], rect["h"])
+    holder = [i for i in parsed["images"] if i["kind"] == "4bpp" and f"{vram_label}.MAP@0x{i['offset']:X}" in writers][-1]
+
+    palettes_raw = []
+    for n in range(16):
+        words = [vram.word(n * 16 + i, CURLING_CLUT_ROW) for i in range(16)]
+        palettes_raw.append([c for c, _ in words])
+
+    missing_rect = loaded.count(0)
+    missing_clut = sum(1 for n in range(16) for i in range(16) if not vram.word(n * 16 + i, CURLING_CLUT_ROW)[1])
+    missing = missing_rect + missing_clut
+    out.check(f"{label}: curling sheet and 16 palettes fully in loaded VRAM", missing == 0, f"{missing} texels/CLUT entries")
+
+    path = folder / "curling" / "sheet.png"
+    pal0_rgba = [psx.color_to_rgba(c) for c in palettes_raw[0]]
+    png.write(path, png.encode_indexed(CURLING_W, CURLING_H, indices, pal0_rgba))
+    outputs = [{"path": out._rel(path), "kind": "curling_sheet", "encoding": "indexed4"}]
+
+    for n in range(16):
+        pal_rgba = [bytes(psx.color_to_rgba(c)) for c in palettes_raw[n]]
+        px_bytes = b"".join(pal_rgba[idx] for idx in indices)
+        spath = folder / "curling" / f"sheet.p{n:02d}.png"
+        png.write(spath, png.encode_rgba(CURLING_W, CURLING_H, px_bytes))
+        outputs.append({"path": out._rel(spath), "kind": "curling_sheet_rgba", "palette": n})
+
+    span = msrc.span(holder["offset"], holder["tim"].size)
+    sidecar = folder / "curling" / "sheet.json"
+    record = {
+        "asset_id": span.asset_id,
+        "family": NAME,
+        "format": "VRAM (MAP 4bpp TIMs)",
+        "source": span.identity(),
+        "psxprev_name": span.psxprev_name,
+        "outputs": outputs,
+        "vram": {
+            "page": {"x": px, "y": py, "bpp": 4},
+            "uv_rect": {"u": 0, "v": 0, "w": CURLING_W, "h": CURLING_H},
+            "rect": rect,
+            "clut_row": CURLING_CLUT_ROW,
+            "palettes": palettes_raw,
+            "clut_sources": vram.sources_in(0, CURLING_CLUT_ROW, 16 * 16, 1),
+        },
+        "source_images": [{"offset": i["offset"], "index": i["index"], "vram": i["tim"].vram_info()}
+                          for i in parsed["images"] if f"{vram_label}.MAP@0x{i['offset']:X}" in writers],
+        "code_refs": [
+            "dw_decomp/src/main/overworld.c:394 loadMapImage2 (4bpp TIM CLUT -> row 486)",
+            "dw_decomp/src/kar/kar.c:2749 KAR_renderSprite (HUD sprites from page 640, row 486)",
+            "dw_decomp/src/kar/kar.c:778 KAR_start (binds KARRING.TMD textures)",
+        ],
     }
     _dump(sidecar, record)
     out.assets.append({"asset_id": span.asset_id, "sidecar": out._rel(sidecar), "outputs": [o["path"] for o in outputs]})
@@ -416,6 +495,9 @@ def convert(input_root, output_root, map_ids=None) -> AssetWriter:
         # Monochromon's mood faces (the CLUT row 486 doesn't depend on the TFS palette either)
         if name in MOOD_BUBBLE_MAPS:
             outputs += _mood_faces(out, folder, vrams[next(iter(vrams))], msrc, parsed, mpath[:-4], label)
+        # FRZL17's curling sheet (the CLUT row 486 doesn't depend on the TFS palette either)
+        if name in CURLING_MAPS:
+            outputs += _curling_sheet(out, folder, vrams[next(iter(vrams))], msrc, parsed, mpath[:-4], label)
 
         # doors
         door_list = []

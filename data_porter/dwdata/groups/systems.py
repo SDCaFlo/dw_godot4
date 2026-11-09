@@ -38,6 +38,27 @@ SCRIPT_INTERP_C, TRIGGER_H = "src/main/script_interp.c", "include/dw/trigger.h"
 # New game (../specs/new_game.md): the intro (new_game.c), the boot's partner choice (main.c), the naming
 # screen's characters (script_menu.c) and the movies (mov.c).
 NEW_GAME_C, MOV_C, PARTNER_IMPL_C = "src/main/new_game.c", "src/mov/mov.c", "src/main/partner_impl.c"
+KAR_C, KAR_MAIN_C = "src/kar/kar.c", "src/main/kar.c"
+CURLING_EVIDENCE = [
+    (KAR_MAIN_C, "if (mapId == 136)"),
+    (KAR_C, "readPStat(0x7a)"),
+    (KAR_C, "writePStat(0x79, 2)"),
+    (KAR_C, "GsSetProjection(0x200)"),
+    (KAR_C, "stone->weight = weights.weight[stone->type]"),
+    (KAR_C, "if (stone->state == 1 && move <= 0 && stone->type == 3)"),
+    # KAR_D_8005B580 (kar.c:664), a libgs GsRVIEW2 the table reader doesn't parse: stack_view's values.
+    (KAR_C, "GsRVIEW2 KAR_D_8005B580 = { 0x00000000, 0x00000000, 0xfffff308, 0x00000000, 0x00000000, "
+            "0x00000000, 0x00000000, NULL, };"),
+]
+CURLING_TABLES = [
+    (KAR_C, "KAR_D_8005B438"), (KAR_C, "MAIN_D_80134A08"), (KAR_C, "KAR_D_8005AB8C"),
+    (KAR_C, "KAR_D_8005AB80"), (KAR_C, "MAIN_D_80134A4C"), (KAR_C, "MAIN_D_80134A44"),
+    (KAR_C, "KAR_D_8005B450"), (KAR_C, "KAR_D_8005B460"), (KAR_C, "KAR_D_8005B418"),
+    (KAR_C, "KAR_D_8005B04C"), (KAR_C, "KAR_D_8005B40C"), (KAR_C, "KAR_D_8005AF58"),
+    (KAR_C, "KAR_D_8005B318"), (KAR_C, "MAIN_D_80134A20"), (KAR_C, "KAR_D_8005B478"),
+    (KAR_C, "KAR_D_8005B48C"), (KAR_C, "KAR_D_8005B4A0"), (KAR_C, "KAR_D_8005B4CC"),
+    (KAR_C, "KAR_D_8005B4F4"), (KAR_C, "KAR_D_8005B558"), (KAR_C, "KAR_D_8005B56C"),
+]
 # The boot (main.c:3445-3449): readPStat(0xFE) == 0 -> Agumon (3), else Gabumon (0x11); newGameStateMachine
 # writes 0 (step 8) or 1 (step 9).
 NEW_GAME_PARTNERS = [3, 0x11]
@@ -264,6 +285,7 @@ TABLE_PURPOSES = {
     "training_spots": "Gym training spots: per gym map, the position of each stat's training spot",
     "slot_machine": "Training slot machine (Bonus Try): the reels, the assist draw, the symbols and the payouts",
     "fishing": "Fishing: fish kinds, bite chances by bait, items the line can snag, fishing maps, sprites",
+    "curling": "Curling minigame (Freezeland map 136, Penguinmon / MetalMamemon): stones, rules, scoring zones, AI shot plans, HUD sprites, dialogue",
     "mojyamon_trades": "Mojyamon's item trades: 4 sets of 3 (give -> get)",
     "babies": "Baby Digimon ids (Fresh / In-Training) and the baby each reincarnation egg gives",
     "jukebox": "Jukebox track list (index = track id)",
@@ -317,7 +339,7 @@ def convert(input_root, output_root) -> GroupWriter:
             (SCRIPT_VALUE_C, "STATS_LIMIT_ARRAY"), (SCRIPT_VALUE_C, "MULTIPLE_OF_10"),
             (BTL_C, "CONCAVE_SCREENS"), (MAIN_C, "ITEM_THROW_HEIGHT"), (SIN_H, "SIN_LOOKUP_TABLE"),
             (ATAN_H, "ATAN_LOOKUP_TABLE"), (SHOP_MENU, "NAMING_CHAR_PAGES"),
-            (MOV_C, "MOV_MOVIES")] + BATTLE_HUD_TABLES + ARENA_ARRAY_TABLES:
+            (MOV_C, "MOV_MOVIES")] + BATTLE_HUD_TABLES + ARENA_ARRAY_TABLES + CURLING_TABLES:
         load(c_file, name)
     digimon_l = tables.load(out, index, MAIN_C, "DIGIMON_DATA",
                             {"DIGIMON_PARA_NAME": lambda a, r, t: [] if r == "eu" else [Value(a[0], t.line)]})
@@ -333,6 +355,8 @@ def convert(input_root, output_root) -> GroupWriter:
         tables.size_check(out, decomp, l)
     for _, name in ARENA_ARRAY_TABLES:
         tables.size_check(out, decomp, L[name], binary="std")
+    for _, name in CURLING_TABLES:
+        tables.size_check(out, decomp, L[name], binary="kar")
 
     copy_bad = []
     for f1, n1, f2, n2 in COPIES:
@@ -981,6 +1005,103 @@ def convert(input_root, output_root) -> GroupWriter:
                     "meaning": "the sprites of the fishing TIM: tpage / clut as in the C (clut_xy, page_xy decoded "
                                "VRAM positions), uv = u0 v0 u1 v1 inclusive, origin = ox oy (FISH_drawSprite2D/3D)"},
     }, [fishing], {"access": "GameData.system('fishing')"}, fields=None)
+
+    # -- curling -----------------------------------------------------------------------------
+    curling_missing = [f"{p}: {needle}" for p, needle in CURLING_EVIDENCE
+                       if needle not in " ".join((decomp.root / p).read_text(encoding="utf-8", errors="replace").split())]
+    out.check("curling: map id, pstats, projection and stone rules are still coded as documented",
+              not curling_missing, "; ".join(curling_missing) or f"{len(CURLING_EVIDENCE)} uses")
+    out.check("curling: KAR_D_8005B460 equals KAR_D_8005B438", us["KAR_D_8005B460"] == us["KAR_D_8005B438"])
+
+    obs_tbl = index.table(KAR_C, "KAR_D_8005AB98")
+    out.check("curling: KAR_D_8005AB98 in >= JP_TRIAL", obs_tbl["us"] is not None)
+    obstacle_x = obs_tbl["us"].value["x"]
+
+    def sprite_box(sp, sym):
+        return {
+            "x": sp["x"], "y": sp["y"],
+            "clut_x": sp["clutX"], "clut_y": sp["clutY"],
+            "u": sp["u"], "v": sp["v"],
+            "w": sp["w"], "h": sp["h"],
+            "r": sp["r"], "g": sp["g"], "b": sp["b"],
+            "source": sym,
+        }
+
+    curling = {
+        "map": {"id": 136, "key": maps[136].get("key"), "file": maps[136]["file"]},
+        "pstat_opponent": 0x7A,
+        "opponent_slot_base": 2,
+        "pstat_result": 0x79,
+        "stone_types": [
+            {"type": k, "weight": w, "pegged": k == 3}
+            for k, w in enumerate(us["MAIN_D_80134A08"]["weight"])
+        ],
+        "type_roll": us["KAR_D_8005AB8C"]["start"],
+        "row_models": us["KAR_D_8005AB80"]["id"],
+        "pegged_models": us["MAIN_D_80134A4C"]["id"],
+        "obstacle_x": obstacle_x,
+        "zones": [
+            {
+                "ring": k + 1,
+                "dx": r["dx"],
+                "dz": r["dz"],
+                "radius": r["radius"],
+                "points": us["MAIN_D_80134A44"]["value"][k],
+                "marker_start": us["KAR_D_8005B450"]["ring"][k]["start"],
+                "marker_count": us["KAR_D_8005B450"]["ring"][k]["count"],
+            }
+            for k, r in enumerate(us["KAR_D_8005B438"]["ring"])
+        ],
+        "shot_plans": us["KAR_D_8005B418"]["type"],
+        "hints": {
+            "penguinmon": {
+                "pages": us["KAR_D_8005B04C"]["start"],
+                "lines": [sref(sid) if sid is not None else None for sid in us["KAR_D_8005AF58"]["text"]],
+            },
+            "metalmamemon": {
+                "pages": us["KAR_D_8005B40C"]["start"],
+                "lines": [sref(sid) if sid is not None else None for sid in us["KAR_D_8005B318"]["text"]],
+            },
+        },
+        "menu": sref(us["MAIN_D_80134A20"]["text"][0]),
+        "sprites": {
+            "stone_cursor": sprite_box(us["KAR_D_8005B478"], "KAR_D_8005B478"),
+            "score_digit": sprite_box(us["KAR_D_8005B48C"], "KAR_D_8005B48C"),
+            "gauge_bar": sprite_box(us["KAR_D_8005B4CC"]["sprite"][0], "KAR_D_8005B4CC"),
+            "gauge_frame": sprite_box(us["KAR_D_8005B4CC"]["sprite"][1], "KAR_D_8005B4CC"),
+            "plates": [sprite_box(p, "KAR_D_8005B4F4") for p in us["KAR_D_8005B4F4"]["sprite"][:4]],
+            "plate_metalmamemon": sprite_box(us["KAR_D_8005B558"], "KAR_D_8005B558"),
+            "ready_prompt": sprite_box(us["KAR_D_8005B56C"], "KAR_D_8005B56C"),
+        },
+        "digits": [{"u": g["u"], "v": g["v"]} for g in us["KAR_D_8005B4A0"]["glyph"]],
+        # KAR_D_8005B580 (kar.c:664: vp (0, 0, 0xfffff308), vr 0, rz 0; checked in CURLING_EVIDENCE) and
+        # KAR_renderScene's GsSetProjection(0x200) (:911).
+        "stack_view": {
+            "eye": [0, 0, -0xCF8],
+            "target": [0, 0, 0],
+            "rz": 0,
+            "projection": 0x200,
+        },
+    }
+    curling_sym_names = [s for _, s in CURLING_TABLES]
+    write("curling", curling_sym_names, {
+        "map": {"ref": "systems/maps", "meaning": "curling rink map (FRZL17, map 136, checkCurlingMap, src/main/kar.c:10)"},
+        "pstat_opponent": {"meaning": "pstat 0x7A selects the opponent (0 Penguinmon, 1 MetalMamemon)"},
+        "opponent_slot_base": {"meaning": "slot = readPStat(0x7A) + 2 (KAR_start, :793): 2 Penguinmon, 3 MetalMamemon"},
+        "pstat_result": {"meaning": "pstat 0x79 receives the result (0 lost, 1 won, 2 won with >= 10 points)"},
+        "stone_types": {"meaning": "weight and pegged flag for stone types 0-3 (MAIN_D_80134A08)"},
+        "type_roll": {"c_name": "KAR_D_8005AB8C", "meaning": "distribution of 10 types chosen by rand() % 10 (KAR_D_8005AB8C)"},
+        "row_models": {"c_name": "KAR_D_8005AB80", "meaning": "base model index per row (tamer 2, opponent 1, obstacles 0; KAR_D_8005AB80)"},
+        "pegged_models": {"c_name": "MAIN_D_80134A4C", "meaning": "pegged stone model per row (11, 10, 9; MAIN_D_80134A4C)"},
+        "obstacle_x": {"c_name": "KAR_D_8005AB98", "meaning": "initial obstacle x positions (KAR_D_8005AB98; US release)"},
+        "zones": {"meaning": "scoring zones with offset, radius, points, and ring markers (KAR_D_8005B438, MAIN_D_80134A44, KAR_D_8005B450)"},
+        "shot_plans": {"c_name": "KAR_D_8005B418", "meaning": "AI stone type priority order for plan rows 0 and 1 (KAR_D_8005B418)"},
+        "hints": {"meaning": "dialogue hint page offsets and lines for Penguinmon and MetalMamemon (KAR_D_8005B04C/B40C, KAR_D_8005AF58/B318)"},
+        "menu": {"c_name": "MAIN_D_80134A20", "meaning": "start/explain prompt text (MAIN_D_80134A20)"},
+        "sprites": {"meaning": "HUD sprite placements, UVs, and CLUTs in VRAM (640, 0)"},
+        "digits": {"c_name": "KAR_D_8005B4A0", "meaning": "UVs of score digits 0-9 and minus sign (KAR_D_8005B4A0)"},
+        "stack_view": {"meaning": "HUD side stack projection and view parameters (KAR_D_8005B580, GsSetProjection(0x200))"},
+    }, [curling], {"access": "GameData.curling()"}, binary="kar")
 
     give, get = us["MOJYAMON_ITEMS_GIVE"], us["MOJYAMON_ITEMS_GET"]
     write("mojyamon_trades", ["MOJYAMON_ITEMS_GIVE", "MOJYAMON_ITEMS_GET"], {

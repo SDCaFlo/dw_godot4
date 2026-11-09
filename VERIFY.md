@@ -77,6 +77,21 @@ Sections are added as systems are ported (`PLANS.md`).
 10. **The amazing rod** (trigger 46): the rod's colours differ from the old rod's, and the bobber is the lure.
 11. **Seadramon** (MAYO06 only, at 8:00 or 17:00): a long segmented shadow swims along the water; landing it starts its scene (script section 0x4E4).
 
+## Curling (`scripts/field/hosts/curling_host.gd`, `field_curling_world.gd`, `scripts/field/curling_view.gd`, `scripts/ui/curling_hud.gd`, `curling_windows.gd`; `specs/curling.md`)
+
+`test_curling_match.gd` checks the logic, `test_curling_view.gd` what is drawn where, and `tests/curling_scan.tscn` the wiring; the look is here. How to get there fast: in the debugger set script value 113 to 1 (State tab), then jump to FRZL17 from the map list (exit 1); or talk to the Mojyamon on FRZL15 (it sets 113 and warps). Script value 122 (0x7A) picks the opponent: 0 Penguinmon, 1 MetalMamemon.
+
+1. **Arrival:** the warp in ends with the tamer standing at the left of the rink and the partner idle; nothing else moves. The tamer cannot walk (pad moves nothing). The two name plates (the tamer's face over a blue "00" score panel top left, the opponent's face over an orange one top right) are there from the start. *Wrong if* a plate is missing, a face is the wrong opponent (MetalMamemon's with 122 = 1), or the colours look like a wrong palette (garbled, rainbow).
+2. **The prompt:** after the throwers go to their spots, box 0 opens at the bottom with "Start Game" and "Explain Game" on two lines, shadowed, and a grey highlight on the first. ↑ / ↓ move the highlight (with the cursor sound). *Wrong if* the box is empty, the second line repeats "Start Game", or the highlight is off its line.
+3. **The stacks build up:** after Start Game, "GAME START" blinks in the middle of the screen while each side stack gets one stone a second, top to bottom: five blue-handled stones down the left edge, five red-handled ones down the right, seen slightly from above, over the ice and under the plates. *Wrong if* the stacks appear all at once, move when the camera scrolls, sit in front of the plates or the box, or the prompt doesn't blink.
+4. **Choosing:** a white glove points at the chosen stone of the stack; ↑ / ↓ move it from stone to stone (30 pixels a step). *Wrong if* it doesn't follow, or isn't a glove (another piece of the sheet).
+5. **Aiming:** ✕: the stone leaves the stack and sits in the tamer's hand; a dotted line of round dots runs from the stone along the aim (down the rink on this map), its brightness rippling along it, with a gap that travels along the line and an arrowhead at the end turned along the line. ← / →: the line turns; aimed at a side wall, the dots fold back off it (the bounce). *Wrong if* the line starts away from the stone, runs through the walls, or the head (a small V) points across the line.
+6. **Power:** ✕: the gauge (an arrow-shaped banner) appears under the thrower's score; small chevrons fill it from the left over about a second and a half, the tenth in another colour. *Wrong if* the banner hides the chevrons (they are drawn over it), or they spill past its tip.
+7. **The slide:** ✕ throws: the stone slides down the rink, turns and bounces like the arrow showed; while it slides the ring markers on the ice light up; pegged stones (no handle) stay where they stop. After the tally the score digits change (a minus sign for a negative score). *Wrong if* the stone floats, sinks into the ice, is unlit (flat colour) or changes model, or the scores show wrong digits.
+8. **The opponent's turn:** a hint box opens with the opponent's name in yellow and its lines under it, a "✕" arrow at its bottom right; ✕ turns the pages, then the box closes. *Wrong if* lines of two pages mix, the name isn't coloured, or the box shows text before it has finished opening.
+9. **The end:** after 5 stones each, the end box and the win / lose sound; ✕ closes it, all three face the camera (animation 2), the stones vanish, and the script warps to FRZL15 or ROOM20 with the reward dialogue by the result.
+10. **Elsewhere:** on any other map nothing changes (no host, no state 12), no stones or curling HUD.
+
 ## Pause (`scripts/systems/pause.gd`, `scripts/field/hosts/pause_host.gd`; `specs/pause.md`)
 
 `test_pause.gd` checks the logic and the freeze. In the game:

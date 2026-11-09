@@ -1,6 +1,6 @@
 # Curling (step 4g-K)
 
-Status (2026-11-09): **done** (steps C1-C6), approved by the user; the look is waiting for the in-game checks (`VERIFY.md` "Curling"). Second minigame of step 4g (`PLANS.md`), after fishing. Its C is the `KAR_REL` overlay (`src/kar/kar.c`, 3186 lines, fully decompiled: no `INCLUDE_ASM`) plus the hooks in `src/main` (`kar.c`, `partner.c:1146`, `tamer.c:484`, `map.c:4093`). The "~17k" in `PLANS.md` counted the overlay's bss files. The code itself is about 2,500 lines.
+Status (2026-11-09): **done** (steps C1-C6), approved by the user; the look checked in the game by the user 2026-11-09 (`VERIFY.md` "Curling"). Second minigame of step 4g (`PLANS.md`), after fishing. Its C is the `KAR_REL` overlay (`src/kar/kar.c`, 3186 lines, fully decompiled: no `INCLUDE_ASM`) plus the hooks in `src/main` (`kar.c`, `partner.c:1146`, `tamer.c:484`, `map.c:4093`). The "~17k" in `PLANS.md` counted the overlay's bss files. The code itself is about 2,500 lines.
 
 The C names below are the decomp's (US). Line numbers are for `src/kar/kar.c` unless another file is named. Its globals are `MAIN_D_801352xx`. §3 gives them the names this spec uses.
 

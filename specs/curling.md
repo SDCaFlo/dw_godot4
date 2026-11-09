@@ -437,6 +437,16 @@ Every value in §2 has its line there. The tables:
 ### 5.1 Logic (`scripts/systems/curling/`, headless-testable)
 
 - **`CurlingStones`**: the three rows and the physics (§2.1–2.4): `setup(mode)`, `tick()` (`KAR_tickStones` with the collisions and walls), `classify_rings()`, the tally, `check_stopped()`, `distance()`. Pure integers, `PsxMath` (`ratan2`, `rcos`, `rsin`, `div`, `s16`) plus a `SquareRoot0` added to `PsxMath` (libgte: the integer square root of a uint32), `Rng.rand()`.
+- **C2's contract** (`scripts/systems/curling/curling_stones.gd`, checked by `tests/test_curling.gd`):
+  - `class_name CurlingStones extends RefCounted`; `const STATE_OUT := -0x65, STATE_WAITING := -1, STATE_HELD := 0, STATE_ICE := 1, STATE_PEGGED := 2, STATE_PUSHED := 3`; `signal sound(id: int)` (`playSound2(8, id)`).
+  - Inner classes `Stone` (`state, type, weight, speed, angle, ring, prev_ring, model: int`; `target, rotation, pos: Vector3i`) and `Row` (`score, thrown, plan_power, plan_stone: int`; `stones: Array` of 5). `rows`: 3 `Row`s.
+  - `_init(data: Dictionary)` takes `GameData.curling()`. Before `setup`, every stone is `STATE_OUT` with zeros (port-only: the C's bss).
+  - `setup(mode)` (`KAR_setupMatch`, its `Rng.rand()` calls in the C's order).
+  - `place(row, i, type, state, pos, speed := 0, angle := 0) -> Stone`. Port-only, for C3's copy into row 2 and the tests: it sets the type, the weight and model from the data, the state, `pos` and `target = pos`, speed, angle, rotation 0 and rings 0.
+  - `tick(match_state, selected_row := -1, selected_stone := -1)` (`KAR_tickStones` with `KAR_updateCollisions`). `check_stopped() -> bool` (`KAR_checkStonesStopped`: true where the C sets state 0xC; the out-of-play rule always runs). `classify_rings()` (without `KAR_registerThrownStone`, which is C3's). `lit_rings() -> int` (state 0xB's bit mask of `KAR_updateRingMarkers`).
+  - `static wall_zone(x, z)`, `static distance(x, y)`, `impact_share(stone, a, b)`, `separation(stone, a, b) -> Vector3i`.
+  - `PsxMath.square_root0(v)`: `SquareRoot0`, the floor square root of `v & 0xFFFFFFFF` (Q5).
+- **As built (C2)**: `curling_stones.gd` ports the functions of §2.1-2.4 one to one (`Stone` / `Row` fields as in the contract; `impact_share` and `separation` are instance methods, `wall_zone` and `distance` static). `tick()` takes the match state and the selected stone as arguments instead of the C's globals; `check_stopped()` has no state-0xB guard (the caller runs it in 0xB). `KAR_debugCollisionStone` / `KAR_debugCollisionPair` are not ported (they `return` at once). `setup()` leaves `target` alone, as the C does. `PsxMath.square_root0` is an integer floor root (Q5).
 - **`CurlingAi`**: §2.5. It reads the stones and the thrower's point (the world gives bone 4 or the location).
 - **`CurlingMatch`**: `KAR_tickMatchState` and the rest of `KAR_tick` in its order (§2.6–2.8), the prompt and the hint box as small logic classes (`CurlingPrompt`, `CurlingHintBox`, like `FishingTextBox`), the ring markers and the HUD state (which sprites, where), which the view draws.
 - **The world interface** (`CurlingWorld`, like `FishingWorld`):
@@ -509,4 +519,5 @@ The acceptance checks are written from §2 by the main session before each step 
 - **Q1. The US yes / no strings.** `MAIN_D_80134A20 = {KAR_D_8005ABB8, NULL}` (US). `drawString` is called with the second (NULL) on the prompt's second frame. What does `drawString(NULL, …)` do (`font.c`)? Read it in C3 before porting. The two options' pixels come from the first string, cut at text x 0x53.
 - **Q2. `checkCameraMovement`'s return.** `tickCameraMoveTo` is declared `void` in `map.c:5100`, but KAR uses its value as "arrived" (`== 1`). On MIPS it is `checkCameraMovement`'s `v0`, left in the register. The port's `check_pan` returns that. Confirm in C4 that it is `1` once (then −1, `map.c:5091`).
 - **Q3. The opponent's rotation.** In state 8 the opponent's stone takes `rotation.vy = ENTITY_TABLE[opponent].rotation.vy`, while `turnAim*` turned the opponent's `rotation.vy` by `−d`. Only the model's spin shows it. Nothing to decide: ported as written.
+- **Q5. `SquareRoot0`** is libgte's, not in the decomp, like `ratan2` and `rsin` (`PsxMath`'s header, `specs/battle_effects.md` §6). The port uses the floor square root. libgte's table and Newton steps may differ by one in some values, which would move a collision's push-apart by a unit. The C2 tests' values follow this model.
 - **Q4. Penguinmon's held stone** keeps its rotation (`:891`, no reset). Nothing to decide: ported as written.

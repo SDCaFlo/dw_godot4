@@ -630,6 +630,14 @@ func scroll_pixels(d: Vector2) -> void:
 	_apply_scroll()
 
 
+## moveCameraByOffset (map.c:5168): MAP_TILE_DATA.camera += d, DRAWING_OFFSET -= d, then cameraIsAtEdge's
+## clamp to the background. No follow rules, no virtual scroll (handleTileUpdate is port-only nothing).
+func scroll_clamped(d: Vector2) -> void:
+	scroll += d
+	_clamp_scroll()
+	_apply_scroll()
+
+
 ## cameraIsAtEdge (map.c:4818): the scroll clamped to the background; per axis true when it was
 ## free (the C's atEdge 1).
 func _clamp_scroll() -> Array:

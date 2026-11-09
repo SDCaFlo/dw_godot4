@@ -81,6 +81,8 @@ const ROUTINE_MACHINEDRAMON := 8
 ## CALL_ROUTINE 0x28: EAB_startBuildup on the entity of script id 5 (script_interp.c:1855).
 const BUILDUP_SCRIPT_ID := 5
 const ROUTINE_EVOLVE := 10
+## CALL_DIGIMON_ROUTINE 1: curling (KAR_start, tamer state 12, partner state 11; partner.c:1146).
+const ROUTINE_CURLING := 1
 const PSTAT_SUKAMON_BACKUP := 5
 const PSTAT_EVOLUTION := 0xFE
 ## callDigimonRoutine's last case (partner.c:1139-1213).
@@ -183,6 +185,8 @@ var map_effects: MapEffects
 var eab: EabHost
 ## The ending (EndingHost); null: routines 0x34 / 0x35 and digimon routines 5 / 6 unported.
 var ending: EndingHost
+## Curling (CurlingHost); null: digimon routine 1 unported.
+var curling: CurlingHost
 ## A waiting builtin's tick ended the frame (longjmp 2).
 var _wait_ended_frame := false
 ## The field's battles (BattleHost, specs/battle.md §5.3): start_battle(talked_entity),
@@ -1397,6 +1401,15 @@ func call_digimon_routine(routine: int) -> void:
 	# 8: Machinedramon's spawn (tamerTickMachinedramonSpawn waits for EAB_tick, then sets the bit).
 	if routine == ROUTINE_MACHINEDRAMON and partner != null and tamer != null and eab != null:
 		tamer.set_state(Tamer.STATE_MACHINEDRAMON_SPAWN)
+		partner.set_state(Partner.STATE_IDLE)
+		ctx.sync_bit = 0
+		_sync_scene = true
+		return
+	# 1: curling (partner.c:1146): KAR_start, tamer state 12, partner state 11, the sync bit cleared;
+	# KAR_finishMatch sets it again.
+	if routine == ROUTINE_CURLING and partner != null and tamer != null and curling != null:
+		curling.start()
+		tamer.set_state(Tamer.STATE_CURLING)
 		partner.set_state(Partner.STATE_IDLE)
 		ctx.sync_bit = 0
 		_sync_scene = true

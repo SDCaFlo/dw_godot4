@@ -32,6 +32,7 @@
 [ext_resource type="PackedScene" path="res://scenes/arena/arena.tscn" id="17_arena"]
 [ext_resource type="Script" path="res://scripts/field/hosts/pause_host.gd" id="20_pause_host"]
 [ext_resource type="Script" path="res://scripts/field/hosts/fishing_host.gd" id="21_fishing_host"]
+[ext_resource type="Script" path="res://scripts/field/hosts/curling_host.gd" id="22_curling_host"]
 
 [sub_resource type="Environment" id="Environment_bg"]
 background_mode = 3
@@ -153,6 +154,9 @@ script = ExtResource("20_pause_host")
 
 [node name="FishingHost" type="Node" parent="Systems"]
 script = ExtResource("21_fishing_host")
+
+[node name="CurlingHost" type="Node" parent="Systems"]
+script = ExtResource("22_curling_host")
 
 [node name="Debug" type="Node" parent="."]
 script = ExtResource("9_debug")

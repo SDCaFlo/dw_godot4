@@ -77,6 +77,19 @@ Sections are added as systems are ported (`PLANS.md`).
 10. **The amazing rod** (trigger 46): the rod's colours differ from the old rod's, and the bobber is the lure.
 11. **Seadramon** (MAYO06 only, at 8:00 or 17:00): a long segmented shadow swims along the water; landing it starts its scene (script section 0x4E4).
 
+## Curling (`scripts/field/hosts/curling_host.gd`, `field_curling_world.gd`; `specs/curling.md`)
+
+`test_curling_match.gd` checks the logic and `tests/curling_scan.tscn` the wiring. This is the logic and the wiring only: the stones, the stacks, the HUD sprites, the aim arrow and the text in the box come with step C5, so the stones are invisible and the box is empty frame. How to get there fast: in the debugger set script value 113 to 1 (State tab), then jump to FRZL17 from the map list (exit 1); or talk to the Mojyamon on FRZL15 (it sets 113 and warps). Script value 122 (0x7A) picks the opponent: 0 Penguinmon, 1 MetalMamemon.
+
+1. **Arrival:** the warp in ends with the tamer standing at the left of the rink and the partner idle; nothing else moves. The tamer cannot walk (pad moves nothing).
+2. **The prompt:** after the throwers go to their spots (tamer left, opponent right), a box opens at the bottom of the screen with a sound (its text is C5). ✕ closes it (Start Game); the cursor sound is the prompt's.
+3. **Choosing:** ↑ / ↓ change the chosen stone (no cursor drawn yet, so you only hear the camera and animations); ✕ makes the tamer raise his arm (aiming).
+4. **Aiming and power:** ← / → turn him (faster while held); ✕ again: the camera pans to where the stone is, then the power counts up for 30 frames; ✕ throws (his throw animation, the slide sound).
+5. **The slide:** the camera follows the invisible stone down the rink, the slide sound stops when everything has stopped, the camera pans over the rings (a sound per scoring ring), then to the opponent.
+6. **The opponent's turn:** a hint box opens, ✕ turns its pages; the opponent aims, throws, the camera follows the same way; then it is the tamer's turn again.
+7. **The end:** after 5 stones each, the end box and the win / lose sound; ✕ closes it, all three face the camera (animation 2), and the script warps to FRZL15 or ROOM20 with the reward dialogue by the result.
+8. **Elsewhere:** on any other map nothing changes (no host, no state 12).
+
 ## Pause (`scripts/systems/pause.gd`, `scripts/field/hosts/pause_host.gd`; `specs/pause.md`)
 
 `test_pause.gd` checks the logic and the freeze. In the game:

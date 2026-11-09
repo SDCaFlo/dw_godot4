@@ -76,6 +76,7 @@ signal game_ended
 @onready var arena: Arena = $Systems/Arena
 @onready var pause_host: PauseHost = $Systems/PauseHost
 @onready var fishing_host: FishingHost = $Systems/FishingHost
+@onready var curling_host: CurlingHost = $Systems/CurlingHost
 @onready var debug: DebugHost = $Debug
 
 
@@ -326,6 +327,20 @@ func _start() -> void:
 	if menu_host.menu != null:
 		menu_host.menu.fishing_availability = fishing_host.availability
 		menu_host.menu.fishing_chosen.connect(fishing_host.start_from_menu)
+	# Curling (specs/curling.md §5.2): checkCurlingMap at every map load, digimon routine 1 starts the
+	# match, the world object 0x1388 in the frame, KAR_tick as the tamer's state 12.
+	curling_host.tamer = _tamer
+	curling_host.entities = entities.entities
+	curling_host.field_map = _field
+	curling_host.overlays = _field.overlays
+	curling_host.boxes = scripts.boxes
+	curling_host.text_area = scripts.text_area
+	curling_host.interpreter = scripts.interpreter
+	curling_host.pad = GameLoop.pad
+	map_session.map_loaded.connect(curling_host.check_map)
+	_tamer.curling_tick = curling_host.tamer_tick
+	if scripts.interpreter != null:
+		scripts.interpreter.curling = curling_host
 	# The pause (specs/pause.md): box 5 and its text, at the end of every frame.
 	pause_host.boxes = scripts.boxes
 	pause_host.text_area = scripts.text_area
@@ -425,6 +440,8 @@ func _frame() -> void:
 	# FISH_tickFishingWorld (object 0x3001): after the entities, whether the △ menu is open or not.
 	fishing_host.tick_world()
 	fishing_host.render()
+	# KAR_tickStones (object 0x1388), after the fishing world.
+	curling_host.tick_world()
 	clock_host.tick()
 	if scripts.interpreter != null:
 		tournament_host.tick()

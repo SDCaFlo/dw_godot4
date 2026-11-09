@@ -39,6 +39,20 @@ func _init() -> void:
 	_eq(data.map_id("MAYO04A"), 3, "map_id(MAYO04A)")
 	_eq(data.localize(data.map(0)["name"]).strip_edges(), "Native Forest", "map(0) name")
 	_eq(data.system("fishing").size(), 1, "system(fishing)")
+	# Fishing (specs/fishing.md §4): the maps by key or id, their resolved polygons, bite chances by bait.
+	_eq(data.fishing_map("dw1:mayo10")["spots"].size(), 6, "fishing_map(mayo10) spots")
+	_eq(data.fishing_map(8)["spots"][0]["points"].size(), 9, "map 8 spot 0: FISH_D_8007A794's 9 points")
+	_eq(data.fishing_map(8)["spots"][0]["points"][0], [-310.0, -13.0], "map 8 spot 0 point 0 (0xfeca, 0xfff3)")
+	_eq(data.fishing_map(8)["seadramon_hours"], [], "no Seadramon on map 8 (9999)")
+	_eq(data.fishing_map(6)["seadramon_hours"], [17.0, 8.0], "Seadramon on map 6 at 0x6a4 / 0x320")
+	_eq(data.fishing_map(6)["water"]["rule"], "left_of_shore", "map 6: FISH_isFishableWater2")
+	_eq(data.fishing_map(8)["water"]["shore"].size(), 16, "map 8 shore: FISH_D_8007A890")
+	_eq(data.fishing_map(6)["seadramon_path"].size(), 8, "Seadramon path: FISH_D_8007A9CC")
+	_eq(data.fishing_map(0), {}, "no fishing on map 0")
+	_eq(data.fishing_bite_chance(38, 1), 20, "Meat (0x26), kind 1: FISH_BITE_CHANCE[1]")
+	_eq(data.fishing_bite_chance(0x29, 0), 50, "bait 0x29, kind 0: FISH_BITE_CHANCE[18]")
+	_eq(data.fishing_bite_chance(0x47, 0), 0, "a bait past the table")
+	_eq(data.fishing()["sprites"].size(), 49, "FISH_SPRITES[49]")
 	_eq(data.record("digimon/digimon_data", 999), {}, "record out of range")
 
 	# Text by id, languages, and an id split over two blocks (each language defined once).

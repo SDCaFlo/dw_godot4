@@ -15,7 +15,7 @@ The field's own menu: △ opens a box over the field with 6 icons (7 with a fish
 | `tickGameMenu` (`:1627`) | the box's tick: cursor, ✕, △ |
 | `handleGameMenuSelection` (`:2168`), `setSleepDisabled` (`:2223`) | the options |
 | `partnerTickPraiseScold` (`partner.c:368`), `tamerTickPraiseScold` (`tamer.c:1625`), `handlePraiseScold` (`partner_impl.c:1113`) | praise and scold |
-| `getFishingAvailability` (`fish.c:59`) | whether the fishing icon shows |
+| `getFishingAvailability` (`main/fish.c:59`) | whether the fishing icon shows (`FishingHost.availability`, `specs/fishing.md`) |
 | `IS_IN_MENU` (`main.c:3222`) and its readers | what stops while the menu is open |
 | Data: `MENU_OPTIONS[8]`, `GAME_MENU_TEXT_SPRITES[8]`, `GAME_MENU_LINES`, `SELECTION_CURSOR_*` (`game_menu.c:389–493`), `STR_YEAR_DAY` (`text/main/game_menu.yaml`) | positions, texture rects |
 

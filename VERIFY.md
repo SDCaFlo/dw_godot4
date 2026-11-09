@@ -61,6 +61,22 @@ Sections are added as systems are ported (`PLANS.md`).
 5. **Dialogue:** see the Scripts section: the dialogue box is checked with the script sections that use it.
 6. **Not there yet:** the medal and tamer-level messages, the sounds.
 
+## Fishing (`scripts/systems/fishing/`, `scripts/field/hosts/fishing_host.gd`, `field_fishing_world.gd`; `specs/fishing.md`)
+
+`test_fishing.gd`, `test_fishing_rod.gd` and `tests/fishing_scan.tscn` check the logic, the wiring, that the parts are drawn and a whole catch; how they look is for these checks. Without a rod yet: the debugger's State tab, Triggers, 45 (old rod) or 46 (amazing rod), Set; food with Items, Give. In the game, on MAYO10 or MAYO06 (the two fishing maps; the debug map list jumps there):
+
+1. **The icon:** △ opens the menu with 8 options and the cursor on Fishing (the top row). Without a rod (trigger 45 / 46) or without food in the bag, the icon is greyed and ✕ on it does nothing.
+2. **Starting:** with a rod and food, ✕ on Fishing: the menu closes, the clock stops, the camera pans to the tamer, then the bait window (box 3) opens from him. ✕ chooses, △ cancels (fishing ends).
+3. **Aiming:** after the bait, he takes the rod (anim 0x1B); ← / → turn him. △ puts the rod away: the camera pans back to him, he is free, the clock runs again.
+4. **Off the fishing maps:** no Fishing row (7 options), as before.
+5. **The fish:** walking by the water, dark fish shadows drift and turn in it (some bigger, slower ones), fading in and out. They lie flat on the water, not facing the camera.
+6. **The bait menu:** the food items 2 a row, each with its icon, name, "×" and count; the cursor moves on both columns, ← / → wrap.
+7. **The rod and the cast:** after the bait he holds the rod (4 segments from his hand), the bobber and the bait at its tip, a white line between them. ✕ winds up, ✕ again (or ○ for full power) casts: the bobber flies and splashes with rings on the water; the bait hangs under it while it flies.
+8. **A bite:** wait with ✕ up; markers flash over fish near the bobber; the bobber bobs, nibbles, then goes under. ✕ right then: "Hooked!" and the tension gauge (top left) with the line in its colour: hold ✕ to reel (the gauge rises to yellow, red), let go to ease it (cyan, blue). The rod bends more as the tension rises.
+9. **The catch:** reeled to the shore, the fish's icon flies to the rod tip; the message shows the item, its length ("Total length …"), "I got one!" and closes with ✕ after a moment.
+10. **The amazing rod** (trigger 46): the rod's colours differ from the old rod's, and the bobber is the lure.
+11. **Seadramon** (MAYO06 only, at 8:00 or 17:00): a long segmented shadow swims along the water; landing it starts its scene (script section 0x4E4).
+
 ## Pause (`scripts/systems/pause.gd`, `scripts/field/hosts/pause_host.gd`; `specs/pause.md`)
 
 `test_pause.gd` checks the logic and the freeze. In the game:

@@ -623,6 +623,13 @@ func scroll_by(motion: Vector2, held: int) -> void:
 	_apply_scroll()
 
 
+## FISH_scrollCameraTo (fish.c:4673): the background moves by `d` pixels (MAP_TILE_DATA.camera +=
+## d, DRAWING_OFFSET -= d); the caller clamps it. No follow rules, no virtual scroll.
+func scroll_pixels(d: Vector2) -> void:
+	scroll += d
+	_apply_scroll()
+
+
 ## cameraIsAtEdge (map.c:4818): the scroll clamped to the background; per axis true when it was
 ## free (the C's atEdge 1).
 func _clamp_scroll() -> Array:

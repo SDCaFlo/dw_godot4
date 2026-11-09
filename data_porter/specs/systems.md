@@ -193,12 +193,20 @@ The training bonus game ("Bonus Try", `../../specs/training.md` §7): one record
   - frames between moves (`:2735`)
   - `bait`: the item that attracts it (-1 = none needed, `:2757`)
   - Kind 6 is Seadramon.
-- **Bite chance:** `FISH_BITE_CHANCE[(depth − 0x26) * 6 + kind]` %, for line depths 0x26–0x46 (`FISH_findFishToBite`, `:3080–3089`); Seadramon bites at 20 %. The last 2 values are unused. US computes the same index in another way (`rowOff`, `:3043–3056`).
+- **Bite chance by bait** (`bite_chance_by_bait`): `FISH_BITE_CHANCE[(bait − 0x26) * 6 + kind]` %, for bait items 0x26–0x46 (`FISH_findFishToBite`, `:3080–3089`); 0 for other baits; Seadramon bites at 20 %. The C names the argument `depth`, but the caller passes `rod.bait`, the bait's item id (`:4019–4021`; renamed 2026-11-07). The last 2 values are unused. US computes the same index in another way (`rowOff`, `:3043–3056`).
 - **Snagged items** (`FISH_BAIT_CHANCES`; the name is the decomp's):
   - While `rod.itemTaken` is set (`:3215`), every 20 frames a 1000 / 10000 roll makes the line get stuck.
   - Then `r = 0..99` picks the first entry with `r ≤ threshold`, and that item is given: "something got stuck" (`FISH_tickRod`, `:3991–4004`, `:4367–4379`).
   - Items: Sm. recovery 35 %, Various 28 %, Restore 20 %, Omni Disk 10 %, Auto Pilot 5 %, Coral charm 2 %.
-- **Fishing maps** (8 and 6): kept as written; their pointer fields are C symbols (fishing spots, water tests, Seadramon waypoints).
+- **Fishing maps** (8 and 6, `checkFishingMap`, `main/fish.c:126`), with the C symbols resolved (`c` keeps the struct as written):
+  - `map`: id, key, file;
+  - `scale` (bobber and ripple sprites), `bait_radius` (`unk8`: the bait sprite's radius; the splash ripples' scale × 75 / × 10), `fish_scale` {small, large} (per size unit, below / from size 100), `cast_range`;
+  - `seadramon_hours`: `seadramonTime1/2 / 100`, without 9999 (never): [] on map 8, [17, 8] on map 6 (`FISH_tickFishPopulation`, `:2976–2980`; the minutes are not used);
+  - `spots[6]` (one per fish kind 0–5): `share` (`unk0`: 30, 25, 18, 14, 8, 5, the population balance, `:2957`) and `points`, the polygon in projected pixels (`FISH_randomPointInSpot`). `unk4` is a debug colour, not read;
+  - `water`: the map's `isWater` function as a rule. `below_shore` (`FISH_isFishableWater1`, map 8): water where y ≥ the shore's y at x, outside the shore's x range water, and not below `−DRAW_OFFSET_LIMIT_Y_MIN + bottom` (0xF0). `left_of_shore` (`FISH_isFishableWater2`, map 6): no water from x ≥ `max_x` (0x1AD), water where y < `open_above_y` (6), else where x ≤ the shore's x at y, outside its y range water. The interpolation is `FISH_lerpTableByX/Y` (`:4475–4509`, integer division);
+  - `seadramon_path`: 8 points (projected pixels), the same table on both maps;
+  - `sprite_file`: `ETCDAT/FISHING.TIM` / `ETCDAT/FISHING2.TIM`.
+- **Sprites** (`FISH_SPRITES[49]`, `:374`): `tpage`, `clut` as in the C, decoded `page_xy` (all (448, 256), 4-bit) and `clut_xy` (x 448, y 384 + palette: the TIMs' palettes 0, 1, 2, 4), `uv` (u0, v0, u1, v1: the quad's corners, so a flipped sprite has u0 > u1, sprites 43–45), `origin` (ox, oy: the anchor, `FISH_drawSprite2D/3D`).
 
 ### `mojyamon_trades` (`MOJYAMON_ITEMS_GIVE/GET[12]`, `src/shop/script_menu.c:230/235`)
 

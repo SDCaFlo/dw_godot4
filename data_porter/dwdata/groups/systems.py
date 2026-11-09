@@ -158,7 +158,37 @@ MAP_FLAG_SOUND, MAP_FLAG_NO_TIME, MAP_FLAG_DIGIMON = 0x1F, 0x40, 0x80   # map.c:
 ENEMY_MUSIC_FIRST, ENEMY_MUSIC_END = 0x43, 0x70                         # btl.c:366
 BRAIN_ALL_COMMANDS = 500                                                # battle_setup.c:125
 SCHEDULE_DAYS, SCHEDULE_SLOTS = 30, 6                                   # dget.c:112
-FISH_DEPTH_FIRST, FISH_DEPTH_END, FISH_KINDS_ROW = 0x26, 0x47, 6        # fish.c:3080-3084
+FISH_BAIT_FIRST, FISH_BAIT_END, FISH_KINDS_ROW = 0x26, 0x47, 6          # fish.c:3080-3084 (the bait item)
+FISH_MAIN_C = "src/main/fish.c"
+FISH_NEVER = 9999                                                       # fish.c:2976 (0x270f: no Seadramon)
+# The two water tests are code (fish.c:4511-4535): each map's isWater names one; the port reads the rule.
+FISH_WATER = {
+    "FISH_isFishableWater1": {"rule": "below_shore", "shore": "FISH_D_8007A890", "count": 0x10,
+                              "bottom": 0xF0,
+                              "meaning": "water where y >= the shore's y at x (linear between points; outside "
+                                         "the shore's x range counts as water), and y <= -DRAW_OFFSET_LIMIT_Y_MIN "
+                                         "+ bottom (FISH_isFishableWater1, FISH_lerpTableByX)"},
+    "FISH_isFishableWater2": {"rule": "left_of_shore", "shore": "FISH_D_8007A9B0", "count": 7,
+                              "max_x": 0x1AD, "open_above_y": 6,
+                              "meaning": "no water from x >= max_x; water where y < open_above_y; else water "
+                                         "where x <= the shore's x at y (outside the shore's y range counts as "
+                                         "water) (FISH_isFishableWater2, FISH_lerpTableByY)"},
+}
+FISH_EVIDENCE = [
+    (FISH_MAIN_C, "if (mapId == 8 || mapId == 6) {"),
+    (FISH_C, "return FISH_lerpTableByX(x, y, FISH_D_8007A890, 0x10) >= 0;"),
+    (FISH_C, "if ((-DRAW_OFFSET_LIMIT_Y_MIN + 0xf0) < y) {"),
+    (FISH_C, "if (x >= 0x1ad) {"),
+    (FISH_C, "if (y < 6) {"),
+    (FISH_C, "return FISH_lerpTableByY(x, y, FISH_D_8007A9B0, 7) <= 0;"),
+    (FISH_C, "if ((x < tbl[0].vx) || (tbl[n - 1].vx < x)) {"),
+    (FISH_C, "if ((y < tbl[0].vy) || (tbl[n - 1].vy < y)) {"),
+    (FISH_C, "((FISHING_DATA_PTR->mapData->seadramonTime1 / 100) == HOUR)"),
+    (FISH_C, "j = rod->bait;"),
+    (FISH_C, "chance = (FISH_BITE_CHANCE + rowOff)[f->kind];"),
+    (FISH_C, "rowOff = (depth - 0x26) * 6;"),
+    (FISH_C, "loadTextureFile(FISHING_DATA_PTR->mapData->spriteFilePath, &tpage, &clut);"),
+]
 TRADE_SET = 3                                                           # script_menu.c:1765 (PSTAT_249 * 3)
 # Copies of the battle tables in the std (arena) and vs (versus) overlays: must match the btl ones.
 COPIES = [
@@ -233,7 +263,7 @@ TABLE_PURPOSES = {
     "birdramon_transport": "Destinations of Birdramon's transport: map, unlock trigger, price",
     "training_spots": "Gym training spots: per gym map, the position of each stat's training spot",
     "slot_machine": "Training slot machine (Bonus Try): the reels, the assist draw, the symbols and the payouts",
-    "fishing": "Fishing: fish kinds, bite chances by depth, items the line can snag, fishing maps",
+    "fishing": "Fishing: fish kinds, bite chances by bait, items the line can snag, fishing maps, sprites",
     "mojyamon_trades": "Mojyamon's item trades: 4 sets of 3 (give -> get)",
     "babies": "Baby Digimon ids (Fresh / In-Training) and the baby each reincarnation egg gives",
     "jukebox": "Jukebox track list (index = track id)",
@@ -256,7 +286,7 @@ def convert(input_root, output_root) -> GroupWriter:
     files = sorted({BTL_MAIN, BTL_SETUP, BTL_C, BATTLE_UI, STD_MAIN, STD_SETUP, STD_HUD, VS_MAIN, VS_SELECT, VS_DEMO,
                     VS_INTRO, SCRIPT_C, TOURNAMENT_C, GAME_MENU, MAP_C, TOILET_C, TRN_HUD, TRN2_HUD, TRN_SLOTS, FISH_C,
                     SHOP_MENU, DOOA_C, SCRIPT_VALUE_C, SCRIPT_H, OVERWORLD_C, UTILS2_C, BTL_MENU, BTL_EFFECT, MAIN_C,
-                    SIN_H, ATAN_H, MATH_C, NEW_GAME_C, MOV_C, PARTNER_IMPL_C})
+                    SIN_H, ATAN_H, MATH_C, NEW_GAME_C, MOV_C, PARTNER_IMPL_C, FISH_MAIN_C})
     sources = [SourceText(decomp.root, p).identity() for p in files]
 
     missing = [f"{p}: {needle}" for p, needle in EVIDENCE + NEW_GAME_EVIDENCE + NAMING_EVIDENCE
@@ -876,30 +906,80 @@ def convert(input_root, output_root) -> GroupWriter:
 
     # -- minigames / misc ---------------------------------------------------------------------
     kinds, bite, bait = us["FISH_KIND_INFO"], us["FISH_BITE_CHANCE"], us["FISH_BAIT_CHANCES"]
-    rows = (FISH_DEPTH_END - FISH_DEPTH_FIRST)
+    rows = (FISH_BAIT_END - FISH_BAIT_FIRST)
+    fish_missing = [f"{p}: {needle}" for p, needle in FISH_EVIDENCE
+                    if needle not in (decomp.root / p).read_text(encoding="utf-8", errors="replace")]
+    out.check("fishing: the maps, water tests, Seadramon hours and bite index are still coded as documented",
+              not fish_missing, "; ".join(fish_missing) or f"{len(FISH_EVIDENCE)} uses")
+
+    def fish_table(sym):
+        return index.table(FISH_C, sym)[REFERENCE].value
+
+    def points(sym, count):
+        pts = fish_table(sym)
+        out.check(f"fishing: {sym} has {count} points", len(pts) >= count, f"{len(pts)}")
+        return [[p["vx"], p["vy"]] for p in pts[:count]]
+
+    sprites = fish_table("FISH_SPRITES")
+    fish_maps = []
+    for m in us["FISHING_MAP_DATA"]:
+        spots = fish_table(m["fishingSpots"])
+        out.check(f"fishing: map {m['mapId']} has unk1C = 6 spots", m["unk1C"] == len(spots) == 6,
+                  f"{m['unk1C']} / {len(spots)}")
+        water = dict(FISH_WATER[m["isWater"]])
+        water["shore"] = points(water["shore"], water.pop("count"))
+        hours = [t // 100 for t in (m["seadramonTime1"], m["seadramonTime2"]) if t != FISH_NEVER]
+        path = fish_table(m["spriteFilePath"])
+        mp = maps[m["mapId"]]
+        fish_maps.append({
+            "map": {"id": m["mapId"], "key": mp.get("key"), "file": mp["file"]},
+            "scale": m["scale"], "bait_radius": m["unk8"],
+            "fish_scale": {"small": m["fishScaleSmall"], "large": m["fishScaleLarge"]},
+            "seadramon_hours": hours, "cast_range": m["castRange"],
+            "spots": [{"share": sp["unk0"], "points": points(sp["points"], sp["pointCount"])} for sp in spots],
+            "water": water,
+            "seadramon_path": points(m["seadramonWaypoints"], m["seadramonWaypointCount"]),
+            "sprite_file": path.replace("\\", "/").lstrip("/"),
+            "c": m})
+    out.check("fishing: 49 sprites", len(sprites) == 49, f"{len(sprites)}")
     fishing = {
         "kinds": [{"kind": k, "item": iref(f["unk0"]) if k < 6 else None, "size": [f["lo"], f["hi"]],
                    "move_delay": [f["moveDelayMin"], f["moveDelayMax"]],
                    "bait": iref(f["bait"]) if f["bait"] != -1 else None, "c": f} for k, f in enumerate(kinds)],
-        "bite_chance_by_depth": [{"depth": FISH_DEPTH_FIRST + r, "chances": bite[r * FISH_KINDS_ROW:(r + 1) *
-                                                                                 FISH_KINDS_ROW]}
-                                 for r in range(rows)],
+        "bite_chance_by_bait": [{"bait": iref(FISH_BAIT_FIRST + r),
+                                 "chances": bite[r * FISH_KINDS_ROW:(r + 1) * FISH_KINDS_ROW]}
+                                for r in range(rows)],
         "snagged_items": [{"item": iref(b["item"]), "roll_up_to": b["threshold"]} for b in bait],
-        "maps": [{k: (v if not isinstance(v, str) else v) for k, v in m.items()} for m in us["FISHING_MAP_DATA"]],
+        "maps": fish_maps,
+        "sprites": [{"index": k, "tpage": sp["tpage"], "clut": sp["clut"],
+                     "clut_xy": [(sp["clut"] & 0x3F) * 16, sp["clut"] >> 6],
+                     "page_xy": [(sp["tpage"] & 0xF) * 64, ((sp["tpage"] >> 4) & 1) * 256],
+                     "uv": [sp["u0"], sp["v0"], sp["u1"], sp["v1"]], "origin": [sp["ox"], sp["oy"]]}
+                    for k, sp in enumerate(sprites)],
         "unused_bite_values": bite[rows * FISH_KINDS_ROW:],
     }
     write("fishing", ["FISH_KIND_INFO", "FISH_BITE_CHANCE", "FISH_BAIT_CHANCES", "FISHING_MAP_DATA"], {
         "kinds": {"meaning": "fish kinds 0-5 (item = the fish you catch, size range, frames between moves, bait "
                              "that attracts it; null = none needed) and 6 = Seadramon (fish.c:2618-2767)"},
-        "bite_chance_by_depth": {"meaning": "FISH_BITE_CHANCE[(depth - 0x26) * 6 + kind]: % chance per check that a "
-                                            "fish of that kind bites at this line depth (FISH_findFishToBite, "
-                                            "fish.c:3080-3089); Seadramon always 20 %"},
+        "bite_chance_by_bait": {"meaning": "FISH_BITE_CHANCE[(bait - 0x26) * 6 + kind]: % chance per check that a "
+                                           "fish of that kind bites the bait item (FISH_findFishToBite's third "
+                                           "argument is rod.bait, fish.c:4019-4021, :3080-3089); 0 for a bait "
+                                           "outside 0x26-0x46; Seadramon always 20 %"},
         "snagged_items": {"c_name": "FISH_BAIT_CHANCES",
                           "meaning": "while rod.itemTaken is set (fish.c:3215), every 20 frames a 1000 / 10000 roll "
                                      "snags the line: r = 0..99 picks the first entry with r <= roll_up_to, and the "
                                      "item is given ('something got stuck', FISH_tickRod, fish.c:3991-4004, "
                                      ":4367-4379)"},
-        "maps": {"meaning": "FISHING_MAP_DATA as written (pointers are C symbols)"},
+        "maps": {"meaning": "FISHING_MAP_DATA with its pointers resolved (checkFishingMap loads fishing on these "
+                            "maps, main/fish.c:126): scale (bobber / ripple sprites), bait_radius (unk8: the bait "
+                            "sprite's radius, the splash ripples' scale), fish_scale (per size unit, below / from "
+                            "size 100), seadramon_hours (seadramonTime / 100, 9999 = never), cast_range, spots "
+                            "(one per fish kind: share = unk0 of the population, a polygon in projected pixels), "
+                            "water (the isWater rule), seadramon_path (projected pixels), sprite_file; c = as "
+                            "written"},
+        "sprites": {"c_name": "FISH_SPRITES[49]",
+                    "meaning": "the sprites of the fishing TIM: tpage / clut as in the C (clut_xy, page_xy decoded "
+                               "VRAM positions), uv = u0 v0 u1 v1 inclusive, origin = ox oy (FISH_drawSprite2D/3D)"},
     }, [fishing], {"access": "GameData.system('fishing')"}, fields=None)
 
     give, get = us["MOJYAMON_ITEMS_GIVE"], us["MOJYAMON_ITEMS_GET"]

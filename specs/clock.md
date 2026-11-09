@@ -102,7 +102,8 @@ The game clock: time passing on the field, its effects on the partner and the da
 
 - **`GameLoop`** (autoload, `scripts/core/game_loop.gd`) turns Godot's variable frame rate into the original's 20 Hz game frames. It emits `frame` once per game frame, at most a few per Godot frame so a slow frame doesn't snowball. The clock, and later the partner and care, run on it, like the original's tick objects.
 - **`Clock`** (`scripts/systems/clock.gd`), a node of the field scene (`addClock` happens when play starts):
-  - `active`: the field is in normal play, standing in for `GAME_STATE`, fishing and the map layer;
+  - `active`: the field is in normal play, standing in for `GAME_STATE` and the map layer;
+  - `is_fishing` (a callable, `FishingHost.is_fishing`): `isFishing() == 1` (`clock.c:103`), the rod is out (`specs/fishing.md`);
   - `running`: `IS_GAMETIME_RUNNING`, not saved, true at start;
   - `subframe_count`: `SUBFRAME_COUNT`;
   - `current_time_of_day`: `CURRENT_TIME_OF_DAY`.

@@ -75,6 +75,7 @@ signal game_ended
 @onready var tournament_host: TournamentHost = $Systems/TournamentHost
 @onready var arena: Arena = $Systems/Arena
 @onready var pause_host: PauseHost = $Systems/PauseHost
+@onready var fishing_host: FishingHost = $Systems/FishingHost
 @onready var debug: DebugHost = $Debug
 
 
@@ -304,6 +305,27 @@ func _start() -> void:
 	arena.hud_slot = battle_host.hud_slot
 	arena.text_area = scripts.text_area
 	arena.boxes = scripts.boxes
+	# Fishing (specs/fishing.md §5.2): checkFishingMap at every map load, the world object in the
+	# frame, the rod as the tamer's state 11, the clock's isFishing, the partner's enable / disable.
+	fishing_host.field_map = _field
+	fishing_host.world_root = _world
+	fishing_host.text_area = scripts.text_area
+	fishing_host.tamer = _tamer
+	fishing_host.partner = partner
+	fishing_host.clock = clock
+	fishing_host.boxes = scripts.boxes
+	fishing_host.interpreter = scripts.interpreter
+	fishing_host.pad = GameLoop.pad
+	fishing_host.frame_count = func() -> int: return GameLoop.frame_count
+	map_session.map_loaded.connect(fishing_host.check_map)
+	_tamer.fishing_tick = fishing_host.tamer_tick
+	clock.is_fishing = fishing_host.is_fishing
+	if partner != null:
+		partner.set_fishing_disabled = fishing_host.set_disabled
+		partner.deinitialize_fishing = fishing_host.deinitialize
+	if menu_host.menu != null:
+		menu_host.menu.fishing_availability = fishing_host.availability
+		menu_host.menu.fishing_chosen.connect(fishing_host.start_from_menu)
 	# The pause (specs/pause.md): box 5 and its text, at the end of every frame.
 	pause_host.boxes = scripts.boxes
 	pause_host.text_area = scripts.text_area
@@ -350,7 +372,7 @@ func _start_debug() -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
 	for node: Node in [care_host.bars, care_host.bubbles, map_session.mood_bubble_view, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
-			care_host.fade, scripts.boxes, death_host.darken,
+			fishing_host.hud, care_host.fade, scripts.boxes, death_host.darken,
 			scripts.map_name]:
 		if node != null:
 			_hud.add_child(node)
@@ -400,6 +422,9 @@ func _frame() -> void:
 		entities.tick_partner()
 		entities.tick_npcs()
 	menu_host.tick()
+	# FISH_tickFishingWorld (object 0x3001): after the entities, whether the △ menu is open or not.
+	fishing_host.tick_world()
+	fishing_host.render()
 	clock_host.tick()
 	if scripts.interpreter != null:
 		tournament_host.tick()

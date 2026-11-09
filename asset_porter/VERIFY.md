@@ -54,6 +54,8 @@ Training slot machine (gyms `TRAI00`, `GIAS09`, `MIST05`): open `output/maps/TRA
 
 Wrong if: symbols cut in half or shifted (wrong page/rows), noise or a piece of background (wrong image order), wrong colours (CLUT rows not from image 0).
 
+Curling sheet (`maps/FRZL17/curling/`): open `sheet.png` (256 × 88 indexed) and `sheet.p01.png`, `sheet.p08.png`. They must show the curling HUD sprites (scores, stone cursor, power meter, name plates, ready prompt) in clean pixels. In Blender, import `output/tmd_files/ETCDAT/KARRING.gltf`: 12 stone models, fully textured from page (640, 0) and CLUT row 486.
+
 ## 4b. Event scripts and arena collision — 5 minutes
 
 Scripts: open `output/scripts/DG/script_004.txt` (Native Forest, map 3) and `output/scripts/MAPHEAD/script.txt` (section `0x3` = Native Forest setup).

@@ -208,6 +208,20 @@ The training bonus game ("Bonus Try", `../../specs/training.md` §7): one record
   - `sprite_file`: `ETCDAT/FISHING.TIM` / `ETCDAT/FISHING2.TIM`.
 - **Sprites** (`FISH_SPRITES[49]`, `:374`): `tpage`, `clut` as in the C, decoded `page_xy` (all (448, 256), 4-bit) and `clut_xy` (x 448, y 384 + palette: the TIMs' palettes 0, 1, 2, 4), `uv` (u0, v0, u1, v1: the quad's corners, so a flipped sprite has u0 > u1, sprites 43–45), `origin` (ox, oy: the anchor, `FISH_drawSprite2D/3D`).
 
+### `curling` (`src/kar/kar.c`, `src/main/kar.c`)
+
+One record (`GameData.curling()`):
+- **`map`**: reference to `systems/maps` for FRZL17 (`id: 136`, `key: dw1:frzl17`), `pstat_opponent: 0x7A`, `opponent_slot_base: 2`, `pstat_result: 0x79` (`src/main/kar.c:10`, `KAR_start` `:793`, `KAR_finishMatch` `:964-969`).
+- **`stone_types`**: 4 types with `weight` from `MAIN_D_80134A08` (`[30, 25, 35, 30]`, `:268`) and `pegged` flag (type 3, `:847`); `type_roll`: distribution of 10 stone types from `KAR_D_8005AB8C` (`:253`); `row_models`: base stone model per row from `KAR_D_8005AB80` (`[2, 1, 0]`, `:251`); `pegged_models`: pegged stone models from `MAIN_D_80134A4C` (`[11, 10, 9]`, `:443`); `obstacle_x`: obstacle x coordinates from `KAR_D_8005AB98` (`[0x2C1, 0xEB, -0xEB]`, `:261`, US).
+- **`zones`**: 4 scoring rings (`KAR_D_8005B438` `:453` {dx, dz, radius}), `points` (`MAIN_D_80134A44` `[2, 1, -2, 2]`, `:441`), ring marker start and count (`KAR_D_8005B450`, `:462`). Check that `KAR_D_8005B460` equals `KAR_D_8005B438`.
+- **`shot_plans`**: 2 plans of 4 stone types each (`KAR_D_8005B418`, `:446`).
+- **`hints`**: `penguinmon` and `metalmamemon`, each with 10 `pages` (`KAR_D_8005B04C` / `KAR_D_8005B40C`, `:351`, `:434`) and 61 `lines` (`KAR_D_8005AF58` / `KAR_D_8005B318`, `:281`, `:360`). Each line is a text reference (string id, en_us text, file) or null (terminator).
+- **`menu`**: prompt text reference `KAR_D_8005ABB8` from `MAIN_D_80134A20` (`:274`).
+- **`sprites`**: HUD sprites (`stone_cursor`, `score_digit`, `gauge_bar`, `gauge_frame`, `plates`, `plate_metalmamemon`, `ready_prompt`) with VRAM bounding box {x, y, clut_x, clut_y, u, v, w, h, r, g, b} and C symbol `source`.
+- **`digits`**: glyph UV coordinates for digits 0-9 and minus sign (`KAR_D_8005B4A0`, `:510`).
+- **`stack_view`**: side stack projection parameters (`KAR_D_8005B580`, `GsSetProjection(0x200)`, `:664`, `:911`): `eye [0, 0, -0xCF8]`, `target [0, 0, 0]`, `rz: 0`, `projection: 0x200`.
+- **Evidence checks**: verified against literals in `src/kar/kar.c` and `src/main/kar.c`.
+
 ### `mojyamon_trades` (`MOJYAMON_ITEMS_GIVE/GET[12]`, `src/shop/script_menu.c:230/235`)
 
 4 sets of 3 trades: set = `PSTAT_249`, trade `i` = `GIVE[set * 3 + i]` → `GET[set * 3 + i]` (`mojyaTradeFillItemList`, `:1758–1784`). Set 3 is empty (zeros).
@@ -266,7 +280,7 @@ Every table is in the common shape. Ids are resolved to names: Digimon, items, t
 
 ## Godot usage
 
-`GameData.system(name)` returns the records of any of these tables (one-record tables: `system("fishing")[0]`), with helpers where an index is computed: `flee_chance(partner_type, enemy_type)`, `battle_commands(brain, arena)`, `enemy_music(digimon_id)`, `tournament(id)`, `tournaments_on_day(day)` (day % 30, before `isTournamentEnabled`), `tournament_win_chance(level_a, level_b)`, `map(id)`, `map_id(file)`, `toilet(id)`, `training_spots(map)`, `slot_machine()` (the one record), `script_stat_limit(stat)`. Lookups that find nothing return `-1` or `{}`. The formulas above are ported with the system that uses them (battle, arena, care, fishing, menus).
+`GameData.system(name)` returns the records of any of these tables (one-record tables: `system("fishing")[0]`, `curling()`), with helpers where an index is computed: `flee_chance(partner_type, enemy_type)`, `battle_commands(brain, arena)`, `enemy_music(digimon_id)`, `tournament(id)`, `tournaments_on_day(day)` (day % 30, before `isTournamentEnabled`), `tournament_win_chance(level_a, level_b)`, `map(id)`, `map_id(file)`, `toilet(id)`, `training_spots(map)`, `slot_machine()` (the one record), `fishing()`, `fishing_map(map)`, `curling()`, `curling_map(map)`, `script_stat_limit(stat)`. Lookups that find nothing return `-1` or `{}`. The formulas above are ported with the system that uses them (battle, arena, care, fishing, menus).
 
 ## Verification
 

@@ -108,6 +108,7 @@ Run `python -m dwdata convert systems`: it should print `24 tables, 103/103 chec
 - **Training spots:** Green Gym lists one spot per stat.
 - **Slot machine** (`slot_machine.json`, the training Bonus Try): three reels of 13 symbols, each reel holding all of 1-7 (symbols 1-6 are HP, MP, Offense, Defense, Speed, Brains; 7 is the jackpot); an assist draw of 10 entries (five 0, four 1, one 2); payouts 100 / 40 / 20 / 5.
 - **Fishing:** fish kinds are Digianchovy … Digiseabass; a stuck line gives Sm. recovery most of the time (35 %).
+- **Curling:** FRZL17 (136) curling data with stone weights [30, 25, 35, 30], pegged type 3; pstats 0x7A (opponent) and 0x79 (result); scoring zones and ring markers; hint texts for Penguinmon and MetalMamemon.
 - **Script stat limits** (`script_stat_limits.json`): offense … brains 999, max HP / MP 9999, happiness and tiredness 100, weight 99, tamer level 10. Lives (22) shows limit 1 with `read_past_the_array`: the C reads past the table. If you know a scene where a Digimon sets your lives to 3 (File City has a "Life three" one), the game should give you 1.
 - **Mojyamon trades:** e.g. Digimushrm → Med. recovery, Supercarrot → Omnipotent.
 

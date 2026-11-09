@@ -69,6 +69,10 @@ Findings (all three maps give **identical** strips, indices and both palettes):
 
 `createMonochromonMoodBubble` / `renderMonochromonMoodBubble` (`script_common.c:3038`, 1220; `../../specs/map_events.md` S9–S11) draw `MONOCHROMON_BUBBLE_SPRITE` (`script_common.c:271`): 32 × 32, tpage 0x0A (`getTPage(0, 0, 640, 0)`: 4bpp page (640, 0)), u = mood · 32 (moods 0–4), v 0, CLUT (0, 486) = row-486 palette 0, attribute 0x50000000 (semi-transparent, rate 1: STP texels add). It has no texture of its own. Routine 0x1C is called by scripts 199–202, which script 49 jumps to (`JUMP_TO_FILE`): map 49 **GCAN11**, the Monochrome Shop (`MOOD_BUBBLE_MAPS` in `families/maps.py`), whose 4bpp image 0 is exactly that rect (640, 0, 40 × 32 words = 160 × 32 texels: the five faces).
 
+### Curling sheet (Freezeland, map 136, FRZL17)
+
+Curling (KAR overlay, `src/kar/kar.c`, `specs/curling.md` §4.1) runs on map 136 **FRZL17** (`CURLING_MAPS` in `families/maps.py`). Its HUD sprites (`KAR_renderSprite`, `:2749`, tpage (640, 0), CLUT (x, 486)) and `ETCDAT/KARRING.TMD`'s stone textures read the map's 4bpp image: VRAM page (640, 0), u 0–255, v 0–87 (64 × 88 units), and its 16-row CLUT block spread to row 486 (loadMapImage2, `overworld.c:394`). Output: `maps/FRZL17/curling/sheet.png` (indexed, palette 0), `sheet.p00.png` … `sheet.p15.png` (RGBA per CLUT row), and `sheet.json` sidecar.
+
 ## Camera (verified)
 
 `GsSetRefView2`: eye = viewpoint × 2, target = reference × 2 (PSX axes, +Y down); camera right = down × forward, screen down = forward × right. A point projects to `screen = H · (x/z, y/z)`; the screen centre shows the background centre at load (`setupMap`: cameraX = width·128/2 − 160, drawing offset 160, 120), so
@@ -97,6 +101,7 @@ For Godot (axes x, −y, −z): camera at `(eye.x, −eye.y, −eye.z)` looking 
 | `training/slots.json` | sidecar: `asset_id` = the image holding the strip, `vram` (page, uv rect, VRAM rect, per palette: CLUT pos + id, raw u16 colours, CLUT source, tpage + semi-trans rate, drawing sprite), `source_images` (every image writing into the rect, load order), `code_refs` |
 | `props/<NAME>.gltf` (+ textures) | the script-spawned props whose TMDs read the map's VRAM (`PROP_TMDS` in `families/maps.py`: T_YAMA on TUNN05, BIGBOX / SMABOX on OMOC08, GAND on OMOC03, ABOX on ICSA01, BOSS_EFE on MGEN99; `../../specs/map_events.md` §1), textured with this map's VRAM like the doors |
 | `mood/faces.png`, `faces.stp.png`, `faces.json` | GCAN11 only: u 0–159, v 0–31 of the 4bpp page (640, 0) as indexed PNG through CLUT (0, 486), its STP mask, and a sidecar like `training/slots.json` (page, uv rect, VRAM rect, CLUT pos + id + raw colours + sources, tpage, attribute, `source_images`, `code_refs`) |
+| `curling/sheet.png`, `sheet.p00.png` … `sheet.p15.png`, `sheet.json` | FRZL17 only: u 0–255, v 0–87 of the 4bpp page (640, 0) as indexed PNG with palette 0, 16 RGBA PNGs (one per CLUT (n·16, 486)), and a sidecar (page, uv rect, VRAM rect, clut_row 486, 16 raw palettes, CLUT sources, source_images, code_refs) |
 | `overview.png` | **human check**: background (palette 0) + object sprites (frame 0, opaque) + walkable cells (green), trigger cells (orange), spawns (cyan), NPC digimon (yellow), doors (magenta) |
 | `map.json` | everything: table entry (incl. display name, sound, flags), header, setup, camera, TFS palettes + tile headers, image TIM headers/VRAM, objects (+ placement in VRAM, missing texels, whether used), instances, spawns, warps (+ target map name), digimon (+ type name, stats, AI, waypoints), doors, toilet, collision values, overview counts |
 
@@ -109,6 +114,7 @@ For Godot (axes x, −y, −z): camera at `(eye.x, −eye.y, −eye.z)` looking 
 - Prop textures (`props/`) fully covered by the map's VRAM.
 - Training maps: the slot strip and its two CLUTs fully in loaded VRAM. Informational (always passes, detail + `manifest.json` `training_slots`): whether the three maps' strips are identical.
 - GCAN11: the mood faces and their CLUT fully in loaded VRAM.
+- FRZL17: the curling sheet and its 16 palettes fully in loaded VRAM.
 - Projected collision lands on the background.
 
 ## Open questions

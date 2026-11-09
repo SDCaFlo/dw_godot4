@@ -8,6 +8,20 @@ Status: **open**, **investigating**, **fixed** (with the commit), **won't fix** 
 
 ## Open
 
+### I-45. Saving after sleeping puts the tamer back at the map entrance
+- **Seen:** saving after the partner sleeps (reported 2026-11-09): the last position isn't kept; loading the save puts the tamer at the map's entrance.
+- **To check:** what the C saves as the tamer's position and the map entry (the save's map / position fields, `specs/game_state.md`), what the sleep scene changes (it may warp or reload the map, resetting the entry) and what the port's load uses to place the tamer.
+- **Status:** open.
+
+### I-44. Meteormon, defeated, grows huge and its roll goes off screen
+- **Seen:** fighting Meteormon (reported 2026-11-09): when defeated, it grows a lot; when it starts rolling, it doesn't roll, it rises to the top of the screen and disappears.
+- **To check:** its defeat (the faint animation's scale keyframes, or a scale left from a technique) and its rolling animation (root motion / a rotation the port reads as a translation, or the model's bones), against the C and the model's animation data.
+- **Status:** open.
+
+### I-43. Coelamon's shop seems buggy
+- **Seen:** Coelamon's shop (reported 2026-11-09): it doesn't behave right. Details to get from the user (what goes wrong: the items, the prices, the menu, buying).
+- **Status:** open.
+
 ### I-42. In battle, fainted Digimon still block, and fighters walk off screen
 - **Seen:** in battles (reported 2026-11-07): a defeated Digimon still blocks the living ones; Digimon walk out of the camera's view on big maps. Asked: should the fighters collide with the tamer?
 - **What the original does:** a battle's moves are probed with `entityCheckCollision(…, 0x118, 0xC8)` (`map.c:3400`): the combat area (`entityCheckCombatArea`, `map.c:3042`: a 280 x 200 pixel box at the screen centre, `COMBAT_AREA_X/Y` set when the battle starts, `battle_main.c:1834`; a step that leaves it is refused, result 11), the map, then the entities, skipping any Digimon at HP 0 and the tamer while the fighter walks (anim 0x23 / 0x24, `GAME_STATE == 1`, `map.c:3446-3452`). So: a fainted Digimon never blocks; the tamer does block a fighter that runs, attacks or is knocked back, but not one that walks; no fighter steps out of the area. `collisionGrace` (`map.c:3466`), the sidestep, probes with the same call and the same area (`collisionGrace(NULL, entity, 0x118, 0xC8)`, `battle_main.c:1828`).

@@ -330,6 +330,7 @@ func _start() -> void:
 	# Curling (specs/curling.md §5.2): checkCurlingMap at every map load, digimon routine 1 starts the
 	# match, the world object 0x1388 in the frame, KAR_tick as the tamer's state 12.
 	curling_host.tamer = _tamer
+	curling_host.world_root = _world
 	curling_host.entities = entities.entities
 	curling_host.field_map = _field
 	curling_host.overlays = _field.overlays
@@ -386,8 +387,10 @@ func _start_debug() -> void:
 	debug.window.ui_filter_changed.connect(func(on: bool) -> void:
 		ui_filter = on
 		PsxUiFilter.set_enabled(on))
-	for node: Node in [care_host.bars, care_host.bubbles, map_session.mood_bubble_view, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
-			fishing_host.hud, care_host.fade, scripts.boxes, death_host.darken,
+	# Curling's stack layer (KAR_renderScene's own ordering table, linked at slot 10, kar.c:940) over
+	# the field and under the rest of the HUD; its sprites and arrow with fishing's gauge.
+	for node: Node in [curling_host.stack_layer, care_host.bars, care_host.bubbles, map_session.mood_bubble_view, scripts.clouds, scripts.sparks, debug.panel, battle_host.hud_slot,
+			fishing_host.hud, curling_host.hud, care_host.fade, scripts.boxes, death_host.darken,
 			scripts.map_name]:
 		if node != null:
 			_hud.add_child(node)
@@ -495,6 +498,7 @@ func set_render_scale(value: int) -> void:
 	($World/SubViewport/Background as CanvasLayer).scale = Vector2.ONE * render_scale
 	if death_host != null:
 		death_host.set_render_scale(render_scale)
+	curling_host.set_render_scale(render_scale)
 
 
 # --- Editor preview --------------------------------------------------------------------------

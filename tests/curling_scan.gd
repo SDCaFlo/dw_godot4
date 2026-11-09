@@ -4,7 +4,9 @@ extends Node
 ## 0x33 (CALL_DIGIMON_ROUTINE 1: tamer state 12, partner state 11, the script waits on the sync bit);
 ## the throwers at their spots; the yes / no prompt in UI box 0; Start Game; the tamer picks, aims,
 ## sets the power and throws; the stone slides with the slide sound; the tally; the opponent
-## (Penguinmon, pstat 0x7A = 0) takes its turn with its hint box; back to the tamer's choice.
+## (Penguinmon, pstat 0x7A = 0) takes its turn with its hint box; back to the tamer's choice (step C4).
+## Then (step C6) the whole match to KAR_finishMatch: five stones each, pstat 0x79 from the scores, and
+## script 131's warp out once the sync bit is set.
 ## Acceptance checks written by the reviewer; don't change them to make the code pass.
 ##   godot --headless --fixed-fps 60 --path . res://tests/curling_scan.tscn
 ## Exits 1 if a check fails.
@@ -12,7 +14,7 @@ extends Node
 const START_MAP := "FRZL17"
 ## WARP_TO screen=136 exit=1 (script 206, the Mojyamon's and ROOM20's warps).
 const START_EXIT := 1
-const TIMEOUT := 9000
+const TIMEOUT := 40000
 const SEED := 3
 ## Pstat 113: the warp came from the curling's hosts (script 129 section 6, script 191 section 6);
 ## pstat 122 (0x7A): the opponent, 0 Penguinmon.
@@ -21,7 +23,7 @@ const PSTAT_OPPONENT := 0x7A
 ## The tamer's and the partner's states while curling (callDigimonRoutine 1, partner.c:1146).
 const TAMER_CURLING := 12
 const PARTNER_IDLE := 11
-const LAST_PHASE := 6
+const LAST_PHASE := 8
 
 var _field: Node
 var _phase := 0
@@ -161,13 +163,49 @@ func _process(_delta: float) -> void:
 				GameLoop.press("pad_cross")
 			if m.stones.rows[1].thrown == 1 and m.row == 0 and m.state == 5:
 				_check(m.stones.rows[0].thrown == 1, "the tamer's turn again after the opponent's stone")
-				_reached = LAST_PHASE + 1
-				_done()
+				_next(7)
 			elif in_phase > 4000:
 				_fail("the opponent's turn didn't end (state %d, row %d, thrown %d / %d)" % [m.state, m.row,
 						m.stones.rows[0].thrown, m.stones.rows[1].thrown])
 				_done()
-
+		7:
+			# Step C6: the rest of the match. The tamer picks the first stone, throws straight at power
+			# >= 0x7D0; the hint pages take ✕; until KAR_finishMatch (state 0x14).
+			if m.state == 0x14:
+				_check(m.stones.rows[0].thrown == 5 and m.stones.rows[1].thrown == 5, "both threw 5 stones (%d / %d)" % [m.stones.rows[0].thrown, m.stones.rows[1].thrown])
+				var s0: int = m.stones.rows[0].score
+				var s1: int = m.stones.rows[1].score
+				# KAR_finishMatch (kar.c:962-970): 2 for a win with >= 10 points, 1 for a win, 0 otherwise.
+				var want := (2 if s0 >= 0xA else 1) if s0 > s1 else 0
+				_check(GameState.script_value(0x79) == want, "pstat 0x79 = %d for %d to %d (got %d)" % [want, s0, s1, GameState.script_value(0x79)])
+				_check(not m.active, "the world object removed")
+				_next(8)
+				return
+			var pressing := false
+			if m.row == 0 and (m.state == 5 or m.state == 6) and m.hint == 0:
+				pressing = true
+			elif m.row == 0 and m.state == 8 and m.hint == 0 and m.power >= 0x7D0:
+				pressing = true
+			elif m.state == 0x13 and _field.scripts.boxes.boxes[0].state == UIBoxes.STATE_OPEN:
+				pressing = true
+			if pressing and in_phase % 8 == 0:
+				GameLoop.press("pad_cross")
+			if in_phase > 24000:
+				_fail("the match didn't end (state %d, row %d, thrown %d / %d)" % [m.state, m.row,
+						m.stones.rows[0].thrown, m.stones.rows[1].thrown])
+				_done()
+		8:
+			# KAR_finishMatch sets the sync bit: script 131's WAIT_FOR_ENTITY goes on, and its WARP_TO
+			# takes the tamer to FRZL15 (trigger 257 not set in a new game).
+			if _screen() == START_MAP:
+				if in_phase > 1200:
+					_fail("no warp after the match (tamer state %d)" % tamer.state)
+					_done()
+				return
+			_check(_screen() == "FRZL15", "the warp to FRZL15 (WARP_TO 134; got %s)" % _screen())
+			_check(host.match == null, "the next map dropped the match")
+			_reached = LAST_PHASE + 1
+			_done()
 
 func _check(ok: bool, what: String) -> void:
 	if not ok:

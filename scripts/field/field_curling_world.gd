@@ -20,6 +20,10 @@ var data: Node
 var game_state: Node
 var sound: Node
 var interpreter: ScriptInterpreter
+## Box 0's contents (CurlingWindows.render / .on_render), the C's renderString / renderSelectionCursor /
+## renderUIBox calls while the box is open.
+var box_render := Callable()
+var box_on_render := Callable()
 
 
 func _entity(slot: int) -> Node3D:
@@ -100,7 +104,7 @@ func box_state() -> int:
 
 func create_box(final: Rect2i, start: Rect2i) -> void:
 	if boxes != null:
-		boxes.create_animated(BOX_ID, BOX_COLOR, UIBoxes.FEATURE_HALF_FILL, final, start)
+		boxes.create_animated(BOX_ID, BOX_COLOR, UIBoxes.FEATURE_HALF_FILL, final, start, Callable(), box_render, box_on_render)
 
 
 func remove_box() -> void:

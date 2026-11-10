@@ -172,7 +172,9 @@ Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exp
 - [x] **D6** Windows export preset (excludes `content/dw1/*`, porters, tests), `user://content/dw1` defaults, `version.json`. Done 2026-11-10: `export_presets.cfg` "Windows Desktop" -> `build/windows/dw_godot4.exe` + `dw_godot4.pck` (1.6 MB, code only); `Release` (`scripts/core/release.gd`); exported, `user://` is `%APPDATA%\dw_godot4`, content from `user://content/dw1/{assets,data}`; test `tests/test_release.gd`.
   - [x] The window title and `config/name`: `dw_godot4` (D1).
   - [ ] The `.pck` is `dw_godot4.pck` (Godot loads `<exe>.pck`); the `game.pck` split of §4 / §6 comes with U2 (D10).
-- [ ] **D7** Launcher screen with update check (notify only, U1).
+- [x] **D7** Launcher screen with update check (notify only, U1). Done 2026-11-10: `specs/launcher.md`, `scripts/launcher/`, the exported game's main scene; converts with `tools/dw_convert/dw_convert.exe` into `user://content/dw1.new`, swaps it in, restarts; test `tests/test_launcher.gd` (a fake dw_convert).
+  - [x] `version.json` `repo`: `SDCaFlo/dw_godot4` (while the repo is private the API answers 404 and the launcher just starts the game).
+  - [ ] A "Converter settings" entry in the title menu (today: hold Shift at start, or `-- --launcher`).
 - [ ] **D8** GitHub Action building releases on a version tag.
 - [ ] **D9** `docs/setup.md` (players; the unsigned exe's SmartScreen warning) and `docs/release.md` (us).
 - [ ] **D10** Later: in-launcher downloads (U2), `mod_api` on the Mods screen, Mac / Linux.

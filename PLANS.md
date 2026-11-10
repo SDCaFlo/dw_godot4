@@ -160,7 +160,9 @@ Last updated: 2026-11-09
 Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exported game and the porters as a bundled exe; a launcher screen that converts the player's disc image and checks for updates. Steps (spec §9):
 - [ ] **D1** Audit before going public (§8): don't push `spec/digimon_contract` (`93f35f6` holds a Veemon `.glb` from another game); review `asset_porter/dwporter/data/*.py`; choose our licence. Public name: `dw_godot4`.
 - [x] **D2** Asset porter without the decomp at run time (2026-11-09): the only read was `scripts.py`'s "Grade A won" check, now the constant `scripts.WON_TOURNAMENT` checked by `asset_porter/tests/test_decomp_constants.py` (skipped without the decomp; also guards against new `external-resources` reads).
-- [ ] **D3** Data porter reading `SLUS_010.32` / `*_REL.BIN` instead of the decomp (§2.1): inventory first (address, size, layout, text encoding per table), then group by group, each matched exactly against today's decomp output.
+- [ ] **D3** Data porter reading `SLUS_010.32` / `*_REL.BIN` instead of the decomp (§2.1); spec `data_porter/specs/from_disc.md`.
+  - [x] Inventory (2026-11-09): every C table has a US symbol in initialized data (exceptions: `evolution/rules`, `systems/new_game` in code; `VS_DEMO_DIGIMON` without symbol); 724 strings read at their symbol match byte for byte, 317 sit inside tables, 60 short literals to locate once; a US disc gives `en_us` text and font only.
+  - [ ] D3a snapshot + `DiscIndex` for C tables (Hard) · D3b text (Medium) · D3c groups one by one (Medium each) · D3d `convert all --disc`, tests with the decomp hidden.
 - [ ] **D4** Disc image reader (`.cue/.bin`, `.iso`) and the US version check (§3).
 - [ ] **D5** `dw_convert` entry point + PyInstaller build; movies skipped in releases for now (Q2), added later by an update that re-converts.
 - [ ] **D6** Windows export preset (excludes `content/dw1/*`, porters, tests), `user://content/dw1` defaults, `version.json`.
@@ -168,6 +170,7 @@ Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exp
 - [ ] **D8** GitHub Action building releases on a version tag.
 - [ ] **D9** `docs/setup.md` (players; the unsigned exe's SmartScreen warning) and `docs/release.md` (us).
 - [ ] **D10** Later: in-launcher downloads (U2), `mod_api` on the Mods screen, Mac / Linux.
+- [ ] **Later: JP and EU discs** (the user, 2026-11-09). A US disc gives only `en_us` text and font (`data_porter/specs/from_disc.md` §4). Accept a JP or EU disc image too (or as well as the US one), to extract its text and font for the `ja` / `en_eu` languages: one snapshot per release (addresses from the decomp's per-release data, `*_bss_<ver>.c`, `file_table_<ver>.c`; only US has symbol maps today, so the other releases' addresses must be found first), and the disc check (§3) learning their boot names and hashes. Game data (stats, rules) stays from the US disc.
 
 ## Ideas (not planned yet)
 

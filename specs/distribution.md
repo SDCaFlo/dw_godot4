@@ -118,7 +118,7 @@ A one-time audit, then a rule kept from then on.
 |---|---|---|
 | D1 | Audit (§8) and its fixes; choose our licence | Low, needs the user |
 | D2 | Asset porter: list and remove its run-time decomp reads (§2) | Low |
-| D3 | Data porter from the binary (§2.1): an inventory of every table with its address, size, layout and how text is encoded; then group by group (text, digimon, moves, items, evolution, systems), each matched against the decomp output | Hard, several steps |
+| D3 | Data porter from the binary (§2.1): inventory and steps D3a-D3d in `data_porter/specs/from_disc.md` | Hard, several steps |
 | D4 | Disc image reader and version check (§3), both porters reading from it | Medium |
 | D5 | `dw_convert`: one entry point, progress lines, a log file; PyInstaller build script; the release build skips the movies (Q2) | Medium |
 | D6 | Export: Windows preset (excludes `content/dw1/*`, `asset_porter/`, `data_porter/`, `tests/`, `external-resources`), `user://` content defaults (§4), `version.json` | Medium |

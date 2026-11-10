@@ -9,7 +9,7 @@ Rendering, effect and UI-layout tables are left out (asset / UI work).
 import re
 from collections import defaultdict
 
-from .. import tables
+from .. import discmode, tables
 from ..cdata import CError, CIndex, Value, describe_type
 from ..decomp import Decomp
 from ..output import GroupWriter
@@ -312,7 +312,7 @@ def convert(input_root, output_root) -> GroupWriter:
     sources = [SourceText(decomp.root, p).identity() for p in files]
 
     missing = [f"{p}: {needle}" for p, needle in EVIDENCE + NEW_GAME_EVIDENCE + NAMING_EVIDENCE
-               if needle not in (decomp.root / p).read_text(encoding="utf-8", errors="replace")]
+               if needle not in discmode.Code(NAME, decomp, p)]
     out.check("the code still uses the tables the way the spec documents", not missing,
               "; ".join(missing) or f"{len(EVIDENCE)} uses")
 
@@ -477,13 +477,21 @@ def convert(input_root, output_root) -> GroupWriter:
         {"access": "GameData.enemy_music(digimon_id)"})
 
     # BTL_initializeCombat's command lists (battle_setup.c:120-175), read from the C text.
-    setup_c = " ".join((decomp.root / BTL_SETUP).read_text(encoding="utf-8", errors="replace").split())
+    def command_cases():
+        setup = discmode.source(decomp, BTL_SETUP, True)
+        cases = {}
+        for count in COMMAND_FIXED_COUNTS:
+            start = setup.find(f"case {count}: ")
+            end = setup.find("break;", start)
+            body = setup[start:end] if start >= 0 and end >= 0 else ""
+            cases[count] = [int(v, 0) for v in re.findall(r"availableCommands\[0\]\[\d+\] = (0x[0-9a-f]+|\d+);", body)]
+        return cases
+
+    setup_c = discmode.Code(NAME, decomp, BTL_SETUP, True)
+    cases = discmode.code("systems|command_cases", command_cases)
     command_lists, cmd_missing = [], []
     for count in COMMAND_FIXED_COUNTS:
-        start = setup_c.find(f"case {count}: ")
-        end = setup_c.find("break;", start)
-        body = setup_c[start:end] if start >= 0 and end >= 0 else ""
-        rest = [int(v, 0) for v in re.findall(r"availableCommands\[0\]\[\d+\] = (0x[0-9a-f]+|\d+);", body)]
+        rest = cases[count]
         if len(rest) != count - len(COMMAND_PREFIX):
             cmd_missing.append(f"case {count}: {rest}")
         command_lists.append({"count": count, "commands": COMMAND_PREFIX + rest,
@@ -536,7 +544,7 @@ def convert(input_root, output_root) -> GroupWriter:
     }, [{"frame": k, "height": v} for k, v in enumerate(us["ITEM_THROW_HEIGHT"])],
         {"access": "GameData.system('item_throw')"})
 
-    text_math = " ".join((decomp.root / MATH_C).read_text(encoding="utf-8", errors="replace").split())
+    text_math = discmode.Code(NAME, decomp, MATH_C, True)
     out.check("math.c's _sin / _atan still read the tables", all(e in text_math for e in MATH_EVIDENCE),
               " / ".join(MATH_EVIDENCE))
     write("psx_math", ["SIN_LOOKUP_TABLE", "ATAN_LOOKUP_TABLE"], {
@@ -549,8 +557,8 @@ def convert(input_root, output_root) -> GroupWriter:
         {"access": "GameData.system('psx_math')", "notes": "Read by PsxMath (../specs/battle_effects.md §3.3)."})
 
     # -- arena --------------------------------------------------------------------------------
-    std_setup_c = " ".join((decomp.root / STD_SETUP).read_text(encoding="utf-8", errors="replace").split())
-    std_main_c = " ".join((decomp.root / STD_MAIN).read_text(encoding="utf-8", errors="replace").split())
+    std_setup_c = discmode.Code(NAME, decomp, STD_SETUP, True)
+    std_main_c = discmode.Code(NAME, decomp, STD_MAIN, True)
 
     out.check("arena: music fonts (std_setup.c:245-249) in STD_initializeTournament",
               MUSIC_FONT_EVIDENCE in std_setup_c, MUSIC_FONT_EVIDENCE)
@@ -647,9 +655,9 @@ def convert(input_root, output_root) -> GroupWriter:
         except CError:
             image_paths.append(None)
             bad["grade images"].append(sym)
-    utils2_c = " ".join((decomp.root / UTILS2_C).read_text(encoding="utf-8", errors="replace").split())
-    script_interp_c = " ".join((decomp.root / SCRIPT_INTERP_C).read_text(encoding="utf-8", errors="replace").split())
-    trigger_h = " ".join((decomp.root / TRIGGER_H).read_text(encoding="utf-8").split())
+    utils2_c = discmode.Code(NAME, decomp, UTILS2_C, True)
+    script_interp_c = discmode.Code(NAME, decomp, SCRIPT_INTERP_C, True)
+    trigger_h = discmode.Code(NAME, decomp, TRIGGER_H, True)
 
     out.check("tournaments: won_trigger (id + 15) is in utils2.c and trigger.h",
               "setTrigger(id + 15);" in utils2_c and "#define TRIGGER_D_RANK_CUP_WON TRIGGER_15" in trigger_h and "#define TRIGGER_15 15" in trigger_h,
@@ -705,7 +713,7 @@ def convert(input_root, output_root) -> GroupWriter:
         {"access": "GameData.tournament_win_chance(level_a, level_b)",
          "notes": "Row 3 (level 6) is all 0 and never used."})
 
-    tournament_c = " ".join((decomp.root / TOURNAMENT_C).read_text(encoding="utf-8", errors="replace").split())
+    tournament_c = discmode.Code(NAME, decomp, TOURNAMENT_C, True)
     medal_cups_c = (
         "for (i = 0; i < 6; i++) { if (isTriggerSet(TRIGGER_D_RANK_CUP_WON + i) == 0)" in tournament_c and
         "for (i = 0; i < 5; i++) { if (isTriggerSet(TRIGGER_VERSION_1_CUP_WON + i) == 0)" in tournament_c and
@@ -795,7 +803,7 @@ def convert(input_root, output_root) -> GroupWriter:
     for check in ("maps: toiletId is 0 or a TOILET_DATA index + 1", "maps: loadingName is a MAP_NAME_PTR index"):
         out.check(check, not bad[check], "; ".join(bad[check][:10]) or f"{len(maps)} maps")
     # changeMap's literal map ids (map.c:5326-5396) as a property of the map being left.
-    map_c = " ".join((decomp.root / MAP_C).read_text(encoding="utf-8", errors="replace").split())
+    map_c = discmode.Code(NAME, decomp, MAP_C, True)
     missing_rules = [needle for needle in CHANGE_MAP_EVIDENCE if needle not in map_c]
     out.check("changeMap's previous-map rules are still in the code", not missing_rules,
               "; ".join(missing_rules[:5]) or f"{len(CHANGE_MAP_PREVIOUS)} rules")
@@ -803,20 +811,20 @@ def convert(input_root, output_root) -> GroupWriter:
         maps[source].setdefault("change_map_previous", []).append(
             {"to": target, "previous_screen": previous, "previous_exit": previous_exit})
     # The overlay rules of specs/map_objects.md as map properties (the original tests map ids).
-    overworld_c = " ".join((decomp.root / OVERWORLD_C).read_text(encoding="utf-8", errors="replace").split())
+    overworld_c = discmode.Code(NAME, decomp, OVERWORLD_C, True)
     out.check("loadMapObjects' snow maps are still in the code", SNOW_EVIDENCE in overworld_c, SNOW_EVIDENCE[:60])
     for first, end in SNOW_MAPS:
         for k in range(first, end):
             maps[k]["snow"] = {"instances": SNOW_INSTANCES, "random_x_from": 0x14}
-    utils2_c = " ".join((decomp.root / UTILS2_C).read_text(encoding="utf-8", errors="replace").split())
+    utils2_c = discmode.Code(NAME, decomp, UTILS2_C, True)
     out.check("updateMapLightState's hours are still in the code", LIGHT_EVIDENCE in utils2_c, LIGHT_EVIDENCE)
     for light in us["MAP_LIGHT_UPDATE_DATA"]:
         maps[light["mapId"]].setdefault("light_objects", []).append(
             {"start": light["startId"], "count": light["count"], "mode": light["mode"],
              "trigger": None if light["trigger"] == 0xFFFF else light["trigger"], "c": light})
     # The battle's map rules (../specs/battle.md §2.1, §2.15) as map properties.
-    btl_c = " ".join((decomp.root / BTL_C).read_text(encoding="utf-8", errors="replace").split())
-    battle_ui_c = " ".join((decomp.root / BATTLE_UI).read_text(encoding="utf-8", errors="replace").split())
+    btl_c = discmode.Code(NAME, decomp, BTL_C, True)
+    battle_ui_c = discmode.Code(NAME, decomp, BATTLE_UI, True)
     out.check("isScreenConcave and the no-drop map are still in the code",
               CONCAVE_EVIDENCE in btl_c and NO_DROPS_EVIDENCE in battle_ui_c, f"{CONCAVE_EVIDENCE} / {NO_DROPS_EVIDENCE}")
     concave = us["CONCAVE_SCREENS"]
@@ -932,7 +940,7 @@ def convert(input_root, output_root) -> GroupWriter:
     kinds, bite, bait = us["FISH_KIND_INFO"], us["FISH_BITE_CHANCE"], us["FISH_BAIT_CHANCES"]
     rows = (FISH_BAIT_END - FISH_BAIT_FIRST)
     fish_missing = [f"{p}: {needle}" for p, needle in FISH_EVIDENCE
-                    if needle not in (decomp.root / p).read_text(encoding="utf-8", errors="replace")]
+                    if needle not in discmode.Code(NAME, decomp, p)]
     out.check("fishing: the maps, water tests, Seadramon hours and bite index are still coded as documented",
               not fish_missing, "; ".join(fish_missing) or f"{len(FISH_EVIDENCE)} uses")
 
@@ -1008,7 +1016,7 @@ def convert(input_root, output_root) -> GroupWriter:
 
     # -- curling -----------------------------------------------------------------------------
     curling_missing = [f"{p}: {needle}" for p, needle in CURLING_EVIDENCE
-                       if needle not in " ".join((decomp.root / p).read_text(encoding="utf-8", errors="replace").split())]
+                       if needle not in discmode.Code(NAME, decomp, p, True)]
     out.check("curling: map id, pstats, projection and stone rules are still coded as documented",
               not curling_missing, "; ".join(curling_missing) or f"{len(CURLING_EVIDENCE)} uses")
     out.check("curling: KAR_D_8005B460 equals KAR_D_8005B438", us["KAR_D_8005B460"] == us["KAR_D_8005B438"])
@@ -1154,7 +1162,8 @@ def convert(input_root, output_root) -> GroupWriter:
         "battle_counts": {"meaning": "VS__BATTLE_COUNTS: selectable numbers of matches"},
         "stat_bar_limits": {"meaning": "max of each stat bar (HP, MP, Off, Def, Speed, Brain) in the arena / "
                                        "versus intros"},
-    }, [{"demo_digimon": [dref(i) for i in us["VS_DEMO_DIGIMON"]], "battle_counts": us["VS__BATTLE_COUNTS"],
+    }, [{"demo_digimon": None if us["VS_DEMO_DIGIMON"] is None else [dref(i) for i in us["VS_DEMO_DIGIMON"]],
+         "battle_counts": us["VS__BATTLE_COUNTS"],
          "stat_bar_limits": dict(zip(STATS, us["STD_STAT_BAR_LIMITS"]))}],
         {"access": "GameData.system('versus')"})
 
@@ -1201,6 +1210,8 @@ def _new_game(out, index, L, strings, dref, sources, write) -> None:
     pages_t = L["NAMING_CHAR_PAGES"]
     bad, langs = [], []
     for release, lang in NAMING_LANGUAGES.items():
+        if pages_t.get(release) is None:   # disc mode: only the US release
+            continue
         pages = []
         names = pages_t[release].value
         for k in range(0, len(names), 2):
@@ -1253,20 +1264,23 @@ REINCARNATE_STATS = ("max_hp", "max_mp", "offense", "defense", "speed", "brains"
 def _reincarnate_stats(decomp) -> dict:
     """initializeReincarnatedPartner's literal stats: 'if (type == N) setReincarnateStats(hp, mp, off, def,
     speed, brains);' per egg Digimon (code, not a table)."""
-    text = (decomp.root / PARTNER_IMPL_C).read_text(encoding="utf-8", errors="replace")
-    match = re.search(r"void initializeReincarnatedPartner\([^;{]*\)\s*\{", text)
-    body = text[match.end():text.find("\n}\n", match.end())] if match else ""
-    calls = re.findall(r"if \(type == (\w+)\)\s*setReincarnateStats\(([^)]*)\);", body)
-    return {int(t, 0): dict(zip(REINCARNATE_STATS, (int(v, 0) for v in args.split(","))))
-            for t, args in calls}
+    def parse():
+        text = discmode.source(decomp, PARTNER_IMPL_C)
+        match = re.search(r"void initializeReincarnatedPartner\([^;{]*\)\s*\{", text)
+        body = text[match.end():text.find("\n}\n", match.end())] if match else ""
+        calls = re.findall(r"if \(type == (\w+)\)\s*setReincarnateStats\(([^)]*)\);", body)
+        return {int(t, 0): dict(zip(REINCARNATE_STATS, (int(v, 0) for v in args.split(","))))
+                for t, args in calls}
+    return discmode.code("systems|reincarnate_stats", parse)
 
 
 def _stat_limits(out, decomp, us, write) -> None:
     """STATS_LIMIT_ARRAY with the stat ids of script.h. The array has 22 entries for 23 stats: the last
     (lives) reads past it, into the next symbol (MULTIPLE_OF_10), whose first int32's low half it gets."""
     import re
-    header = (decomp.root / SCRIPT_H).read_text(encoding="utf-8", errors="replace")
-    stats = {int(v, 16): n.lower() for n, v in re.findall(r"#define SCRIPT_STAT_(\w+)\s+(0x[0-9A-Fa-f]+)", header)}
+    stats = discmode.code("systems|script_stats", lambda: {
+        int(v, 16): n.lower()
+        for n, v in re.findall(r"#define SCRIPT_STAT_(\w+)\s+(0x[0-9A-Fa-f]+)", discmode.source(decomp, SCRIPT_H))})
     limits = us["STATS_LIMIT_ARRAY"]
     syms = decomp.symbols("main")
     a = int(syms.get("STATS_LIMIT_ARRAY", {}).get("address", "0"), 16)

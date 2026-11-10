@@ -130,3 +130,8 @@ Run after `convert all`, from `dw_godot/`, with Godot 4.7: `godot --headless --p
 ## Reporting a problem
 
 Note the table, the record id and what you expected vs. saw. The table's `source` says which decomp file and line the value came from.
+
+## Disc mode (`specs/from_disc.md`)
+
+- Build from the disc instead of the decomp into a folder inside `output/` (gitignored, hidden from Godot): `python -m dwdata --output output/disc convert all --disc ../../external-resources/game_dumped_files`. Every group passes its checks; it should take a few seconds.
+- Run the game on it: set `DW_DATA_OUTPUT` to that folder (e.g. `set DW_DATA_OUTPUT=...\data_porter\output\disc` before starting Godot). Names, item descriptions, map names and menus read as usual (English only); the debug `L` key does nothing (only en_us is there). Delete `output/disc/` when done.

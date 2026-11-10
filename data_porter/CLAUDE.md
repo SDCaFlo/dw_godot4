@@ -19,6 +19,8 @@ Run from this folder:
 ```
 python -m dwdata list                    # data groups
 python -m dwdata convert all             # or some of: text font moves digimon items evolution systems
+python -m dwdata snapshot                # disc mode snapshot (dwdata/snapshot/us.json) from the decomp, checked against --disc
+python -m dwdata convert all --disc <folder>   # disc mode: from the US binaries in <folder>, no decomp (specs/from_disc.md)
 python -m unittest discover -s tests -t .   # real-data test skipped if the decomp is missing
 ```
 
@@ -32,12 +34,15 @@ Defaults: input `../../external-resources/dw_decomp/`, output `output/` (gitigno
 | `dwdata/paths.py` | Default paths |
 | `dwdata/source.py` | `SourceText`: a decomp file with its identity (path, size, sha1) |
 | `dwdata/output.py` | `GroupWriter`: table JSON in the common shape, group `manifest.json` (checks), `catalog.json` merge, Markdown reports |
-| `dwdata/textyaml.py` | Strict reader for the YAML subset of `text/**/*.yaml` (all scalars stay text, `NULL` = None, line numbers kept) |
+| `dwdata/textyaml.py` | Strict reader for the YAML subset of `text/**/*.yaml` (all scalars stay text, `NULL` = None, line numbers kept; plain scalars trimmed of spaces and tabs only, so full-width spaces stay) |
 | `dwdata/cpp.py` | `#if` evaluation per release (`VERSION_IS`, `VERSION_REGION_IS`, `VERSION_EQUAL_OR_NEWER/OLDER`, `defined`); `ConditionTracker` follows `#if/#elif/#else/#endif` |
 | `dwdata/decomp.py` | `Decomp`: releases (`version.h`), C file → binary (`config/us/*.yaml`), US symbols (`symbols*.txt`), identifier references in `src/**/*.c` with enclosing function / data / macro and compiling releases |
 | `dwdata/cdata.py` | C data reader. `CIndex.table(c_file, name, hooks)` returns a table per release, laid out on its C type: structs / typedefs / enums / `#define`s of `include/dw/*.h` and the file, `#if VERSION_…` applied, brace elision, zero fill, width conversion, `sizeof` with PSX alignment, function-pointer tables (symbols without casts). `hooks` expand macros such as `DIGIMON_PARA_NAME(...)`. `CIndex.switch_cases(c_file, function, variable, release)` reads the cases of a `switch` as data (constant assignments + other statements as text), for effects written as code. Unsupported C raises `CError` |
 | `dwdata/tables.py` | Helpers for C-table groups: `load` (parse in every release + check), `size_check` (against `symbols.txt`), `diffs` (release differences), `used_by` (references with the fields read), `source`, `enum`, `text_ref`, `keys` / `name_base` (content keys) |
 | `dwdata/groups/` | One converter per group (`NAME`, `SOURCE_GLOB`, `SPEC`, `PURPOSE`, `convert()` with `out.check(...)` for every assumption), registered in `groups/__init__.py`. Existing: `text.py`, `font.py`, `moves.py`, `digimon.py`, `items.py`, `evolution.py`, `systems.py`. Groups take names from the text YAML directly (`text.load_file`), so they don't depend on run order |
+| `dwdata/disc.py` | Disc mode (`specs/from_disc.md`): the snapshot (where each C table the groups load lives in the US binaries, its C type layout, pointer targets, slot overrides; no values), `DiscIndex` (`CIndex.table()` for the US release, read from the player's `SLUS_010.32` / `*_REL.BIN`), `DiscText` (every US string at its snapshot location), the equivalence checks against the decomp. `ABSENT`: decomp tables not on a US disc |
+| `dwdata/discmode.py` | The groups in disc mode: `record()` keeps the decomp's answers (references, symbols, structs, `used_by`, file identities, results of reading C code) in the snapshot's memo; `replay()` swaps each group's `Decomp` / `CIndex` / `SourceText` for disc ones; `code(key, fn)`, `has()`, `Code` are how a group reads C source (only the result is kept); `convert`, `project`, `compare` (disc output vs decomp output, US only). **A group must never read the decomp outside these** (in disc mode its root doesn't exist) |
+| `dwdata/snapshot/us.json` | The committed snapshot, written by `python -m dwdata snapshot`; `tests/test_disc.py` fails when it is stale or holds anything but layouts, addresses, identifiers and hashes |
 | `specs/` | One spec per group (`text.md`, `font.md`, `moves.md`, `digimon.md`, `items.md`, `evolution.md`, `systems.md`) |
 | `tests/` | `unittest` tests; `test_cross_asset_porter.py` compares names, file names and sizes with `../asset_porter/dwporter/data`, and maps / toilets with the asset porter's reading of the US executable |
 
@@ -109,6 +114,15 @@ JSON stays the master format; Godot resources (`.tres`) may be generated later f
 
 Game **logic** (evolution checks, battle maths, care timers) is not data: it is ported to GDScript when each system is built, each function commenting the C function it reproduces. The specs say where that logic lives and what data it reads.
 
+## Disc mode (players: no decomp)
+
+Players build this output from their own US disc: `python -m dwdata convert all --disc <folder with SLUS_010.32 and the *_REL.BIN>` (`specs/from_disc.md`). It needs only the disc and the committed snapshot `dwdata/snapshot/us.json`. Keeping it working:
+
+- **Rebuild the snapshot after any change to a group or to what it reads** (a new table, a new text, a new check): `python -m dwdata snapshot`. It also converts in both modes and compares the outputs; commit the new `us.json` with the change. `tests/test_disc.py` fails while it is stale.
+- **Read C source only through `discmode`**: `discmode.code(key, fn)` for a result computed from the code (a parsed table), `discmode.has(...)` / `discmode.Code(...)` for "is this code still there" checks. Never `(decomp.root / path).read_text()` directly: in disc mode the root doesn't exist and the conversion fails. A group that needs another decomp answer (a new kind of call) gets it recorded in `discmode.record` first.
+- **A table a US disc doesn't have** goes in `disc.ABSENT` (with the reason) and its output fields in `disc.ABSENT_FIELDS`; the group writes `null` there.
+- Output for the game must be the same in both modes (US only): `discmode.compare` is the judge.
+
 ## Workflow for a new table / group
 
 1. Find the symbol in the decomp (`src/**/*.c`, `include/dw/*.h`, `config/us/symbols.txt`) and every function that reads it (`grep`).
@@ -117,6 +131,7 @@ Game **logic** (evolution checks, battle maths, care timers) is not data: it is 
 4. Implement the converter (parse → validate → map → write JSON with the shape above), register it, add tests.
 5. Run it, review the output (and the human report), record findings in the spec.
 6. Update `PROGRESS.md`, `VERIFY.md` and `catalog.json`.
+7. Rebuild the disc mode snapshot (`python -m dwdata snapshot`, "Disc mode" above).
 
 ## Folder links
 

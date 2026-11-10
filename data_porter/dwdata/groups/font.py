@@ -11,7 +11,7 @@ import re
 import struct
 import zlib
 
-from .. import tables
+from .. import discmode, tables
 from ..cdata import CIndex
 from ..decomp import Decomp
 from ..output import GroupWriter
@@ -203,9 +203,7 @@ def _sheet(records: list, scale: int = 2, per_row: int = 16) -> bytes:
 
 def _text_strings(decomp: Decomp):
     """(key, language, text) of every string as its language's main release draws it."""
-    for path in sorted(decomp.rel(p) for p in decomp.root.glob(text_group.SOURCE_GLOB)):
-        if path in text_group.EXCLUDED:
-            continue
+    for path in text_group.text_files(decomp):
         for block in text_group.load_file(decomp, path).blocks:
             for item in block["items"]:
                 label = item["id"] or f"[{item.get('index')}]"
@@ -258,8 +256,7 @@ def convert(input_root, output_root) -> GroupWriter:
     index = CIndex(decomp)
     sources = [SourceText(decomp.root, p).identity() for p in (FONT_C, FONT_H, SJIS_C, UTILS_C)]
     for path, needle in EVIDENCE:
-        text = _collapsed((decomp.root / path).read_text(encoding="utf-8", errors="replace"))
-        out.check(f"code still has: {needle[:70]}…", _collapsed(needle) in text, path)
+        out.check(f"code still has: {needle[:70]}…", discmode.has(NAME, decomp, path, _collapsed(needle), True), path)
 
     codes = tables.load(out, index, FONT_C, "CHAR_TO_GLYPH_TABLE")
     glyphs = tables.load(out, index, FONT_C, "GLYPH_DATA")
@@ -288,8 +285,11 @@ def convert(input_root, output_root) -> GroupWriter:
     out.check("glyph tables have NUM_GLYPHS entries (US 79, JP 992, EU 188)",
               all(s == (GLYPHS.get(r, GLYPHS["jp"]),) * 2 for r, s in sizes.items()), str(sizes))
     jp = [r for r in decomp.releases if r not in ("us", "eu")]
-    same = [r for r in jp if codes[r].value == codes["jp_rev1"].value and glyphs[r].value == glyphs["jp_rev1"].value]
-    out.check("every JP release has the same font", same == jp, f"same as jp_rev1: {same}")
+    if jp:   # disc mode: only the US release
+        same = [r for r in jp if codes[r].value == codes["jp_rev1"].value and glyphs[r].value == glyphs["jp_rev1"].value]
+        out.check("every JP release has the same font", same == jp, f"same as jp_rev1: {same}")
+    # The languages whose release is here (all in decomp mode; en_us from a US disc).
+    languages = {lang: r for lang, r in LANGUAGES.items() if codes.get(r) is not None}
 
     mapping_n, mapping_s = normal["us"].value, special["us"].value
     out.check("CHAR_MAPPING_* are the same in every release",
@@ -304,7 +304,7 @@ def convert(input_root, output_root) -> GroupWriter:
 
     # -- glyph tables --------------------------------------------------------------------------
     fonts, lookup = {}, {}
-    for language, release in LANGUAGES.items():
+    for language, release in languages.items():
         c_codes, c_glyphs = codes[release].value, glyphs[release].value
         lines = glyphs[release].element_lines or [None] * len(c_glyphs)
         last = len(c_codes) - 1
@@ -425,7 +425,7 @@ def convert(input_root, output_root) -> GroupWriter:
         drawn = DRAW_STRING_OVERRIDES.get(chr(c), code)
         ascii_records.append({"ascii": c, "char": chr(c), "code": code, "code_hex": f"{code:#06x}",
                               "draw_string_code": drawn, "draw_string_code_hex": f"{drawn:#06x}",
-                              "glyph": {lang: lookup[lang].get(drawn) for lang in ("en_us", "en_eu")}})
+                              "glyph": {lang: lookup[lang].get(drawn) for lang in ("en_us", "en_eu") if lang in lookup}})
     out.check("convertAsciiToJis gives a code for every ASCII 0x20-0x7E", all(a["code"] for a in ascii_records),
               f"{len(ascii_records)} characters")
     out.check("drawString's '.' override equals convertAsciiToJis (only ' differs)",
@@ -448,8 +448,10 @@ def convert(input_root, output_root) -> GroupWriter:
     }, symbols=["CHAR_MAPPING_NORMAL", "CHAR_MAPPING_SPECIAL"])
 
     # -- coverage of the game's own text ----------------------------------------------------------
-    missing = {lang: {} for lang in LANGUAGES}
+    missing = {lang: {} for lang in languages}
     for key, language, text in _text_strings(decomp):
+        if language not in languages:
+            continue
         chars = []
         for ch in NOT_DRAWN[language].sub("", text):
             code = draw_code(ch, language, mapping_n, mapping_s)
@@ -459,14 +461,15 @@ def convert(input_root, output_root) -> GroupWriter:
                 chars.append(ch)
         if chars:
             missing[language][key] = "".join(sorted(chars))
-    for language in LANGUAGES:
+    for language in languages:
         found, known = missing[language], KNOWN_MISSING[language]
         diff = {k: (found.get(k), known.get(k)) for k in set(found) | set(known) if found.get(k) != known.get(k)}
         out.check(f"{language}: every character of the text has a glyph, except the known ones", not diff,
                   "; ".join(f"{k}: found {f!r}, known {n!r}" for k, (f, n) in sorted(diff.items())[:5])
                   or f"{len(found)} known strings: {', '.join(sorted(set(''.join(found.values())))) or 'none'}")
 
-    out.write_report("report.md", _report(fonts, clut_records, color_records, ascii_records, missing))
+    if len(fonts) == len(LANGUAGES):   # the report shows every language
+        out.write_report("report.md", _report(fonts, clut_records, color_records, ascii_records, missing))
     out.finish(sources, extra={"counts": {lang: len(recs) for lang, recs in fonts.items()},
                                "missing_glyphs": missing})
     return out

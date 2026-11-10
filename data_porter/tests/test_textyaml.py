@@ -57,6 +57,12 @@ class TextYamlTests(unittest.TestCase):
     def test_quoted_null_is_text(self):
         self.assertEqual(to_python(parse('A:\n  ja: "NULL"\n  en_us: NULL\n')), {"A": {"ja": "NULL", "en_us": None}})
 
+    def test_only_spaces_and_tabs_are_trimmed(self):
+        """YAML trims spaces and tabs around a plain scalar, not other Unicode spaces: the naming screen's
+        last lowercase row is "ｚ" + four U+3000 in text/shop/script_menu.yaml, as the US binary stores it
+        (found by the disc check, specs/from_disc.md D3b)."""
+        self.assertEqual(to_python(parse("A:\n  en_us: ｚ\u3000\u3000 \t\n")), {"A": {"en_us": "ｚ\u3000\u3000"}})
+
     def test_errors(self):
         for bad in ("A:\n  ja: x\n  ja: y\n",           # duplicate key
                     "A:\n  ja: a: b\n",                  # ':' in plain scalar

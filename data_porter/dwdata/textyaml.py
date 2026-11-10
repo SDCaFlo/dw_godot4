@@ -97,23 +97,23 @@ def _strip_comment(raw: str, path: str, number: int) -> str:
         elif c in "\"'" and (i == 0 or raw[i - 1] in " \t:-[{,"):
             quote = c
         elif c == "#" and (i == 0 or raw[i - 1] in " \t"):
-            return raw[:i].rstrip()
+            return raw[:i].rstrip(" \t")
         i += 1
     if quote:
         raise YamlError(path, number, "unterminated quoted scalar")
-    return raw.rstrip()
+    return raw.rstrip(" \t")
 
 
 def _lines(text: str, path: str) -> list:
     out = []
     for number, raw in enumerate(text.splitlines(), 1):
-        if "\t" in raw[:len(raw) - len(raw.lstrip())]:
+        if "\t" in raw[:len(raw) - len(raw.lstrip(" \t"))]:
             raise YamlError(path, number, "tab in indentation")
         body = _strip_comment(raw, path, number)
-        if not body.strip():
+        if not body.strip(" \t"):
             continue
         indent = len(body) - len(body.lstrip(" "))
-        out.append(_Line(indent, body.strip(), number))
+        out.append(_Line(indent, body.strip(" \t"), number))
     return out
 
 
@@ -183,7 +183,7 @@ def _split_flow(body: str, path: str, number: int) -> list:
     if quote or depth:
         raise YamlError(path, number, "unbalanced flow collection")
     parts.append(body[start:])
-    parts = [p.strip() for p in parts]
+    parts = [p.strip(" \t") for p in parts]
     if parts == [""]:
         return []
     if any(p == "" for p in parts):
@@ -193,7 +193,7 @@ def _split_flow(body: str, path: str, number: int) -> list:
 
 def _inline(s: str, path: str, number: int):
     """A value written on the same line: scalar or flow collection."""
-    s = s.strip()
+    s = s.strip(" \t")
     if s.startswith("{") or s.startswith("["):
         close = "}" if s[0] == "{" else "]"
         if not s.endswith(close):
@@ -213,12 +213,12 @@ def _inline(s: str, path: str, number: int):
         return node
     if s.startswith('"'):
         value, rest = _double_quoted(s, path, number)
-        if rest.strip():
+        if rest.strip(" \t"):
             raise YamlError(path, number, f"text after quoted scalar: {rest!r}")
         return Scalar(value, number, "double")
     if s.startswith("'"):
         value, rest = _single_quoted(s, path, number)
-        if rest.strip():
+        if rest.strip(" \t"):
             raise YamlError(path, number, f"text after quoted scalar: {rest!r}")
         return Scalar(value, number, "single")
     if s[0] in "&*!|>%@`":

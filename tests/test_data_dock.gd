@@ -62,8 +62,9 @@ func _run(dock: Control) -> void:
 	_eq(report.contains("digimon: 178/180 found"), true, "all Digimon models but the two known gaps")
 	_eq(report.contains("card: 66/66 found"), true, "every card image")
 	_eq(report.contains("map: 242/244 found"), true, "every map background but YAKA01 / YAKA21")
-	dock._data.set_language("ja")
-	_eq(dock.entity_text("digimon", 3).contains("アグモン"), true, "Japanese names")
+	if "ja" in dock._data.languages():   # not in a US disc's output (data_porter/specs/from_disc.md §4)
+		dock._data.set_language("ja")
+		_eq(dock.entity_text("digimon", 3).contains("アグモン"), true, "Japanese names")
 	dock._data.set_language("en_us")
 
 	print("%d pages rendered" % pages)

@@ -44,7 +44,7 @@ The two porters become one program for players: `dwporter` and `dwdata` stay sep
 
 ## 3. The disc image
 
-Players have a disc image, not the extracted files we work from.
+Players have a disc image, not the extracted files we work from. Built in D4: `dw_convert/` (`dw_convert/specs/disc_image.md`).
 
 - **Input**: `.cue` + `.bin` (raw 2352-byte sectors), a single `.bin`, or a 2048-byte `.iso`. Read with a small ISO 9660 reader on Mode 2 sectors. Committed code, standard library only.
 - **Movies need the raw sectors**: `MOVIE/*.STR` mix video and XA audio sectors (`game_dumped_files/RESOURCE_DEFINITION.md` "Gotchas"). From a `.bin` we get them directly; from a 2048-byte `.iso` the XA audio is lost, so the porter converts what it can and the launcher says the movies are not available from that image.
@@ -119,7 +119,7 @@ A one-time audit, then a rule kept from then on.
 | D1 | Audit (§8) and its fixes; choose our licence | Low, needs the user |
 | D2 | Asset porter: list and remove its run-time decomp reads (§2) | Low |
 | D3 | Data porter from the binary (§2.1): inventory and steps D3a-D3d in `data_porter/specs/from_disc.md` | Hard, several steps |
-| D4 | Disc image reader and version check (§3), both porters reading from it | Medium |
+| D4 (done 2026-11-09) | Disc image reader and version check (§3): `dw_convert/`, the files extracted for both porters | Medium |
 | D5 | `dw_convert`: one entry point, progress lines, a log file; PyInstaller build script; the release build skips the movies (Q2) | Medium |
 | D6 | Export: Windows preset (excludes `content/dw1/*`, `asset_porter/`, `data_porter/`, `tests/`, `external-resources`), `user://` content defaults (§4), `version.json` | Medium |
 | D7 | Launcher screen (§5) with update check U1 (§6) | Medium |

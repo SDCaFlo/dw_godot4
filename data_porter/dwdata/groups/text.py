@@ -88,6 +88,106 @@ SCHEMA = {
 }
 
 
+# -- disc mode (specs/from_disc.md, D3c) -------------------------------------------------------
+# While dwdata.discmode.replay() runs, the text comes from the player's binaries (disc.DiscText) and the
+# rest of each text table from the snapshot's text skeleton; only the US release exists.
+
+_DISC = None
+
+
+def disc_mode(text):
+    """Sets the DiscText to read from (None: decomp mode); returns the previous one."""
+    global _DISC
+    old, _DISC = _DISC, text
+    return old
+
+
+class _DiscSource:
+    def __init__(self, path: str):
+        self.path = path
+
+
+def _disc_item(table: str, block: str, kind: str, skel: dict) -> dict:
+    """A skeleton item with its US text: the order and keys of _string_out, other languages None."""
+    key = skel["id"] if kind != "entries" else f"#{skel['index']}"
+    raw = None if skel.get("null_entry") else _DISC.strings().get((table, block, key))
+    shown = _c_string(raw)
+    out = {}
+    for k in ("index", "id", "line", "null_entry"):
+        if k in skel:
+            out[k] = skel[k]
+    out["text"] = {"ja": None, "en_us": shown, "en_eu": None}
+    if skel.get("null_entry"):
+        out["variants"] = {}
+    elif "c_text" in skel:
+        out["variants"] = {"ja": None, "en_us": None}
+    else:
+        out["variants"] = {skel.get("us_variant", "en_us"): raw}
+    for k in ("line_ids", "named", "same_as"):
+        if k in skel:
+            out[k] = skel[k]
+    if "c_text" in skel:
+        out["c_text"] = {r: {"text": shown, "at": v["at"]} for r, v in skel["c_text"].items() if r == "us"}
+    for k in ("symbol", "used_by", "c_definitions"):
+        if k in skel:
+            out[k] = skel[k]
+    out["by_release"] = {"us": shown}
+    return out
+
+
+def _disc_table(name: str) -> dict:
+    skel = _DISC.index.snapshot["text"][name]
+    table = {k: v for k, v in skel.items() if k != "records"}
+    table["records"] = []
+    for rec in skel["records"]:
+        r = {k: v for k, v in rec.items() if k not in ("strings", "entries")}
+        items_key = "entries" if rec["kind"] == "entries" else "strings"
+        r[items_key] = [_disc_item(name, rec["block"], rec["kind"], it) for it in rec[items_key]]
+        table["records"].append(r)
+    return table
+
+
+class DiscFileModel:
+    """FileModel's view (blocks of items with text / id / same_as) of one text table in disc mode."""
+
+    def __init__(self, path: str):
+        self.src, self.issues, self.blocks = _DiscSource(path), [], []
+        for rec in _disc_table(_table_name(path))["records"]:
+            items = rec.get("entries") if rec["kind"] == "entries" else rec.get("strings")
+            self.blocks.append({"block": rec["block"], "line": rec["line"], "kind": rec["kind"],
+                                "options": rec["options"], "items": items})
+
+
+def text_files(decomp) -> list:
+    """The text files the group reads (text/<dir>/<name>.yaml), in either mode."""
+    if _DISC is not None:
+        return sorted(f"text/{name}.yaml" for name in _DISC.index.snapshot["text"])
+    return sorted(p for p in (decomp.rel(p) for p in decomp.root.glob(SOURCE_GLOB)) if p not in EXCLUDED)
+
+
+def _convert_disc(output_root) -> GroupWriter:
+    out = GroupWriter(output_root, NAME, SPEC, PURPOSE)
+    out.reset()
+    names = sorted(_DISC.index.snapshot["text"])
+    missing = []
+    sources = []
+    for name in names:
+        table = _disc_table(name)
+        for rec in table["records"]:
+            for item in rec.get("strings") or rec.get("entries") or []:
+                item.pop("by_release", None)
+                if item["text"]["en_us"] is None and not item.get("null_entry") and \
+                        (name, rec["block"], item["id"] if rec["kind"] != "entries" else f"#{item['index']}") \
+                        in _DISC.strings():
+                    missing.append(f"{name} {rec['block']}")
+        sources += table["source"]["files"]
+        out.write_table(name, table, symbols=[r["block"] for r in table["records"]])
+    out.check("text read from the US binaries (disc mode)", not missing,
+              f"{len(_DISC.strings())} strings in {len(names)} tables" if not missing else "; ".join(missing[:10]))
+    out.finish(sources, extra={"mode": "disc", "excluded": EXCLUDED})
+    return out
+
+
 class Context:
     def __init__(self, decomp: Decomp):
         self.decomp = decomp
@@ -314,6 +414,8 @@ class FileModel:
 
 def load_file(decomp: Decomp, path: str) -> FileModel:
     """One text file interpreted on its own (for groups that take names from it, e.g. MOVE_NAMES)."""
+    if _DISC is not None:
+        return DiscFileModel(path)
     src = SourceText(decomp.root, path)
     return FileModel(Context(decomp), src, textyaml.parse(src.text, path))
 
@@ -325,9 +427,7 @@ def block_of(model: FileModel, name: str):
 def string_index(decomp: Decomp) -> dict:
     """{string id: {"text": {lang: ...}, "file": "text/..."}} over every text file (first definition wins)."""
     out = {}
-    for path in sorted(decomp.rel(p) for p in decomp.root.glob(SOURCE_GLOB)):
-        if path in EXCLUDED:
-            continue
+    for path in text_files(decomp):
         model = load_file(decomp, path)
         for block in model.blocks:
             for item in block["items"]:
@@ -445,6 +545,8 @@ def _control_codes(models: list) -> dict:
 
 
 def convert(input_root, output_root) -> GroupWriter:
+    if _DISC is not None:
+        return _convert_disc(output_root)
     out = GroupWriter(output_root, NAME, SPEC, PURPOSE)
     out.reset()
     decomp = Decomp(input_root)

@@ -91,10 +91,12 @@ func _build_ui() -> void:
 	_search.text_changed.connect(func(_t): _fill_list())
 	row2.add_child(_search)
 	_language_button = OptionButton.new()
-	for lang in GAME_DATA.LANGUAGES:
+	# The languages this output has (en_us only from a US disc, data_porter/specs/from_disc.md §4).
+	var languages: PackedStringArray = _data.languages()
+	for lang in languages:
 		_language_button.add_item(lang)
-	_language_button.select(GAME_DATA.LANGUAGES.find(_data.language))
-	_language_button.item_selected.connect(func(i): _data.set_language(GAME_DATA.LANGUAGES[i]); _fill_list(); _refresh_detail())
+	_language_button.select(languages.find(_data.language))
+	_language_button.item_selected.connect(func(i): _data.set_language(languages[i]); _fill_list(); _refresh_detail())
 	row2.add_child(_language_button)
 
 	var split := VSplitContainer.new()

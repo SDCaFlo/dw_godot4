@@ -8,7 +8,7 @@ ITEM_DESCS); card Digimon names from text/main/main.yaml.
 import re
 from collections import defaultdict
 
-from .. import tables
+from .. import discmode, tables
 from ..cdata import CError, CIndex, Value, describe_type
 from ..decomp import Decomp
 from ..output import GroupWriter
@@ -297,7 +297,7 @@ def convert(input_root, output_root) -> GroupWriter:
             effect_problems.append(f"{handler}: no case for items {missing}")
         for i in [i for i in users if i not in covered and i in passive]:
             _, path, needle, effect, prop = passive[i]
-            text = (decomp.root / path).read_text(encoding="utf-8", errors="replace")
+            text = discmode.Code(NAME, decomp, path)
             if needle not in text:
                 effect_problems.append(f"passive item {i:#x}: `{needle}` no longer in {path}")
             items[i]["passive"] = prop
@@ -359,7 +359,7 @@ def convert(input_root, output_root) -> GroupWriter:
               "; ".join(battle_problems) or f"{battle_count} items with a battle block")
 
     # -- feeding (the id ranges of partner_impl.c) ----------------------------------------------
-    partner_c = _collapsed((decomp.root / PARTNER_C).read_text(encoding="utf-8", errors="replace"))
+    partner_c = discmode.Code(NAME, decomp, PARTNER_C, True)
     missing = [r for r in FEEDING_RULES + [REQUIRES_LEVEL_RULE] if _collapsed(r) not in partner_c]
     out.check("the feeding rules on item id ranges are still in partner_impl.c", not missing,
               "; ".join(missing) or f"{len(FEEDING_RULES) + 1} rules")

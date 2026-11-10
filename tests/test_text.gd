@@ -1,7 +1,8 @@
 extends SceneTree
 ## The text renderer (scripts/ui/) against specs/text.md §2, values worked out from the C:
 ##   godot --headless --path . -s res://tests/test_text.gd
-## Exits 1 if a check fails. Needs the data porter output (font group).
+## Exits 1 if a check fails. Needs the data porter output (font group). The JP and EU font checks run when the
+## output has those languages (not the output of a US disc, data_porter/specs/from_disc.md §4).
 
 var _failed := 0
 ## Checks run: a script error aborts a test function silently, so the count shows it.
@@ -57,10 +58,12 @@ func _font() -> void:
 	_eq(us.glyph_index(us.encode("€")[0]), 78, "a character with no code -> the last glyph")
 	_eq(us.glyph_index(us.encode("Ａ")[0]), 0, "a full-width character keeps its code")
 	_eq([us.advance(0x8260), us.advance(0x8281), us.advance(0x8140)], [12, 8, 4], "US widths: Ａ 12, ａ 8, space 4")
-	var eu := PsxFont.new(data, "en_eu")
-	_eq([eu.advance(0x8260), eu.advance(0x8140), eu.glyph_width], [8, 8, 8], "EU: Ａ narrow, the space 8, GLYPH_WIDTH 8")
-	var ja := PsxFont.new(data, "ja")
-	_eq([ja.glyphs.size(), ja.encode("ア")[0], ja.advance(0x8341)], [992, 0x8341, 0], "JP: ア, drawGlyph returns nothing")
+	if "en_eu" in data.languages():
+		var eu := PsxFont.new(data, "en_eu")
+		_eq([eu.advance(0x8260), eu.advance(0x8140), eu.glyph_width], [8, 8, 8], "EU: Ａ narrow, the space 8, GLYPH_WIDTH 8")
+	if "ja" in data.languages():
+		var ja := PsxFont.new(data, "ja")
+		_eq([ja.glyphs.size(), ja.encode("ア")[0], ja.advance(0x8341)], [992, 0x8341, 0], "JP: ア, drawGlyph returns nothing")
 
 
 func _text_area() -> void:
@@ -92,10 +95,12 @@ func _text_area() -> void:
 	_eq([area.pixel(1, row), area.pixel(4, row), area.pixel(7, row)], [1, 0, 0], "clearTextSubArea in 4-pixel words")
 	_eq(area.tint(0), Color(1, 1, 1), "TEXT_COLORS[0] = 0x80: unchanged")
 	_eq(area.tint(3).r > 1.9, true, "TEXT_COLORS[3] red 0xff: brighter than the texture")
-	var ja := TextArea.new(data, "ja")
-	_eq(ja.draw_string("アイ", 0, 0), 24, "JP drawString: GLYPH_WIDTH per glyph")
-	var eu := TextArea.new(data, "en_eu")
-	_eq(eu.draw_codes(PackedInt32Array([0x8260, 0x8140, 0x8260]), 0, 0), 24, "EU: Ａ 8, space 8, Ａ 8")
+	if "ja" in data.languages():
+		var ja := TextArea.new(data, "ja")
+		_eq(ja.draw_string("アイ", 0, 0), 24, "JP drawString: GLYPH_WIDTH per glyph")
+	if "en_eu" in data.languages():
+		var eu := TextArea.new(data, "en_eu")
+		_eq(eu.draw_codes(PackedInt32Array([0x8260, 0x8140, 0x8260]), 0, 0), 24, "EU: Ａ 8, space 8, Ａ 8")
 
 
 func _boxes() -> void:

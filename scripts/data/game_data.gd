@@ -15,7 +15,9 @@ extends Node
 ## Output folder: the DW_DATA_OUTPUT environment variable or the "dw/data/output_dir" project
 ## setting. Packs: folders in DW_DATA_PACKS (separated by ";") or the "dw/data/packs" setting,
 ## applied in that order after dw1 (see "Packs" below).
-## Text language: the "dw/data/language" setting (ja, en_us, en_eu) or set_language().
+## Text language: the "dw/data/language" setting (ja, en_us, en_eu) or set_language(), among the
+## languages the output has (languages()): all three from the decomp, en_us only from a US disc
+## (data_porter/specs/from_disc.md §4).
 
 signal language_changed(language: String)
 
@@ -38,6 +40,8 @@ const ENTITIES := {
 }
 
 var language := "en_us"
+## The languages this output has (a font table each), found on the first languages() call.
+var _languages := PackedStringArray()
 
 var _root := ""
 ## Applied packs after dw1, in order: {"id", "dir", "manifest"}.
@@ -360,10 +364,30 @@ func _components_card(_id: int, _main: Dictionary) -> Dictionary:
 
 # --- Text (specs/text.md) --------------------------------------------------------------------
 
+## The languages of this output, in LANGUAGES order: those with a font table. A US disc gives en_us
+## only (data_porter/specs/from_disc.md §4); without any output, en_us.
+func languages() -> PackedStringArray:
+	if _languages.is_empty():
+		for lang in LANGUAGES:
+			if FileAccess.file_exists(_root.path_join("font/%s.json" % lang)):
+				_languages.append(lang)
+		if _languages.is_empty():
+			_languages.append("en_us")
+	return _languages
+
+
+## Switches the text language. A language this output doesn't have keeps the current one (or, if that
+## one is missing too, picks en_us or the first there is).
 func set_language(value: String) -> void:
 	if not value in LANGUAGES:
 		push_error("GameData: unknown language %s (one of %s)" % [value, LANGUAGES])
 		return
+	var have := languages()
+	if not value in have:
+		push_warning("GameData: no %s text in this output (it has %s)" % [value, have])
+		if language in have:
+			return
+		value = "en_us" if "en_us" in have else have[0]
 	if value == language:
 		return
 	language = value

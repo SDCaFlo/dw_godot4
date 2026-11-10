@@ -3,9 +3,10 @@ extends RefCounted
 ## The launcher's decisions (specs/distribution.md §5, §6; specs/launcher.md), without the UI so
 ## the tests can check them: is the converted dw1 pack usable, where dw_convert is, how its
 ## progress lines read, when to check for updates and whether a release is newer.
-## The settings file (user://settings.cfg) holds the disc image path and the update check.
+## The settings file (user://settings.cfg) holds the disc image path, the update check and the
+## developer tools switch (Release.dev_tools).
 
-const SETTINGS_FILE := "user://settings.cfg"
+const SETTINGS_FILE := Release.SETTINGS_FILE
 ## Seconds between two update checks (§6: at most once a day).
 const UPDATE_INTERVAL := 24 * 60 * 60
 ## The GitHub API's latest release of a repository ("owner/name").

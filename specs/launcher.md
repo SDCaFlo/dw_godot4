@@ -17,7 +17,7 @@ It uses Godot's default controls at the window's size (the game's 320x240 scalin
 
 The disc image path is remembered in `user://settings.cfg` (`[disc] path`). When none is known, an image (`.cue`, then `.iso`, then `.bin`) next to the exe is suggested.
 
-Hold Shift while it starts, or pass `--launcher` after `--` on the command line, for the settings page: Play, Convert again, the update check on / off.
+Hold Shift while it starts, or pass `--launcher` after `--` on the command line, for the settings page: Play, Convert again, the update check on / off, the developer tools on / off (`[dev] tools`, read by `Release.dev_tools`: the debugger window, the debug keys and the full help line in the game; also `--dev` on the command line; always on in the editor).
 
 ## 3. The conversion
 

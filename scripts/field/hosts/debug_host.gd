@@ -8,6 +8,10 @@ extends Node
 ## Debug keys: [ / ] previous / next map, T one hour later, Z the menu's Sleep, C the care panel,
 ## D the next section of the map's script, L text language, H toggle the help line, F1 the debugger
 ## window (DebugWindow: the status, a map list to teleport to, the 3D render scale).
+##
+## Off (`enabled` false, Release.dev_tools: an exported game without --dev or the launcher's
+## setting): the window stays hidden, the keys do nothing, and the help line shows only the
+## messages (show_message, the stand-in for text boxes not ported yet).
 
 const HELP := "arrows move, shift run, [ ] map, T +1 hour, Z sleep, C care, D script, L language, H hide"
 
@@ -31,6 +35,8 @@ var map_layer_nodes := Callable()
 var render_scale := 4
 var ui_filter := true
 var show_window := true
+## The developer tools are on (set by the field from Release.dev_tools()).
+var enabled := true
 
 ## The debugger window; the field connects its settings.
 var window: DebugWindow
@@ -80,7 +86,7 @@ func start() -> void:
 	window.teleport = func(map_name: String, exit: int) -> void: map_session.debug_change_map(map_name, exit)
 	window.render_scale = render_scale
 	window.ui_filter = ui_filter
-	window.visible = show_window
+	window.visible = show_window and enabled
 	add_child(window)
 
 
@@ -124,7 +130,7 @@ func menu_sleep() -> void:
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if Engine.is_editor_hint() or not event.is_pressed() or event.is_echo() or maps.is_empty() or map_session == null:
+	if Engine.is_editor_hint() or not enabled or not event.is_pressed() or event.is_echo() or maps.is_empty() or map_session == null:
 		return
 	match event.keycode:
 		KEY_BRACKETLEFT, KEY_BRACKETRIGHT:
@@ -155,6 +161,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 func update_label() -> void:
+	# Off: only the messages (the stand-in for the text box).
+	if not enabled and not Engine.is_editor_hint():
+		label.text = _message
+		label.visible = _message != ""
+		return
 	var time: String = ["day", "evening", "night"][field_map.time_of_day] if field_map.palette_count() > 1 else "no time cycle"
 	if clock != null:
 		var values: Dictionary = GameState.state["clock"]

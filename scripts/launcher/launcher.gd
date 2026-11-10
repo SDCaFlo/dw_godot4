@@ -197,7 +197,7 @@ func _show_settings() -> void:
 		"Game %s. Content converted %s from %s.\nThe disc image below is used when the content has to be converted again."
 			% [Release.game(), str(info.get("converted", "?")), str(info.get("boot", "?"))],
 		["disc", "status"],
-		[["Play", _play], ["Convert again", _convert], [_update_toggle_text(), _toggle_updates], ["Quit", _quit]])
+		[["Play", _play], ["Convert again", _convert], [_update_toggle_text(), _toggle_updates], [_dev_toggle_text(), _toggle_dev], ["Quit", _quit]])
 	_status.text = ""
 
 
@@ -207,6 +207,17 @@ func _update_toggle_text() -> String:
 
 func _toggle_updates() -> void:
 	_settings.set_value("updates", "check", not _settings.get_value("updates", "check", true))
+	_settings.save(settings_file)
+	_show_settings()
+
+
+## The debugger window and the debug keys in the game (Release.dev_tools).
+func _dev_toggle_text() -> String:
+	return "Developer tools: " + ("on" if _settings.get_value("dev", "tools", false) else "off")
+
+
+func _toggle_dev() -> void:
+	_settings.set_value("dev", "tools", not _settings.get_value("dev", "tools", false))
 	_settings.save(settings_file)
 	_show_settings()
 

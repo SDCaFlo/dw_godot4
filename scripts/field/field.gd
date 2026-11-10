@@ -88,6 +88,7 @@ func _ready() -> void:
 	map_session.tamer = _tamer
 	debug.label = _label
 	debug.field_map = _field
+	debug.enabled = Release.dev_tools()
 	map_session.map_loaded.connect(debug.on_map_loaded)
 	if Engine.is_editor_hint():
 		_refresh_preview()

@@ -178,7 +178,7 @@ Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exp
 - [x] **D8** GitHub Action building releases on a version tag. Done 2026-11-10: `.github/workflows/release.yml` (tag `vX.Y.Z` -> draft release; Run workflow -> artifact), `release/package.py` (refuses game content), spec `specs/release_ci.md`.
   - [x] First run on GitHub (Actions > release > Run workflow): built, downloaded and played by the user 2026-11-10.
   - [ ] Tag `v0.1.0` (`docs/release.md` §4).
-  - [ ] The exported game starts with the debugger window and the debug help line / keys on: hide or gate them in player builds.
+  - [x] The exported game started with the debugger window and the debug help line / keys on. Done 2026-11-10: `Release.dev_tools()` (on in the editor; exported, only with `--dev` or the launcher's "Developer tools" setting); off, `DebugHost` keeps the help line for the stand-in messages only.
 - [x] **D9** `docs/setup.md` (players; the unsigned exe's SmartScreen warning) and `docs/release.md` (us). Done 2026-11-10; `release/README.txt` points to the setup guide.
 - [ ] **D10** Later: in-launcher downloads (U2), `mod_api` on the Mods screen, Mac / Linux.
 - [ ] **Later: JP and EU discs** (the user, 2026-11-09). A US disc gives only `en_us` text and font (`data_porter/specs/from_disc.md` §4). Accept a JP or EU disc image too (or as well as the US one), to extract its text and font for the `ja` / `en_eu` languages: one snapshot per release (addresses from the decomp's per-release data, `*_bss_<ver>.c`, `file_table_<ver>.c`; only US has symbol maps today, so the other releases' addresses must be found first), and the disc check (§3) learning their boot names and hashes. Game data (stats, rules) stays from the US disc.

@@ -159,7 +159,7 @@ Last updated: 2026-11-09
 
 Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exported game and the porters as a bundled exe; a launcher screen that converts the player's disc image and checks for updates. Steps (spec §9):
 - [ ] **D1** Audit before going public (§8): don't push `spec/digimon_contract` (`93f35f6` holds a Veemon `.glb` from another game); review `asset_porter/dwporter/data/*.py`; choose our licence. Public name: `dw_godot4`.
-- [ ] **D2** Asset porter without the decomp at run time: `scripts.py` (4e-3 step 2) reads `dget.c` / `trigger.h` for its "Grade A won" check, and `convert scripts` fails without them. List every such read; make each a dev-only check that skips when the decomp is missing, or move it to the data porter's tests.
+- [x] **D2** Asset porter without the decomp at run time (2026-11-09): the only read was `scripts.py`'s "Grade A won" check, now the constant `scripts.WON_TOURNAMENT` checked by `asset_porter/tests/test_decomp_constants.py` (skipped without the decomp; also guards against new `external-resources` reads).
 - [ ] **D3** Data porter reading `SLUS_010.32` / `*_REL.BIN` instead of the decomp (§2.1): inventory first (address, size, layout, text encoding per table), then group by group, each matched exactly against today's decomp output.
 - [ ] **D4** Disc image reader (`.cue/.bin`, `.iso`) and the US version check (§3).
 - [ ] **D5** `dw_convert` entry point + PyInstaller build; movies skipped in releases for now (Q2), added later by an update that re-converts.

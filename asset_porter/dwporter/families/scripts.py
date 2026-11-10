@@ -10,13 +10,16 @@ import struct
 from ..assets import AssetWriter, _dump
 from ..data.digimon import DIGIMON_TYPES
 from ..formats import scn
-from ..paths import PROJECT_ROOT
 from ..source import SourceFile
 from . import maps, mmd_files
 
 NAME = "scripts"
 SOURCE_PATH = "SCN/MAPHEAD.SCN + SCN/DG.SCN"
 SPEC = "specs/scn.md"
+## A cup with requirement type 1 needs the Grade A Cup won: isTournamentEnabled's case 1 is
+## isTriggerSet(TRIGGER_GRADE_A_CUP_WON) (dget/dget.c:397-398), TRIGGER_18 (include/dw/trigger.h:808),
+## tournament id 18 - 15 = 3 (specs/scn.md). Checked against the decomp by tests/test_decomp_constants.py.
+WON_TOURNAMENT = 3
 CODE_REFS = [
     "dw_decomp/include/dw/script.h: opcodes and argument layouts",
     "dw_decomp/src/main/script_interp.c:2190 initializeScripts (MAPHEAD -> MAPHEAD_SCRIPT_BUFFER, DG table -> SCRIPT_OFFSET_TABLE)",
@@ -304,7 +307,7 @@ def convert(input_root, output_root) -> AssetWriter:
         if req_type == 0:
             also = {"type": "none"}
         elif req_type == 1:
-            also = {"type": "won", "tournament": 3}
+            also = {"type": "won", "tournament": WON_TOURNAMENT}
         elif req_type == 2:
             also = {"type": "count", "list": b_list, "min": min_wins}
         else:
@@ -366,19 +369,6 @@ def convert(input_root, output_root) -> AssetWriter:
     all_in_roster = all(0 <= x < 0x70 for x in all_ids)
     out.check("every tournament list id is in roster range (< 0x70)", all_in_roster,
               f"{len(all_ids)} ids checked (max {max(all_ids) if all_ids else 'none'})")
-
-    dget_c = PROJECT_ROOT / "external-resources" / "dw_decomp" / "src" / "dget" / "dget.c"
-    trigger_h = PROJECT_ROOT / "external-resources" / "dw_decomp" / "include" / "dw" / "trigger.h"
-    dget_text = dget_c.read_text(encoding="utf-8") if dget_c.is_file() else ""
-    trigger_text = trigger_h.read_text(encoding="utf-8") if trigger_h.is_file() else ""
-    case_1_match = re.search(r"case\s+1:\s+return\s+isTriggerSet\((TRIGGER_[A-Z0-9_]+)\);", dget_text)
-    trig_name = case_1_match.group(1) if case_1_match else ""
-    trig_match = re.search(rf"#define\s+{re.escape(trig_name)}\s+TRIGGER_(\d+)", trigger_text) if trig_name else None
-    trig_num = int(trig_match.group(1)) if trig_match else -1
-    won_tournament_id = trig_num - 15
-    out.check("won requirement: case 1 in dget.c matches TRIGGER_GRADE_A_CUP_WON in trigger.h (18 - 15 = 3)",
-              case_1_match is not None and trig_name == "TRIGGER_GRADE_A_CUP_WON" and trig_num == 18 and won_tournament_id == 3,
-              f"{trig_name} = TRIGGER_{trig_num} -> tournament {won_tournament_id}")
 
     arena_span = arena_src.span(arena_off, arena_size)
     _dump(out.dir / "tournament_cups.json", {

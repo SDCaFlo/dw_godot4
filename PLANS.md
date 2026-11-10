@@ -164,7 +164,8 @@ Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exp
   - [x] Inventory (2026-11-09): every C table has a US symbol in initialized data (exceptions: `evolution/rules`, `systems/new_game` in code; `VS_DEMO_DIGIMON` without symbol); 724 strings read at their symbol match byte for byte, 317 sit inside tables, 60 short literals to locate once; a US disc gives `en_us` text and font only.
   - [x] D3a (2026-11-09): `python -m dwdata snapshot` → `dwdata/snapshot/us.json`; `DiscIndex` reads the 448 C tables from the US binaries, equal to the decomp (`VS_DEMO_DIGIMON` is not on a US disc); `tests/test_disc.py`.
   - [x] D3b (2026-11-09): the snapshot's `strings`; `DiscText` reads all 1,117 US strings equal to the decomp. Found a YAML-reader bug on the way (full-width spaces trimmed; fixed).
-  - [ ] D3c groups one by one (Medium each) · D3d `convert all --disc`, tests with the decomp hidden.
+  - [x] D3c (2026-11-09): `python -m dwdata convert all --disc <folder>` runs every group on the US binaries, no decomp; output equal to the decomp mode's (US only); decomp metadata and results of reading C code replayed from the snapshot's memo. Open (spec Q4): game numbers written in code (item effects, buff stats) are committed in the memo like port constants.
+  - [ ] D3d: Godot on the disc output (en_us only: language setting, debug `L` key), `docs` for developers on regenerating the snapshot.
 - [ ] **D4** Disc image reader (`.cue/.bin`, `.iso`) and the US version check (§3).
 - [ ] **D5** `dw_convert` entry point + PyInstaller build; movies skipped in releases for now (Q2), added later by an update that re-converts.
 - [ ] **D6** Windows export preset (excludes `content/dw1/*`, porters, tests), `user://content/dw1` defaults, `version.json`.

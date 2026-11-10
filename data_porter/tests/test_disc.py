@@ -1,4 +1,5 @@
-"""Disc mode, steps D3a and D3b (specs/from_disc.md §3, §5): the snapshot, DiscIndex and DiscText.
+"""Disc mode, steps D3a-D3c (specs/from_disc.md §3, §5): the snapshot, DiscIndex, DiscText and the groups
+run on the disc (discmode).
 
 - The reader on synthetic bytes: struct alignment, unions, text, numbers, pointers, slot overrides.
 - The committed snapshot holds no values: only layouts, addresses, identifiers and hashes.
@@ -7,13 +8,18 @@
   equals the decomp's US value (the equivalence check of §1).
 """
 
+import builtins
+import contextlib
+import io
 import json
+import os
 import re
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
-from dwdata import disc, paths
+from dwdata import disc, discmode, paths
 from dwdata.cdata import Array, Field, Pointer, Scalar, Struct
 from dwdata.decomp import Decomp
 
@@ -118,18 +124,31 @@ class SnapshotHoldsNoValues(unittest.TestCase):
             elif isinstance(v, str) and not ALLOWED_STRING.fullmatch(v):
                 bad.append(f"{where}: {v!r}")
 
-        walk(_snapshot(), "")
+        snap = _snapshot()
+        # The text skeleton and the memo hold prose (purposes, C statements); test_memo_and_text_hold_no_text
+        # checks those.
+        walk({k: v for k, v in snap.items() if k not in ("text", "memo")}, "")
         self.assertEqual(bad[:20], [])
 
     def test_table_keys(self):
         """A table entry is a location and a layout; numbers are addresses, sizes, lines and lengths."""
         snap = _snapshot()
         self.assertEqual(set(snap), {"format", "release", "generated_by", "binaries", "tables", "structs", "pointers",
-                                     "strings"})
+                                     "strings", "text", "memo"})
         for key, t in snap["tables"].items():
-            allowed = {"c_file", "name", "located", "why"} if t["located"] == "absent" else \
+            allowed = {"c_file", "name", "located", "why", "type", "decl"} if t["located"] == "absent" else \
+                {"c_file", "name", "located"} if t["located"] == "undefined" else \
                 {"c_file", "name", "binary", "address", "size", "located", "type", "decl", "element_lines", "slots"}
             self.assertLessEqual(set(t), allowed, key)
+
+    def test_text_skeleton_keys(self):
+        """The text skeleton keeps a string's id, lines and references, never its text."""
+        for name, table in _snapshot()["text"].items():
+            for rec in table["records"]:
+                for item in rec.get("strings") or rec.get("entries") or []:
+                    self.assertFalse(set(item) & set(disc.TEXT_ITEM_TEXT), f"{name} {rec['block']} {item.get('id')}")
+                    for v in (item.get("c_text") or {}).values():
+                        self.assertEqual(set(v), {"at"})
 
     def test_string_keys(self):
         """A string's entry is where it is and how long, never its text."""
@@ -149,8 +168,11 @@ class FromTheDiscAlone(unittest.TestCase):
         problems = []
         for key, t in index.snapshot["tables"].items():
             loaded = index.table(t["c_file"], t["name"])["us"]
-            if t["located"] == "absent":
+            if t["located"] == "undefined":
                 self.assertIsNone(loaded, key)
+                continue
+            if t["located"] == "absent":   # its declaration and type, no value
+                self.assertIsNone(loaded.value, key)
                 continue
             problems += [f"{key}: {i}" for i in loaded.issues]
         self.assertEqual(problems, [])
@@ -160,6 +182,59 @@ class FromTheDiscAlone(unittest.TestCase):
         self.assertEqual(len(strings), sum(len(i) for b in _snapshot()["strings"].values() for i in b.values()))
         self.assertTrue(all(isinstance(v, str) and "\ufffd" not in v for v in strings.values()),
                         "every string decodes as Shift-JIS")
+
+    def test_memo_and_text_hold_no_text(self):
+        """No US sentence (12 characters or more, with a space) appears in the memo or the text skeleton."""
+        strings = {v.split("\0")[0] for v in disc.DiscText(disc.DiscIndex(paths.DEFAULT_DISC)).strings().values()}
+        strings = {s.strip() for s in strings if len(s.strip()) >= 12 and " " in s.strip()}   # sentences, not names
+        snap = _snapshot()
+        found = []
+
+        def walk(v, where):
+            if isinstance(v, dict):
+                for k, x in v.items():
+                    walk(x, f"{where}.{k}")
+            elif isinstance(v, list):
+                for k, x in enumerate(v):
+                    walk(x, f"{where}[{k}]")
+            elif isinstance(v, str) and len(v) >= 12:
+                found.extend(f"{where}: {s!r}" for s in strings if s in v)
+
+        walk({"text": snap["text"], "memo": snap["memo"]}, "")
+        self.assertEqual(found[:10], [])
+
+    def test_convert_without_the_decomp(self):
+        """Every group in disc mode, with any file under the decomp refused: every check passes."""
+        decomp_root = str(paths.DEFAULT_INPUT.resolve()).lower()
+        real_open, real_io_open, real_scandir = builtins.open, io.open, os.scandir
+
+        def guard(path):
+            p = str(Path(os.fspath(path)).resolve()).lower() if isinstance(path, (str, os.PathLike)) else ""
+            if p.startswith(decomp_root):
+                raise AssertionError(f"disc mode read the decomp: {path}")
+
+        def g_open(file, *a, **k):
+            guard(file)
+            return real_open(file, *a, **k)
+
+        def g_io_open(file, *a, **k):
+            guard(file)
+            return real_io_open(file, *a, **k)
+
+        def g_scandir(path="."):
+            guard(path)
+            return real_scandir(path)
+
+        with tempfile.TemporaryDirectory() as out_dir:
+            builtins.open, io.open, os.scandir = g_open, g_io_open, g_scandir
+            try:
+                outs = discmode.convert(paths.DEFAULT_DISC, Path(out_dir))
+            finally:
+                builtins.open, io.open, os.scandir = real_open, real_io_open, real_scandir
+            failed = [f"{o.group}: {c.name}: {c.detail[:80]}" for o in outs for c in o.checks if not c.passed]
+            self.assertEqual(failed, [])
+            self.assertEqual(sorted(o.group for o in outs),
+                             sorted(["text", "font", "moves", "digimon", "items", "evolution", "systems"]))
 
     def test_wrong_file_refused(self):
         with tempfile.TemporaryDirectory() as d:
@@ -174,9 +249,13 @@ class AgainstTheDecomp(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        with tempfile.TemporaryDirectory() as work:
-            cls.rec = disc.record_groups(paths.DEFAULT_INPUT, Path(work))
+        cls.work = Path(tempfile.mkdtemp())   # the decomp-mode output of the recording run
+        cls.rec = disc.record_groups(paths.DEFAULT_INPUT, cls.work)
         cls.snap, cls.problems = disc.build_snapshot(cls.rec, paths.DEFAULT_DISC)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.work, ignore_errors=True)
 
     def test_snapshot_builds(self):
         self.assertEqual(self.problems, [])
@@ -192,8 +271,15 @@ class AgainstTheDecomp(unittest.TestCase):
         """Every US string (1,117 on 2026-11-09) read from the binaries is the decomp's en_us text."""
         self.assertEqual(disc.check_text(self.rec, disc.DiscText(disc.DiscIndex(paths.DEFAULT_DISC, _snapshot()))), [])
 
+    def test_disc_output_equals_the_decomp_output(self):
+        """The whole output in disc mode equals the decomp mode's, other releases and languages aside
+        (discmode.project); manifests, the catalog and the reports are not compared."""
+        with tempfile.TemporaryDirectory() as out_dir:
+            discmode.convert(paths.DEFAULT_DISC, Path(out_dir), None, _snapshot())
+            self.assertEqual(discmode.compare(self.work, Path(out_dir)), [])
+
     def test_every_loaded_table_is_in_the_snapshot(self):
-        keys = {f"{c}:{n}" for c, n in self.rec.tables} | set(disc.ABSENT)
+        keys = {f"{c}:{n}" for c, n in self.rec.tables} | set(disc.ABSENT) | {f"{c}:{n}" for c, n in self.rec.undefined}
         self.assertEqual(keys, set(_snapshot()["tables"]))
 
 

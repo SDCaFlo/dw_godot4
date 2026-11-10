@@ -18,6 +18,9 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("convert", help="convert one or more data groups")
     p.add_argument("groups", nargs="+", help="group names, or 'all'")
+    p.add_argument("--disc", type=Path, default=None,
+                   help="disc mode: read the values from this folder's US binaries (SLUS_010.32, *_REL.BIN) and "
+                        "the rest from dwdata/snapshot/us.json, no decomp needed (specs/from_disc.md)")
 
     p = sub.add_parser("snapshot", help="write dwdata/snapshot/us.json (disc mode layouts) from the decomp")
     p.add_argument("--disc", type=Path, default=paths.DEFAULT_DISC,
@@ -41,8 +44,14 @@ def main(argv=None) -> int:
         if unknown:
             parser.error(f"unknown group: {', '.join(unknown)}")
         ok = True
-        for name in names:
-            out = GROUPS[name].convert(args.input, args.output)
+        if args.disc is not None:
+            from . import discmode
+            sys.stdout.reconfigure(errors="backslashreplace")
+            outs = discmode.convert(args.disc, args.output, names)
+        else:
+            outs = (GROUPS[name].convert(args.input, args.output) for name in names)
+        for out in outs:
+            name = out.group
             failed = [c for c in out.checks if not c.passed]
             print(f"{name}: {len(out.tables)} tables, {len(out.checks) - len(failed)}/{len(out.checks)} checks passed"
                   f" -> {out.dir}")
@@ -74,6 +83,15 @@ def _snapshot(args) -> int:
     index = disc.DiscIndex(disc_root, json.loads(json.dumps(snap)))
     problems += disc.check(rec, index)
     problems += disc.check_text(rec, disc.DiscText(index))
+    if not problems:   # the groups in disc mode: their output equals the decomp's (US only)
+        from . import discmode
+        with tempfile.TemporaryDirectory() as decomp_out, tempfile.TemporaryDirectory() as disc_out:
+            from .groups import GROUPS
+            for name in GROUPS:
+                GROUPS[name].convert(args.input, Path(decomp_out))
+            for out in discmode.convert(disc_root, Path(disc_out), None, json.loads(json.dumps(snap))):
+                problems += [f"disc mode {out.group}: check failed: {c.name}" for c in out.checks if not c.passed]
+            problems += [f"disc mode: {p}" for p in discmode.compare(Path(decomp_out), Path(disc_out))]
     if not args.check and not problems:
         disc.write_snapshot(snap)
     n_strings = sum(len(items) for blocks in snap["strings"].values() for items in blocks.values())

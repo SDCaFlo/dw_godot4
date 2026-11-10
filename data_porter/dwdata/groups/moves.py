@@ -8,7 +8,7 @@ import math
 import re
 from collections import defaultdict
 
-from .. import tables
+from .. import discmode, tables
 from ..cdata import CIndex, describe_type
 from ..decomp import Decomp
 from ..output import GroupWriter
@@ -235,11 +235,9 @@ def convert(input_root, output_root) -> GroupWriter:
             out.check(f"struct Move is the same in {release}", False, str(other and [f.name for f in other.fields]))
 
     for path, needle in EVIDENCE:
-        text = (decomp.root / path).read_text(encoding="utf-8", errors="replace")
-        out.check(f"code still tests the id ranges: {needle}", needle in text, path)
+        out.check(f"code still tests the id ranges: {needle}", discmode.has(NAME, decomp, path, needle), path)
 
-    buff_text = (decomp.root / BTL_MAIN_C).read_text(encoding="utf-8", errors="replace")
-    buffs, buff_problems = _buff_table(buff_text)
+    buffs, buff_problems = discmode.code("moves|buffs", lambda: _buff_table(discmode.source(decomp, BTL_MAIN_C)))
     sources.append(SourceText(decomp.root, BTL_MAIN_C).identity())
 
     move_data = tables.load(out, index, C_FILE, "MOVE_DATA")
@@ -269,9 +267,9 @@ def convert(input_root, output_root) -> GroupWriter:
         tables.size_check(out, decomp, loaded, binary="trn")
 
     # -- move_data ----------------------------------------------------------------------------
-    game_menu_c = _collapsed((decomp.root / GAME_MENU_C).read_text(encoding="utf-8", errors="replace"))
-    out.check("the technique grid's row mapping is still in game_menu.c", _collapsed(MENU_GRID_RULE) in game_menu_c,
-              MENU_GRID_RULE)
+    out.check("the technique grid's row mapping is still in game_menu.c",
+              discmode.code("moves|menu_grid", lambda: _collapsed(MENU_GRID_RULE) in _collapsed(
+                  discmode.source(decomp, GAME_MENU_C))), MENU_GRID_RULE)
     menu_cells = _menu_cells()
     entries = names_block["items"]
     records, bad = [], defaultdict(list)

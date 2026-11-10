@@ -7,7 +7,7 @@ DIGIMON_DATA); technique and item names from text/main/item.yaml.
 
 from collections import defaultdict
 
-from .. import tables
+from .. import discmode, tables
 from ..cdata import CIndex, Value, describe_type
 from ..decomp import Decomp
 from ..output import GroupWriter
@@ -262,23 +262,21 @@ def convert(input_root, output_root) -> GroupWriter:
     condition_fx = tables.load(out, index, EFFECT_COMMON_C, "CONDITION_FX_OFFSETS")
     auras = tables.load(out, index, BTL_EFFECT_C, "BTL_AURA_PROJECTILE_TYPES")
     sources.append(SourceText(decomp.root, EFFECT_COMMON_C).identity())
-    effect_c = " ".join((decomp.root / EFFECT_COMMON_C).read_text(encoding="utf-8", errors="replace").split())
-    out.check("getOriginalType is still the table lookup", ORIGINAL_EVIDENCE in effect_c, ORIGINAL_EVIDENCE[:60])
+    out.check("getOriginalType is still the table lookup",
+              discmode.has(NAME, decomp, EFFECT_COMMON_C, ORIGINAL_EVIDENCE, True), ORIGINAL_EVIDENCE[:60])
     sources += [SourceText(decomp.root, p).identity() for p in (BTL_C, BTL_MAIN_C, UTILS2_C, STD_MAIN, STD_SETUP)]
-    battle_text = {p: " ".join((decomp.root / p).read_text(encoding="utf-8", errors="replace").split())
-                   for p in (BTL_C, BTL_MAIN_C, UTILS2_C)}
-    missing = [f"{p}: {needle[:60]}" for p, needle in BATTLE_EVIDENCE if " ".join(needle.split()) not in battle_text[p]]
+    missing = [f"{p}: {needle[:60]}" for p, needle in BATTLE_EVIDENCE
+               if not discmode.has(NAME, decomp, p, " ".join(needle.split()), True)]
     out.check("the battle rules on Digimon ids are still in the code", not missing,
               "; ".join(missing) or f"{len(BATTLE_EVIDENCE)} rules")
 
-    std_setup_c = " ".join((decomp.root / STD_SETUP).read_text(encoding="utf-8", errors="replace").split())
-    std_main_c = " ".join((decomp.root / STD_MAIN).read_text(encoding="utf-8", errors="replace").split())
     out.check("arena stand-in types (0x40 -> 0x36, 0x3f -> 0x30, 0x41 -> 0x2a) in STD_tournamentMain",
-              STAND_IN_EVIDENCE in std_setup_c, STAND_IN_EVIDENCE)
+              discmode.has(NAME, decomp, STD_SETUP, STAND_IN_EVIDENCE, True), STAND_IN_EVIDENCE)
     out.check("arena intro text length (10 for 0x4e and 0x3c) in STD_addIntroText",
-              INTRO_LEN_EVIDENCE in std_main_c, INTRO_LEN_EVIDENCE)
+              discmode.has(NAME, decomp, STD_MAIN, INTRO_LEN_EVIDENCE, True), INTRO_LEN_EVIDENCE)
     out.check("bracket sprite cell (page, u, v) in STD_renderBracketDigimon",
-              all(e in std_main_c for e in BRACKET_SPRITE_EVIDENCE), "; ".join(BRACKET_SPRITE_EVIDENCE))
+              all(discmode.has(NAME, decomp, STD_MAIN, e, True) for e in BRACKET_SPRITE_EVIDENCE),
+              "; ".join(BRACKET_SPRITE_EVIDENCE))
 
     sprite_clut = tables.load(out, index, STD_MAIN, "STD_DIGIMON_SPRITE_CLUT")
     bracket_icons = tables.load(out, index, STD_MAIN, "STD_BRACKET_PROJECTILE_ICONS")
@@ -493,14 +491,12 @@ def convert(input_root, output_root) -> GroupWriter:
         out.check(f"RAISE_DATA: {check}", not rbad[check], "; ".join(rbad[check][:10]) or f"{len(raise_rows)} records")
 
     # -- care properties (literal ids of partner_impl.c) --------------------------------------
-    partner_c = _collapsed((decomp.root / PARTNER_C).read_text(encoding="utf-8", errors="replace"))
     rules = [needle for *_, needle in FIRST_TECHNIQUE] + [POOP_EATERS[1], NO_VIRUS_BAR[1]]
-    missing = [needle for needle in rules if _collapsed(needle) not in partner_c]
+    missing = [needle for needle in rules if not discmode.has(NAME, decomp, PARTNER_C, _collapsed(needle), True)]
     out.check("the care rules on literal Digimon ids are still in partner_impl.c", not missing,
               "; ".join(missing) or f"{len(rules)} rules")
-    tamer_c = _collapsed((decomp.root / TAMER_C).read_text(encoding="utf-8", errors="replace"))
-    out.check("the praise's low-pat rule is still in tamer.c", _collapsed(PRAISE_PAT_LOW[2]) in tamer_c,
-              PRAISE_PAT_LOW[2])
+    out.check("the praise's low-pat rule is still in tamer.c",
+              discmode.has(NAME, decomp, TAMER_C, _collapsed(PRAISE_PAT_LOW[2]), True), PRAISE_PAT_LOW[2])
     first = {}
     for type_id, anim, move, _ in FIRST_TECHNIQUE:
         slot = anim - MOVE_ANIM_BASE
@@ -627,9 +623,8 @@ def convert(input_root, output_root) -> GroupWriter:
                              for k, fmt in MODEL_DIRS.items() if name}})
     out.check("every PTR_DIGIMON_FILE_NAMES entry points to a file name string", not fbad, "; ".join(fbad[:10]) or
               f"{len(file_rows)} names")
-    model_c = (decomp.root / MODEL_C).read_text(encoding="utf-8", errors="replace")
     out.check("the model loaders pick the folder as id / 30 (model.c path[9])",
-              all(e in model_c for e in FOLDER_EVIDENCE), " / ".join(FOLDER_EVIDENCE))
+              all(discmode.has(NAME, decomp, MODEL_C, e) for e in FOLDER_EVIDENCE), " / ".join(FOLDER_EVIDENCE))
     out.write_table("file_names", {
         "table": {"name": "digimon/file_names", "purpose": TABLE_PURPOSES["file_names"]},
         "source": tables.source(decomp, files, sources, {"strings": f"{MODEL_C} STR_DIGIMON_FILE_NAME_*"}),

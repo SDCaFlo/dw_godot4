@@ -163,6 +163,17 @@ Every byte location is checked when the snapshot is built: the bytes at the addr
 
 **Found on the way:** the data porter's YAML reader trimmed every Unicode space around plain scalars; YAML trims only spaces and tabs. The naming screen's last lowercase row is `ｚ` + four U+3000 in the YAML and in the binary, and the output had `ｚ`. Fixed in `textyaml.py` (`tests/test_textyaml.py`); no other string changed.
 
+### 3.3 The groups on the disc (D3c, 2026-11-09)
+
+`python -m dwdata convert all --disc <folder>` runs the seven groups unchanged on the player's US binaries (`dwdata/discmode.py`), in about a second, without the decomp:
+
+- **Values** from the binaries: `CIndex` is `DiscIndex` (D3a), the text files are `DiscFileModel`s built from the snapshot's **text skeleton** (the text group's output with every text removed) and `DiscText` (D3b). The text group writes its tables from the same two.
+- **Everything else a group asks the decomp is replayed** from the snapshot's **memo**, recorded while the groups run on the decomp (`discmode.record`): references (`refs|`), symbol lookups (`sym|`), C file → binary (`bin|`), file identities (`file|`), struct layouts (`struct|`), `used_by` (`used_by|`), `switch` cases (`switch|`, US only), and **results computed from C source** (`code|`). The C source is never stored: a group reads it only inside `discmode.code(key, fn)` (a parsed table, e.g. the buff disks' stats) or `discmode.has` / `discmode.Code` (whether a piece of code is still there: the "still in the code" checks), and the memo keeps the result. In disc mode the decomp root is a path that doesn't exist, so an unwrapped read fails.
+- Group changes: the `read_text` sites wrapped as above (moves 3, digimon 7, evolution 4, items 2, systems 18, font 1); font and systems' naming handle only the releases present; `VS_DEMO_DIGIMON` (absent, §3.1) loads with its declaration and type and no value, so `systems/versus` has `demo_digimon: null`; tables a group looks up that the US build doesn't define are recorded as `undefined`.
+- **Equivalence**: `discmode.compare` checks every table file of the disc output against the decomp output, after `discmode.project` leaves out what a US disc can't give (§4: other languages, `release_values` / `release_text` / `release_note`, other releases' entries, `disc.ABSENT_FIELDS`). Result: **no difference in any file**; every group's checks pass in disc mode (text has its own single check). `snapshot` runs this comparison each time, and `tests/test_disc.py` runs it plus a conversion with every file under the decomp refused.
+
+Snapshot size: 1.9 MB (tables 0.2, strings 0.1, text skeleton 0.5, memo 0.4).
+
 ## 4. What a US disc can't give
 
 | Output | Decomp mode | Disc mode |
@@ -179,11 +190,12 @@ Every byte location is checked when the snapshot is built: the bytes at the addr
 |---|---|---|
 | D3a (done 2026-11-09) | Snapshot command and format; the disc source for C tables (`DiscIndex`: struct layouts, arrays, pointers, function-pointer names); an equivalence check comparing, table by table, the US values read from the binary with `CIndex`'s US values | Hard (Opus) |
 | D3b (done 2026-11-09) | Text from the disc: string addresses (symbols, embedded, the 60 located at snapshot time), the disc text source, en_us only; equivalence on every US string | Medium |
-| D3c | Groups to disc mode one at a time, each with its equivalence test: moves, items, digimon, evolution (+ `rules`), font (US), systems (+ `new_game`, `VS_DEMO_DIGIMON`) | Medium each |
+| D3c (done 2026-11-09) | Groups to disc mode one at a time, each with its equivalence test: moves, items, digimon, evolution (+ `rules`), font (US), systems (+ `new_game`, `VS_DEMO_DIGIMON`) | Medium each |
 | D3d | `convert all --disc`; the whole output equal to decomp mode minus §4; the test suite run with the decomp hidden; `GameData` with en_us only | Medium |
 
 ## 6. Open questions
 
 - Q1: ~~The shop-text string whose symbol didn't match.~~ Resolved 2026-11-09: a counting slip in the check; every string read at its symbol matches.
 - Q2: ~~`VS_DEMO_DIGIMON`'s address.~~ Resolved 2026-11-09: not on a US disc (§3.1).
-- Q3: Whether the metadata (`used_by`, `source`) goes in the snapshot, or disc-mode output drops it and the editor dock reads it from a committed copy. The D3a snapshot holds only what `CIndex.table` gives; decide in D3c with the first group. The output's shape for the game (`records`, `schema`, `godot`) must not change.
+- Q3: ~~Where the metadata goes.~~ Decided 2026-11-09 (D3c): in the snapshot's memo and text skeleton; the disc output keeps `used_by` and `source` like the decomp output.
+- Q4: **Game numbers written in code.** The memo's `code|` and `switch|` entries hold values the original keeps in its *code*, not its data tables: the item effects (chips +50 offense, ...), the buff disks' stats, the reincarnation stats, the battle command lists. They are the same kind of value as the constants the ported GDScript already carries (`docs/porting_checklist.md`), so they are committed like those. Reading them from the binary instead would mean finding the instructions that load them (possible later, per table). Open for the user.

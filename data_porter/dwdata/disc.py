@@ -30,13 +30,17 @@ BINARY_FILES = {
 }
 
 
-# Tables the decomp defines that are not on a US disc (the snapshot records them as absent; DiscIndex gives
-# None for the US release, as CIndex does for a table a release doesn't define).
+# Tables the decomp defines that are not on a US disc. The snapshot records them as absent; DiscIndex gives
+# their declaration and type with no value, and the group leaves the output field empty (ABSENT_FIELDS).
 ABSENT = {
     "src/vs/vs_demo.c:VS_DEMO_DIGIMON": "vs_demo.c is linked into no US binary (config/us/*.yaml has no entry "
                                         "for it); neither its list nor its file paths are in SLUS_010.32 or "
                                         "the overlays (checked 2026-11-09)",
 }
+
+
+# Output fields that come from an ABSENT table: null in disc mode (discmode.compare leaves them out).
+ABSENT_FIELDS = {"systems/versus.json": ["demo_digimon"]}
 
 
 # -- types <-> JSON ----------------------------------------------------------------------------
@@ -308,6 +312,9 @@ class Recorder:
     def __init__(self):
         self.tables = {}   # (c_rel, name) -> (decomp, Loaded)
         self.text = {}
+        self.structs = {}  # struct layouts (snapshot "structs"), shared with the memo's struct reads
+        self.memo = None   # discmode.Memo: the decomp's answers to the non-text groups (D3c)
+        self.undefined = set()   # (c_rel, name) looked up but not defined in the US build
         self._orig = None
 
     def __enter__(self):
@@ -318,6 +325,8 @@ class Recorder:
             result = rec._orig(index, c_rel, name, hooks)
             if result.get(RELEASE) is not None:
                 rec.tables.setdefault((c_rel, name), (index.decomp, result[RELEASE]))
+            else:
+                rec.undefined.add((c_rel, name))
             return result
 
         cdata.CIndex.table = table
@@ -329,10 +338,19 @@ class Recorder:
 
 def record_groups(decomp_root: Path, work_dir: Path, groups=None) -> Recorder:
     """Runs the groups in decomp mode into work_dir and records the C tables they load."""
+    from . import discmode
+    from .decomp import Decomp
     from .groups import GROUPS
     with Recorder() as rec:
+        rec.memo = discmode.Memo(recording=True)
+        release = Decomp(decomp_root).releases[RELEASE]
+        rec.memo.get("release|us", lambda: {"id": release.id, "date": release.date, "region": release.region})
         for name in (groups or GROUPS):
-            GROUPS[name].convert(decomp_root, work_dir)
+            if name == "text":   # disc mode builds the text tables from the snapshot's text skeleton
+                GROUPS[name].convert(decomp_root, work_dir)
+                continue
+            with discmode.record(rec.memo, rec.structs):
+                GROUPS[name].convert(decomp_root, work_dir)
     text_dir = Path(work_dir) / "text"
     for path in sorted(text_dir.rglob("*.json")):
         if path.name != "manifest.json":
@@ -357,7 +375,7 @@ def locate(decomp, c_rel: str, name: str) -> tuple:
 def build_snapshot(rec: Recorder, dump_root: Path) -> tuple:
     """(snapshot dict, problems). The developer's US binaries (dump_root) give the pointer addresses
     (paired with the decomp's symbol names, cross-checked with the symbol maps) and the files' sha1."""
-    structs, tables, problems = {}, {}, []
+    structs, tables, problems = rec.structs, {}, []
     pointers, decomp, loads, data = {}, None, None, {}
     for (c_rel, name), (dec, loaded) in sorted(rec.tables.items()):
         if decomp is None:
@@ -376,7 +394,9 @@ def build_snapshot(rec: Recorder, dump_root: Path) -> tuple:
         except CError as e:
             key = f"{c_rel}:{name}"
             if key in ABSENT:
-                tables[key] = {"c_file": c_rel, "name": name, "located": "absent", "why": ABSENT[key]}
+                tables[key] = {"c_file": c_rel, "name": name, "located": "absent", "why": ABSENT[key],
+                               "type": type_to_json(loaded.type, structs),
+                               "decl": {"file": loaded.decl.file, "line": loaded.decl.line}}
             else:
                 problems.append(f"{c_rel} {name}: {e}")
             continue
@@ -401,6 +421,9 @@ def build_snapshot(rec: Recorder, dump_root: Path) -> tuple:
                 problems.append(f"pointer target {sym}: {addr} in the binary, {known} in the symbol maps")
     structs.pop("\0ids", None)
     problems += [f"{k}: listed as absent but not loaded by any group" for k in ABSENT if k not in tables]
+    for c_rel, name in sorted(rec.undefined - set(rec.tables)):
+        # Looked up by a group, not defined in the US build (other releases' C): DiscIndex says so too.
+        tables.setdefault(f"{c_rel}:{name}", {"c_file": c_rel, "name": name, "located": "undefined"})
 
     def read_binary(b):
         if b not in data:
@@ -412,7 +435,9 @@ def build_snapshot(rec: Recorder, dump_root: Path) -> tuple:
                     "sha1": hashlib.sha1(data[b]).hexdigest()} for b in sorted(data)}
     snap = {"format": FORMAT, "release": RELEASE, "generated_by": "python -m dwdata snapshot",
             "binaries": binaries, "tables": tables, "structs": structs,
-            "pointers": dict(sorted(pointers.items())), "strings": strings}
+            "pointers": dict(sorted(pointers.items())), "strings": strings,
+            "text": text_skeleton(rec.text),
+            "memo": dict(sorted(rec.memo.data.items())) if rec.memo else {}}
     return snap, problems
 
 
@@ -561,6 +586,29 @@ def locate_strings(text_tables: dict, tables: dict, pointers: dict, data: dict, 
     return out, problems
 
 
+# What a text item keeps in the skeleton: everything but its text.
+TEXT_ITEM_TEXT = ("text", "variants", "release_text", "lines")
+
+
+def text_skeleton(text_tables: dict) -> dict:
+    """The text group's output with every text removed (D3c): blocks, ids, lines, symbols, references.
+    Disc mode fills in the en_us text read by DiscText."""
+    out = {}
+    for name, js in sorted(text_tables.items()):
+        js = json.loads(json.dumps(js))
+        for rec in js["records"]:
+            for item in rec.get("strings") or rec.get("entries") or []:
+                us_keys = [k for k in item.get("variants", {}) if k in ("en_us@us", "en_us")]
+                if us_keys and us_keys[0] != "en_us":
+                    item["us_variant"] = us_keys[0]
+                for k in TEXT_ITEM_TEXT:
+                    item.pop(k, None)
+                if "c_text" in item:
+                    item["c_text"] = {r: {"at": v["at"]} for r, v in item["c_text"].items()}
+        out[name] = js
+    return out
+
+
 def write_snapshot(snap: dict, path: Path = SNAPSHOT) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(snap, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -629,8 +677,12 @@ class DiscIndex:
         if key not in self.snapshot["tables"]:
             raise CError(f"{key}: not in the snapshot (python -m dwdata snapshot)")
         t = self.snapshot["tables"][key]
-        if t["located"] == "absent":
+        if t["located"] == "undefined":
             return {RELEASE: None}
+        if t["located"] == "absent":
+            # Not on a US disc: the declaration and type, no value (the group leaves the field empty).
+            decl = _Decl(name, t["decl"]["file"], t["decl"]["line"])
+            return {RELEASE: cdata.Loaded(RELEASE, decl, self.type_of(c_rel, name), None, None, [], [], 0, [])}
         value, unknown = self.read(c_rel, name)
         issues = [f"{name}: {a}" for a in unknown]
         decl = _Decl(name, t["decl"]["file"], t["decl"]["line"])
@@ -701,7 +753,7 @@ def check(rec: Recorder, disc: DiscIndex) -> list:
         if not disc.has(c_rel, name):
             problems.append(f"{c_rel} {name}: not in the snapshot")
             continue
-        if disc.snapshot["tables"][f"{c_rel}:{name}"]["located"] == "absent":
+        if disc.snapshot["tables"][f"{c_rel}:{name}"]["located"] in ("absent", "undefined"):
             continue
         ty = disc.type_of(c_rel, name)
         try:

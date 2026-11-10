@@ -19,7 +19,8 @@ Run from this folder:
 ```
 python -m dwdata list                    # data groups
 python -m dwdata convert all             # or some of: text font moves digimon items evolution systems
-python -m dwdata snapshot                # disc mode layouts (dwdata/snapshot/us.json) from the decomp, checked against --disc
+python -m dwdata snapshot                # disc mode snapshot (dwdata/snapshot/us.json) from the decomp, checked against --disc
+python -m dwdata convert all --disc <folder>   # disc mode: from the US binaries in <folder>, no decomp (specs/from_disc.md)
 python -m unittest discover -s tests -t .   # real-data test skipped if the decomp is missing
 ```
 
@@ -40,6 +41,7 @@ Defaults: input `../../external-resources/dw_decomp/`, output `output/` (gitigno
 | `dwdata/tables.py` | Helpers for C-table groups: `load` (parse in every release + check), `size_check` (against `symbols.txt`), `diffs` (release differences), `used_by` (references with the fields read), `source`, `enum`, `text_ref`, `keys` / `name_base` (content keys) |
 | `dwdata/groups/` | One converter per group (`NAME`, `SOURCE_GLOB`, `SPEC`, `PURPOSE`, `convert()` with `out.check(...)` for every assumption), registered in `groups/__init__.py`. Existing: `text.py`, `font.py`, `moves.py`, `digimon.py`, `items.py`, `evolution.py`, `systems.py`. Groups take names from the text YAML directly (`text.load_file`), so they don't depend on run order |
 | `dwdata/disc.py` | Disc mode (`specs/from_disc.md`): the snapshot (where each C table the groups load lives in the US binaries, its C type layout, pointer targets, slot overrides; no values), `DiscIndex` (`CIndex.table()` for the US release, read from the player's `SLUS_010.32` / `*_REL.BIN`), `DiscText` (every US string at its snapshot location), the equivalence checks against the decomp. `ABSENT`: decomp tables not on a US disc |
+| `dwdata/discmode.py` | The groups in disc mode: `record()` keeps the decomp's answers (references, symbols, structs, `used_by`, file identities, results of reading C code) in the snapshot's memo; `replay()` swaps each group's `Decomp` / `CIndex` / `SourceText` for disc ones; `code(key, fn)`, `has()`, `Code` are how a group reads C source (only the result is kept); `convert`, `project`, `compare` (disc output vs decomp output, US only). **A group must never read the decomp outside these** (in disc mode its root doesn't exist) |
 | `dwdata/snapshot/us.json` | The committed snapshot, written by `python -m dwdata snapshot`; `tests/test_disc.py` fails when it is stale or holds anything but layouts, addresses, identifiers and hashes |
 | `specs/` | One spec per group (`text.md`, `font.md`, `moves.md`, `digimon.md`, `items.md`, `evolution.md`, `systems.md`) |
 | `tests/` | `unittest` tests; `test_cross_asset_porter.py` compares names, file names and sizes with `../asset_porter/dwporter/data`, and maps / toilets with the asset porter's reading of the US executable |

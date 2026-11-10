@@ -7,7 +7,7 @@ and the converter checks that the constants it relies on are still in the code.
 
 from collections import defaultdict
 
-from .. import tables
+from .. import discmode, tables
 from ..cdata import CIndex, Value, describe_type
 from ..decomp import Decomp
 from ..output import GroupWriter
@@ -107,7 +107,7 @@ def _key(name: str) -> str:
 
 def _rules(out, decomp, dref, to_of, level) -> list:
     """The rule records (../specs/evolution.md §3.3), each checked against the C text."""
-    text = {p: (decomp.root / p).read_text(encoding="utf-8", errors="replace")
+    text = {p: discmode.Code(NAME, decomp, p)
             for p in (EVO_C, EVL_C, PARTNER_IMPL_C)}
     missing = []
     rules = []
@@ -238,10 +238,10 @@ def convert(input_root, output_root) -> GroupWriter:
     out.check("structs EvoRequirements, EvoStatsGains, EvolutionPath have the fields the spec maps",
               not problems, "; ".join(problems) or "ok")
     missing = [f"{path}: {needle}" for path, needle in EVIDENCE
-               if needle not in (decomp.root / path).read_text(encoding="utf-8", errors="replace")]
+               if needle not in discmode.Code(NAME, decomp, path)]
     out.check("the selection code still has the constants the spec documents", not missing,
               "; ".join(missing) or f"{len(EVIDENCE)} constants")
-    fresh_text = (decomp.root / EVO_C).read_text(encoding="utf-8", errors="replace")
+    fresh_text = discmode.Code(NAME, decomp, EVO_C)
     fresh_missing = [f"{a:#04x}->{b:#04x}" for a, b in FRESH_TARGETS.items()
                      if f"if (currentDigimon == {a:#04x})\n    result = {b:#04x};" not in fresh_text]
     out.check("getFreshEvolutionTarget has the fixed Fresh -> In-Training targets", not fresh_missing,
@@ -371,7 +371,7 @@ def convert(input_root, output_root) -> GroupWriter:
     item_targets += [{"item": {"id": it, "name": iname(it)}, "target": dref(t),
                       "from": "constant in handleEvoItems (item.c:2194-2203)", "needs_level": None, "can_work": True}
                      for it, t in CONSTANT_EVO_ITEMS.items()]
-    item_text = (decomp.root / ITEM_C).read_text(encoding="utf-8", errors="replace")
+    item_text = discmode.Code(NAME, decomp, ITEM_C)
     const_missing = [f"{it:#x}" for it, t in CONSTANT_EVO_ITEMS.items()
                      if f"if (item == {it:#x}) {{\n\t\t\tEVOLUTION_TARGET = {t:#x};" not in item_text]
     out.check("evolution item targets: table covers items 0x47-0x72, constants for 0x7d-0x7f",

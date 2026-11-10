@@ -166,7 +166,7 @@ Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exp
   - [x] D3b (2026-11-09): the snapshot's `strings`; `DiscText` reads all 1,117 US strings equal to the decomp. Found a YAML-reader bug on the way (full-width spaces trimmed; fixed).
   - [x] D3c (2026-11-09): `python -m dwdata convert all --disc <folder>` runs every group on the US binaries, no decomp; output equal to the decomp mode's (US only); decomp metadata and results of reading C code replayed from the snapshot's memo. Open (spec Q4): game numbers written in code (item effects, buff stats) are committed in the memo like port constants.
   - [x] D3d (2026-11-09): `GameData.languages()` + fallback, debug `L` key and the DW Data dock list only the languages present; all 48 Godot tests pass on the decomp output and on the disc output; `data_porter/CLAUDE.md` "Disc mode" (rebuild the snapshot after a group change).
-- [ ] **D4** Disc image reader (`.cue/.bin`, `.iso`) and the US version check (§3).
+- [x] **D4** Disc image reader (`.cue/.bin`, `.iso`) and the US version check (§3). Done 2026-11-09: `dw_convert/` (`python -m dwconvert identify | extract`, spec `dw_convert/specs/disc_image.md`); the US image's 818 files extract byte for byte equal to `game_dumped_files/`; `us_files.json` (hashes of the US disc's files) for the check.
 - [ ] **D5** `dw_convert` entry point + PyInstaller build; movies skipped in releases for now (Q2), added later by an update that re-converts.
 - [ ] **D6** Windows export preset (excludes `content/dw1/*`, porters, tests), `user://content/dw1` defaults, `version.json`.
 - [ ] **D7** Launcher screen with update check (notify only, U1).

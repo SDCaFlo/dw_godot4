@@ -1,5 +1,6 @@
 {
  "game": "0.1.0",
  "content_format": 1,
- "mod_api": 0
+ "mod_api": 0,
+ "repo": "SDCaFlo/dw_godot4"
 }

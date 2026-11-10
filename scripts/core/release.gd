@@ -16,7 +16,7 @@ static func exported() -> bool:
 	return not OS.has_feature("editor")
 
 
-## {"game": "0.1.0", "content_format": 1, "mod_api": 0}; {} if the file is missing.
+## {"game": "0.1.0", "content_format": 1, "mod_api": 0, "repo": "owner/dw_godot4"}; {} if the file is missing.
 static func version() -> Dictionary:
 	var json = JSON.parse_string(FileAccess.get_file_as_string(VERSION_FILE))
 	return json if json is Dictionary else {}
@@ -25,6 +25,11 @@ static func version() -> Dictionary:
 ## The release ("0.1.0"), "" if unknown.
 static func game() -> String:
 	return str(version().get("game", ""))
+
+
+## The GitHub repository ("owner/name") the launcher checks for releases; "" turns the check off.
+static func repo() -> String:
+	return str(version().get("repo", ""))
 
 
 ## The shape of dw_convert's output this build reads (dw_convert run.CONTENT_FORMAT).

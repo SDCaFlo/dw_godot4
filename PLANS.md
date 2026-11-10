@@ -177,7 +177,8 @@ Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exp
   - [ ] A "Converter settings" entry in the title menu (today: hold Shift at start, or `-- --launcher`).
 - [x] **D8** GitHub Action building releases on a version tag. Done 2026-11-10: `.github/workflows/release.yml` (tag `vX.Y.Z` -> draft release; Run workflow -> artifact), `release/package.py` (refuses game content), spec `specs/release_ci.md`.
   - [x] First run on GitHub (Actions > release > Run workflow): built, downloaded and played by the user 2026-11-10.
-  - [ ] Tag `v0.1.0` (`docs/release.md` §4).
+  - [x] Tag `v0.1.0` (`docs/release.md` §4). Released 2026-11-10; the user played the release build (developer tools off).
+  - [ ] Test the update notice (U1) for real: make the repo public (the API answers 404 while it is private), publish a `0.1.1`, start the `0.1.0` build with `[updates] last_check` removed from `%APPDATA%\dw_godot4\settings.cfg`: it shows "0.1.1 is out" with the notes; "Open the release page" opens it.
   - [x] The exported game started with the debugger window and the debug help line / keys on. Done 2026-11-10: `Release.dev_tools()` (on in the editor; exported, only with `--dev` or the launcher's "Developer tools" setting); off, `DebugHost` keeps the help line for the stand-in messages only.
 - [x] **D9** `docs/setup.md` (players; the unsigned exe's SmartScreen warning) and `docs/release.md` (us). Done 2026-11-10; `release/README.txt` points to the setup guide.
 - [ ] **D10** Later: in-launcher downloads (U2), `mod_api` on the Mods screen, Mac / Linux.

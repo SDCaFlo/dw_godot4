@@ -1,4 +1,4 @@
-"""Disc mode, step D3a (specs/from_disc.md §3, §5): the snapshot and DiscIndex.
+"""Disc mode, steps D3a and D3b (specs/from_disc.md §3, §5): the snapshot, DiscIndex and DiscText.
 
 - The reader on synthetic bytes: struct alignment, unions, text, numbers, pointers, slot overrides.
 - The committed snapshot holds no values: only layouts, addresses, identifiers and hashes.
@@ -91,7 +91,10 @@ ALLOWED_STRING = re.compile("|".join([
     IDENT + r"(#\d+)?",                                       # struct keys
     r"PSY-Q SDK",                                             # where the SDK's structs come from
     r"(unsigned |signed )?" + IDENT + r"( \*)*",              # C type names (pointer targets)
-    r"symbol|search|absent",                                  # how a table was located
+    r"symbol|search|absent|pointer|array|row|copy|slot|empty",   # how a table or string was located
+    r"[a-z0-9_]+/[a-z0-9_]+",                                 # text table names (main/item)
+    r"#\d+",                                                 # entry keys of a text block
+    r"(\[\d+\]|\.\w+)+",                                     # paths inside a table ([0].name)
     r"python -m dwdata snapshot",
 ]))
 
@@ -121,11 +124,20 @@ class SnapshotHoldsNoValues(unittest.TestCase):
     def test_table_keys(self):
         """A table entry is a location and a layout; numbers are addresses, sizes, lines and lengths."""
         snap = _snapshot()
-        self.assertEqual(set(snap), {"format", "release", "generated_by", "binaries", "tables", "structs", "pointers"})
+        self.assertEqual(set(snap), {"format", "release", "generated_by", "binaries", "tables", "structs", "pointers",
+                                     "strings"})
         for key, t in snap["tables"].items():
             allowed = {"c_file", "name", "located", "why"} if t["located"] == "absent" else \
                 {"c_file", "name", "binary", "address", "size", "located", "type", "decl", "element_lines", "slots"}
             self.assertLessEqual(set(t), allowed, key)
+
+    def test_string_keys(self):
+        """A string's entry is where it is and how long, never its text."""
+        allowed = {"located", "binary", "address", "length", "table", "path", "alias"}
+        for table, blocks in _snapshot()["strings"].items():
+            for block, items in blocks.items():
+                for key, loc in items.items():
+                    self.assertLessEqual(set(loc), allowed, f"{table} {block} {key}")
 
 
 @unittest.skipUnless(HAVE_DISC, "the US binaries are missing")
@@ -142,6 +154,12 @@ class FromTheDiscAlone(unittest.TestCase):
                 continue
             problems += [f"{key}: {i}" for i in loaded.issues]
         self.assertEqual(problems, [])
+
+    def test_every_string_reads(self):
+        strings = disc.DiscText(disc.DiscIndex(paths.DEFAULT_DISC)).strings()
+        self.assertEqual(len(strings), sum(len(i) for b in _snapshot()["strings"].values() for i in b.values()))
+        self.assertTrue(all(isinstance(v, str) and "\ufffd" not in v for v in strings.values()),
+                        "every string decodes as Shift-JIS")
 
     def test_wrong_file_refused(self):
         with tempfile.TemporaryDirectory() as d:
@@ -169,6 +187,10 @@ class AgainstTheDecomp(unittest.TestCase):
 
     def test_every_table_equals_the_decomp(self):
         self.assertEqual(disc.check(self.rec, disc.DiscIndex(paths.DEFAULT_DISC, _snapshot())), [])
+
+    def test_every_string_equals_the_decomp(self):
+        """Every US string (1,117 on 2026-11-09) read from the binaries is the decomp's en_us text."""
+        self.assertEqual(disc.check_text(self.rec, disc.DiscText(disc.DiscIndex(paths.DEFAULT_DISC, _snapshot()))), [])
 
     def test_every_loaded_table_is_in_the_snapshot(self):
         keys = {f"{c}:{n}" for c, n in self.rec.tables} | set(disc.ABSENT)

@@ -144,6 +144,25 @@ Findings:
 - `char` arrays are text, `uint8_t` / `int8_t` arrays are numbers (as the decomp gives them).
 - Checked with `--check` (committed snapshot = rebuilt) and `tests/test_disc.py`: the reader on synthetic bytes, the snapshot's strings (only identifiers, addresses, paths, hashes), every table read with the disc alone, a wrong file refused, and the equivalence with the decomp.
 
+### 3.2 The strings (D3b, 2026-11-09)
+
+The snapshot's `strings` section gives, per text table, block and string (its id, or `#<index>` for an entry), where the US text is: `{located, binary, address, length}`, or a table field (`{located: "slot", table, path}`, D3a's string-id slots), or another entry of the block (`{alias}`). `DiscText` reads them: `length` bytes at the address, decoded as Shift-JIS, give the en_us variant exactly as the YAML writes it (padding NULs kept). The text group's own output, recorded during the snapshot run, says which strings the US release has.
+
+| Located | Strings | How |
+|---|---|---|
+| `symbol` | 725 | the string's own US symbol |
+| `slot` | 308 | a char field of `ITEM_PARA` / `DIGIMON_DATA` (names) |
+| `pointer` | 32 | the address a C table's pointer to it holds (D3a's pointers and slots): the curling dialogue lines |
+| `search` | 17 | its bytes + NUL found once in the block's binary or main, between the nearest strings of the same file with an address |
+| `array` | 16 | entry k of the block's `char *` array (`MOVE_NAMES`' unnamed entries) |
+| `copy` | 14 | found several times (the command labels "Run", "Attack", …, "HP", "MP", "5"): the nearest copy. Any copy reads the same text, because `DiscIndex` accepts only the US files (sha1) |
+| `row` | 4 | row k of the block's `char[n][m]` (`ITEM_MENU_LABELS`) |
+| `empty` | 1 | an empty string nothing points to (`MAIN_D_80134A43`) |
+
+Every byte location is checked when the snapshot is built: the bytes at the address are the string, followed by a NUL. All 1,117 US strings read from the binaries equal the decomp's (`tests/test_disc.py`).
+
+**Found on the way:** the data porter's YAML reader trimmed every Unicode space around plain scalars; YAML trims only spaces and tabs. The naming screen's last lowercase row is `ｚ` + four U+3000 in the YAML and in the binary, and the output had `ｚ`. Fixed in `textyaml.py` (`tests/test_textyaml.py`); no other string changed.
+
 ## 4. What a US disc can't give
 
 | Output | Decomp mode | Disc mode |
@@ -159,7 +178,7 @@ Findings:
 | Step | What | Rating |
 |---|---|---|
 | D3a (done 2026-11-09) | Snapshot command and format; the disc source for C tables (`DiscIndex`: struct layouts, arrays, pointers, function-pointer names); an equivalence check comparing, table by table, the US values read from the binary with `CIndex`'s US values | Hard (Opus) |
-| D3b | Text from the disc: string addresses (symbols, embedded, the 60 located at snapshot time), the disc text source, en_us only; equivalence on every US string | Medium |
+| D3b (done 2026-11-09) | Text from the disc: string addresses (symbols, embedded, the 60 located at snapshot time), the disc text source, en_us only; equivalence on every US string | Medium |
 | D3c | Groups to disc mode one at a time, each with its equivalence test: moves, items, digimon, evolution (+ `rules`), font (US), systems (+ `new_game`, `VS_DEMO_DIGIMON`) | Medium each |
 | D3d | `convert all --disc`; the whole output equal to decomp mode minus §4; the test suite run with the decomp hidden; `GameData` with en_us only | Medium |
 

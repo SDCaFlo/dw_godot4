@@ -301,10 +301,13 @@ def load_addresses(decomp) -> dict:
 
 
 class Recorder:
-    """Wraps cdata.CIndex.table while the groups convert, keeping each table's US Loaded."""
+    """Wraps cdata.CIndex.table while the groups convert, keeping each table's US Loaded. After the run,
+    `text` holds the text group's output tables (text name -> table JSON), the source of the strings'
+    locations (D3b)."""
 
     def __init__(self):
         self.tables = {}   # (c_rel, name) -> (decomp, Loaded)
+        self.text = {}
         self._orig = None
 
     def __enter__(self):
@@ -330,6 +333,10 @@ def record_groups(decomp_root: Path, work_dir: Path, groups=None) -> Recorder:
     with Recorder() as rec:
         for name in (groups or GROUPS):
             GROUPS[name].convert(decomp_root, work_dir)
+    text_dir = Path(work_dir) / "text"
+    for path in sorted(text_dir.rglob("*.json")):
+        if path.name != "manifest.json":
+            rec.text[path.relative_to(text_dir).with_suffix("").as_posix()] = json.loads(path.read_text(encoding="utf-8"))
     return rec
 
 
@@ -394,12 +401,164 @@ def build_snapshot(rec: Recorder, dump_root: Path) -> tuple:
                 problems.append(f"pointer target {sym}: {addr} in the binary, {known} in the symbol maps")
     structs.pop("\0ids", None)
     problems += [f"{k}: listed as absent but not loaded by any group" for k in ABSENT if k not in tables]
+
+    def read_binary(b):
+        if b not in data:
+            data[b] = (Path(dump_root) / BINARY_FILES[b]).read_bytes()
+
+    strings, string_problems = locate_strings(rec.text, tables, pointers, data, loads, read_binary)
+    problems += string_problems
     binaries = {b: {"file": BINARY_FILES[b], "load": f"0x{loads[b]:08X}",
                     "sha1": hashlib.sha1(data[b]).hexdigest()} for b in sorted(data)}
     snap = {"format": FORMAT, "release": RELEASE, "generated_by": "python -m dwdata snapshot",
             "binaries": binaries, "tables": tables, "structs": structs,
-            "pointers": dict(sorted(pointers.items()))}
+            "pointers": dict(sorted(pointers.items())), "strings": strings}
     return snap, problems
+
+
+# -- text (D3b) ---------------------------------------------------------------------------------
+
+def us_strings(text_tables: dict):
+    """(text table, block, key, decomp record, item, raw US value) of every string the US release has:
+    the en_us variant as the YAML writes it (padding NULs kept) or, where only the C file defines it, the
+    C text (`c_text`). Key: the string id, or "#<index>" for an entry."""
+    for table, js in sorted(text_tables.items()):
+        for rec in js["records"]:
+            for item in rec.get("strings") or rec.get("entries") or []:
+                if item.get("null_entry") or item["text"].get("en_us") is None:
+                    continue
+                v = item["variants"]
+                raw = v.get("en_us@us", v.get("en_us"))
+                if raw is None:
+                    raw = ((item.get("c_text") or {}).get(RELEASE) or {}).get("text")
+                if isinstance(raw, list):
+                    raise CError(f"{table} {rec['block']}: a US string in lines")
+                key = item["id"] if rec["kind"] != "entries" else f"#{item['index']}"
+                yield table, rec["block"], key, rec, item, raw
+
+
+def _storage_us(rec: dict):
+    st = rec.get("options", {}).get("storage")
+    return st.get(RELEASE, st.get("default")) if isinstance(st, dict) else st
+
+
+def _binary_at(address: int, preferred: str, data: dict, loads: dict) -> str:
+    """The binary whose loaded range holds an address: the preferred one (the block's), else main."""
+    for b in (preferred, "main"):
+        if b in data and 0 <= address - loads[b] < len(data[b]):
+            return b
+    raise CError(f"0x{address:08X} is in neither {preferred} nor main")
+
+
+def locate_strings(text_tables: dict, tables: dict, pointers: dict, data: dict, loads: dict, read_binary) -> tuple:
+    """({table: {block: {key: location}}}, problems). A location is {binary, address, length, located}:
+    `symbol` (the string's own US symbol), `pointer` (the address a C table's pointer to it holds, D3a),
+    `array` (entry k of the block's char * array), `row` (row k of the block's char array), `search` (its
+    bytes + NUL found once in the block's binary or main, between the nearest strings of the same file
+    that have an address), `copy` (found several times: the nearest copy; any copy reads the same text,
+    since DiscIndex accepts only the US files by their sha1); or {table, path, located: "slot"} (a char
+    field of a C table, D3a's text_id slots); {alias: key} (an unnamed entry repeating one); {located:
+    "empty", length: 0} (an empty string no table points to). Every byte location is checked: the bytes
+    at the address are the raw value, followed by a NUL."""
+    slot_of, address_of = {}, {}
+    for addr, name in pointers.items():
+        address_of.setdefault(name, addr)
+    for key, t in tables.items():
+        for path, sl in (t.get("slots") or {}).items():
+            if "text_id" in sl:
+                slot_of.setdefault(sl["text_id"], (key, path))
+            if "pointer" in sl:
+                address_of.setdefault(sl["pointer"][1], sl["pointer"][0])
+    out, problems, pending = {}, [], []
+    for table, block, key, rec, item, raw in us_strings(text_tables):
+        own = rec["c"]["binary"]
+        if own in BINARY_FILES:
+            read_binary(own)
+        read_binary("main")
+        loc = None
+        sym = item.get("symbol")
+        if sym and "address" not in sym:
+            sym = sym.get(item["id"]) or next(iter(sym.values()))
+        if sym:
+            addr = int(sym["address"], 16)
+            loc = {"located": "symbol", "binary": _binary_at(addr, own, data, loads), "address": f"0x{addr:08X}"}
+        elif item["id"] in address_of:
+            addr = int(address_of[item["id"]], 16)
+            loc = {"located": "pointer", "binary": _binary_at(addr, own, data, loads), "address": f"0x{addr:08X}"}
+        elif _storage_us(rec) == "embedded":
+            sid = item["id"] or (item.get("same_as") or {}).get("en_us")
+            if sid in slot_of:
+                loc = {"located": "slot", "table": slot_of[sid][0], "path": slot_of[sid][1]}
+            elif rec["c"].get("symbol") and rec["c"]["symbol"].get("size"):
+                row = rec["c"]["symbol"]["size"] // rec["count"]
+                addr = int(rec["c"]["symbol"]["address"], 16) + item["index"] * row
+                loc = {"located": "row", "binary": _binary_at(addr, own, data, loads), "address": f"0x{addr:08X}"}
+        elif rec["kind"] == "entries" and rec["c"].get("symbol"):
+            arr = int(rec["c"]["symbol"]["address"], 16)
+            b = _binary_at(arr, own, data, loads)
+            at = arr - loads[b] + 4 * item["index"]
+            ptr = int.from_bytes(data[b][at:at + 4], "little")
+            loc = {"located": "array", "binary": _binary_at(ptr, own, data, loads), "address": f"0x{ptr:08X}"}
+        elif item["id"] is None and (item.get("same_as") or {}).get("en_us"):
+            loc = {"alias": item["same_as"]["en_us"]}
+        if loc is None:
+            pending.append((table, block, key, rec, item, raw))
+            continue
+        out.setdefault(table, {}).setdefault(block, {})[key] = loc
+    # Searched strings: between the nearest strings of the same file with a byte location.
+    order = {}
+    for table, block, key, *_ in us_strings(text_tables):
+        order.setdefault(table, []).append((block, key))
+    for table, block, key, rec, item, raw in pending:
+        if raw == "":
+            out.setdefault(table, {}).setdefault(block, {})[key] = {"located": "empty", "length": 0}
+            continue
+        enc = raw.encode("shift_jis") + b"\0"
+        own = rec["c"]["binary"] if rec["c"]["binary"] in BINARY_FILES else "main"
+        seq = order[table]
+        k = seq.index((block, key))
+
+        def bound(rng, b):
+            for j in rng:
+                loc = out.get(table, {}).get(seq[j][0], {}).get(seq[j][1])
+                if loc and loc.get("binary") == b:
+                    return int(loc["address"], 16) - loads[b]
+            return None
+
+        found = None
+        for b in dict.fromkeys((own, "main")):
+            read_binary(b)
+            lo, hi = bound(range(k - 1, -1, -1), b), bound(range(k + 1, len(seq)), b)
+            lo, hi = (lo or 0), (hi if hi is not None else len(data[b]))
+            if lo > hi:
+                lo, hi = 0, len(data[b])
+            hits, at = [], data[b].find(enc, lo, hi + len(enc))
+            while at >= 0 and len(hits) < 3:
+                hits.append(at)
+                at = data[b].find(enc, at + 1, hi + len(enc))
+            if len(hits) == 1:
+                found = {"located": "search", "binary": b, "address": f"0x{loads[b] + hits[0]:08X}"}
+                break
+            if len(hits) > 1:
+                found = {"located": "copy", "binary": b, "address": f"0x{loads[b] + hits[0]:08X}"}
+                break
+        if isinstance(found, dict):
+            out.setdefault(table, {}).setdefault(block, {})[key] = found
+        else:
+            problems.append(f"text/{table} {block} {key} {raw!r:.30}: {found or 'not found'}")
+    # Lengths and the byte check.
+    for table, block, key, rec, item, raw in us_strings(text_tables):
+        loc = out.get(table, {}).get(block, {}).get(key)
+        if loc is None or "binary" not in loc:
+            continue
+        enc = raw.encode("shift_jis")
+        b = loc["binary"]
+        off = int(loc["address"], 16) - loads[b]
+        loc["length"] = len(enc)
+        tail = data[b][off + len(enc):off + len(enc) + 1]
+        if data[b][off:off + len(enc)] != enc or (loc["located"] != "row" and tail != b"\0"):
+            problems.append(f"text/{table} {block} {key}: the bytes at {loc['address']} ({b}) are not the string")
+    return out, problems
 
 
 def write_snapshot(snap: dict, path: Path = SNAPSHOT) -> None:
@@ -477,6 +636,62 @@ class DiscIndex:
         decl = _Decl(name, t["decl"]["file"], t["decl"]["line"])
         return {RELEASE: cdata.Loaded(RELEASE, decl, self.type_of(c_rel, name), value, t["element_lines"],
                                       issues, [], 0, [])}
+
+
+class DiscText:
+    """The US strings read from the binaries at the snapshot's locations (D3b): {(text table, block, key):
+    raw value}, the raw value being the en_us variant as the decomp's YAML writes it (padding NULs kept)."""
+
+    def __init__(self, index: DiscIndex):
+        self.index = index
+        self._strings = None
+
+    def _read(self, table: str, block: str, key: str, seen=()):
+        loc = self.index.snapshot["strings"][table][block][key]
+        if "alias" in loc:
+            if loc["alias"] in seen:
+                raise CError(f"text/{table} {block} {key}: alias loop")
+            target = next((k for k, l in self.index.snapshot["strings"][table][block].items() if k == loc["alias"]),
+                          None)
+            if target is None:   # an entry repeating a named entry: find it by id among the block's entries
+                raise CError(f"text/{table} {block} {key}: alias {loc['alias']} not in the block")
+            return self._read(table, block, target, seen + (key,))
+        if loc["located"] == "empty":
+            return ""
+        if loc["located"] == "slot":
+            t = self.index.snapshot["tables"][loc["table"]]
+            self.index.read(t["c_file"], t["name"])
+            return self.index.texts[loc["table"]][loc["path"]]
+        base = int(self.index.snapshot["binaries"][loc["binary"]]["load"], 16)
+        off = int(loc["address"], 16) - base
+        raw = self.index.binary(loc["binary"])[off:off + loc["length"]]
+        return raw.decode("shift_jis", errors="replace")
+
+    def strings(self) -> dict:
+        if self._strings is None:
+            self._strings = {(table, block, key): self._read(table, block, key)
+                             for table, blocks in self.index.snapshot["strings"].items()
+                             for block, items in blocks.items() for key in items}
+        return self._strings
+
+
+def check_text(rec: Recorder, text: DiscText) -> list:
+    """Every US string of the decomp against the one read from the binaries, and nothing extra."""
+    problems, want = [], {}
+    for table, block, key, _, _, raw in us_strings(rec.text):
+        want[(table, block, key)] = raw
+    got = {}
+    try:
+        got = text.strings()
+    except CError as e:
+        problems.append(str(e))
+    for k, raw in want.items():
+        if k not in got:
+            problems.append(f"text/{k[0]} {k[1]} {k[2]}: not in the snapshot")
+        elif got[k] != raw:
+            problems.append(f"text/{k[0]} {k[1]} {k[2]}: decomp {raw!r:.40} != disc {got[k]!r:.40}")
+    problems += [f"text/{k[0]} {k[1]} {k[2]}: in the snapshot, not a US string" for k in got if k not in want]
+    return problems
 
 
 def check(rec: Recorder, disc: DiscIndex) -> list:

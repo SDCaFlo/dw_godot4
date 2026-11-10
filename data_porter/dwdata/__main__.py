@@ -71,11 +71,14 @@ def _snapshot(args) -> int:
         committed = json.loads(disc.SNAPSHOT.read_text(encoding="utf-8"))
         if committed != json.loads(json.dumps(snap)):
             problems.append(f"{disc.SNAPSHOT.name} differs from the decomp (run python -m dwdata snapshot)")
-    problems += disc.check(rec, disc.DiscIndex(disc_root, json.loads(json.dumps(snap))))
+    index = disc.DiscIndex(disc_root, json.loads(json.dumps(snap)))
+    problems += disc.check(rec, index)
+    problems += disc.check_text(rec, disc.DiscText(index))
     if not args.check and not problems:
         disc.write_snapshot(snap)
+    n_strings = sum(len(items) for blocks in snap["strings"].values() for items in blocks.values())
     print(f"snapshot: {len(snap['tables'])} tables, {len(snap['structs'])} structs, {len(snap['pointers'])} pointer "
-          f"targets, {len(snap['binaries'])} binaries; {len(problems)} problems"
+          f"targets, {n_strings} strings, {len(snap['binaries'])} binaries; {len(problems)} problems"
           + ("" if args.check or problems else f" -> {disc.SNAPSHOT}"))
     for p in problems:
         print("  " + p)

@@ -158,7 +158,7 @@ Last updated: 2026-11-09
 ## Distribution: players run the port on their own copy (`specs/distribution.md`, decided 2026-11-09)
 
 Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exported game and the porters as a bundled exe; a launcher screen that converts the player's disc image and checks for updates. Steps (spec §9):
-- [ ] **D1** Audit before going public (§8): don't push `spec/digimon_contract` (`93f35f6` holds a Veemon `.glb` from another game); review `asset_porter/dwporter/data/*.py`; choose our licence. Public name: `dw_godot4`.
+- [x] **D1** Audit before going public (§8): don't push `spec/digimon_contract` (`93f35f6` holds a Veemon `.glb` from another game); review `asset_porter/dwporter/data/*.py`; choose our licence. Public name: `dw_godot4`. Done 2026-11-10 (results in `specs/distribution.md` §8): MIT, `THIRD_PARTY_NOTICES.md`, README disclaimer, commits on the noreply address, `main` pushed to `SDCaFlo/dw_godot4` (private).
 - [x] **D2** Asset porter without the decomp at run time (2026-11-09): the only read was `scripts.py`'s "Grade A won" check, now the constant `scripts.WON_TOURNAMENT` checked by `asset_porter/tests/test_decomp_constants.py` (skipped without the decomp; also guards against new `external-resources` reads).
 - [x] **D3** Data porter reading `SLUS_010.32` / `*_REL.BIN` instead of the decomp (§2.1); spec `data_porter/specs/from_disc.md`. Done 2026-11-09: `python -m dwdata convert all --disc <folder>`.
   - [x] Inventory (2026-11-09): every C table has a US symbol in initialized data (exceptions: `evolution/rules`, `systems/new_game` in code; `VS_DEMO_DIGIMON` without symbol); 724 strings read at their symbol match byte for byte, 317 sit inside tables, 60 short literals to locate once; a US disc gives `en_us` text and font only.
@@ -170,7 +170,7 @@ Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exp
 - [x] **D5** `dw_convert` entry point + PyInstaller build; movies skipped in releases for now (Q2), added later by an update that re-converts. Done 2026-11-09: `dw_convert run <image> <output>` (spec `dw_convert/specs/convert.md`): the US image converts with every check passing, output equal to the developer one; `python build_exe.py` -> `dist/dw_convert/` (22 MB).
   - [ ] Speed: a full run takes 12-25 minutes, mostly the music rendering (80-120 s a track in `asset_porter` `music`, already in a process pool); profile the synth before the first release. Also `music/index.json`'s `render_seconds` (wall clock) makes that file differ run to run.
 - [x] **D6** Windows export preset (excludes `content/dw1/*`, porters, tests), `user://content/dw1` defaults, `version.json`. Done 2026-11-10: `export_presets.cfg` "Windows Desktop" -> `build/windows/dw_godot4.exe` + `dw_godot4.pck` (1.6 MB, code only); `Release` (`scripts/core/release.gd`); exported, `user://` is `%APPDATA%\dw_godot4`, content from `user://content/dw1/{assets,data}`; test `tests/test_release.gd`.
-  - [ ] The window title and `config/name` are still "Digimon World GODOT" (D1 audit, §8 "Name and look").
+  - [x] The window title and `config/name`: `dw_godot4` (D1).
   - [ ] The `.pck` is `dw_godot4.pck` (Godot loads `<exe>.pck`); the `game.pck` split of §4 / §6 comes with U2 (D10).
 - [ ] **D7** Launcher screen with update check (notify only, U1).
 - [ ] **D8** GitHub Action building releases on a version tag.

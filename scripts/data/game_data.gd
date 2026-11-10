@@ -13,7 +13,7 @@ extends Node
 ## int is needed); the accessors below that return a number return an int.
 ##
 ## Output folder: the DW_DATA_OUTPUT environment variable or the "dw/data/output_dir" project
-## setting. Packs: folders in DW_DATA_PACKS (separated by ";") or the "dw/data/packs" setting,
+## setting; an exported game reads user://content/dw1/data (Release, specs/distribution.md §4). Packs: folders in DW_DATA_PACKS (separated by ";") or the "dw/data/packs" setting,
 ## applied in that order after dw1 (see "Packs" below).
 ## Text language: the "dw/data/language" setting (ja, en_us, en_eu) or set_language(), among the
 ## languages the output has (languages()): all three from the decomp, en_us only from a US disc
@@ -63,7 +63,7 @@ var _tournament_cups_loaded := false
 
 func _init() -> void:
 	var env := OS.get_environment("DW_DATA_OUTPUT")
-	_root = env if env != "" else ProjectSettings.globalize_path(ProjectSettings.get_setting(SETTING, DEFAULT_DIR))
+	_root = env if env != "" else ProjectSettings.globalize_path(ProjectSettings.get_setting(SETTING, Release.default_dir("data", DEFAULT_DIR)))
 	var packs_env := OS.get_environment("DW_DATA_PACKS")
 	var dirs: PackedStringArray = packs_env.split(";", false) if packs_env != "" else ProjectSettings.get_setting(PACKS_SETTING, PackedStringArray())
 	_load_packs(dirs)

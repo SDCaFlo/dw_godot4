@@ -6,7 +6,8 @@ class_name Content
 ##      by Project > Tools > "DW: Mirror dw1 assets", gitignored, never exported);
 ##   2. otherwise the asset porter output (asset_porter/output), loaded from disk at runtime.
 ## JSON always comes from the porter output. The output folder can be moved with the
-## DW_PORTER_OUTPUT environment variable or the "dw/porter/output_dir" project setting.
+## DW_PORTER_OUTPUT environment variable or the "dw/porter/output_dir" project setting; an exported
+## game reads user://content/dw1/assets, what dw_convert wrote (Release, specs/distribution.md §4).
 
 const SETTING := "dw/porter/output_dir"
 const DEFAULT_DIR := "res://asset_porter/output"
@@ -61,7 +62,7 @@ static func root() -> String:
 	var env := OS.get_environment("DW_PORTER_OUTPUT")
 	if env != "":
 		return env
-	return ProjectSettings.globalize_path(ProjectSettings.get_setting(SETTING, DEFAULT_DIR))
+	return ProjectSettings.globalize_path(ProjectSettings.get_setting(SETTING, Release.default_dir("assets", DEFAULT_DIR)))
 
 
 ## Path of an asset in the porter output.

@@ -1,0 +1,44 @@
+class_name Release
+## The release this build is (specs/distribution.md §4, §6): its version numbers (res://version.json)
+## and where an exported game finds the converted dw1 pack.
+##
+## In the editor (and the headless tests) the content stays where the porters write it
+## (asset_porter/output, data_porter/output); in an exported game it is what dw_convert wrote into
+## user://content/dw1/ (assets/, data/, content.json, dw_convert/specs/convert.md §2).
+
+const VERSION_FILE := "res://version.json"
+## The dw1 pack in an exported game.
+const CONTENT_DIR := "user://content/dw1"
+
+
+## True in an exported game (no editor in the binary).
+static func exported() -> bool:
+	return not OS.has_feature("editor")
+
+
+## {"game": "0.1.0", "content_format": 1, "mod_api": 0}; {} if the file is missing.
+static func version() -> Dictionary:
+	var json = JSON.parse_string(FileAccess.get_file_as_string(VERSION_FILE))
+	return json if json is Dictionary else {}
+
+
+## The release ("0.1.0"), "" if unknown.
+static func game() -> String:
+	return str(version().get("game", ""))
+
+
+## The shape of dw_convert's output this build reads (dw_convert run.CONTENT_FORMAT).
+static func content_format() -> int:
+	return int(version().get("content_format", 0))
+
+
+## The default folder of the asset porter output (Content) or of the data porter output (GameData):
+## `sub` is "assets" or "data", `dev_dir` the editor's folder.
+static func default_dir(sub: String, dev_dir: String, is_exported: bool = exported()) -> String:
+	return CONTENT_DIR.path_join(sub) if is_exported else dev_dir
+
+
+## content.json of the converted pack ({} if not converted yet).
+static func content_info() -> Dictionary:
+	var json = JSON.parse_string(FileAccess.get_file_as_string(CONTENT_DIR.path_join("content.json")))
+	return json if json is Dictionary else {}

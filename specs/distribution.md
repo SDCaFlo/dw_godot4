@@ -134,7 +134,7 @@ The rule from now on: never commit or attach game content (§1 "Never distribute
 | D6 (done 2026-11-10) | Export: Windows preset (excludes `content/dw1/*`, `asset_porter/`, `data_porter/`, `tests/`, `external-resources`), `user://` content defaults (§4), `version.json` | Medium |
 | D7 (done 2026-11-10) | Launcher screen (§5) with update check U1 (§6): `launcher.md` | Medium |
 | D8 (done 2026-11-10) | GitHub Action: on a version tag, build the export and `dw_convert.exe`, attach them to a release: `release_ci.md` | Medium |
-| D9 | `docs/setup.md` for players, `docs/release.md` for us | Low |
+| D9 (done 2026-11-10) | `docs/setup.md` for players, `docs/release.md` for us | Low |
 | D10 | Later: U2 downloads; `mod_api` in the Mods screen; Mac and Linux builds | — |
 
 D2 and D3 can start before D1 is finished; nothing is pushed until D1 is done.

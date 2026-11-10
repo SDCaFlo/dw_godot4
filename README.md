@@ -55,6 +55,10 @@ dw_godot_port/
 
 `external-resources/` is listed in `.gitignore` and must be provided locally.
 
+## Playing
+
+To play with your own disc image (no Godot or Python needed): download a release and follow `docs/setup.md`. Making a release: `docs/release.md`.
+
 ## Requirements
 
 - [Godot 4.7](https://godotengine.org/download) (Forward Plus)

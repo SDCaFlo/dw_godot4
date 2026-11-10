@@ -58,12 +58,13 @@ Players have a disc image, not the extracted files we work from. Built in D4: `d
 | Godot engine + launcher | `dw_godot4.exe` | a full release only |
 | Our game code | `game.pck` next to the exe | updates (§6) |
 | The porter | `tools/dw_convert.exe` next to the exe | updates (§6) |
-| `dw1` pack (converted content) | `user://content/dw1/` (`%APPDATA%\Godot\app_userdata\<name>\` on Windows) | the porter only |
+| `dw1` pack (converted content) | `user://content/dw1/` (`%APPDATA%\dw_godot4\` on Windows, D6) | the porter only |
 | Settings (disc path, versions, options) | `user://settings.cfg` | the launcher |
 | Saves | `user://` (as today, `specs/save.md`) | the game |
 | Mods | `user://mods/` (`digimon-packs-decisions`) | the player |
 
 - `Content` and `GameData` already take their folder from a project setting or an environment variable (`dw/porter/output_dir`, `dw/data/output_dir`). In an exported game the default becomes `user://content/dw1/assets` and `.../data`. In the editor the defaults stay `res://asset_porter/output` and `res://data_porter/output`.
+- Built in D6: `Release` (`scripts/core/release.gd`) gives the defaults (`OS.has_feature("editor")` decides) and reads `res://version.json`; `project.godot` sets `config/use_custom_user_dir.template=true` with `custom_user_dir_name="dw_godot4"`, so an exported game's `user://` is `%APPDATA%\dw_godot4\` while the editor keeps its own folder (the developer's saves don't mix with a player build's). The export preset (`export_presets.cfg`, "Windows Desktop") writes `build/windows/dw_godot4.exe` + `dw_godot4.pck` (gitignored); it excludes `tests/`, `content/dw1/`, `addons/dw_tools/`, `issues/`; the porters and `dw_convert/` are `.gdignore`d. Until U2 the pack is `dw_godot4.pck`, the name Godot loads by itself, not `game.pck`.
 - The exported game loads the raw porter files at run time (glTF, PNG, JSON), the path `Content` already has when the editor mirror is missing. The mirror is an editor convenience only.
 
 ## 5. The launcher screen
@@ -77,7 +78,7 @@ Not a separate program: the exe's first scene. It decides, then hands over to th
 
 ## 6. Versions and updates
 
-Three version numbers, all written in a `version.json` built into `game.pck` and in the release:
+Three version numbers, all written in a `version.json` built into `game.pck` and in the release (`res://version.json`, read by `Release`; `tests/test_release.gd` checks its `content_format` against `dw_convert`'s `run.CONTENT_FORMAT`; `mod_api` is 0 until mods are released):
 
 | Version | Meaning | Bumped when |
 |---|---|---|
@@ -85,7 +86,7 @@ Three version numbers, all written in a `version.json` built into `game.pck` and
 | `content_format` | the shape of the porter's output | the porter output changes in a way old output can't be used |
 | `mod_api` | what mods can rely on (keys, table shapes, script commands) | a change could break an existing mod |
 
-- The porter writes `content_format` into the `dw1` pack's `pack.json`. The launcher compares it with its own and re-converts when they differ. Content is never downloaded.
+- The porter writes `content_format` into the `dw1` pack's `content.json` (D5). The launcher compares it with its own and re-converts when they differ. Content is never downloaded.
 - **Update check**: the GitHub Releases API (`/repos/<owner>/<repo>/releases/latest`), at launch, at most once a day, can be turned off in Settings.
 - **First version (U1)**: notify only. "Version X is out", the notes, and a button that opens the release page. The player unzips over the old folder (saves and content are in `user://`, so nothing is lost).
 - **Second version (U2)**: download. The release carries `game.pck`, `dw_convert.exe` and a `manifest.json` (file, size, SHA-256). The launcher downloads changed files to a temp folder, checks the hashes, swaps them in, and restarts. The exe itself only changes on a full release (engine upgrade): then U2 falls back to U1's "download the zip".
@@ -121,7 +122,7 @@ A one-time audit, then a rule kept from then on.
 | D3 | Data porter from the binary (§2.1): inventory and steps D3a-D3d in `data_porter/specs/from_disc.md` | Hard, several steps |
 | D4 (done 2026-11-09) | Disc image reader and version check (§3): `dw_convert/`, the files extracted for both porters | Medium |
 | D5 (done 2026-11-09) | `dw_convert`: one entry point, progress lines, a log file; PyInstaller build script; the release build skips the movies (Q2): `dw_convert/specs/convert.md` | Medium |
-| D6 | Export: Windows preset (excludes `content/dw1/*`, `asset_porter/`, `data_porter/`, `tests/`, `external-resources`), `user://` content defaults (§4), `version.json` | Medium |
+| D6 (done 2026-11-10) | Export: Windows preset (excludes `content/dw1/*`, `asset_porter/`, `data_porter/`, `tests/`, `external-resources`), `user://` content defaults (§4), `version.json` | Medium |
 | D7 | Launcher screen (§5) with update check U1 (§6) | Medium |
 | D8 | GitHub Action: on a version tag, build the export and `dw_convert.exe`, attach them to a release | Medium |
 | D9 | `docs/setup.md` for players, `docs/release.md` for us | Low |

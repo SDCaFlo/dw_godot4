@@ -15,3 +15,7 @@ __pycache__/
 # dw_convert build (PyInstaller environment, work files, the built exe)
 /dw_convert/.build/
 /dw_convert/dist/
+
+# Godot export (export_presets.cfg "Windows Desktop": the exe and its .pck)
+/build/*
+!/build/.gdignore

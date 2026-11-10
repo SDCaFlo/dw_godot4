@@ -22,7 +22,7 @@ Last updated: 2026-11-09
    - [x] Field scene previews in the editor (`@tool` field scripts; pick `start_map` / `start_spawn` / `time_of_day` in the Inspector).
    - [x] `Content` loader (`scripts/content/content.gd`, was `PorterAssets`, §6): Godot-imported copy under `res://content/dw1/` if present, else the raw file.
    - [x] `res://content/dw1/` mirror: Project > Tools > "DW: Mirror dw1 assets" (`addons/dw_tools`) copies models, map backgrounds / doors and cards, with import settings that keep the animations exact (§6). Gitignored.
-   - [ ] Export preset excluding `content/dw1/*` (now step D6 of "Distribution").
+   - [x] Export preset excluding `content/dw1/*` (done in step D6 of "Distribution").
    - [ ] Same preview pattern for the next scenes (battle, menus) as they are built.
    - [x] "DW Data" dock, read-only (`addons/dw_tools/data_dock.gd`, guide `docs/dw_data_dock.md`): Digimon / techniques / items / cards / maps / tournaments / tables, search, links, language, model / card / map previews, porter check status, asset check.
    - [ ] Dock later: text search across all strings, item icon / technique effect / map object previews.
@@ -169,7 +169,9 @@ Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exp
 - [x] **D4** Disc image reader (`.cue/.bin`, `.iso`) and the US version check (§3). Done 2026-11-09: `dw_convert/` (`python -m dwconvert identify | extract`, spec `dw_convert/specs/disc_image.md`); the US image's 818 files extract byte for byte equal to `game_dumped_files/`; `us_files.json` (hashes of the US disc's files) for the check.
 - [x] **D5** `dw_convert` entry point + PyInstaller build; movies skipped in releases for now (Q2), added later by an update that re-converts. Done 2026-11-09: `dw_convert run <image> <output>` (spec `dw_convert/specs/convert.md`): the US image converts with every check passing, output equal to the developer one; `python build_exe.py` -> `dist/dw_convert/` (22 MB).
   - [ ] Speed: a full run takes 12-25 minutes, mostly the music rendering (80-120 s a track in `asset_porter` `music`, already in a process pool); profile the synth before the first release. Also `music/index.json`'s `render_seconds` (wall clock) makes that file differ run to run.
-- [ ] **D6** Windows export preset (excludes `content/dw1/*`, porters, tests), `user://content/dw1` defaults, `version.json`.
+- [x] **D6** Windows export preset (excludes `content/dw1/*`, porters, tests), `user://content/dw1` defaults, `version.json`. Done 2026-11-10: `export_presets.cfg` "Windows Desktop" -> `build/windows/dw_godot4.exe` + `dw_godot4.pck` (1.6 MB, code only); `Release` (`scripts/core/release.gd`); exported, `user://` is `%APPDATA%\dw_godot4`, content from `user://content/dw1/{assets,data}`; test `tests/test_release.gd`.
+  - [ ] The window title and `config/name` are still "Digimon World GODOT" (D1 audit, §8 "Name and look").
+  - [ ] The `.pck` is `dw_godot4.pck` (Godot loads `<exe>.pck`); the `game.pck` split of §4 / §6 comes with U2 (D10).
 - [ ] **D7** Launcher screen with update check (notify only, U1).
 - [ ] **D8** GitHub Action building releases on a version tag.
 - [ ] **D9** `docs/setup.md` (players; the unsigned exe's SmartScreen warning) and `docs/release.md` (us).

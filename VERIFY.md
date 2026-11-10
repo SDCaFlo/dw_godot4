@@ -29,6 +29,7 @@ godot --headless --path . -s res://tests/test_game_state.gd
 godot --headless --path . -s res://tests/test_game_data.gd
 godot --headless --path . -s res://tests/test_content.gd
 godot --headless --path . -s res://tests/test_data_dock.gd
+godot --headless --path . -s res://tests/test_release.gd
 ```
 
 With the Steam build of Godot the executable is `godot.windows.opt.tools.64.exe` in the Steam library folder (`steamapps\common\Godot Engine\`); call it as `& "<path>" --headless --path . -s res://tests/test_game_state.gd` from PowerShell. Godot 4.7 prints a "GDScript backtrace" under each error or warning, including the tests' expected ones.
@@ -36,6 +37,13 @@ With the Steam build of Godot the executable is `godot.windows.opt.tools.64.exe`
 The tests prove the code does what the spec says. What they can't prove is that the spec matches the game. That is what the checks below are for: compare with what you know of the game.
 
 Sections are added as systems are ported (`PLANS.md`).
+
+## The exported game (`export_presets.cfg`, `scripts/core/release.gd`; `specs/distribution.md` §4)
+
+- Export: Project > Export > "Windows Desktop" > Export Project, or `godot --headless --path . --export-release "Windows Desktop" build/windows/dw_godot4.exe` (needs the 4.7 export templates). `build/windows/` gets `dw_godot4.exe` and `dw_godot4.pck` (about 2 MB: code and scenes only, no game content).
+- Run `dw_godot4.exe` with no content: it starts, and the errors name `%APPDATA%\dw_godot4\content\dw1\data\...` (where an exported game looks; the launcher of D7 will ask for the disc instead).
+- Give it content: `dw_convert run <image> "%APPDATA%\dw_godot4\content\dw1"` (D5), or for a quick test set `DW_PORTER_OUTPUT` / `DW_DATA_OUTPUT` to the porter outputs before starting it. A new game plays as in the editor (no movies from `dw_convert`).
+- Saves of the exported game go to `%APPDATA%\dw_godot4\saves`, not the editor's.
 
 ## Text and windows (`scripts/ui/`, `specs/text.md`, guide `docs/ui.md`)
 

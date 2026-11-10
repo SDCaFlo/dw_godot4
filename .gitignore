@@ -19,3 +19,6 @@ __pycache__/
 # Godot export (export_presets.cfg "Windows Desktop": the exe and its .pck)
 /build/*
 !/build/.gdignore
+
+# CI: Godot and its export template downloaded by .github/workflows/release.yml
+/.ci/

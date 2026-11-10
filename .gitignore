@@ -11,3 +11,7 @@ __pycache__/
 
 # Issue evidence: screenshots of the game (game art, never committed); see ISSUES.md
 /issues/evidence/
+
+# dw_convert build (PyInstaller environment, work files, the built exe)
+/dw_convert/.build/
+/dw_convert/dist/

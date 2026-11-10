@@ -175,7 +175,8 @@ Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exp
 - [x] **D7** Launcher screen with update check (notify only, U1). Done 2026-11-10: `specs/launcher.md`, `scripts/launcher/`, the exported game's main scene; converts with `tools/dw_convert/dw_convert.exe` into `user://content/dw1.new`, swaps it in, restarts; test `tests/test_launcher.gd` (a fake dw_convert).
   - [x] `version.json` `repo`: `SDCaFlo/dw_godot4` (while the repo is private the API answers 404 and the launcher just starts the game).
   - [ ] A "Converter settings" entry in the title menu (today: hold Shift at start, or `-- --launcher`).
-- [ ] **D8** GitHub Action building releases on a version tag.
+- [x] **D8** GitHub Action building releases on a version tag. Done 2026-11-10: `.github/workflows/release.yml` (tag `vX.Y.Z` -> draft release; Run workflow -> artifact), `release/package.py` (refuses game content), spec `specs/release_ci.md`.
+  - [ ] First run on GitHub (Actions > release > Run workflow), then tag `v0.1.0`.
 - [ ] **D9** `docs/setup.md` (players; the unsigned exe's SmartScreen warning) and `docs/release.md` (us).
 - [ ] **D10** Later: in-launcher downloads (U2), `mod_api` on the Mods screen, Mac / Linux.
 - [ ] **Later: JP and EU discs** (the user, 2026-11-09). A US disc gives only `en_us` text and font (`data_porter/specs/from_disc.md` §4). Accept a JP or EU disc image too (or as well as the US one), to extract its text and font for the `ja` / `en_eu` languages: one snapshot per release (addresses from the decomp's per-release data, `*_bss_<ver>.c`, `file_table_<ver>.c`; only US has symbol maps today, so the other releases' addresses must be found first), and the disc check (§3) learning their boot names and hashes. Game data (stats, rules) stays from the US disc.

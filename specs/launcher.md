@@ -33,4 +33,4 @@ Hold Shift while it starts, or pass `--launcher` after `--` on the command line,
 
 ## 5. Tests
 
-`tests/test_launcher.gd`: the decisions, progress lines, version compare, update timing, release JSON, image search, the swap; `ConverterProcess` on `tests/fixtures/fake_convert.py` (stdout and stderr, exit code); the scene with `live = false` (never leaves, no network): ready pack, the disc page, a whole conversion with the fake into a temp folder, the exit-2 "use it anyway" path. Needs `python` on PATH. The real exe and the update notice are checked by hand (`VERIFY.md` "The launcher").
+`tests/test_launcher.gd`: the decisions, progress lines, version compare, update timing, release JSON, image search, the swap; `ConverterProcess` on `tests/fixtures/fake_convert.py` (stdout and stderr, exit code); the scene with `live = false` (never leaves, no network): ready pack, the disc page, a whole conversion with the fake into a temp folder, the exit-2 "use it anyway" path. Needs `python` on PATH. The real exe and the update notice are checked by hand (`VERIFY.md` "The exported game").

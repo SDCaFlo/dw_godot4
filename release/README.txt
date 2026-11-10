@@ -15,6 +15,9 @@ US release (SLUS-01032), as a disc image: .cue + .bin (best), a single .bin, or 
 Updates: the launcher tells you when a new version is out. Unzip the new version
 over this folder; your saves and the converted content are kept.
 
+The full guide (controls, where files are, problems):
+https://github.com/SDCaFlo/dw_godot4/blob/main/docs/setup.md
+
 Movies are not converted yet. Do not share the converted content or disc images.
 
 Licence: MIT for the port's code (LICENSE); third-party notices in

@@ -162,7 +162,8 @@ Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exp
 - [x] **D2** Asset porter without the decomp at run time (2026-11-09): the only read was `scripts.py`'s "Grade A won" check, now the constant `scripts.WON_TOURNAMENT` checked by `asset_porter/tests/test_decomp_constants.py` (skipped without the decomp; also guards against new `external-resources` reads).
 - [ ] **D3** Data porter reading `SLUS_010.32` / `*_REL.BIN` instead of the decomp (§2.1); spec `data_porter/specs/from_disc.md`.
   - [x] Inventory (2026-11-09): every C table has a US symbol in initialized data (exceptions: `evolution/rules`, `systems/new_game` in code; `VS_DEMO_DIGIMON` without symbol); 724 strings read at their symbol match byte for byte, 317 sit inside tables, 60 short literals to locate once; a US disc gives `en_us` text and font only.
-  - [ ] D3a snapshot + `DiscIndex` for C tables (Hard) · D3b text (Medium) · D3c groups one by one (Medium each) · D3d `convert all --disc`, tests with the decomp hidden.
+  - [x] D3a (2026-11-09): `python -m dwdata snapshot` → `dwdata/snapshot/us.json`; `DiscIndex` reads the 448 C tables from the US binaries, equal to the decomp (`VS_DEMO_DIGIMON` is not on a US disc); `tests/test_disc.py`.
+  - [ ] D3b text (Medium) · D3c groups one by one (Medium each) · D3d `convert all --disc`, tests with the decomp hidden.
 - [ ] **D4** Disc image reader (`.cue/.bin`, `.iso`) and the US version check (§3).
 - [ ] **D5** `dw_convert` entry point + PyInstaller build; movies skipped in releases for now (Q2), added later by an update that re-converts.
 - [ ] **D6** Windows export preset (excludes `content/dw1/*`, porters, tests), `user://content/dw1` defaults, `version.json`.

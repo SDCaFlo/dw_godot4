@@ -19,6 +19,7 @@ Run from this folder:
 ```
 python -m dwdata list                    # data groups
 python -m dwdata convert all             # or some of: text font moves digimon items evolution systems
+python -m dwdata snapshot                # disc mode layouts (dwdata/snapshot/us.json) from the decomp, checked against --disc
 python -m unittest discover -s tests -t .   # real-data test skipped if the decomp is missing
 ```
 
@@ -38,6 +39,8 @@ Defaults: input `../../external-resources/dw_decomp/`, output `output/` (gitigno
 | `dwdata/cdata.py` | C data reader. `CIndex.table(c_file, name, hooks)` returns a table per release, laid out on its C type: structs / typedefs / enums / `#define`s of `include/dw/*.h` and the file, `#if VERSION_…` applied, brace elision, zero fill, width conversion, `sizeof` with PSX alignment, function-pointer tables (symbols without casts). `hooks` expand macros such as `DIGIMON_PARA_NAME(...)`. `CIndex.switch_cases(c_file, function, variable, release)` reads the cases of a `switch` as data (constant assignments + other statements as text), for effects written as code. Unsupported C raises `CError` |
 | `dwdata/tables.py` | Helpers for C-table groups: `load` (parse in every release + check), `size_check` (against `symbols.txt`), `diffs` (release differences), `used_by` (references with the fields read), `source`, `enum`, `text_ref`, `keys` / `name_base` (content keys) |
 | `dwdata/groups/` | One converter per group (`NAME`, `SOURCE_GLOB`, `SPEC`, `PURPOSE`, `convert()` with `out.check(...)` for every assumption), registered in `groups/__init__.py`. Existing: `text.py`, `font.py`, `moves.py`, `digimon.py`, `items.py`, `evolution.py`, `systems.py`. Groups take names from the text YAML directly (`text.load_file`), so they don't depend on run order |
+| `dwdata/disc.py` | Disc mode (`specs/from_disc.md`): the snapshot (where each C table the groups load lives in the US binaries, its C type layout, pointer targets, slot overrides; no values), `DiscIndex` (`CIndex.table()` for the US release, read from the player's `SLUS_010.32` / `*_REL.BIN`), the equivalence check against the decomp. `ABSENT`: decomp tables not on a US disc |
+| `dwdata/snapshot/us.json` | The committed snapshot, written by `python -m dwdata snapshot`; `tests/test_disc.py` fails when it is stale or holds anything but layouts, addresses, identifiers and hashes |
 | `specs/` | One spec per group (`text.md`, `font.md`, `moves.md`, `digimon.md`, `items.md`, `evolution.md`, `systems.md`) |
 | `tests/` | `unittest` tests; `test_cross_asset_porter.py` compares names, file names and sizes with `../asset_porter/dwporter/data`, and maps / toilets with the asset porter's reading of the US executable |
 

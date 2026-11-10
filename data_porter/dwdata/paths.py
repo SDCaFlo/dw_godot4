@@ -6,5 +6,7 @@ PORTER_ROOT = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = PORTER_ROOT.parent.parent
 
 DEFAULT_INPUT = PROJECT_ROOT / "external-resources" / "dw_decomp"
+# The developer's extracted US disc (disc mode, specs/from_disc.md); players pass --disc.
+DEFAULT_DISC = PROJECT_ROOT / "external-resources" / "game_dumped_files"
 DEFAULT_OUTPUT = PORTER_ROOT / "output"
 SPECS_DIR = PORTER_ROOT / "specs"

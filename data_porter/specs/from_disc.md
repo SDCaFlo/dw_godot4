@@ -126,6 +126,24 @@ The group converters (`dwdata/groups/*.py`) stay as they are: their checks, keys
 
 Where a group walks the decomp in its own way and a facade would be awkward, the group gets an explicit disc path, still checked by the equivalence test.
 
+### 3.1 The snapshot as built (D3a, 2026-11-09)
+
+`python -m dwdata snapshot [--disc <folder>] [--check]` runs every group in decomp mode with `CIndex.table` recorded (`disc.Recorder`), then writes `dwdata/snapshot/us.json`:
+
+| Key | Content |
+|---|---|
+| `binaries` | per binary: disc file, load address (from `config/us/<binary>.yaml`), sha1 of the US file: `DiscIndex` refuses another file |
+| `tables` | per `c_file:name`: binary, address, size, `located` (`symbol`, `search`: the decomp's bytes found once in the C file's binary, or `absent` with `why`), C type, declaration line, element lines, `slots` |
+| `structs` | struct layouts by name; same-named structs with another layout and anonymous structs get `#n` keys |
+| `pointers` | address → symbol name, read from the developer's binaries where the decomp writes a pointer (then cross-checked with the symbol maps), so strings without a symbol are named too |
+
+`slots` (path → override) cover two things the binary can't say alone: **merged strings** (the compiler stores identical literals once, so one address carries several of the decomp's names: `KAR_D_8005AF58` / `KAR_D_8005B318`'s lines, `{"pointer": [address, name]}`), and **string-id fields** (`ITEM_PARA.name`, `DIGIMON_DATA.name`: the decomp's macro hook writes the string id, the binary holds the text: `{"text_id": id}`; the text read there is kept in `DiscIndex.texts` for D3b).
+
+Findings:
+- 448 tables equal the decomp's US values exactly after reading; 1 is **absent**: `VS_DEMO_DIGIMON` (`vs_demo.c` is linked into no US binary; neither its list nor its file paths are on the disc). In disc mode `systems/versus.demo_digimon` has no source; the game doesn't use it.
+- `char` arrays are text, `uint8_t` / `int8_t` arrays are numbers (as the decomp gives them).
+- Checked with `--check` (committed snapshot = rebuilt) and `tests/test_disc.py`: the reader on synthetic bytes, the snapshot's strings (only identifiers, addresses, paths, hashes), every table read with the disc alone, a wrong file refused, and the equivalence with the decomp.
+
 ## 4. What a US disc can't give
 
 | Output | Decomp mode | Disc mode |
@@ -140,7 +158,7 @@ Where a group walks the decomp in its own way and a facade would be awkward, the
 
 | Step | What | Rating |
 |---|---|---|
-| D3a | Snapshot command and format; the disc source for C tables (`DiscIndex`: struct layouts, arrays, pointers, function-pointer names); an equivalence check comparing, table by table, the US values read from the binary with `CIndex`'s US values | Hard (Opus) |
+| D3a (done 2026-11-09) | Snapshot command and format; the disc source for C tables (`DiscIndex`: struct layouts, arrays, pointers, function-pointer names); an equivalence check comparing, table by table, the US values read from the binary with `CIndex`'s US values | Hard (Opus) |
 | D3b | Text from the disc: string addresses (symbols, embedded, the 60 located at snapshot time), the disc text source, en_us only; equivalence on every US string | Medium |
 | D3c | Groups to disc mode one at a time, each with its equivalence test: moves, items, digimon, evolution (+ `rules`), font (US), systems (+ `new_game`, `VS_DEMO_DIGIMON`) | Medium each |
 | D3d | `convert all --disc`; the whole output equal to decomp mode minus §4; the test suite run with the decomp hidden; `GameData` with en_us only | Medium |
@@ -148,5 +166,5 @@ Where a group walks the decomp in its own way and a facade would be awkward, the
 ## 6. Open questions
 
 - Q1: ~~The shop-text string whose symbol didn't match.~~ Resolved 2026-11-09: a counting slip in the check; every string read at its symbol matches.
-- Q2: `VS_DEMO_DIGIMON`'s address.
-- Q3: Whether the metadata (`used_by`, `source`) goes in the snapshot, or disc-mode output drops it and the editor dock reads it from a committed copy. Decide in D3a; the output's shape for the game (`records`, `schema`, `godot`) must not change.
+- Q2: ~~`VS_DEMO_DIGIMON`'s address.~~ Resolved 2026-11-09: not on a US disc (§3.1).
+- Q3: Whether the metadata (`used_by`, `source`) goes in the snapshot, or disc-mode output drops it and the editor dock reads it from a committed copy. The D3a snapshot holds only what `CIndex.table` gives; decide in D3c with the first group. The output's shape for the game (`records`, `schema`, `godot`) must not change.

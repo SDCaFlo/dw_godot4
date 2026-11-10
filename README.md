@@ -1,4 +1,6 @@
-# Digimon World GODOT
+# dw_godot4
+
+> **Unofficial, non-commercial fan project.** It contains no game content: to play it you need your own, legally obtained copy of *Digimon World* (PlayStation, US release SLUS-01032), from which the game content is converted on your computer. This repository does not link to, and its issues must not share, disc images or files from the game.
 
 A port of the original PlayStation game **Digimon World** to the [Godot](https://godotengine.org/) engine (4.7, Forward Plus renderer), aimed at making future development, modding and maintenance easier.
 
@@ -123,4 +125,8 @@ Detailed next steps and ideas: `PLANS.md`. How content is organised (the origina
 
 ## Legal
 
-This is a fan project and is not affiliated with or endorsed by Bandai or any rights holder. Digimon World and all related assets are the property of their respective owners. No copyrighted game assets, game data or original code are distributed with this repository: both porters generate their output locally from your own copy of the game and the decompilation, and that output is never committed.
+This is a fan project and is not affiliated with or endorsed by Bandai Namco or any rights holder. Digimon World and all related names and assets are the property of their respective owners. No copyrighted game assets, game data or original code are distributed with this repository or its releases: the porters generate their output locally from your own copy of the game, and that output is never committed. Short names and single values from the game appear in the code and docs where the port needs them (file names, a cited constant).
+
+## Licence and credits
+
+Our code is under the MIT licence (`LICENSE`); it does not cover the game's content. Third-party work we build on or bundle: `THIRD_PARTY_NOTICES.md` (the `dw_decomp` decompilation, DW1ModelConverter and PSXPrev as references; Godot, Python and PyInstaller in the release builds).

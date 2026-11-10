@@ -105,7 +105,16 @@ Updates and mods never touch each other's files (§4). What can break is the mea
 
 ## 8. Before the repo goes public
 
-A one-time audit, then a rule kept from then on.
+A one-time audit, then a rule kept from then on. Done 2026-11-10 (D1), results:
+
+- Every blob of every local branch: no images, audio, models or disc files except the Veemon `.glb` below; the only large files are the data porter snapshot (layouts, no values: `data_porter/specs/from_disc.md`) and `us_files.json` (hashes).
+- Game text: every en/ja string of the decomp's text tables (25+ / 8+ characters) and every dialogue piece of the converted scripts (25+ characters) searched in every blob: only single quoted lines in specs and tests (about 40 in all), none in bulk.
+- No secrets, no personal paths beyond the Steam Godot path and the developer's image folder name in a test default.
+- Commits rewritten to the GitHub noreply address before the first push. Only `main` is pushed; `spec/digimon_contract` stays local.
+- Committed tables `asset_porter/dwporter/data/*.py` kept: Digimon file names, names and string ids (180), technique names (about 120), skeleton tables; short identifiers and structure the asset porter needs to name and assemble files. Moving them to the disc read (like the data porter) is possible later.
+- Licence: MIT (`LICENSE`), notices in `THIRD_PARTY_NOTICES.md`; `config/name` and the README title are `dw_godot4`, the README states unofficial / own copy needed / no disc images.
+
+The rule from now on: never commit or attach game content (§1 "Never distributed"); a branch is pushed only after the same blob scan.
 
 - **History**: no game content in any commit of any branch that is pushed. Found 2026-11-09: branch `spec/digimon_contract` (commit `93f35f6`) has `content/mypack/models/veemon/veemon.glb`, a model ported from another Digimon game. Don't push that branch; keep it local or rewrite it without the model.
 - **Committed tables**: `asset_porter/dwporter/data/*.py` hold names and skeleton tables generated from the decomp. Decide per table: keep (short identifiers needed to name files), or move to generated output read from the disc.
@@ -117,7 +126,7 @@ A one-time audit, then a rule kept from then on.
 
 | Step | What | Rating |
 |---|---|---|
-| D1 | Audit (§8) and its fixes; choose our licence | Low, needs the user |
+| D1 (done 2026-11-10) | Audit (§8) and its fixes; choose our licence | Low, needs the user |
 | D2 | Asset porter: list and remove its run-time decomp reads (§2) | Low |
 | D3 | Data porter from the binary (§2.1): inventory and steps D3a-D3d in `data_porter/specs/from_disc.md` | Hard, several steps |
 | D4 (done 2026-11-09) | Disc image reader and version check (§3): `dw_convert/`, the files extracted for both porters | Medium |

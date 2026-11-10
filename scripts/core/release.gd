@@ -9,6 +9,10 @@ class_name Release
 const VERSION_FILE := "res://version.json"
 ## The dw1 pack in an exported game.
 const CONTENT_DIR := "user://content/dw1"
+## The launcher's settings (the disc image, the update check, the developer tools).
+const SETTINGS_FILE := "user://settings.cfg"
+## The command-line switch that turns the developer tools on in an exported game.
+const DEV_ARG := "--dev"
 
 
 ## True in an exported game (no editor in the binary).
@@ -41,6 +45,18 @@ static func content_format() -> int:
 ## `sub` is "assets" or "data", `dev_dir` the editor's folder.
 static func default_dir(sub: String, dev_dir: String, is_exported: bool = exported()) -> String:
 	return CONTENT_DIR.path_join(sub) if is_exported else dev_dir
+
+
+## The developer tools (the debugger window, the debug keys, the full help line; DebugHost): always
+## in the editor; in an exported game only with --dev on the command line or the launcher's
+## "Developer tools" setting ([dev] tools=true), so players don't get them (port-only).
+static func dev_tools(is_exported: bool = exported(), args: PackedStringArray = OS.get_cmdline_args() + OS.get_cmdline_user_args(),
+		settings_path: String = SETTINGS_FILE) -> bool:
+	if not is_exported or DEV_ARG in args:
+		return true
+	var cfg := ConfigFile.new()
+	cfg.load(settings_path)   # a missing file leaves it empty
+	return bool(cfg.get_value("dev", "tools", false))
 
 
 ## content.json of the converted pack ({} if not converted yet).

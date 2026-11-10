@@ -47,7 +47,8 @@ Sections are added as systems are ported (`PLANS.md`).
 - The launcher (`specs/launcher.md`): copy `dw_convert/dist/dw_convert/` (`python build_exe.py`) to `build/windows/tools/dw_convert/` and start `dw_godot4.exe`:
   - With no converted content it shows the disc page; Browse opens the Windows file picker; picking your `.cue` prints "Digimon World, US release (SLUS-01032): every file as expected" under the path (no console window should flash up).
   - Convert: the bar climbs with the step names and the log fills (about 25 minutes); Cancel stops it and keeps nothing. At the end "Ready" > Play restarts the game into the title screen.
-  - The next start goes straight to the title. Hold Shift while it starts: the settings page (Play, Convert again, update check on / off).
+  - The next start goes straight to the title. Hold Shift while it starts: the settings page (Play, Convert again, update check on / off, developer tools on / off).
+- Developer tools (`Release.dev_tools`): in the exported game, by default, no debugger window, no help line (map name, time, keys) and the debug keys (F1, `[` `]`, T, Z, C, D, L, H) do nothing; the stand-in messages (care, scripts, menus, battles; shown where the help line was) still appear for a few seconds. Turn "Developer tools" on in the Shift settings page (or start `dw_godot4.exe --dev`): the window, the help line and the keys are back. In the editor (F5) they are always on.
   - A picked file that isn't the US disc says so and converts nothing.
 - Saves of the exported game go to `%APPDATA%\dw_godot4\saves`, not the editor's.
 

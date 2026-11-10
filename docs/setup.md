@@ -48,6 +48,7 @@ Hold **Shift** while the game starts to open the launcher's settings:
 - **Play**.
 - **Convert again**, from the image shown (choose another one first if you want).
 - **Update check: on / off**.
+- **Developer tools: on / off**: the debugger window (F1), the debug keys and the help line, for testing. They can break your game (teleporting, skipping time): leave them off to play.
 - **Quit**.
 
 ## Updates

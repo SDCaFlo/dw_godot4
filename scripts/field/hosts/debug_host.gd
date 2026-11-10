@@ -136,7 +136,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			# % 24: advanceToTime starts a new day only for an earlier hour (specs/clock.md §2.4).
 			clock.advance_to_time((values["hour"] + 1) % 24, values["minute"])
 		KEY_L:
-			var languages := GameData.LANGUAGES
+			var languages := GameData.languages()
 			GameData.set_language(languages[(languages.find(GameData.language) + 1) % languages.size()])
 			update_label()
 		KEY_H:

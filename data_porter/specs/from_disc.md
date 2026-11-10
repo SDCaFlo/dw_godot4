@@ -182,7 +182,7 @@ Snapshot size: 1.9 MB (tables 0.2, strings 0.1, text skeleton 0.5, memo 0.4).
 | Fonts | `en_us`, `ja`, `en_eu` | `en_us` only |
 | `release_values`, `diffs` | other releases' values | absent |
 
-`GameData` must work with only `en_us` (the language setting and the debug `L` key offer only the languages present). Supporting a JP or EU disc later means one snapshot per release.
+`GameData` works with only `en_us` (D3d, 2026-11-09): `GameData.languages()` lists the languages whose font table the output has; `set_language` to a missing one keeps the current language (or falls back to en_us); the debug `L` key cycles `languages()`. `tests/test_game_data.gd` runs on either output, and the DW Data dock's language list is `languages()`. Every Godot test (`tests/test_*.gd`, 48) passes on both the decomp output and the disc output; `test_text.gd` and `test_data_dock.gd` run their JP / EU checks only when the output has those languages. Supporting a JP or EU disc later means one snapshot per release.
 
 ## 5. Steps
 
@@ -191,7 +191,7 @@ Snapshot size: 1.9 MB (tables 0.2, strings 0.1, text skeleton 0.5, memo 0.4).
 | D3a (done 2026-11-09) | Snapshot command and format; the disc source for C tables (`DiscIndex`: struct layouts, arrays, pointers, function-pointer names); an equivalence check comparing, table by table, the US values read from the binary with `CIndex`'s US values | Hard (Opus) |
 | D3b (done 2026-11-09) | Text from the disc: string addresses (symbols, embedded, the 60 located at snapshot time), the disc text source, en_us only; equivalence on every US string | Medium |
 | D3c (done 2026-11-09) | Groups to disc mode one at a time, each with its equivalence test: moves, items, digimon, evolution (+ `rules`), font (US), systems (+ `new_game`, `VS_DEMO_DIGIMON`) | Medium each |
-| D3d | `convert all --disc`; the whole output equal to decomp mode minus §4; the test suite run with the decomp hidden; `GameData` with en_us only | Medium |
+| D3d (done 2026-11-09) | `convert all --disc`; the whole output equal to decomp mode minus §4; the test suite run with the decomp hidden; `GameData` with en_us only | Medium |
 
 ## 6. Open questions
 

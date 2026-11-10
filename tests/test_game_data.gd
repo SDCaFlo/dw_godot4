@@ -1,6 +1,8 @@
 extends SceneTree
 ## GameData against the real data porter output (run python -m dwdata convert all first):
 ##   godot --headless --path . -s res://tests/test_game_data.gd
+## Also against the disc-mode output (python -m dwdata convert all --disc <folder>; DW_DATA_OUTPUT=<output>):
+## a US disc gives en_us only (data_porter/specs/from_disc.md §4), so the ja / en_eu checks become en_us-only ones.
 ## Exits 1 if a check fails.
 
 var _failed := 0
@@ -56,14 +58,23 @@ func _init() -> void:
 	_eq(data.record("digimon/digimon_data", 999), {}, "record out of range")
 
 	# Text by id, languages, and an id split over two blocks (each language defined once).
+	var all_languages: bool = data.languages() == PackedStringArray(["ja", "en_us", "en_eu"])
+	if not all_languages:
+		_eq(data.languages(), PackedStringArray(["en_us"]), "a US disc's output: en_us only")
 	_eq(data.text("STR_DIGIMON_NAME_AGUMON"), "Agumon", "text(id)")
-	_eq(data.text("STR_DIGIMON_NAME_AGUMON", "ja"), "アグモン", "text(id, ja)")
 	_eq(data.text("MAIN_D_8013143C", "en_us"), "Technique 1", "split id, en_us")
-	_eq(data.text("MAIN_D_8013143C", "ja"), "技１", "split id, ja")
 	_eq(data.text("NO_SUCH_STRING"), "", "missing id")
-	data.set_language("ja")
-	_eq(data.localize(data.digimon(3)["name"]), "アグモン", "localize after set_language")
-	data.set_language("en_us")
+	if all_languages:
+		_eq(data.text("STR_DIGIMON_NAME_AGUMON", "ja"), "アグモン", "text(id, ja)")
+		_eq(data.text("MAIN_D_8013143C", "ja"), "技１", "split id, ja")
+		data.set_language("ja")
+		_eq(data.localize(data.digimon(3)["name"]), "アグモン", "localize after set_language")
+		data.set_language("en_us")
+	else:
+		_eq(data.text("STR_DIGIMON_NAME_AGUMON", "ja"), "", "no ja text from a US disc")
+		data.set_language("ja")
+		_eq(data.language, "en_us", "set_language to a missing language keeps en_us")
+		_eq(data.localize(data.digimon(3)["name"]), "Agumon", "localize stays en_us")
 
 	# Keys next to the numeric ids (specs/content.md §2).
 	_eq(data.digimon("dw1:agumon"), data.digimon(3), "digimon by key = by id")
@@ -108,11 +119,14 @@ func _init() -> void:
 	_eq(data.system("psx_math")[0]["values"].size(), 130, "sine table")
 
 	# The game's font (data_porter/specs/font.md).
-	_eq([data.font("en_us").size(), data.font("ja").size(), data.font("en_eu").size()], [79, 992, 188], "glyph counts")
+	if all_languages:
+		_eq([data.font("en_us").size(), data.font("ja").size(), data.font("en_eu").size()], [79, 992, 188], "glyph counts")
+	else:
+		_eq(data.font("en_us").size(), 79, "US glyph count")
 	_eq([int(data.font()[0]["code"]), data.font()[0]["char"], int(data.font()[0]["width"])], [0x8260, "Ａ", 12], "US glyph 0")
 	_eq(data.font("en_us").back()["char"], "×", "US sentinel glyph")
 	_eq(int(data.font_clut()[1]["raw"]), 0x6B5A, "FONT_CLUT[1]")
-	_eq(data.text_colors().size(), 18, "TEXT_COLORS with the EU entry")
+	_eq(data.text_colors().size(), 18 if all_languages else 17, "TEXT_COLORS (the EU entry only with the EU release)")
 	_eq(int(data.font_ascii()[ord("'") - 0x20]["draw_string_code"]), 0x8175, "drawString's ' override")
 
 	data.free()

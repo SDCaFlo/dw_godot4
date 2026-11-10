@@ -114,6 +114,15 @@ JSON stays the master format; Godot resources (`.tres`) may be generated later f
 
 Game **logic** (evolution checks, battle maths, care timers) is not data: it is ported to GDScript when each system is built, each function commenting the C function it reproduces. The specs say where that logic lives and what data it reads.
 
+## Disc mode (players: no decomp)
+
+Players build this output from their own US disc: `python -m dwdata convert all --disc <folder with SLUS_010.32 and the *_REL.BIN>` (`specs/from_disc.md`). It needs only the disc and the committed snapshot `dwdata/snapshot/us.json`. Keeping it working:
+
+- **Rebuild the snapshot after any change to a group or to what it reads** (a new table, a new text, a new check): `python -m dwdata snapshot`. It also converts in both modes and compares the outputs; commit the new `us.json` with the change. `tests/test_disc.py` fails while it is stale.
+- **Read C source only through `discmode`**: `discmode.code(key, fn)` for a result computed from the code (a parsed table), `discmode.has(...)` / `discmode.Code(...)` for "is this code still there" checks. Never `(decomp.root / path).read_text()` directly: in disc mode the root doesn't exist and the conversion fails. A group that needs another decomp answer (a new kind of call) gets it recorded in `discmode.record` first.
+- **A table a US disc doesn't have** goes in `disc.ABSENT` (with the reason) and its output fields in `disc.ABSENT_FIELDS`; the group writes `null` there.
+- Output for the game must be the same in both modes (US only): `discmode.compare` is the judge.
+
 ## Workflow for a new table / group
 
 1. Find the symbol in the decomp (`src/**/*.c`, `include/dw/*.h`, `config/us/symbols.txt`) and every function that reads it (`grep`).
@@ -122,6 +131,7 @@ Game **logic** (evolution checks, battle maths, care timers) is not data: it is 
 4. Implement the converter (parse → validate → map → write JSON with the shape above), register it, add tests.
 5. Run it, review the output (and the human report), record findings in the spec.
 6. Update `PROGRESS.md`, `VERIFY.md` and `catalog.json`.
+7. Rebuild the disc mode snapshot (`python -m dwdata snapshot`, "Disc mode" above).
 
 ## Folder links
 

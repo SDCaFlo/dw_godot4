@@ -22,7 +22,7 @@ Last updated: 2026-11-09
    - [x] Field scene previews in the editor (`@tool` field scripts; pick `start_map` / `start_spawn` / `time_of_day` in the Inspector).
    - [x] `Content` loader (`scripts/content/content.gd`, was `PorterAssets`, §6): Godot-imported copy under `res://content/dw1/` if present, else the raw file.
    - [x] `res://content/dw1/` mirror: Project > Tools > "DW: Mirror dw1 assets" (`addons/dw_tools`) copies models, map backgrounds / doors and cards, with import settings that keep the animations exact (§6). Gitignored.
-   - [ ] Export preset excluding `content/dw1/*` (when the first export is made).
+   - [ ] Export preset excluding `content/dw1/*` (now step D6 of "Distribution").
    - [ ] Same preview pattern for the next scenes (battle, menus) as they are built.
    - [x] "DW Data" dock, read-only (`addons/dw_tools/data_dock.gd`, guide `docs/dw_data_dock.md`): Digimon / techniques / items / cards / maps / tournaments / tables, search, links, language, model / card / map previews, porter check status, asset check.
    - [ ] Dock later: text search across all strings, item icon / technique effect / map object previews.
@@ -155,12 +155,19 @@ Last updated: 2026-11-09
    - [ ] Mod loader UI: list packs, enable / disable, load order, conflicts.
    - [ ] Open questions: numeric ids for new content used by original scripts; a key lock file so `dw1` keys never change; conflicts between mods patching the same field.
 
-## Later: setting up the port on another machine (raised 2026-11-01, to check)
+## Distribution: players run the port on their own copy (`specs/distribution.md`, decided 2026-11-09)
 
-The goal (the user): on another machine, building the port should need only the user's own game files, not the decomp. To check:
-- [ ] **The asset porter's decomp reads.** `scripts.py` (4e-3 step 2) reads `dget.c` / `trigger.h` from `PROJECT_ROOT/external-resources/dw_decomp` for its "Grade A won" check; without the decomp that check fails and `convert scripts` exits non-zero. List every place the asset porter reads the decomp at run time (its `dwporter/data/*.py` tables are committed code, so they're fine), and make such checks skip cleanly when the decomp is missing, or move them to the data porter.
-- [ ] **The data porter itself** reads only the decomp (C tables, constants, `text/*.yaml`): today, another machine needs the decomp to build `data_porter/output/`. Options to weigh: read the same values from the game's executable and overlays (the asset porter already reads `SLUS_010.32` for maps / toilets, and `test_cross_asset_porter.py` shows the bytes agree), ship the converter's knowledge (offsets and layouts) as committed code that reads the user's own disc files, or keep the decomp as a documented requirement. Nothing decided.
-- [ ] A setup guide (`docs/setup.md`): what to dump, which porters to run, in what order, what each needs.
+Public GitHub repo; Windows first, Mac / Linux later; a release zip with the exported game and the porters as a bundled exe; a launcher screen that converts the player's disc image and checks for updates. Steps (spec §9):
+- [ ] **D1** Audit before going public (§8): don't push `spec/digimon_contract` (`93f35f6` holds a Veemon `.glb` from another game); review `asset_porter/dwporter/data/*.py`; choose our licence. Public name: `dw_godot4`.
+- [ ] **D2** Asset porter without the decomp at run time: `scripts.py` (4e-3 step 2) reads `dget.c` / `trigger.h` for its "Grade A won" check, and `convert scripts` fails without them. List every such read; make each a dev-only check that skips when the decomp is missing, or move it to the data porter's tests.
+- [ ] **D3** Data porter reading `SLUS_010.32` / `*_REL.BIN` instead of the decomp (§2.1): inventory first (address, size, layout, text encoding per table), then group by group, each matched exactly against today's decomp output.
+- [ ] **D4** Disc image reader (`.cue/.bin`, `.iso`) and the US version check (§3).
+- [ ] **D5** `dw_convert` entry point + PyInstaller build; movies skipped in releases for now (Q2), added later by an update that re-converts.
+- [ ] **D6** Windows export preset (excludes `content/dw1/*`, porters, tests), `user://content/dw1` defaults, `version.json`.
+- [ ] **D7** Launcher screen with update check (notify only, U1).
+- [ ] **D8** GitHub Action building releases on a version tag.
+- [ ] **D9** `docs/setup.md` (players; the unsigned exe's SmartScreen warning) and `docs/release.md` (us).
+- [ ] **D10** Later: in-launcher downloads (U2), `mod_api` on the Mods screen, Mac / Linux.
 
 ## Ideas (not planned yet)
 

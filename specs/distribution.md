@@ -120,7 +120,7 @@ A one-time audit, then a rule kept from then on.
 | D2 | Asset porter: list and remove its run-time decomp reads (§2) | Low |
 | D3 | Data porter from the binary (§2.1): inventory and steps D3a-D3d in `data_porter/specs/from_disc.md` | Hard, several steps |
 | D4 (done 2026-11-09) | Disc image reader and version check (§3): `dw_convert/`, the files extracted for both porters | Medium |
-| D5 | `dw_convert`: one entry point, progress lines, a log file; PyInstaller build script; the release build skips the movies (Q2) | Medium |
+| D5 (done 2026-11-09) | `dw_convert`: one entry point, progress lines, a log file; PyInstaller build script; the release build skips the movies (Q2): `dw_convert/specs/convert.md` | Medium |
 | D6 | Export: Windows preset (excludes `content/dw1/*`, `asset_porter/`, `data_porter/`, `tests/`, `external-resources`), `user://` content defaults (§4), `version.json` | Medium |
 | D7 | Launcher screen (§5) with update check U1 (§6) | Medium |
 | D8 | GitHub Action: on a version tag, build the export and `dw_convert.exe`, attach them to a release | Medium |
